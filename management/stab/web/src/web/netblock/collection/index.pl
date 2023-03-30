@@ -141,7 +141,8 @@ sub build_collection_row($$$$;$$) {
 
 	my $rmbox;
 	if ( !$rmheader ) {
-		$rmbox = ($rmid)
+		$rmbox =
+		  ($rmid)
 		  ? $cgi->checkbox(
 			{
 				-name  => $rmid,
@@ -174,22 +175,21 @@ sub build_netblock_collection_add_more($) {
 	my ($stab) = @_;
 	my $cgi = $stab->cgi || die "Could not create cgi";
 
-        my $strInsertNetblockButton = $cgi->button(
-                {
-                        -type => 'button',
-                        -class =>
-                          "",
-                        -id   => 'insert_NETBLOCK',
-                        -name => 'insert_NETBLOCK',
-                        -title => 'Add one more network',
-                        -state   => "Add Network",
-                        -label   => "Add Network",
-                        -onclick => "insert_netblock_input_row( this );",
-                },
-                'Add Network'
-        );
+	my $strInsertNetblockButton = $cgi->button(
+		{
+			-type    => 'button',
+			-class   => "",
+			-id      => 'insert_NETBLOCK',
+			-name    => 'insert_NETBLOCK',
+			-title   => 'Add one more network',
+			-state   => "Add Network",
+			-label   => "Add Network",
+			-onclick => "insert_netblock_input_row( this );",
+		},
+		'Add Network'
+	);
 
-	$cgi->div({},"-", $strInsertNetblockButton ),
+	$cgi->div( {}, "-", $strInsertNetblockButton ),;
 }
 
 sub build_collection_members($$) {
@@ -246,22 +246,21 @@ sub build_child_collection_add_more($) {
 	my ($stab) = @_;
 	my $cgi = $stab->cgi || die "Could not create cgi";
 
-        my $strInsertNetblockButton = $cgi->button(
-                {
-                        -type => 'button',
-                        -class =>
-                          "",
-                        -id   => 'insert_CHILD_COLLECTION',
-                        -name => 'insert_CHILD_COLLECTION',
-                        -title => 'Add one more child collection',
-                        -state   => "Add Child Collection",
-                        -label   => "Add Child Collection",
-                        -onclick => "insert_child_collection_input_row( this );",
-                },
-                'Add Network'
-        );
+	my $strInsertNetblockButton = $cgi->button(
+		{
+			-type    => 'button',
+			-class   => "",
+			-id      => 'insert_CHILD_COLLECTION',
+			-name    => 'insert_CHILD_COLLECTION',
+			-title   => 'Add one more child collection',
+			-state   => "Add Child Collection",
+			-label   => "Add Child Collection",
+			-onclick => "insert_child_collection_input_row( this );",
+		},
+		'Add Network'
+	);
 
-	$cgi->div({},"-", $strInsertNetblockButton ),
+	$cgi->div( {}, "-", $strInsertNetblockButton ),;
 }
 
 sub build_collection_children {
@@ -390,7 +389,8 @@ sub process_netblock_collection {
 
 	print $cgi->ul(
 		{ -class => 'collection' },
-		'<br/><br/><h2>Parent Collection(s) of '.join( ":",
+		'<br/><br/><h2>Parent Collection(s) of '
+		  . join( ":",
 			$nc->{ _dbx('NETBLOCK_COLLECTION_TYPE') },
 			$nc->{ _dbx('NETBLOCK_COLLECTION_NAME') },
 			'</h2>' ),

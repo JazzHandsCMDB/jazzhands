@@ -1,25 +1,19 @@
 #!/usr/bin/env perl
-# Copyright (c) 2005-2010, Vonage Holdings Corp.
+# Copyright (c) 2023 Todd M. Kover
+
 # All rights reserved.
 #
-# Redistribution and use in source and binary forms, with or without
-# modification, are permitted provided that the following conditions are met:
-#     * Redistributions of source code must retain the above copyright
-#       notice, this list of conditions and the following disclaimer.
-#     * Redistributions in binary form must reproduce the above copyright
-#       notice, this list of conditions and the following disclaimer in the
-#       documentation and/or other materials provided with the distribution.
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
 #
-# THIS SOFTWARE IS PROVIDED BY VONAGE HOLDINGS CORP. ''AS IS'' AND ANY
-# EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE IMPLIED
-# WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE
-# DISCLAIMED. IN NO EVENT SHALL VONAGE HOLDINGS CORP. BE LIABLE FOR ANY
-# DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES
-# (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES;
-# LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND
-# ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT
-# (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS
-# SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
+#       http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
 
 #
 # $Id$
@@ -55,24 +49,31 @@ sub process_network_ranges {
 
 	# Get items to delete
 	my @todelete;
-	foreach my $id ( $stab->cgi_get_ids('NETWORK_RANGE_DELETE' ) ) {
-		my $bDelete = $stab->cgi_parse_param( 'NETWORK_RANGE_DELETE_'.$id );
-		if ( !defined( $bDelete ) || $bDelete ne 'delete' ) { next; }
-		push( @todelete, $id);
+	foreach my $id ( $stab->cgi_get_ids('NETWORK_RANGE_DELETE') ) {
+		my $bDelete = $stab->cgi_parse_param( 'NETWORK_RANGE_DELETE_' . $id );
+		if ( !defined($bDelete) || $bDelete ne 'delete' ) { next; }
+		push( @todelete, $id );
 	}
 
 	# Get ids of changed items, both updated and new
-	my @ids = split( ',', $cgi->param( 'CHANGED_ELEMENTS_IDS' ) );
+	my @ids = split( ',', $cgi->param('CHANGED_ELEMENTS_IDS') );
 	my %changed;
-	foreach my $id ( @ids ) {
+	foreach my $id (@ids) {
 		$changed{$id} = {
-			'NETWORKRANGE_START_IP'    => $stab->cgi_parse_param("NETWORKRANGE_START_IP_$id"),
-			'NETWORKRANGE_STOP_IP'     => $stab->cgi_parse_param("NETWORKRANGE_STOP_IP_$id"),
-			'NETWORKRANGE_LEASE_TIME'  => $stab->cgi_parse_param("NETWORKRANGE_LEASE_TIME_$id"),
-			'NETWORKRANGE_DNS_PREFIX'  => $stab->cgi_parse_param("NETWORKRANGE_DNS_PREFIX_$id"),
-			'NETWORKRANGE_DNS_DOMAIN'  => $stab->cgi_parse_param("NETWORKRANGE_DNS_DOMAIN_$id"),
-			'NETWORKRANGE_TYPE'        => $stab->cgi_parse_param("NETWORKRANGE_TYPE_$id"),
-			'NETWORKRANGE_DESCRIPTION' => $stab->cgi_parse_param("NETWORKRANGE_DESCRIPTION_$id")
+			'NETWORKRANGE_START_IP' =>
+			  $stab->cgi_parse_param("NETWORKRANGE_START_IP_$id"),
+			'NETWORKRANGE_STOP_IP' =>
+			  $stab->cgi_parse_param("NETWORKRANGE_STOP_IP_$id"),
+			'NETWORKRANGE_LEASE_TIME' =>
+			  $stab->cgi_parse_param("NETWORKRANGE_LEASE_TIME_$id"),
+			'NETWORKRANGE_DNS_PREFIX' =>
+			  $stab->cgi_parse_param("NETWORKRANGE_DNS_PREFIX_$id"),
+			'NETWORKRANGE_DNS_DOMAIN' =>
+			  $stab->cgi_parse_param("NETWORKRANGE_DNS_DOMAIN_$id"),
+			'NETWORKRANGE_TYPE' =>
+			  $stab->cgi_parse_param("NETWORKRANGE_TYPE_$id"),
+			'NETWORKRANGE_DESCRIPTION' =>
+			  $stab->cgi_parse_param("NETWORKRANGE_DESCRIPTION_$id")
 		};
 	}
 
@@ -81,12 +82,12 @@ sub process_network_ranges {
 	$cgi->delete_all;
 
 	# Process deletion requests
-	foreach my $id ( @todelete ) {
+	foreach my $id (@todelete) {
 		$numchanges += delete_network_range( $stab, $id );
 	}
 
 	# Process update and creation requests, starting with updates
-	foreach my $id ( sort( keys ( %changed ) ) ) {
+	foreach my $id ( sort( keys(%changed) ) ) {
 
 		my $nr_start_ip      = $changed{$id}{'NETWORKRANGE_START_IP'};
 		my $nr_stop_ip       = $changed{$id}{'NETWORKRANGE_STOP_IP'};
@@ -98,50 +99,41 @@ sub process_network_ranges {
 
 		# We want to keep those changed parameters in case of db failure
 		# They will be added to the stab url in that case
-		$cgi->param( "NETWORKRANGE_START_IP_$id", $nr_start_ip );
-		$cgi->param( "NETWORKRANGE_STOP_IP_$id", $nr_stop_ip );
-		$cgi->param( "NETWORKRANGE_LEASE_TIME_$id", $nr_lease_time );
-		$cgi->param( "NETWORKRANGE_DNS_PREFIX_$id", $nr_dns_prefix );
-		$cgi->param( "NETWORKRANGE_DNS_DOMAIN_$id", $nr_dns_domain_id );
-		$cgi->param( "NETWORKRANGE_TYPE_$id", $nr_type );
+		$cgi->param( "NETWORKRANGE_START_IP_$id",    $nr_start_ip );
+		$cgi->param( "NETWORKRANGE_STOP_IP_$id",     $nr_stop_ip );
+		$cgi->param( "NETWORKRANGE_LEASE_TIME_$id",  $nr_lease_time );
+		$cgi->param( "NETWORKRANGE_DNS_PREFIX_$id",  $nr_dns_prefix );
+		$cgi->param( "NETWORKRANGE_DNS_DOMAIN_$id",  $nr_dns_domain_id );
+		$cgi->param( "NETWORKRANGE_TYPE_$id",        $nr_type );
 		$cgi->param( "NETWORKRANGE_DESCRIPTION_$id", $nr_desc );
 
-		if( $id !~ /^NEW/ ) {
+		if ( $id !~ /^NEW/ ) {
 			$numchanges += update_network_range(
-				$stab,
-				$id,
-				$nr_start_ip,
-				$nr_stop_ip,
-				$nr_lease_time,
-				$nr_dns_prefix,
-				$nr_dns_domain_id,
-				$nr_type,
-				$nr_desc
+				$stab,             $id,            $nr_start_ip,
+				$nr_stop_ip,       $nr_lease_time, $nr_dns_prefix,
+				$nr_dns_domain_id, $nr_type,       $nr_desc
 			);
 		} else {
+
 			# Make sure we have a network range type
-			if( ! defined( $nr_type ) || $nr_type eq '' ) {
-				$stab->error_return( 'ERROR: a network range type must be selected ' );
+			if ( !defined($nr_type) || $nr_type eq '' ) {
+				$stab->error_return(
+					'ERROR: a network range type must be selected ');
 			}
-			$numchanges += create_network_range(
-				$stab,
-				$nr_start_ip,
-				$nr_stop_ip,
-				$nr_lease_time,
-				$nr_dns_prefix,
-				$nr_dns_domain_id,
-				$nr_type,
-				$nr_desc
-			);
+			$numchanges +=
+			  create_network_range( $stab, $nr_start_ip, $nr_stop_ip,
+				$nr_lease_time, $nr_dns_prefix, $nr_dns_domain_id, $nr_type,
+				$nr_desc );
 		}
 	}
 
 	#print $cgi->end_html;
 
 	# TODO - Remove temporary rollback
-	#$stab->rollback; undef $stab; exit; 
+	#$stab->rollback; undef $stab; exit;
 
 	if ( $numchanges > 0 ) {
+
 		# We don't need to remember any cgi parameter since the updates are all successful
 		$cgi->delete_all;
 		$stab->commit || die $stab->return_db_err;
@@ -163,14 +155,18 @@ sub delete_network_range {
 		))
 	};
 	my $sth = $stab->prepare($q) || $stab->return_db_err($stab);
-		$sth->execute( $nr_id )
-		|| $stab->return_db_err($sth);
+	$sth->execute($nr_id)
+	  || $stab->return_db_err($sth);
 
 	1;
 }
 
 sub update_network_range {
-	my ( $stab, $nr_id, $nr_start_ip, $nr_stop_ip, $nr_lease_time, $nr_dns_prefix, $nr_dns_domain_id, $nr_type, $nr_desc ) = @_;
+	my (
+		$stab,             $nr_id,         $nr_start_ip,
+		$nr_stop_ip,       $nr_lease_time, $nr_dns_prefix,
+		$nr_dns_domain_id, $nr_type,       $nr_desc
+	) = @_;
 
 	#my $orig = $stab->get_network_range_from_id( $nr_id );
 
@@ -198,15 +194,19 @@ sub update_network_range {
 		)
 	};
 	my $sth = $stab->prepare($q) || $stab->return_db_err($stab);
-		#$sth->execute( $nr_id, $nr_start_ip, $nr_stop_ip, $nr_lease_time, $nr_dns_prefix, $nr_dns_domain_id, $nr_type, $nr_desc, $nr_start_ip )
-		$sth->execute( $nr_id, $nr_start_ip, $nr_stop_ip, $nr_lease_time, $nr_dns_prefix, $nr_dns_domain_id, $nr_desc )
-		|| $stab->return_db_err($sth);
+
+	#$sth->execute( $nr_id, $nr_start_ip, $nr_stop_ip, $nr_lease_time, $nr_dns_prefix, $nr_dns_domain_id, $nr_type, $nr_desc, $nr_start_ip )
+	$sth->execute( $nr_id, $nr_start_ip, $nr_stop_ip, $nr_lease_time,
+		$nr_dns_prefix, $nr_dns_domain_id, $nr_desc )
+	  || $stab->return_db_err($sth);
 
 	1;
 }
 
 sub create_network_range {
-	my ( $stab, $nr_start_ip, $nr_stop_ip, $nr_lease_time, $nr_dns_prefix, $nr_dns_domain_id, $nr_type, $nr_desc ) = @_;
+	my ( $stab, $nr_start_ip, $nr_stop_ip, $nr_lease_time, $nr_dns_prefix,
+		$nr_dns_domain_id, $nr_type, $nr_desc )
+	  = @_;
 
 	#print $nr_start_ip, $nr_stop_ip, $nr_lease_time, $nr_dns_prefix, $nr_dns_domain_id, $nr_type, $nr_desc,"<br/>\n";
 
@@ -224,8 +224,9 @@ sub create_network_range {
 		)
 	};
 	my $sth = $stab->prepare($q) || $stab->return_db_err($stab);
-		$sth->execute( $nr_start_ip, $nr_stop_ip, $nr_lease_time, $nr_dns_prefix, $nr_dns_domain_id, $nr_type, $nr_desc )
-		|| $stab->return_db_err($sth);
+	$sth->execute( $nr_start_ip, $nr_stop_ip, $nr_lease_time, $nr_dns_prefix,
+		$nr_dns_domain_id, $nr_type, $nr_desc )
+	  || $stab->return_db_err($sth);
 	1;
 }
 

@@ -553,7 +553,9 @@ sub start_html {
 				}
 			);
 		}
-		if ( $opts->{javascript} eq 'network_range' || $opts->{javascript} eq 'site_netblock' ) {
+		if (   $opts->{javascript} eq 'network_range'
+			|| $opts->{javascript} eq 'site_netblock' )
+		{
 			push(
 				@{ $args{-script} },
 				{
@@ -909,27 +911,31 @@ sub build_passback_url {
 		$refurl = $self->guess_stab_root;
 	}
 
-	my $uri = new URI($refurl);
-	my $theq = $uri->query    || "";
+	my $uri  = new URI($refurl);
+	my $theq = $uri->query || "";
 
 	# Loop on parameters that are in the reference url
 	# and eliminate those missing from the $cgi-param array
 	# because those are unchecked checkboxes
 	foreach my $keypair ( split( ';', $theq ) ) {
-		my $key = (split( '=', $keypair ))[0];
+		my $key = ( split( '=', $keypair ) )[0];
+
 		# If the parameter doesn't start with 'chk_', it's not a checkbox, skip it
 		if ( $key !~ /^chk/ ) { next; }
+
 		# Does the checkbox parameter exist in the cgi parameters?
 		if ( !defined( $cgi->param($key) ) ) {
+
 			# No, let's remove it from the referer url
 			$theq =~ s/(^|;)$key=[^;]*(;|$)/;/;
+
 			# Just make sure we didn't add an extra semicolon
 			$theq =~ s/^;//;
 			$theq =~ s/;$//;
 		}
 	}
 
-	my $ref  = new CGI($theq) || "";
+	my $ref = new CGI($theq) || "";
 
 	if ( !defined($nopreserveargs) ) {
 		foreach my $p ( $cgi->param ) {
@@ -1435,8 +1441,9 @@ sub b_nondbdropdown {
 		}
 	} elsif ( !defined($default) ) {
 		$default = "__unknown__";
+
 		# Don't add duplicated options
-		if( !exists( $list{$default} ) ) {
+		if ( !exists( $list{$default} ) ) {
 			unshift( @list, $default );
 			$list{$default} = "--Unset--";
 		}
@@ -2328,9 +2335,9 @@ sub b_textfield {
 			my $buttonid = "editbut_$id";
 			$button = $cgi->a(
 				{
-					-id    => $buttonid,
-					-class => 'stabeditbutton',
-					-href  => '#',
+					-id      => $buttonid,
+					-class   => 'stabeditbutton',
+					-href    => '#',
 					-onclick => 'event.preventDefault();',
 				},
 				$cgi->img(
@@ -3296,7 +3303,7 @@ sub process_and_update_dns_record {
 	}
 
 	# Wildcard dns records must not have the PTR set
-	if( $opts->{dns_name} =~ /\*/ ) {
+	if ( $opts->{dns_name} =~ /\*/ ) {
 		$newrecord->{'should_generate_ptr'} = 'N';
 	}
 

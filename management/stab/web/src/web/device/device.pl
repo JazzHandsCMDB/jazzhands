@@ -235,7 +235,7 @@ sub build_device_box {
 	#	"Asset #", "ASSET_TAG", 'DEVICE_ID');
 	$top_table = $cgi->table($top_table);
 
-	my $osargs       = {};
+	my $osargs = {};
 
 	my ( $left_table, $right_table ) = ( "", "" );
 
@@ -266,28 +266,20 @@ sub build_device_box {
 				)
 			);
 			$left_table .= $cgi->Tr(
-				$cgi->td(
-					{ -align => 'right' },
-					$cgi->b("Managed By")
-				),
+				$cgi->td( { -align => 'right' }, $cgi->b("Managed By") ),
 				$cgi->td(
 					build_managed_by_device_list(
-						$stab,
-						$values->{ _dbx('DEVICE_ID') },
+						$stab, $values->{ _dbx('DEVICE_ID') },
 					)
 				)
 			);
 
 			$left_table .= $cgi->Tr(
-				$cgi->td(
-					{ -align => 'right' },
-					$cgi->b("Manages")
-				),
+				$cgi->td( { -align => 'right' }, $cgi->b("Manages") ),
 				$cgi->td(
 					build_manages_device_list(
-						$stab,
-						$values->{ _dbx('DEVICE_ID') },
-					       $stab, $values->{ _dbx('DEVICE_ID') },
+						$stab, $values->{ _dbx('DEVICE_ID') },
+						$stab, $values->{ _dbx('DEVICE_ID') },
 					)
 				)
 			);
@@ -405,10 +397,10 @@ sub build_page {
 			"Location" => "Location",
 
 			#"Licenses"     => "Licenses",
-			"Advanced" => "Advanced",
-			"Notes"    => "Notes$numnotes",
+			"Advanced"   => "Advanced",
+			"Notes"      => "Notes$numnotes",
 			"Components" => "Components",
-			"Functions" => "Functions",
+			"Functions"  => "Functions",
 		};
 
 		if ( !$stab->get_power_port_count($devid) ) {
@@ -425,7 +417,7 @@ sub build_page {
 		if ( !$stab->get_physical_port_count( $devid, 'patchpanel' ) ) {
 			delete( $tablist->{PatchPanel} );
 		}
-		if ( ! $device->{ _dbx('COMPONENT_ID') } ) {
+		if ( !$device->{ _dbx('COMPONENT_ID') } ) {
 			delete( $tablist->{Components} );
 		}
 
@@ -453,11 +445,11 @@ sub build_page {
 				my $tabp = $tablist->{$tab};
 				$intertab .= $cgi->a(
 					{
-						-class   => 'tabgrouptab',
-						-id      => $tab,
-						-title   => 'A double click triggers a reload of the tab',
-						-href    => 'javascript:void(null);',
-						-onClick => "ShowDevTab('$tab', $devid, false );",
+						-class => 'tabgrouptab',
+						-id    => $tab,
+						-title => 'A double click triggers a reload of the tab',
+						-href  => 'javascript:void(null);',
+						-onClick    => "ShowDevTab('$tab', $devid, false );",
 						-onDblclick => "ShowDevTab('$tab', $devid, true );"
 					},
 					$tabp
@@ -467,10 +459,12 @@ sub build_page {
 
 		$maindiv .= "\n\n"
 		  . $cgi->div(
-			$cgi->div( {
-				-id    => 'tabgroup',
-				-class => 'tabgroup'
-			} ),
+			$cgi->div(
+				{
+					-id    => 'tabgroup',
+					-class => 'tabgroup'
+				}
+			),
 			$cgi->hidden(
 				-name    => $opentabid,
 				-id      => $opentabid,
@@ -480,8 +474,7 @@ sub build_page {
 			$cgi->div(
 				{ -class => 'tabcontent active' },
 				$cgi->div(
-					{ -align => 'center' },
-					$cgi->em("Please select a tab."),
+					{ -align => 'center' }, $cgi->em("Please select a tab."),
 					'<br><br>'
 				)
 			)
@@ -550,6 +543,7 @@ sub build_children_device_list {
 		"none";
 	}
 }
+
 sub build_manages_device_list {
 	my ( $stab, $devid ) = @_;
 	my $cgi = $stab->cgi || die "Could not create cgi";

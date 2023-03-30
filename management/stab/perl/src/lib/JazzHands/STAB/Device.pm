@@ -292,6 +292,7 @@ sub device_switch_port {
 	     -- order by NETWORK_STRINGS.NUMERIC_INTERFACE(port_name)
 		}
 		);
+
 		# TODO - Stab is not allowed to access NETWORK_STRINGS.NUMERIC_INTERFACE
 		$sth->execute( $devid, 'network' )
 		  || $self->return_db_err($sth);
@@ -339,10 +340,13 @@ sub device_switch_port {
 					-border => 0,
 					-style  => 'border: 1px solid;'
 				},
-				$cgi->h3( { -style => 'text-align: center' }, 'Switchport Connections' ),
+				$cgi->h3(
+					{ -style => 'text-align: center' },
+					'Switchport Connections'
+				),
 				$cgi->th( [ 'Port/Label', 'Other End', 'Port' ] ),
 				$x
-			).'<br/>';
+			) . '<br/>';
 		} else {
 			"";
 		}
@@ -419,8 +423,10 @@ sub build_switch_drop_tr {
 		$cgi->td(
 			$self->b_dropdown(
 				{
-					-class => 'tracked',
-					-original => defined( $hr->{ 'p2_physical_port_id' } ) ? $hr->{ _dbx('p2_physical_port_id') } : '__unknown__',
+					-class    => 'tracked',
+					-original => defined( $hr->{'p2_physical_port_id'} )
+					? $hr->{ _dbx('p2_physical_port_id') }
+					: '__unknown__',
 					-portLimit => 'network',
 					-divWrap   => $divwrapid,
 					-deviceid  => $hr->{ _dbx('P2_DEVICE_ID') }
@@ -1194,6 +1200,7 @@ sub build_physical_port_query {
 			$parentq
 	     order by s.component_id, s.slot_index
 	};
+
 	# order by NETWORK_STRINGS.NUMERIC_INTERFACE(l1.port_name),s.component_id, s.slot_index;
 	# TODO - allow stab to use that function?
 
@@ -1306,20 +1313,23 @@ sub physicalport_otherend_device_magic {
 	);
 	$rv .= $cgi->textfield(
 		{
-			-name => $pdnam,
-			-id   => $pdnam,
-			-size => 40,
-			-class => 'tracked',
+			-name     => $pdnam,
+			-id       => $pdnam,
+			-size     => 40,
+			-class    => 'tracked',
 			-original => $pname,
+
 			#-readonly => 1,
 			-title => 'Click to select another device',
 			-onClick =>
 			  "showOtherEndDeviceSearchPopup( this, \"$pdid\", \"$pportid\", \"$divwrapid\", \"$what\"$sidestuff );",
+
 			# Show the popup if a key is pressed, except Tab
 			-onKeyDown =>
 			  "if( event.keyCode !== 9 ) { showOtherEndDeviceSearchPopup( this, \"$pdid\", \"$pportid\", \"$divwrapid\", \"$what\"$sidestuff ); }",
 			-onInput =>
 			  "showOtherEndDeviceSearchPopup( this, \"$pdid\", \"$pportid\", \"$divwrapid\", \"$what\"$sidestuff ); delayedGetMatchingDevices( this );",
+
 			#-onContextMenu => "if( this.value === '' ) { return( true ); }; event.preventDefault(); navigator.clipboard.writeText( this.value ); blink_message( 'Value copied!', event.pageX, event.pageY, 500 ); ",
 			-default => $pname,
 		}
@@ -1506,7 +1516,8 @@ sub dump_components_tab {
 	my $rows;
 	my $opts = { -class => 'components' };
 	while ( my $hr = $sth->fetchrow_hashref ) {
-		$rows .= $cgi->Tr( $opts,
+		$rows .= $cgi->Tr(
+			$opts,
 			$cgi->td( $opts, $hr->{ _dbx('component') } ),
 			$cgi->td( $opts, $hr->{ _dbx('vendor') } ),
 			$cgi->td( $opts, $hr->{ _dbx('model') } ),
@@ -1516,15 +1527,25 @@ sub dump_components_tab {
 		);
 	}
 
-	$tab .= $cgi->table({ -style => 'border 1px solid', align => 'center', -class => 'networkrange' },
-		$cgi->Tr( $opts,
-			$cgi->th( $opts, [
-				'Component',  'Vendor', "Model", "Serial",
-				'Slot', 'Specifications',
-			] )
+	$tab .= $cgi->table(
+		{
+			-style => 'border 1px solid',
+			align  => 'center',
+			-class => 'networkrange'
+		},
+		$cgi->Tr(
+			$opts,
+			$cgi->th(
+				$opts,
+				[
+					'Component', 'Vendor',
+					"Model",     "Serial",
+					'Slot',      'Specifications',
+				]
+			)
 		),
 		$rows
-	).'<br/>';
+	) . '<br/>';
 
 	$tab;
 }
@@ -1541,15 +1562,18 @@ sub dump_functions_tab {
 
 	# Get functions from the database, along with an extra column with
 	# 0 or 1, with 1 when function is assigned to the device
-	my %functions = %{$self->get_device_functions( $devid )};
+	my %functions = %{ $self->get_device_functions($devid) };
 
 	# Build options for multi select box
 	my ( @options, @set, %labels );
 	foreach my $function_id ( sort keys %functions ) {
-		my %function = %{$functions{$function_id}};
+		my %function = %{ $functions{$function_id} };
 		push( @options, $function{'device_collection_id'} );
-		push( @set,     $function{'device_collection_id'} ) if ($function{'selected'});
-		$labels{$function{'device_collection_id'}} = $function{'device_collection_name'} || $function{'device_collection_id'};
+		push( @set,     $function{'device_collection_id'} )
+		  if ( $function{'selected'} );
+		$labels{ $function{'device_collection_id'} } =
+			 $function{'device_collection_name'}
+		  || $function{'device_collection_id'};
 	}
 
 	# Build multi select box
@@ -1558,8 +1582,9 @@ sub dump_functions_tab {
 		-values  => \@options,
 		-default => \@set,
 		-labels  => \%labels,
+
 		#-size => scalar keys %labels,
-		-size => 10,
+		-size     => 10,
 		-multiple => 'true',
 		-class    => 'tracked',
 		-original => join( ',', @set ),
@@ -1567,13 +1592,10 @@ sub dump_functions_tab {
 
 	# Display the tab content
 	my $tab = $cgi->h3( { -style => 'text-align: center' }, "Functions" );
-	$tab .= $cgi->table({ -align => 'center' },
-		$cgi->Tr( {},
-			$cgi->td( {},
-				$multi_select
-			)
-		),
-	).'<br/>';
+	$tab .= $cgi->table(
+		{ -align => 'center' },
+		$cgi->Tr( {}, $cgi->td( {}, $multi_select ) ),
+	) . '<br/>';
 
 	$tab;
 }

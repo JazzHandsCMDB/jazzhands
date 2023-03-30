@@ -50,7 +50,8 @@ use Net::IP;
 do_device_search();
 
 sub find_devices {
-	my ( $stab, $site, $id, $name, $ipblock, $type, $os, $mac, $serial, $dormd ) = @_;
+	my ( $stab, $site, $id, $name, $ipblock, $type, $os, $mac, $serial, $dormd )
+	  = @_;
 
 	my $cgi = $stab->cgi || die "Could not create cgi";
 	my $dbh = $stab->dbh || die "Could not create dbh";
@@ -70,12 +71,12 @@ sub find_devices {
 
 	if ( defined($site) ) {
 		$criteria .= " and " if ( length($criteria) );
-		$criteria .=
-		  " d.site_code = :site::text";
+		$criteria .= " d.site_code = :site::text";
 
 	}
 
 	if ( defined($id) ) {
+
 		# Get the numerical device id if it's a Maestro or Cloud API id
 		$id =~ s,^.*:,,;
 		$id =~ s,[^0-9],,g;
@@ -98,8 +99,9 @@ sub find_devices {
 	}
 
 	if ( defined($mac) ) {
+
 		# Convert Arista mac format xxxx.xxxx.xxxx to our internal format if needed
-		if( $mac =~ /\./ ) {
+		if ( $mac =~ /\./ ) {
 			$mac =~ s,\.,,g;
 			$mac =~ s,(..),\1:,g;
 		}
@@ -244,9 +246,10 @@ sub do_device_search {
 		return;
 	}
 
-	my @searchresults =
-	  find_devices( $stab, $bysite, $byid, $byname, $byip, $bytype, $byos, $bymac,
-		$byserial, $dormd );
+	my @searchresults = find_devices(
+		$stab,   $bysite, $byid,  $byname,   $byip,
+		$bytype, $byos,   $bymac, $byserial, $dormd
+	);
 
 	#
 	# exactly one search result, so redirect to that result.  If Search is

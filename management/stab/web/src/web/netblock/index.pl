@@ -353,7 +353,7 @@ sub get_netblock_link_header {
 	my $cgi = $stab->cgi;
 	my $dbh = $stab->dbh;
 
-	my $showsite      = $stab->cgi_parse_param('showsite');
+	my $showsite = $stab->cgi_parse_param('showsite');
 
 	my $displaysite = "";
 	if ( defined($showsite) ) {
@@ -400,7 +400,7 @@ sub get_netblock_link_header {
 	# This is typically if the field contains <script>...</script>.
 	# It means that we'll have to unescape it later in the javascript
 	# processing, which creates the editable field.
-	$descr = CGI::escapeHTML( $descr );
+	$descr = CGI::escapeHTML($descr);
 
 	$descr = $cgi->span(
 		{
@@ -473,9 +473,9 @@ sub do_dump_netblock {
 	# expand is largely deprecated and can almost certainly go away.
 	#
 
-	my $start_id      = $stab->cgi_parse_param('nblkid');
-	my $block         = $stab->cgi_parse_param('block');
-	my $expand        = $stab->cgi_parse_param('forceexpansion');
+	my $start_id = $stab->cgi_parse_param('nblkid');
+	my $block    = $stab->cgi_parse_param('block');
+	my $expand   = $stab->cgi_parse_param('forceexpansion');
 
 	print $cgi->header( { -type => 'text/html' } ), "\n";
 

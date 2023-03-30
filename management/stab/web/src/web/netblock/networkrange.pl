@@ -63,7 +63,8 @@ sub do_dump_network_ranges {
 	my $dbh  = $stab->dbh;
 
 	print $cgi->header;
-        #print $stab->start_html("All Network Ranges");
+
+	#print $stab->start_html("All Network Ranges");
 	print $stab->start_html(
 		-title      => 'STAB: All Network Ranges',
 		-javascript => 'network_range',
@@ -104,7 +105,9 @@ sub do_dump_network_ranges {
 		-method => 'POST',
 		-action => 'write/edit_networkrange.pl'
 	);
-	print '<br/>'.$cgi->start_table( { -class => 'networkrange', -border => 1, -align => 'center' } );
+	print '<br/>'
+	  . $cgi->start_table(
+		{ -class => 'networkrange', -border => 1, -align => 'center' } );
 
 	print $cgi->Tr(
 		{ -class => 'networkrange' },
@@ -129,90 +132,98 @@ sub do_dump_network_ranges {
 			{ -colspan => '9' },
 			$cgi->a(
 				{
-					-href => '#',
+					-href  => '#',
 					-class => 'adddnsrec',
-					-onclick => "this.style.display = 'none'; document.getElementById('NETWORK_RANGE_NEW').style.display = '';"
+					-onclick =>
+					  "this.style.display = 'none'; document.getElementById('NETWORK_RANGE_NEW').style.display = '';"
 				},
-				$cgi->img( {
-					-src   => '../stabcons/plus.png',
-					-alt   => 'Add',
-					-title => 'Add',
-					-class => 'plusbutton'
-				})
+				$cgi->img(
+					{
+						-src   => '../stabcons/plus.png',
+						-alt   => 'Add',
+						-title => 'Add',
+						-class => 'plusbutton'
+					}
+				)
 			)
 		)
 	);
 	print $cgi->Tr(
 		{
-			-id => 'NETWORK_RANGE_NEW',
+			-id    => 'NETWORK_RANGE_NEW',
 			-style => 'display: none;',
 		},
 		$cgi->td(
 			{ -class => 'networkrange' },
 			[
-				$cgi->hidden(
-					'NETWORK_RANGE_ID',
-					'NEW'
-				),
+				$cgi->hidden( 'NETWORK_RANGE_ID', 'NEW' ),
 				'<i>(Automatic)</i>',
-				$cgi->textfield({
-					-size => 10,
-					-name => 'NETWORKRANGE_START_IP_NEW',
-					-value => '',
-					-class => 'tracked',
-					-original => '',
-				}),
-				$cgi->textfield({
-					-size => 10,
-					-name => 'NETWORKRANGE_STOP_IP_NEW',
-					-value => '',
-					-class => 'tracked',
-					-original => '',
-				}),
-				$cgi->textfield({
-					-size => 10,
-					-name => 'NETWORKRANGE_LEASE_TIME_NEW',
-					-value => '',
-					-class => 'tracked',
-					-original => '',
-				}),
-				$cgi->textfield({
-					-size => 10,
-					-name => 'NETWORKRANGE_DNS_PREFIX_NEW',
-					-value => '',
-					-class => 'tracked',
-					-original => '',
-				}),
+				$cgi->textfield(
+					{
+						-size     => 10,
+						-name     => 'NETWORKRANGE_START_IP_NEW',
+						-value    => '',
+						-class    => 'tracked',
+						-original => '',
+					}
+				),
+				$cgi->textfield(
+					{
+						-size     => 10,
+						-name     => 'NETWORKRANGE_STOP_IP_NEW',
+						-value    => '',
+						-class    => 'tracked',
+						-original => '',
+					}
+				),
+				$cgi->textfield(
+					{
+						-size     => 10,
+						-name     => 'NETWORKRANGE_LEASE_TIME_NEW',
+						-value    => '',
+						-class    => 'tracked',
+						-original => '',
+					}
+				),
+				$cgi->textfield(
+					{
+						-size     => 10,
+						-name     => 'NETWORKRANGE_DNS_PREFIX_NEW',
+						-value    => '',
+						-class    => 'tracked',
+						-original => '',
+					}
+				),
 				$stab->b_dropdown(
 					{
 						-dnsdomaintype => 'service',
-						-name => 'NETWORKRANGE_DNS_DOMAIN_NEW',
-						-class => 'tracked',
-						-original => '__unknown__',
+						-name          => 'NETWORKRANGE_DNS_DOMAIN_NEW',
+						-class         => 'tracked',
+						-original      => '__unknown__',
 					},
 					undef,
 					'DNS_DOMAIN_ID',
-					undef,
-					1
+					undef, 1
 				),
 				$stab->b_dropdown(
 					{
-						-name => 'NETWORKRANGE_TYPE_NEW',
-						-class => 'tracked',
+						-name     => 'NETWORKRANGE_TYPE_NEW',
+						-class    => 'tracked',
 						-original => '__unknown__',
 					},
 					undef,
 					'NETWORK_RANGE_TYPE',
-					undef,
-					1
+					undef, 1
 				),
-				$cgi->textfield({
-					-size => 32,
-					-name => 'NETWORKRANGE_DESCRIPTION_NEW',
-					-value => '',
-					-class => 'tracked',
-					-original => '',
-				}),
+				$cgi->textfield(
+					{
+						-size     => 32,
+						-name     => 'NETWORKRANGE_DESCRIPTION_NEW',
+						-value    => '',
+						-class    => 'tracked',
+						-original => '',
+					}
+				),
 
 			],
 		),
@@ -222,36 +233,51 @@ sub do_dump_network_ranges {
 	while ( my $hr = $sth->fetchrow_hashref ) {
 		my $nrid = $hr->{ _dbx('NETWORK_RANGE_ID') };
 		print $cgi->Tr(
-			{ -class => 'networkrange'.(($stab->cgi_parse_param( 'NETWORK_RANGE_DELETE_'.$nrid ) eq 'delete')?' rowrm':'') },
-			$cgi->hidden(
-				'NETWORK_RANGE_ID',
-				$nrid
-			),
+			{
+				-class => 'networkrange'
+				  . (
+					(
+						$stab->cgi_parse_param(
+							'NETWORK_RANGE_DELETE_' . $nrid
+						) eq 'delete'
+					) ? ' rowrm' : ''
+				  )
+			},
+			$cgi->hidden( 'NETWORK_RANGE_ID', $nrid ),
 			$cgi->td(
 				{ -class => 'networkrange' },
 				[
-					$cgi->hidden( {
-						-value => '',
-						-id => 'NETWORK_RANGE_DELETE_'.$nrid ,
-						-name => 'NETWORK_RANGE_DELETE_'.$nrid,
-						-class => 'tracked',
-						-original => '',
-					} )
-					.$cgi->a(
+					$cgi->hidden(
+						{
+							-value    => '',
+							-id       => 'NETWORK_RANGE_DELETE_' . $nrid,
+							-name     => 'NETWORK_RANGE_DELETE_' . $nrid,
+							-class    => 'tracked',
+							-original => '',
+						}
+					  )
+					  . $cgi->a(
 						{
 							-class => 'rmrow',
-							-onclick => "let trcl=this.parentElement.parentElement.classList; trcl.toggle('rowrm'); document.getElementById('NETWORK_RANGE_DELETE_$nrid').value = trcl.contains('rowrm') ? 'delete' : '';"
+							-onclick =>
+							  "let trcl=this.parentElement.parentElement.classList; trcl.toggle('rowrm'); document.getElementById('NETWORK_RANGE_DELETE_$nrid').value = trcl.contains('rowrm') ? 'delete' : '';"
 						},
-						$cgi->img({
-							-src   => "../stabcons/redx.jpg",
-							-alt   => "Delete this Network Range",
-							-title => 'Delete This Network Range',
-							-class => 'rmdnsrow button',
-						})
-					),
-					"<a href='/netblock/?nblkid=".$hr->{ _dbx('parent_netblock_id') }."'>".$hr->{ _dbx('parent_netblock_ip_address') }."</a>",
+						$cgi->img(
+							{
+								-src   => "../stabcons/redx.jpg",
+								-alt   => "Delete this Network Range",
+								-title => 'Delete This Network Range',
+								-class => 'rmdnsrow button',
+							}
+						)
+					  ),
+					"<a href='/netblock/?nblkid="
+					  . $hr->{ _dbx('parent_netblock_id') } . "'>"
+					  . $hr->{ _dbx('parent_netblock_ip_address') } . "</a>",
+
 					# Note: we don't support editing those start/end netblock fields at the moment
 					$cgi->span( {}, $hr->{ _dbx('START_IP') || '' } ),
+
 					#$cgi->textfield({
 					#	-size => 10,
 					#	-name => 'NETWORKRANGE_START_IP_'.$nrid,
@@ -260,6 +286,7 @@ sub do_dump_network_ranges {
 					#	-original => $hr->{ _dbx('START_IP') || '' },
 					#}),
 					$cgi->span( {}, $hr->{ _dbx('STOP_IP') || '' } ),
+
 					#$cgi->textfield({
 					#	-size => 10,
 					#	-name => 'NETWORKRANGE_STOP_IP_'.$nrid,
@@ -267,41 +294,47 @@ sub do_dump_network_ranges {
 					#	-class => 'tracked',
 					#	-original => $hr->{ _dbx('STOP_IP') || '' },
 					#}),
-					$cgi->textfield({
-						-size => 10,
-						-name => 'NETWORKRANGE_LEASE_TIME_'.$nrid,
-						-value => $hr->{ _dbx('LEASE_TIME') || '' },
-						-class => 'tracked',
-						-original => $hr->{ _dbx('LEASE_TIME') || '' },
-					}),
-					$cgi->textfield({
-						-size => 10,
-						-name => 'NETWORKRANGE_DNS_PREFIX_'.$nrid,
-						-value => $hr->{ _dbx('DNS_PREFIX') || '' },
-						-class => 'tracked',
-						-original => $hr->{ _dbx('DNS_PREFIX') || '' },
-					}),
+					$cgi->textfield(
+						{
+							-size     => 10,
+							-name     => 'NETWORKRANGE_LEASE_TIME_' . $nrid,
+							-value    => $hr->{ _dbx('LEASE_TIME') || '' },
+							-class    => 'tracked',
+							-original => $hr->{ _dbx('LEASE_TIME') || '' },
+						}
+					),
+					$cgi->textfield(
+						{
+							-size     => 10,
+							-name     => 'NETWORKRANGE_DNS_PREFIX_' . $nrid,
+							-value    => $hr->{ _dbx('DNS_PREFIX') || '' },
+							-class    => 'tracked',
+							-original => $hr->{ _dbx('DNS_PREFIX') || '' },
+						}
+					),
 					$stab->b_dropdown(
 						{
 							-dnsdomaintype => 'service',
-							-name => 'NETWORKRANGE_DNS_DOMAIN_'.$nrid,
-							-class => 'tracked',
+							-name     => 'NETWORKRANGE_DNS_DOMAIN_' . $nrid,
+							-class    => 'tracked',
 							-original => $hr->{ _dbx('DNS_DOMAIN_ID') || '' },
 						},
 						$hr,
 						'DNS_DOMAIN_ID',
-						undef,
-						1
+						undef, 1
 					),
+
 					# Note the stored procedure used to modify network ranges doesn't
 					# support changing the network type currently
-					$cgi->span( {},
+					$cgi->span(
+						{},
 						$hr->{ _dbx('NETWORK_RANGE_TYPE') || '' },
 						$cgi->hidden(
 							'NETWORK_RANGE_TYPE',
 							$hr->{ _dbx('NETWORK_RANGE_TYPE') || '' }
 						)
 					),
+
 					#$stab->b_dropdown(
 					#	{
 					#		-name => 'NETWORKRANGE_TYPE_'.$nrid,
@@ -313,31 +346,35 @@ sub do_dump_network_ranges {
 					#	undef,
 					#	1
 					#),
-					$cgi->textfield({
-						-size => 32,
-						-name => 'NETWORKRANGE_DESCRIPTION_'.$nrid,
-						-value => $hr->{ _dbx('description') || '' },
-						-class => 'tracked',
-						-original => $hr->{ _dbx('description') || '' },
-					}),
+					$cgi->textfield(
+						{
+							-size     => 32,
+							-name     => 'NETWORKRANGE_DESCRIPTION_' . $nrid,
+							-value    => $hr->{ _dbx('description') || '' },
+							-class    => 'tracked',
+							-original => $hr->{ _dbx('description') || '' },
+						}
+					),
 				]
 			)
 		);
 	}
 
 	print $cgi->end_table;
-	print $cgi->submit({
-		-class => 'dnssubmit',
-		-name  => "Ranges",
-		-value => "Submit Network Ranges Changes",
-	});
+	print $cgi->submit(
+		{
+			-class => 'dnssubmit',
+			-name  => "Ranges",
+			-value => "Submit Network Ranges Changes",
+		}
+	);
 	print $cgi->end_form, "\n";
 	print $cgi->end_html;
 	undef $stab;
 }
 
 sub get_networkrange_types {
-	my ( $stab ) = @_;
+	my ($stab) = @_;
 
 	my $q = qq{
 		select
@@ -366,7 +403,7 @@ sub get_networkrange_types {
 	#	};
 	#}
 	#%networkrange_types;
-	my $hr = $sth->fetchall_hashref( 'network_range_type' );
+	my $hr = $sth->fetchall_hashref('network_range_type');
 	$hr;
 }
 

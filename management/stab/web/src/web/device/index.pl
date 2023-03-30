@@ -57,11 +57,12 @@ my $devlist = $stab->cgi_parse_param('devlist');
 $cgi->delete($devlist) if ($devlist);
 
 print $cgi->header('text/html');
-print $stab->start_html( { -title => "Device Management", -javascript => 'device' } ), "\n";
+print $stab->start_html(
+	{ -title => "Device Management", -javascript => 'device' } ), "\n";
 
 if ( defined($devlist) && $devlist =~ /^[\d,]+$/ ) {
 	my @devlist = split( /,/, $devlist );
-	my $tally = $#devlist + 1;
+	my $tally   = $#devlist + 1;
 	print $cgi->p(
 		{ -align => 'center' },
 		$cgi->b(
@@ -77,25 +78,35 @@ if ( defined($devlist) && $devlist =~ /^[\d,]+$/ ) {
 	my $sth = $stab->prepare($q) || $stab->return_db_err($dbh);
 	$sth->execute || $stab->return_db_err($sth);
 
-	my $all = $cgi->Tr( { -class => 'devicesearch' }, $cgi->th( 'Device ID' ), $cgi->th( 'Device Name' ) );
+	my $all = $cgi->Tr(
+		{ -class => 'devicesearch' },
+		$cgi->th('Device ID'),
+		$cgi->th('Device Name')
+	);
 	while ( my ( $id, $name, $site ) = $sth->fetchrow_array ) {
 		$name = "(unnamed, retired device)" if ( !defined($name) );
+
 		#$all .=
 		#  $cgi->li( $cgi->a( { -href => "device.pl?devid=$id" }, $name.' ('.$site.':'.$id.')' ) )
 		#  . "\n";
 		$all .= $cgi->Tr(
 			{ -class => 'devicesearch' },
-			$cgi->td( { -class => 'devicesearch' },
-				$cgi->a( { -href => "device.pl?devid=$id" }, $site.':'.$id)
+			$cgi->td(
+				{ -class => 'devicesearch' },
+				$cgi->a(
+					{ -href => "device.pl?devid=$id" }, $site . ':' . $id
+				)
 			),
-			$cgi->td( { -class => 'devicesearch' },
+			$cgi->td(
+				{ -class => 'devicesearch' },
 				$cgi->a( { -href => "device.pl?devid=$id" }, $name )
 			)
-		)."\n";
+		) . "\n";
 	}
 	if ( length($all) ) {
+
 		#print $cgi->ul($all), "\n";
-		print $cgi->table( { -class => 'devicesearch' }, $all )."\n";
+		print $cgi->table( { -class => 'devicesearch' }, $all ) . "\n";
 	} else {
 		print $cgi->p( { -align => 'center', -style => 'color: green' },
 			"Unable to find any matches." );
@@ -122,16 +133,11 @@ print $cgi->start_table( { align => 'center' } );
 # Search by Site
 print $cgi->Tr(
 	$cgi->td("Site: "),
+
 	#$cgi->td( $cgi->textfield( -name => "bysite" ) )
-	$cgi->td( $cgi->div(
-		{},
-		$stab->b_dropdown(
-			{},
-			undef,
-			'SITE_CODE',
-			undef, 1
-		),
-	))
+	$cgi->td(
+		$cgi->div( {}, $stab->b_dropdown( {}, undef, 'SITE_CODE', undef, 1 ), )
+	)
   ),
   "\n";
 
@@ -149,10 +155,12 @@ print $cgi->Tr(
 print $cgi->Tr(
 	$cgi->td("Device ID: "),
 	$cgi->td(
-		$cgi->textfield({
-			-name => "byid",
-			-id => "byid"
-		}),
+		$cgi->textfield(
+			{
+				-name => "byid",
+				-id   => "byid"
+			}
+		),
 	)
   ),
   "\n";
@@ -177,8 +185,9 @@ print $cgi->Tr(
 # Search my mac address
 print $cgi->Tr(
 	$cgi->td("Mac Addr: "),
-	$cgi->td( $cgi->textfield( -name => "bymac" ),
-	'<span style="position: absolute; margin-top: 1px; margin-left: 10px;"><i>Supports regular expressions</i></span>'
+	$cgi->td(
+		$cgi->textfield( -name => "bymac" ),
+		'<span style="position: absolute; margin-top: 1px; margin-left: 10px;"><i>Supports regular expressions</i></span>'
 	),
   ),
   "\n";

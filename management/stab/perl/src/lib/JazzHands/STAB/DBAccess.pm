@@ -253,7 +253,7 @@ sub get_device_functions {
 		}
 	);
 	$sth->execute($devid) || $self->return_db_err($sth);
-	$sth->fetchall_hashref( 'device_collection_name' );
+	$sth->fetchall_hashref('device_collection_name');
 }
 
 sub get_interface_from_ip {
@@ -651,11 +651,11 @@ sub get_netblock_from_ip {
 	if ( $opts->{ip_address} !~ m,/, ) {
 		$args->{'host(ip_address)'} = $opts->{ip_address};
 
-	# Remove the implicit /32 netmask suffix if present
+		# Remove the implicit /32 netmask suffix if present
 	} elsif ( $opts->{ip_address} =~ m,/32 *$, ) {
-		$args->{'host(ip_address)'} = $opts->{'ip_address'} =~ s,/32 *$,,r;;
+		$args->{'host(ip_address)'} = $opts->{'ip_address'} =~ s,/32 *$,,r;
 
-	# The ip address has a netmask suffix, but not a /32
+		# The ip address has a netmask suffix, but not a /32
 	} else {
 		$args->{ip_address} = $opts->{ip_address};
 	}
@@ -684,6 +684,7 @@ sub get_netblock_from_ip {
 		}
 		return undef;
 	}
+
 	# XXX - This code doesn't seem to be reachable - to be removed? - smesserli - 2023-05-03
 	if ( !$netblock ) {
 		if (@errors) {
@@ -2017,7 +2018,7 @@ sub process_and_insert_dns_record {
 		}
 
 		# Wildcard dns records must not have the PTR set
-		if( $opts->{dns_name} =~ /\*/ ) {
+		if ( $opts->{dns_name} =~ /\*/ ) {
 			$opts->{ _dbx('SHOULD_GENERATE_PTR') } = 'N';
 		}
 

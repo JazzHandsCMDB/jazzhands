@@ -1,25 +1,19 @@
 #!/usr/bin/env perl
-# Copyright (c) 2005-2010, Vonage Holdings Corp.
+# Copyright (c) 2023 Todd M. Kover
+
 # All rights reserved.
 #
-# Redistribution and use in source and binary forms, with or without
-# modification, are permitted provided that the following conditions are met:
-#     * Redistributions of source code must retain the above copyright
-#       notice, this list of conditions and the following disclaimer.
-#     * Redistributions in binary form must reproduce the above copyright
-#       notice, this list of conditions and the following disclaimer in the
-#       documentation and/or other materials provided with the distribution.
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
 #
-# THIS SOFTWARE IS PROVIDED BY VONAGE HOLDINGS CORP. ''AS IS'' AND ANY
-# EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE IMPLIED
-# WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE
-# DISCLAIMED. IN NO EVENT SHALL VONAGE HOLDINGS CORP. BE LIABLE FOR ANY
-# DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES
-# (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES;
-# LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND
-# ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT
-# (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS
-# SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
+#       http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
 
 #
 # $Id$
@@ -46,24 +40,29 @@ sub process_site_netblocks {
 	my $cgi = $stab->cgi;
 
 	#print $cgi->header, $cgi->start_html, $cgi->Dump, $cgi->end_html; exit;
-        print $cgi->header, $cgi->start_html;
+	print $cgi->header, $cgi->start_html;
+
 	#print $cgi->end_html; exit;
 
 	my $numchanges = 0;
 
 	# Get the site code
-	my $site_code = $cgi->param( 'sitecode' );
+	my $site_code = $cgi->param('sitecode');
 
 	# Process deletion requests
-	foreach my $netblock_id ( $stab->cgi_get_ids( 'SITE_NETBLOCK_DELETE' ) ) {
-		if( $stab->cgi_parse_param( "SITE_NETBLOCK_DELETE_$netblock_id" ) eq 'delete' ) {
-			$numchanges += delete_site_netblock( $stab, $site_code, $netblock_id );
+	foreach my $netblock_id ( $stab->cgi_get_ids('SITE_NETBLOCK_DELETE') ) {
+		if ( $stab->cgi_parse_param("SITE_NETBLOCK_DELETE_$netblock_id") eq
+			'delete' )
+		{
+			$numchanges +=
+			  delete_site_netblock( $stab, $site_code, $netblock_id );
 		}
 	}
 
 	# Process update requests
 	# Note: there is nothing to edit for now
 	my $sn_ip;
+
 	#my $sn_desc;
 
 	#foreach my $id ( $cgi->param( 'CHANGED_ELEMENTS' ) ) {
@@ -78,18 +77,15 @@ sub process_site_netblocks {
 	#}
 
 	# Process addition request
-	$sn_ip   = $stab->cgi_parse_param("SITE_NETBLOCK_IP_NEW");
+	$sn_ip = $stab->cgi_parse_param("SITE_NETBLOCK_IP_NEW");
+
 	#$sn_desc = $stab->cgi_parse_param("SITE_NETBLOCK_DESCRIPTION_NEW");
 
-	if( $sn_ip ) {
-		$numchanges += create_site_netblock(
-			$stab,
-			$site_code,
-			$sn_ip
-		);
+	if ($sn_ip) {
+		$numchanges += create_site_netblock( $stab, $site_code, $sn_ip );
 	}
 
-        print $cgi->end_html;
+	print $cgi->end_html;
 
 	if ( $numchanges > 0 ) {
 		my $url = "../?sitecode=$site_code";
@@ -110,8 +106,8 @@ sub delete_site_netblock {
 		delete from site_netblock where site_code = ? and netblock_id = ?
 	};
 	my $sth = $stab->prepare($q) || $stab->return_db_err($stab);
-		$sth->execute( $site_code, $sn_netblock_id )
-		|| $stab->return_db_err($sth);
+	$sth->execute( $site_code, $sn_netblock_id )
+	  || $stab->return_db_err($sth);
 	1;
 }
 
@@ -121,7 +117,7 @@ sub update_site_netblock {
 
 	#my $orig = $stab->get_site_netblock_from_id( $sn_ip );
 
-        print $sn_id, $sn_desc,"<br/>\n";
+	print $sn_id, $sn_desc, "<br/>\n";
 
 	# Get the netblock from the ip
 	#my $netblock_id = $stab->get_netblock_from_ip( ip_address => $sn_ip );
@@ -134,8 +130,8 @@ sub update_site_netblock {
 		where site_netblock_id = ?
 	};
 	my $sth = $stab->prepare($q) || $stab->return_db_err($stab);
-		$sth->execute( $sn_desc, $sn_id )
-		|| $stab->return_db_err($sth);
+	$sth->execute( $sn_desc, $sn_id )
+	  || $stab->return_db_err($sth);
 
 	#my $new = {
 	#	SITE_NETBLOCK_ID   => $sn_id,
@@ -165,8 +161,9 @@ sub create_site_netblock {
 	my $nb = $stab->get_netblock_from_ip( ip_address => $sn_ip );
 
 	# If no matching netblock was found, abort here
-	if( ! $nb ) {
-		$stab->error_return( "ERROR: the ip $sn_ip doesn't correpond to an existing netblock" );
+	if ( !$nb ) {
+		$stab->error_return(
+			"ERROR: the ip $sn_ip doesn't correpond to an existing netblock");
 	}
 	my $netblock_id = $nb->{ _dbx('NETBLOCK_ID') };
 
@@ -177,8 +174,8 @@ sub create_site_netblock {
 			(?, ?);
 	};
 	my $sth = $stab->prepare($q) || $stab->return_db_err($stab);
-		$sth->execute( $site_code, $netblock_id )
-		|| $stab->return_db_err($sth);
+	$sth->execute( $site_code, $netblock_id )
+	  || $stab->return_db_err($sth);
 
 	1;
 }
