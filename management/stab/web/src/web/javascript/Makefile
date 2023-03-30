@@ -31,7 +31,8 @@ SUBDIRS=
 SCRIPTS= ajax-utils.js app-utils.js ajaxsearch.js device-utils.js 
 	dns-utils.js common.js \
 	devicetype.js netblock.js netblock-collection.js \
-	tickets.js racks.js table-manip.js
+	tickets.js racks.js table-manip.js \
+	form-tracking.js
 
 all:
 	@#@for subdir in $(SUBDIRS) ; do \

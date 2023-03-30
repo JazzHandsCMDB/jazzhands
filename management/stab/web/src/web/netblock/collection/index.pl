@@ -168,34 +168,28 @@ sub build_collection_row($$$$;$$) {
 	);
 }
 
-sub build_netblock_collection_add($) {
+# This function displays a button to add a new network input row
+# It's added in a div and not a li element because it shouldn't be numbered
+sub build_netblock_collection_add_more($) {
 	my ($stab) = @_;
 	my $cgi = $stab->cgi || die "Could not create cgi";
 
-	return build_collection_row( $cgi, undef, "",
-		$cgi->textfield( -name => 'add_NETBLOCK' ),
-		"ADD NETWORK" );
+        my $strInsertNetblockButton = $cgi->button(
+                {
+                        -type => 'button',
+                        -class =>
+                          "",
+                        -id   => 'insert_NETBLOCK',
+                        -name => 'insert_NETBLOCK',
+                        -title => 'Add one more network',
+                        -state   => "Add Network",
+                        -label   => "Add Network",
+                        -onclick => "insert_netblock_input_row( this );",
+                },
+                'Add Network'
+        );
 
-}
-
-sub build_collection_adder($) {
-	my ($stab) = @_;
-	my $cgi = $stab->cgi || die "Could not create cgi";
-
-	return build_collection_row(
-		$cgi, undef, "",
-		$cgi->div(
-			{ -class => 'ncmanip' },
-			$stab->b_dropdown(
-				{ -class => 'coltypepicker', }, undef,
-				'NETBLOCK_COLLECTION_TYPE', undef,
-				1
-			),
-			$cgi->div( { -id => 'colbox' }, "" )
-		),
-		"ADD COLLECTION",
-	);
-
+	$cgi->div({},"-", $strInsertNetblockButton ),
 }
 
 sub build_collection_members($$) {
@@ -246,6 +240,30 @@ sub build_collection_members($$) {
 	$rv;
 }
 
+# This function displays a button to add a new child colletion input row
+# It's added in a div and not a li element because it shouldn't be numbered
+sub build_child_collection_add_more($) {
+	my ($stab) = @_;
+	my $cgi = $stab->cgi || die "Could not create cgi";
+
+        my $strInsertNetblockButton = $cgi->button(
+                {
+                        -type => 'button',
+                        -class =>
+                          "",
+                        -id   => 'insert_CHILD_COLLECTION',
+                        -name => 'insert_CHILD_COLLECTION',
+                        -title => 'Add one more child collection',
+                        -state   => "Add Child Collection",
+                        -label   => "Add Child Collection",
+                        -onclick => "insert_child_collection_input_row( this );",
+                },
+                'Add Network'
+        );
+
+	$cgi->div({},"-", $strInsertNetblockButton ),
+}
+
 sub build_collection_children {
 	my ( $stab, $ncid ) = @_;
 	my $cgi = $stab->cgi || die "Could not create cgi";
@@ -262,7 +280,7 @@ sub build_collection_children {
 		WHERE	h.netblock_collection_id = ?
 		ORDER BY nc.netblock_collection_type,nc.netblock_collection_name,
 				nc.netblock_collection_id
-	}
+		}
 	) || return $stab->return_db_err;
 
 	$sth->execute($ncid) || die $stab->return_db_err();
@@ -273,6 +291,38 @@ sub build_collection_children {
 		my $rmid   = "rm_NETBLOCK_COLLECTION_ID_$id";
 		my $label  = "$type:$name";
 		$rv .= build_collection_row( $cgi, $nblink, $rmid, $label, $desc );
+	}
+	$rv;
+}
+
+sub build_collection_parents {
+	my ( $stab, $ncid ) = @_;
+	my $cgi = $stab->cgi || die "Could not create cgi";
+
+	my $sth = $stab->prepare(
+		qq{
+		SELECT	nc.netblock_collection_id,
+				nc.netblock_collection_name,
+				nc.netblock_collection_type,
+				nc.description
+		FROM	netblock_collection nc
+				INNER JOIN netblock_collection_hier h ON
+					h.netblock_collection_id = nc.netblock_collection_id
+		WHERE	h.child_netblock_collection_id = ? AND
+			nc.netblock_collection_type <> 'by-coll-type'
+		ORDER BY nc.netblock_collection_type,nc.netblock_collection_name,
+				nc.netblock_collection_id
+		}
+	) || return $stab->return_db_err;
+
+	$sth->execute($ncid) || die $stab->return_db_err();
+
+	my $rv;
+	while ( my ( $id, $name, $type, $desc ) = $sth->fetchrow_array ) {
+		my $nblink = "./?NETBLOCK_COLLECTION_ID=$id";
+		my $rmid   = "rm_NETBLOCK_COLLECTION_ID_$id";
+		my $label  = "$type:$name";
+		$rv .= build_collection_row( $cgi, $nblink, $rmid, $label, $desc, ' ' );
 	}
 	$rv;
 }
@@ -331,10 +381,23 @@ sub process_netblock_collection {
 			$cgi, undef, undef, "Member", "Description", "RM"
 		),
 		build_collection_members( $stab, $ncid ),
-		build_netblock_collection_add($stab),
+		build_netblock_collection_add_more($stab),
 		build_collection_children( $stab, $ncid ),
-		build_collection_adder($stab),
+		build_child_collection_add_more($stab),
+		'<br/>',
 		$cgi->submit(),
+	);
+
+	print $cgi->ul(
+		{ -class => 'collection' },
+		'<br/><br/><h2>Parent Collection(s) of '.join( ":",
+			$nc->{ _dbx('NETBLOCK_COLLECTION_TYPE') },
+			$nc->{ _dbx('NETBLOCK_COLLECTION_NAME') },
+			'</h2>' ),
+		build_collection_row(
+			$cgi, undef, undef, "Collection", "Description", " "
+		),
+		build_collection_parents( $stab, $ncid ),
 	);
 
 	print $cgi->end_form;

@@ -1,3 +1,8 @@
+jazzhands-javascript-common (0.95.9) jammy; urgency=medium
+  * do not escpe HTML in jazzhands_common_init
+
+ -- Stephane Messerli <stephane.messerli@polypode.org>  Tue, 20 Jun 2023 14:38:00 +0200
+
 jazzhands-javascript-common (0.79.0) trusty; urgency=medium
 
   * add jquery-Autocomplete

@@ -90,6 +90,7 @@
 /var/www/stab/javascript/devicetype.js
 /var/www/stab/javascript/dns-common.js
 /var/www/stab/javascript/dns-utils.js
+/var/www/stab/javascript/form-tracking.js
 /var/www/stab/javascript/netblock-collection.js
 /var/www/stab/javascript/netblock.js
 /var/www/stab/javascript/racks.js
@@ -107,6 +108,7 @@
 /var/www/stab/netblock/write/addnetblock.pl
 /var/www/stab/netblock/write/doadd.pl
 /var/www/stab/netblock/write/edit_netblock.pl
+/var/www/stab/netblock/write/edit_networkrange.pl
 /var/www/stab/netblock/write/rmnetblock.pl
 /var/www/stab/network/l2/index.pl
 /var/www/stab/network/l3/index.pl

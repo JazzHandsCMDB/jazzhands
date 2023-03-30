@@ -351,6 +351,7 @@ sub do_update_device {
 	# Not there today..
 	#- $numchanges += process_licenses($stab, $devid);
 	$numchanges += process_interfaces( $stab, $devid );
+	$numchanges += update_functions( $stab, $devid );
 
 	my $assetid = $dbdevice->{ _dbx('ASSET_ID') };
 
@@ -2287,8 +2288,15 @@ sub manipulate_network_interface_purpose {
 
 	foreach my $purp (@newpurp) {
 		if ( !grep( $_ eq $purp, @${oldpurp} ) ) {
-			$numchanges += $addsth->execute( $devid, $netintid, $purp )
-			  || return $stab->return_db_err();
+			my $result = $addsth->execute( $devid, $netintid, $purp );
+			if( ! $result ) {
+				if( $addsth->errstr =~ /violates unique constraint.*pk_network_int_purpose/ ) {
+					$stab->error_return( "ERROR: The purpose '$purp' can't be added to multiple interfaces." );
+				} else {
+					return $stab->return_db_err();
+				}
+			}
+			$numchanges += $result;
 		}
 	}
 	$numchanges;
@@ -2750,6 +2758,81 @@ sub add_interfaces {
 	# including adjusting non-primaries approppriately.
 	#
 	$numchanges;
+}
+
+sub update_functions {
+	my ( $stab, $devid ) = @_;
+
+	my $cgi        = $stab->cgi;
+	my $numchanges = 0;
+
+	# Get selected device functions from the UI
+	my @new_device_functions = $cgi->multi_param( 'DEVICE_FUNCTIONS' );
+	# Return 0 change if the Functions tab wasn't loaded
+	if( ! @new_device_functions ) { return( 0 ) };
+
+	# Get device functions from the database
+	my %functions = %{$stab->get_device_functions( $devid )};
+	my @old_device_functions;
+	push( @old_device_functions, $functions{$_}{'device_collection_id'} ) for grep { $functions{$_}{'selected'} == 1 } keys %functions;
+
+	# Get a list of function ids to remove
+	my @to_delete;
+	foreach ( @old_device_functions ) {
+		push( @to_delete, $_ ) unless exists( $new_device_functions[$_] );
+	}
+
+	# Get a list of function ids to add
+	my @to_add;
+	foreach ( @new_device_functions ) {
+		push( @to_add, $_ ) unless exists( $old_device_functions[$_] );
+	}
+
+	#print $cgi->header;
+	#print $cgi->html($cgi->Dump());
+	#print "old: ".Dumper( @old_device_functions );
+	#print "new: ".Dumper( @new_device_functions );
+	#print "del: ".Dumper( @to_delete );
+	#print "add: ".Dumper( @to_add );
+
+	# Build the values list for the delete statement below
+	my $values_to_delete = join(',',@to_delete);
+
+	# Build the values list for the insert statement below
+	my $valuepairs_to_add;
+	$valuepairs_to_add .= "($devid,$_)," for @to_add;
+	chop( $valuepairs_to_add );
+	#print "pairs: ".Dumper( $valuepairs_to_add );
+	# exit;
+
+	# Delete functions
+
+	my $q = qq {
+		delete from
+			device_collection_device
+		where
+			device_id = ? and
+			device_collection_id in ($values_to_delete)
+	};
+	my $sth = $stab->prepare($q) || $stab->return_db_err($stab);
+	$sth->execute($devid) || $stab->return_db_err($stab);
+	$sth->finish;
+
+	# Add functions
+
+	$q = qq {
+		insert into
+			device_collection_device
+			( device_id, device_collection_id )
+		values
+			$valuepairs_to_add
+	};
+	$sth = $stab->prepare($q) || $stab->return_db_err($stab);
+	$sth->execute || $stab->return_db_err($stab);
+	$sth->finish;
+
+	# Return the number of changes
+	@to_add + @to_delete;
 }
 
 sub switch_all_ni_prop_to_n {

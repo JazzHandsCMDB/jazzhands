@@ -45,7 +45,6 @@ sub do_netblock_collection_update {
 	my $numchanges = 0;
 
 	my $ncid = $stab->cgi_parse_param('NETBLOCK_COLLECTION_ID');
-	my $add_nb = $stab->cgi_parse_param('add_NETBLOCK');
 
 	#
 	# deal with netblock removals
@@ -84,9 +83,16 @@ sub do_netblock_collection_update {
 	#
 	# deal with netblock additions
 	#
-	if($add_nb) {
-		my $nb = $stab->get_netblock_from_ip(ip_address=>$add_nb);
+	foreach my $p ($cgi->param) {
+		if($p !~ /^add_NETBLOCK[0-9]+$/i) { next; }
 
+		# Get the next new netblock to add
+		my $add_nb = $stab->cgi_parse_param( $p );
+
+		# Ignore the parameter if it has no value
+		if( !$add_nb ) { next; }
+
+		my $nb = $stab->get_netblock_from_ip(ip_address=>$add_nb);
 		if(!$nb) {
 			return $stab->error_return("Unable to find netblock $add_nb");
 		}
@@ -105,10 +111,16 @@ sub do_netblock_collection_update {
 	}
 
 	#
-	# deal with child netblock additions
+	# deal with child netblock collection additions
 	#
-	my $newncid = $stab->cgi_parse_param('pick_NETBLOCK_COLLECTION_ID');
-	if($newncid) {
+	foreach my $p ($cgi->param) {
+		if($p !~ /^pick_NETBLOCK_COLLECTION_ID[0-9]+$/i) { next; }
+
+		my $newncid = $stab->cgi_parse_param( $p );
+
+		# Ignore the parameter if it has no value
+		if( !$newncid ) { next; }
+
 		my $new = {
 			netblock_collection_id => $ncid,
 			child_netblock_collection_id => $newncid

@@ -1,3 +1,22 @@
+jazzhands-stab (0.95.9) jammy; urgency=medium
+
+  * Fix device search by mac address
+  * Handle invalid duplicated interface purposes nicely
+  * Device tabs don't break with parallel ajax calls anymore
+  * PTR should not be set for wildcard DNS records
+  * Fix DNS TTL edition scrolling to top of page
+  * Add device functions handling
+  * Show components for devices
+  * Improve the Network Ranges page
+  * Allow devices to be searched by id
+  * Fix Netblock description fields not handling html code properly
+  * Make it possible to add more than one child collection per netblock collection update
+  * Make it possible to add more than one network per netblock collection update
+  * Better integrate the Add Collection row in the collection page
+  * Add a list of parent collections to the collection page
+
+ -- Stephane Messerli <stephane.messerli@polypode.org>  Tue, 20 Jun 2023 14:38:00 +0200
+
 jazzhands-stab (0.95.6) jammy; urgency=medium
 
   * Improving device Switch Port / Other End fields functionality

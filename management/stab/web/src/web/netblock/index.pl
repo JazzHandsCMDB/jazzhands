@@ -208,7 +208,7 @@ sub dump_nodes {
 	print print_netblock_allocation( $stab, $p_nblkid, $nb, $isbcst );
 
 	print $cgi->hidden( -name => 'NETBLOCK_ID', -default => $p_nblkid );
-	print $cgi->submit( -align => 'center', -name => 'Submit Updates' );
+	print $cgi->submit( -align => 'center', -name => 'Submit IP/DNS Updates' );
 	print $cgi->start_table( { -class => 'nblk_ipallocation' } );
 
 	print $cgi->th( [ 'IP', 'Status', 'DNS', 'Description', ] );
@@ -342,7 +342,7 @@ sub dump_nodes {
 	if (0) {
 		print dump_netblock_routes( $stab, $p_nblkid, $nb );
 	}
-	print $cgi->submit( -align => 'center', -name => 'Submit Updates' );
+	print $cgi->submit( -align => 'center', -name => 'Submit IP/DNS Updates' );
 	print $cgi->end_form, "\n";
 }
 
@@ -354,7 +354,6 @@ sub get_netblock_link_header {
 	my $dbh = $stab->dbh;
 
 	my $showsite      = $stab->cgi_parse_param('showsite');
-	my $allowdescedit = $stab->cgi_parse_param('allowdescedit') || 'no';
 
 	my $displaysite = "";
 	if ( defined($showsite) ) {
@@ -394,29 +393,22 @@ sub get_netblock_link_header {
 		  );
 	}
 
-	if ( 1 || $allowdescedit eq 'yes' ) {
-		my $name = "NETBLOCK_DESCRIPTION_$nblkid";
+	my $name = "NETBLOCK_DESCRIPTION_$nblkid";
 
-		#$descr = $cgi->hidden(
-		#	-name    => "orig_$name",
-		#	-default => $descr
-		#  )
-		#  . $cgi->textfield(
-		#	{
-		#		-size  => 80,
-		#		-name  => $name,
-		#		-value => $descr
-		#	}
-		#  );
-		$descr = $cgi->span(
-			{
-				-class => 'editabletext',
-				-id    => $name
-			},
-			( $descr || "" )
-		);
+	# We need to escape any html code here, otherwise
+	# html / javascript code would be interpreted (code injection).
+	# This is typically if the field contains <script>...</script>.
+	# It means that we'll have to unescape it later in the javascript
+	# processing, which creates the editable field.
+	$descr = CGI::escapeHTML( $descr );
 
-	}
+	$descr = $cgi->span(
+		{
+			-class => 'editabletext',
+			-id    => $name
+		},
+		( $descr || "" )
+	);
 
 	my $expand = "";
 	#
@@ -484,7 +476,6 @@ sub do_dump_netblock {
 	my $start_id      = $stab->cgi_parse_param('nblkid');
 	my $block         = $stab->cgi_parse_param('block');
 	my $expand        = $stab->cgi_parse_param('forceexpansion');
-	my $allowdescedit = $stab->cgi_parse_param('allowdescedit') || 'no';
 
 	print $cgi->header( { -type => 'text/html' } ), "\n";
 
@@ -576,9 +567,14 @@ sub do_dump_netblock {
 		qq{
 		This application is used to manage net block allocations as well as
 		the assignment (largely reservation) of IP addresses.  Use the
-		"Subnet this block" and "Remove this netblock" links to furthur
-		subdivide the network into smaller networks.  You may only add
+		"Subnet this block" (<img class=subnet src="../stabcons/Axe_001.svg">)
+		and "Remove this netblock"
+		(<img class=subnet src="../stabcons/Octagon_delete.svg">) links to
+		further subdivide the network into smaller networks. You may only add
 		subnets or remove netblocks that don't have host IP allocations.
+		It's possible to edit a netblock description by clicking on the text
+		and confirming the change with the Enter key or the "Submit Netblock
+		Updates" button.
 	}
 	);
 	print $cgi->p(
@@ -629,9 +625,7 @@ sub do_dump_netblock {
 		$cgi->a( { -class => 'collapseall' }, "Collapse All" ),
 	);
 
-	if ( $allowdescedit eq 'yes' || $nblk->{ _dbx('CAN_SUBNET') } eq 'Y' ) {
-		print $cgi->submit("Submit Updates");
-	}
+	print $cgi->submit("Submit Netblock Updates");
 
 	print $cgi->p();
 
@@ -738,7 +732,7 @@ sub do_dump_netblock {
 	my $x = pop @tiers;
 	print $cgi->ul( { -class => 'nbhier' }, $x->{label}, $x->{kids} );
 	print "\n";
-
+	print $cgi->submit("Submit Netblock Updates");
 	print $cgi->end_form, "\n";
 	if (   ( defined($expand) && $expand eq 'yes' )
 		|| ( !defined($expand) && !num_kids( $stab, $start_id ) ) )

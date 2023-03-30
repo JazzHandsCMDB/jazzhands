@@ -407,6 +407,8 @@ sub build_page {
 			#"Licenses"     => "Licenses",
 			"Advanced" => "Advanced",
 			"Notes"    => "Notes$numnotes",
+			"Components" => "Components",
+			"Functions" => "Functions",
 		};
 
 		if ( !$stab->get_power_port_count($devid) ) {
@@ -422,6 +424,9 @@ sub build_page {
 		}
 		if ( !$stab->get_physical_port_count( $devid, 'patchpanel' ) ) {
 			delete( $tablist->{PatchPanel} );
+		}
+		if ( ! $device->{ _dbx('COMPONENT_ID') } ) {
+			delete( $tablist->{Components} );
 		}
 
 		if ( $device->{ _dbx('IS_VIRTUAL_DEVICE') } eq 'Y' ) {
@@ -440,7 +445,7 @@ sub build_page {
 			push( @tablist, qw{IP IPRoute Circuit Serial Power Switchport } );
 		}
 
-		push( @tablist, qw{Location Licenses Advanced} );
+		push( @tablist, qw{Location Licenses Components Functions Advanced} );
 
 		my $intertab = "";
 		foreach my $tab (@tablist) {
@@ -450,8 +455,10 @@ sub build_page {
 					{
 						-class   => 'tabgrouptab',
 						-id      => $tab,
+						-title   => 'A double click triggers a reload of the tab',
 						-href    => 'javascript:void(null);',
-						-onClick => "ShowDevTab('$tab', $devid);"
+						-onClick => "ShowDevTab('$tab', $devid, false );",
+						-onDblclick => "ShowDevTab('$tab', $devid, true );"
 					},
 					$tabp
 				) . "\n\n";
@@ -460,7 +467,10 @@ sub build_page {
 
 		$maindiv .= "\n\n"
 		  . $cgi->div(
-			$cgi->div( { -class => 'tabgroup_pending' } ),
+			$cgi->div( {
+				-id    => 'tabgroup',
+				-class => 'tabgroup'
+			} ),
 			$cgi->hidden(
 				-name    => $opentabid,
 				-id      => $opentabid,
@@ -468,10 +478,11 @@ sub build_page {
 			),
 			$intertab,
 			$cgi->div(
-				{ -id => 'tabthis' },
+				{ -class => 'tabcontent active' },
 				$cgi->div(
 					{ -align => 'center' },
-					$cgi->em("please select a tab.")
+					$cgi->em("Please select a tab."),
+					'<br><br>'
 				)
 			)
 		  ) . "\n\n";
