@@ -1535,7 +1535,10 @@ BEGIN
 		WHERE
 			ni->'capabilities' ? et.capability AND
 			ni->'transceiver'->>'port_type' = et.port_type AND
-			ni->'transceiver'->>'media_type' = et.media_type;
+			ni->'transceiver'->>'media_type' = et.media_type
+		ORDER BY
+			raw_speed DESC
+		LIMIT 1;
 
 		IF FOUND THEN
 			RAISE DEBUG 'slot_type_id for slot should be %', stid;
