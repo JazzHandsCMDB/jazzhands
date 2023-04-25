@@ -1544,6 +1544,27 @@ BEGIN
 		END IF;
 	END IF;
 
+	--
+	-- This is needed because Ubuntu 16.04 is broken detecting 25G.  We
+	-- only want this to happen if the above fails.
+	--
+	IF stid IS NULL THEN
+		SELECT
+			slot_type_id INTO stid
+		FROM
+			device_provisioning.ethtool_xcvr_to_slot_type et
+		WHERE
+			ni->'transceiver'->>'speed' = et.speed AND
+			ni->'transceiver'->>'port_type' = et.port_type AND
+			ni->'transceiver'->>'media_type' = et.media_type;
+
+		IF FOUND THEN
+			RAISE DEBUG 'slot_type_id for slot should be %', stid;
+		ELSE
+			RAISE DEBUG 'slot_type_id for slot could not be determined';
+		END IF;
+	END IF;
+
 	IF cs IS NULL AND stid IS NOT NULL THEN
 		INSERT INTO slot (
 			component_id,
