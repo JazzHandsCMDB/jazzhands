@@ -432,7 +432,11 @@ FROM jazzhands.company_type;
 
 CREATE OR REPLACE VIEW jazzhands_legacy.component AS
 SELECT component_id,component_type_id,component_name,rack_location_id,parent_slot_id,data_ins_user,data_ins_date,data_upd_user,data_upd_date
-FROM jazzhands.component;
+FROM jazzhands.component
+WHERE component_id NOT IN (
+	SELECT component_id
+	FROM jazzhands.virtual_component_logical_volume
+);
 
 
 
@@ -1564,9 +1568,9 @@ SELECT
 
 
 CREATE OR REPLACE VIEW jazzhands_legacy.physicalish_volume AS
-SELECT	block_storage_device_id	AS physicalish_volume_id,
-	block_storage_device_name AS physicalish_volume_name,
-	block_storage_device_type AS physicalish_volume_type,
+SELECT	physicalish_volume_id,
+	physicalish_volume_name,
+	physicalish_volume_type,
 	device_id,
 	logical_volume_id,
 	component_id,
@@ -1574,7 +1578,7 @@ SELECT	block_storage_device_id	AS physicalish_volume_id,
 	data_ins_date,
 	data_upd_user,
 	data_upd_date
-FROM jazzhands.block_storage_device;
+FROM jazzhands.physicalish_volume;
 
 -- Simple column rename
 CREATE OR REPLACE VIEW jazzhands_legacy.private_key AS
@@ -2351,7 +2355,12 @@ UNION ALL
 
 CREATE OR REPLACE VIEW jazzhands_legacy.v_component_hier AS
 SELECT component_id,child_component_id,component_path,level
-FROM jazzhands.v_component_hier;
+FROM jazzhands.v_component_hier
+WHERE component_id NOT IN (
+	SELECT component_id FROM virtual_component_logical_volume
+) AND child_component_id NOT IN (
+	SELECT component_id FROM virtual_component_logical_volume
+);
 
 
 
