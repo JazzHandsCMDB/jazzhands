@@ -355,10 +355,17 @@ BEGIN
 	RAISE LOG 'Removing logical volume hierarchies...';
 	SET CONSTRAINTS ALL DEFERRED;
 
-	DELETE FROM volume_group_physicalish_volume vgpv WHERE
+	DELETE FROM volume_group_block_storage_device vgpv WHERE
 		vgpv.device_id = ANY (device_id_list);
-	DELETE FROM physicalish_volume pv WHERE
+	DELETE FROM block_storage_device pv WHERE
 		pv.device_id = ANY (device_id_list);
+	--- XXXX check this
+	DELETE FROM virtual_component_logical_volume uclv WHERE
+		uclv.logical_volume_id IN (
+			SELECT logical_volume_id
+			FROM logical_volume lv
+			WHERE lv.device_id = ANY (device_id_list)
+		);
 
 	WITH z AS (
 		DELETE FROM volume_group vg
