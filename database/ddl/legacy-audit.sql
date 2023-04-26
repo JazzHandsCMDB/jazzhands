@@ -1577,14 +1577,16 @@ SELECT
 	"aud#seq"
 FROM jazzhands_audit.physical_connection;
 
-
-
+--
+-- logical_volume_id is being phased out.  It is possible to go through
+-- unholy things to get to it but not worth the effort.  I think.
+--
 CREATE OR REPLACE VIEW audit.physicalish_volume AS
 SELECT	block_storage_device_id		AS physicalish_volume_id,
 	block_storage_device_name	AS physicalish_volume_name,
 	block_storage_device_type	AS physicalish_volume_type,
 	device_id,
-	logical_volume_id,
+	NULL::integer			AS logical_volume_id,
 	component_id,
 	data_ins_user,
 	data_ins_date,
