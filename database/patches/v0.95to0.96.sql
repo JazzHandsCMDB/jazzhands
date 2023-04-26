@@ -35,6 +35,7 @@ Invoked:
 	volume_group
 	volume_group_physicalish_volume:volume_group_block_storage_device
 	val_physicalish_volume_type:val_block_storage_device_type
+	virtual_component_logical_volume
 	physicalish_volume:block_storage_device
 	physicalish_volume
 	volume_group_physicalish_volume
@@ -115,6 +116,25 @@ SET jazzhands.appuser = 'release-0.96';
 DROP VIEW IF EXISTS jazzhands_legacy.account_auth_log;
 DROP VIEW IF EXISTS audit.account_auth_log;
 
+/*
+
+-- To fix the virtual device / component mismatch, assuming component is accurate
+
+	UPDATE device d
+	SET is_virtual_device = mm.is_virtual_component, rack_location_id = NULL
+	FROM  (
+		SELECT device_id, component_id, is_virtual_component
+		FROM device
+		JOIN component c USING (component_id)
+		JOIN component_type ct USING (component_type_id)
+		WHERE is_virtual_component != is_virtual_device
+	) mm
+	WHERE d.device_id = mm.device_id
+	AND ( mm.is_virtual_component != d.is_virtual_device OR rack_location_id IS NOT NULL )
+	;
+
+ */
+
 DO
 $$
 BEGIN
@@ -124,9 +144,9 @@ BEGIN
 		RAISE EXCEPTION 'May not have devices with rack_location_id set and component_id is not.';
 	END IF;
 
-	PERFORM FROM device
-	JOIN component USING (component_id)
-	JOIN component_type USING (component_type_id)
+	PERFORM FROM device d
+	JOIN component c USING (component_id)
+	JOIN component_type ct USING (component_type_id)
 	WHERE is_virtual_component != is_virtual_device;
 	IF FOUND THEN
 		RAISE EXCEPTION 'device.is_virtual_device does not match component_type.is_virtual_component on some rows';
@@ -139,7 +159,6 @@ BEGIN
 	END IF;
 
 END;
-
 $$;
 
 
@@ -169,6 +188,26 @@ WHERE dns_record_id IN (
 -- new constraint to enforce this.
 UPDATE device SET is_virtual_device = false
 WHERE is_virtual_device = true AND rack_location_id IS NOT NULL;
+
+--
+-- required by new disk handling stuff
+--
+DO $$
+BEGIN
+	PERFORM *  FROM component_type
+	WHERE model = 'Virtual Disk'
+	AND is_virtual_component;
+
+	INSERT INTO component_type (
+		model, is_virtual_component
+	) VALUES (
+		'Virtual Disk', true
+	);
+END;
+$$;
+
+-- not doing this  now because it gets done later.
+-- SELECT schema_support.synchronize_cache_tables();
 
 
 -- END Misc that does not apply to above
@@ -1777,6 +1816,185 @@ SELECT schema_support.replay_object_recreates(tags := ARRAY['process_all_procs_i
 -- Process middle (non-trigger) schema component_manip
 --
 SELECT schema_support.replay_object_recreates(tags := ARRAY['process_all_procs_in_schema_component_manip']);
+-- New function; dropping in case it returned because of type change
+SELECT schema_support.save_grants_for_replay('component_manip', 'set_component_network_interface');
+DROP FUNCTION IF EXISTS component_manip.set_component_network_interface ( integer,jsonb );
+CREATE OR REPLACE FUNCTION component_manip.set_component_network_interface(component_id integer, network_interface jsonb)
+ RETURNS jazzhands.slot
+ LANGUAGE plpgsql
+ SECURITY DEFINER
+ SET search_path TO 'jazzhands'
+AS $function$
+DECLARE
+	cid		ALIAS FOR component_id;
+	ni		ALIAS FOR network_interface;
+	cs		RECORD;
+	lldp	jsonb;
+	stid	jazzhands.slot_type.slot_type_id%TYPE;
+BEGIN
+	IF component_id IS NULL OR network_interface IS NULL THEN
+	    RETURN NULL;
+	END IF;
+
+	--
+	-- If there isn't an interface name passed, then just give up
+	--
+
+	IF NOT (ni ? 'interface_name') OR (ni->>'interface_name' IS NULL) OR
+			(ni->>'interface_name' = '') THEN
+		RETURN NULL;
+	END IF;
+
+	--
+	-- Attempt to find the slot already inserted, in this order
+	--  - slot with this permanent_mac, if permanent_mac is passed
+	--  - slot with this component_id and given interface_name
+	--  - slot with this component_id where the remote LLDP connection matches
+	--
+
+	IF ni ? 'permanent_mac' THEN
+		--
+		-- First look to see if there's a slot with this MAC already
+		--
+		RAISE DEBUG 'Looking for slot with mac_address %',
+			ni->>'permanent_mac';
+
+		SELECT 
+			* INTO cs
+		FROM
+			slot
+		WHERE
+			mac_address = (ni->>'permanent_mac')::macaddr;
+	END IF;
+
+	IF cs IS NULL AND ni ? 'interface_name' THEN
+		RAISE DEBUG 'Looking for slot for component % with name %',
+			cid,
+			ni->>'interface_name';
+
+		SELECT 
+			s.* INTO cs
+		FROM
+			slot s JOIN
+			slot_type st USING (slot_type_id)
+		WHERE
+			s.component_id = cid AND
+			st.slot_function = 'network' AND
+			s.slot_name = ni->>'interface_name';
+	END IF;
+
+	IF cs IS NULL AND ni ? 'lldp' THEN
+		lldp := ni->'lldp';
+
+		RAISE DEBUG 'Looking for slot for component % connected to %/% port %', 
+			cid,
+			lldp->>'device_name',
+			lldp->>'chassis_id',
+			lldp->>'interface';
+
+		SELECT 
+			s.* INTO cs
+		FROM
+			slot s JOIN
+			v_device_slot_connections dsc USING (slot_id) JOIN
+			device d ON (dsc.remote_device_id = d.device_id)
+		WHERE
+			s.component_id = cid AND (
+				d.host_id = lldp->>'chassis_id' OR
+				(
+					d.device_name = lldp->>'device_name' AND
+					d.host_id IS NULL
+				)
+			) AND
+			dsc.remote_slot_name = lldp->>'interface'
+		ORDER BY
+			d.host_id NULLS LAST
+		LIMiT 1;
+	END IF;
+
+	--
+	-- Figure out which slot_type we're supposed to use.  If we don't know,
+	-- then c'est la vie.
+	--
+
+	IF ni ? 'capabilities' THEN
+		SELECT
+			slot_type_id INTO stid
+		FROM
+			device_provisioning.ethtool_xcvr_to_slot_type et
+		WHERE
+			ni->'capabilities' ? et.capability AND
+			ni->'transceiver'->>'port_type' = et.port_type AND
+			ni->'transceiver'->>'media_type' = et.media_type;
+
+		IF FOUND THEN
+			RAISE DEBUG 'slot_type_id for slot should be %', stid;
+		ELSE
+			RAISE DEBUG 'slot_type_id for slot could not be determined';
+		END IF;
+	END IF;
+
+	IF cs IS NULL AND stid IS NOT NULL THEN
+		INSERT INTO slot (
+			component_id,
+			slot_name,
+			slot_type_id,
+			mac_address
+		) VALUES (
+			cid,
+			ni->>'interface_name',
+			stid,
+			(ni->>'permanent_mac')::macaddr
+		) RETURNING * INTO cs;
+	END IF;
+
+	--
+	-- Fix the slot name if it doesn't match the current Linux name
+	--
+	IF cs.slot_name != ni->>'interface_name' THEN
+		UPDATE
+			slot
+		SET
+			slot_name = ni->>'interface_name'
+		WHERE
+			slot_id = cs.slot_id;
+
+		cs.slot_name := ni->>'interface_name';
+	END IF;
+
+	--
+	-- Update the mac_address if it needs to be
+	--
+	IF cs.mac_address IS DISTINCT FROM (ni->>'permanent_mac')::macaddr THEN
+		UPDATE
+			slot
+		SET
+			mac_address = (ni->>'permanent_mac')::macaddr
+		WHERE
+			slot_id = cs.slot_id;
+
+		cs.mac_address := (ni->>'permanent_mac')::macaddr;
+	END IF;
+
+	--
+	-- Fix the slot type if it isn't correct
+	--
+	IF cs.slot_type_id != stid THEN
+		UPDATE
+			slot
+		SET
+			slot_type_id = stid
+		WHERE
+			slot_id = cs.slot_id;
+
+		cs.slot_type_id := stid;
+	END IF;
+
+	RETURN cs;
+END;
+$function$
+;
+
 --
 -- Process middle (non-trigger) schema component_utils
 --
@@ -1784,6 +2002,372 @@ SELECT schema_support.replay_object_recreates(tags := ARRAY['process_all_procs_i
 --
 -- Process middle (non-trigger) schema device_manip
 --
+-- Changed function
+SELECT schema_support.save_dependent_objects_for_replay('device_manip', 'retire_devices');
+SELECT schema_support.save_grants_for_replay('device_manip', 'retire_devices');
+-- Dropped in case type changes.
+DROP FUNCTION IF EXISTS device_manip.retire_devices ( integer[] );
+CREATE OR REPLACE FUNCTION device_manip.retire_devices(device_id_list integer[])
+ RETURNS TABLE(device_id integer, success boolean)
+ LANGUAGE plpgsql
+ SECURITY DEFINER
+ SET search_path TO 'jazzhands'
+AS $function$
+DECLARE
+	nb_list		integer[];
+	sn_list		integer[];
+	sn_rec		RECORD;
+	mp_rec		RECORD;
+	rl_list		integer[];
+	dev_id		jazzhands.device.device_id%TYPE;
+	se_id		jazzhands.service_environment.service_environment_id%TYPE;
+	nb_id		jazzhands.netblock.netblock_id%TYPE;
+	cp_list		integer[];
+BEGIN
+	BEGIN
+		PERFORM local_hooks.retire_devices_early(device_id_list);
+	EXCEPTION WHEN invalid_schema_name OR undefined_function THEN
+		NULL;
+	END;
+	--
+	-- Add all of the BMCs for any retiring devices to the list in case
+	-- they are not specified
+	--
+	device_id_list := array_cat(
+		device_id_list,
+		(SELECT
+			array_agg(manager_device_id)
+		FROM
+			component_management_controller dmc
+			JOIN (SELECT i.device_id, i.component_id 
+				FROM jazzhands.device i) d
+				USING (component_id)
+			JOIN (SELECT i.device_id AS manager_device_id,
+					i.component_id AS manager_component_id
+					FROM jazzhands.device i) md
+				USING (manager_component_id)
+		WHERE
+			d.device_id = ANY(device_id_list) AND
+			component_management_controller_type = 'bmc'
+		)
+	);
+
+	SELECT array_agg(component_id)
+		INTO cp_list
+		FROM device d
+		WHERE d.device_id = ANY(device_id_list)
+		AND d.component_id IS NOT NULL
+	;
+
+	--
+	-- Delete layer3_interfaces
+	--
+	PERFORM device_manip.remove_layer3_interfaces(
+		layer3_interface_id_list := ARRAY(
+			SELECT
+				layer3_interface_id
+			FROM
+				layer3_interface ni
+			WHERE
+				ni.device_id = ANY(device_id_list)
+		)
+	);
+
+	--
+	-- If device is a member of an MLAG, remove it.  This will also clean
+	-- up any logical port assignments for this MLAG
+	--
+
+	FOREACH dev_id IN ARRAY device_id_list LOOP
+		PERFORM logical_port_manip.remove_mlag_peer(device_id := dev_id);
+	END LOOP;
+
+	--
+	-- Delete all layer2_connections involving these devices
+	--
+
+	WITH x AS (
+		SELECT
+			layer2_connection_id
+		FROM
+			layer2_connection l2c
+		WHERE
+			l2c.logical_port1_id IN (
+				SELECT
+					logical_port_id
+				FROM
+					logical_port lp
+				WHERE
+					lp.device_id = ANY(device_id_list)
+			) OR
+			l2c.logical_port2_id IN (
+				SELECT
+					logical_port_id
+				FROM
+					logical_port lp
+				WHERE
+					lp.device_id = ANY(device_id_list)
+			)
+	), z AS (
+		DELETE FROM layer2_connection_layer2_network l2cl2n WHERE
+			l2cl2n.layer2_connection_id IN (
+				SELECT layer2_connection_id FROM x
+			)
+	)
+	DELETE FROM layer2_connection l2c WHERE
+		l2c.layer2_connection_id IN (
+			SELECT layer2_connection_id FROM x
+		);
+
+	--
+	-- Delete all logical ports for these devices
+	--
+	DELETE FROM logical_port lp WHERE lp.device_id = ANY(device_id_list);
+
+
+	RAISE LOG 'Removing inter_component_connections...';
+
+	WITH s AS (
+		SELECT DISTINCT
+			slot_id
+		FROM
+			v_device_slots ds
+		WHERE
+			ds.device_id = ANY(device_id_list)
+	)
+	DELETE FROM inter_component_connection WHERE
+		slot1_id IN (SELECT slot_id FROM s) OR
+		slot2_id IN (SELECT slot_id FROM s);
+
+	RAISE LOG 'Removing device properties...';
+
+	DELETE FROM property WHERE device_collection_id IN (
+		SELECT
+			dc.device_collection_id
+		FROM
+			device_collection dc JOIN
+			device_collection_device dcd USING (device_collection_id)
+		WHERE
+			dc.device_collection_type = 'per-device' AND
+			dcd.device_id = ANY(device_id_list)
+	);
+
+	RAISE LOG 'Removing inter_component_connections...';
+
+	WITH s AS (
+		SELECT DISTINCT
+			slot_id
+		FROM
+			v_device_slots ds
+		WHERE
+			ds.device_id = ANY(device_id_list)
+	)
+	DELETE FROM inter_component_connection WHERE
+		slot1_id IN (SELECT slot_id FROM s) OR
+		slot2_id IN (SELECT slot_id FROM s);
+
+	RAISE LOG 'Removing device properties...';
+
+	DELETE FROM property WHERE device_collection_id IN (
+		SELECT
+			dc.device_collection_id
+		FROM
+			device_collection dc JOIN
+			device_collection_device dcd USING (device_collection_id)
+		WHERE
+			dc.device_collection_type = 'per-device' AND
+			dcd.device_id = ANY(device_id_list)
+	);
+
+	RAISE LOG 'Removing per-device device_collections...';
+
+	DELETE FROM
+		device_collection_device dcd
+	WHERE
+		dcd.device_id = ANY(device_id_list) AND
+		device_collection_id NOT IN (
+			SELECT
+				device_collection_id
+			FROM
+				device_collection
+			WHERE
+				device_collection_type = 'per-device'
+		);
+
+	--
+	-- Make sure all rack_location stuff has been cleared out
+	--
+
+	RAISE LOG 'Removing rack_locations...';
+
+	SELECT array_agg(rack_location_id) INTO rl_list FROM (
+		SELECT DISTINCT
+			rack_location_id
+		FROM
+			device d
+		WHERE
+			d.device_id = ANY(device_id_list) AND
+			rack_location_id IS NOT NULL
+		UNION
+		SELECT DISTINCT
+			rack_location_id
+		FROM
+			component c JOIN
+			v_device_components dc USING (component_id)
+		WHERE
+			dc.device_id = ANY(device_id_list) AND
+			rack_location_id IS NOT NULL
+	) x;
+
+	UPDATE
+		device d
+	SET
+		rack_location_id = NULL
+	WHERE
+		d.device_id = ANY(device_id_list) AND
+		rack_location_id IS NOT NULL;
+
+	UPDATE
+		component
+	SET
+		rack_location_id = NULL
+	WHERE
+		component_id IN (
+			SELECT
+				component_id
+			FROM
+				v_device_components dc
+			WHERE
+				dc.device_id = ANY(device_id_list)
+		) AND
+		rack_location_id IS NOT NULL;
+
+	--
+	-- Delete any now-abandoned rack_locations
+	--
+	DELETE FROM
+		rack_location rl
+	WHERE
+		rack_location_id = ANY (rl_list) AND
+		rack_location_id NOT IN (
+			SELECT
+				rack_location_id
+			FROM
+				device
+			WHERE
+				rack_location_id IS NOT NULL
+			UNION
+			SELECT
+				rack_location_id
+			FROM
+				component
+			WHERE
+				rack_location_id IS NOT NULL
+		);
+
+	RAISE LOG 'Removing component_management_controller links...';
+
+	DELETE FROM component_management_controller cmc WHERE
+		cmc.component_id = ANY (cp_list) OR
+		manager_component_id = ANY (cp_list);
+
+	RAISE LOG 'Removing device_encapsulation_domain entries...';
+
+	DELETE FROM device_encapsulation_domain ded WHERE
+		ded.device_id = ANY (device_id_list);
+
+	--
+	-- Clear out all of the logical_volume crap
+	--
+	RAISE LOG 'Removing logical volume hierarchies...';
+	SET CONSTRAINTS ALL DEFERRED;
+
+	DELETE FROM volume_group_block_storage_device vgpv WHERE
+		vgpv.device_id = ANY (device_id_list);
+	DELETE FROM block_storage_device pv WHERE
+		pv.device_id = ANY (device_id_list);
+	--- XXXX check this
+	DELETE FROM virtual_component_logical_volume uclv WHERE
+		uclv.logical_volume_id IN (
+			SELECT logical_volume_id
+			FROM logical_volume lv
+			WHERE lv.device_id = ANY (device_id_list)
+		);
+
+	WITH z AS (
+		DELETE FROM volume_group vg
+		WHERE vg.device_id = ANY (device_id_list)
+		RETURNING vg.volume_group_id
+	)
+	DELETE FROM volume_group_purpose WHERE
+		volume_group_id IN (SELECT volume_group_id FROM z);
+
+	WITH z AS (
+		DELETE FROM logical_volume lv
+		WHERE lv.device_id = ANY (device_id_list)
+		RETURNING lv.logical_volume_id
+	), y AS (
+		DELETE FROM logical_volume_purpose WHERE
+			logical_volume_id IN (SELECT logical_volume_id FROM z)
+	)
+	DELETE FROM logical_volume_property WHERE
+		logical_volume_id IN (SELECT logical_volume_id FROM z);
+
+	SET CONSTRAINTS ALL IMMEDIATE;
+
+	--
+	-- Attempt to delete all of the devices
+	--
+	SELECT service_environment_id INTO se_id FROM service_environment WHERE
+		service_environment_name = 'unallocated';
+
+	FOREACH dev_id IN ARRAY device_id_list LOOP
+		RAISE LOG 'Deleting device %', dev_id;
+
+		BEGIN
+			DELETE FROM device_note dn WHERE dn.device_id = dev_id;
+
+			DELETE FROM device d WHERE d.device_id = dev_id;
+			device_id := dev_id;
+			success := true;
+			RETURN NEXT;
+		EXCEPTION
+			WHEN foreign_key_violation THEN
+				UPDATE device d SET
+					device_name = NULL,
+					component_id = NULL,
+					service_environment_id = se_id,
+					device_status = 'removed',
+					description = NULL
+				WHERE
+					d.device_id = dev_id;
+
+				device_id := dev_id;
+				success := false;
+				RETURN NEXT;
+		END;
+	END LOOP;
+
+	BEGIN
+		PERFORM local_hooks.retire_devices_late(device_id_list);
+	EXCEPTION WHEN invalid_schema_name OR undefined_function THEN
+		NULL;
+	END;
+	RETURN;
+END;
+$function$
+;
+
+DO $$
+-- not dropping regrants here.
+BEGIN
+	DELETE FROM __recreate WHERE schema = 'device_manip' AND type = 'function' AND object IN ('retire_devices');
+EXCEPTION WHEN undefined_table THEN
+	RAISE NOTICE 'Drop of proc retire_devices failed but that is ok';
+	NULL;
+END;
+$$;
+
 SELECT schema_support.replay_object_recreates(tags := ARRAY['process_all_procs_in_schema_device_manip']);
 --
 -- Process middle (non-trigger) schema device_utils
@@ -4490,7 +5074,7 @@ ALTER TABLE jazzhands.logical_volume DROP CONSTRAINT IF EXISTS fk_logvol_fstype;
 ALTER TABLE jazzhands.logical_volume DROP CONSTRAINT IF EXISTS fk_logvol_vgid;
 
 -- EXTRA-SCHEMA constraints
-SELECT schema_support.save_constraint_for_replay(schema := 'jazzhands', object := 'logical_volume', newobject := 'logical_volume', newmap := '{"ak_logical_volume_filesystem":{"columns":["logical_volume_id","filesystem_type"],"def":"UNIQUE (logical_volume_id, filesystem_type)","deferrable":false,"deferred":false,"name":"ak_logical_volume_filesystem","type":"u"},"ak_logvol_devid_lvname":{"columns":["device_id","logical_volume_name","logical_volume_type","volume_group_id"],"def":"UNIQUE (device_id, logical_volume_name, logical_volume_type, volume_group_id)","deferrable":false,"deferred":false,"name":"ak_logvol_devid_lvname","type":"u"},"ak_logvol_lv_devid":{"columns":["logical_volume_id"],"def":"UNIQUE (logical_volume_id)","deferrable":false,"deferred":false,"name":"ak_logvol_lv_devid","type":"u"},"pk_logical_volume":{"columns":["logical_volume_id"],"def":"PRIMARY KEY (logical_volume_id)","deferrable":false,"deferred":false,"name":"pk_logical_volume","type":"p"}}');
+SELECT schema_support.save_constraint_for_replay(schema := 'jazzhands', object := 'logical_volume', newobject := 'logical_volume', newmap := '{"ak_logical_volume_filesystem":{"columns":["logical_volume_id","filesystem_type"],"def":"UNIQUE (logical_volume_id, filesystem_type)","deferrable":false,"deferred":false,"name":"ak_logical_volume_filesystem","type":"u"},"ak_logvol_devid_lvname":{"columns":["logical_volume_name","logical_volume_type","volume_group_id","device_id"],"def":"UNIQUE (device_id, logical_volume_name, logical_volume_type, volume_group_id)","deferrable":false,"deferred":false,"name":"ak_logvol_devid_lvname","type":"u"},"ak_logvol_lv_devid":{"columns":["logical_volume_id"],"def":"UNIQUE (logical_volume_id)","deferrable":false,"deferred":false,"name":"ak_logvol_lv_devid","type":"u"},"pk_logical_volume":{"columns":["logical_volume_id"],"def":"PRIMARY KEY (logical_volume_id)","deferrable":false,"deferred":false,"name":"pk_logical_volume","type":"p"}}');
 
 -- PRIMARY and ALTERNATE KEYS
 ALTER TABLE jazzhands.logical_volume DROP CONSTRAINT IF EXISTS ak_logical_volume_filesystem;
@@ -4663,12 +5247,6 @@ CREATE INDEX xif_logvol_vgid ON jazzhands.logical_volume USING btree (volume_gro
 -- CHECK CONSTRAINTS
 
 -- FOREIGN KEYS FROM
--- consider FK between logical_volume and jazzhands.block_storage_device
--- Skipping this FK since column does not exist yet
---ALTER TABLE jazzhands.jazzhands.block_storage_device
---	ADD CONSTRAINT fk_block_storage_device_lv_lv_id
---	FOREIGN KEY (logical_volume_id) REFERENCES jazzhands.logical_volume(logical_volume_id);
-
 -- consider FK between logical_volume and jazzhands.logical_volume_property
 ALTER TABLE jazzhands.logical_volume_property
 	ADD CONSTRAINT fk_lvol_prop_lvid_fstyp
@@ -4677,6 +5255,12 @@ ALTER TABLE jazzhands.logical_volume_property
 ALTER TABLE jazzhands.logical_volume_purpose
 	ADD CONSTRAINT fk_lvpurp_lvid
 	FOREIGN KEY (logical_volume_id) REFERENCES jazzhands.logical_volume(logical_volume_id) DEFERRABLE;
+-- consider FK between logical_volume and jazzhands.virtual_component_logical_volume
+-- Skipping this FK since column does not exist yet
+--ALTER TABLE jazzhands.jazzhands.virtual_component_logical_volume
+--	ADD CONSTRAINT fk_virtual_component_logical_volume_id_logical_volume_id
+--	FOREIGN KEY (logical_volume_id) REFERENCES jazzhands.logical_volume(logical_volume_id);
+
 
 -- FOREIGN KEYS TO
 -- consider FK logical_volume and val_logical_volume_type
@@ -4750,7 +5334,7 @@ ALTER TABLE jazzhands.volume_group DROP CONSTRAINT IF EXISTS fk_volgrp_rd_type;
 ALTER TABLE jazzhands.volume_group DROP CONSTRAINT IF EXISTS fk_volgrp_volgrp_type;
 
 -- EXTRA-SCHEMA constraints
-SELECT schema_support.save_constraint_for_replay(schema := 'jazzhands', object := 'volume_group', newobject := 'volume_group', newmap := '{"ak_volume_group_devid_vgid":{"columns":["volume_group_id","device_id"],"def":"UNIQUE (volume_group_id, device_id)","deferrable":false,"deferred":false,"name":"ak_volume_group_devid_vgid","type":"u"},"ak_volume_group_vg_devid":{"columns":["volume_group_id","device_id"],"def":"UNIQUE (volume_group_id, device_id)","deferrable":false,"deferred":false,"name":"ak_volume_group_vg_devid","type":"u"},"pk_volume_group":{"columns":["volume_group_id"],"def":"PRIMARY KEY (volume_group_id)","deferrable":false,"deferred":false,"name":"pk_volume_group","type":"p"},"uq_volgrp_devid_name_type":{"columns":["device_id","component_id","volume_group_name","volume_group_type"],"def":"UNIQUE (device_id, component_id, volume_group_name, volume_group_type)","deferrable":false,"deferred":false,"name":"uq_volgrp_devid_name_type","type":"u"}}');
+SELECT schema_support.save_constraint_for_replay(schema := 'jazzhands', object := 'volume_group', newobject := 'volume_group', newmap := '{"ak_volume_group_devid_vgid":{"columns":["device_id","volume_group_id"],"def":"UNIQUE (volume_group_id, device_id)","deferrable":false,"deferred":false,"name":"ak_volume_group_devid_vgid","type":"u"},"ak_volume_group_vg_devid":{"columns":["device_id","volume_group_id"],"def":"UNIQUE (volume_group_id, device_id)","deferrable":false,"deferred":false,"name":"ak_volume_group_vg_devid","type":"u"},"pk_volume_group":{"columns":["volume_group_id"],"def":"PRIMARY KEY (volume_group_id)","deferrable":false,"deferred":false,"name":"pk_volume_group","type":"p"},"uq_volgrp_devid_name_type":{"columns":["device_id","component_id","volume_group_name","volume_group_type"],"def":"UNIQUE (device_id, component_id, volume_group_name, volume_group_type)","deferrable":false,"deferred":false,"name":"uq_volgrp_devid_name_type","type":"u"}}');
 
 -- PRIMARY and ALTERNATE KEYS
 ALTER TABLE jazzhands.volume_group DROP CONSTRAINT IF EXISTS ak_volume_group_devid_vgid;
@@ -5099,7 +5683,8 @@ INSERT INTO volume_group_block_storage_device (
 	data_ins_date,
 	data_upd_user,
 	data_upd_date
-FROM volume_group_physicalish_volume_v96;
+FROM volume_group_physicalish_volume_v96
+;
 
 
 INSERT INTO jazzhands_audit.volume_group_block_storage_device (
@@ -5138,7 +5723,8 @@ INSERT INTO jazzhands_audit.volume_group_block_storage_device (
 	"aud#user",
 	jsonb_build_object('user', regexp_replace("aud#user", '/.*$', '')) || CASE WHEN "aud#user" ~ '/' THEN jsonb_build_object('appuser', regexp_replace("aud#user", '^[^/]*', '')) ELSE '{}' END,
 	"aud#seq"
-FROM jazzhands_audit.volume_group_physicalish_volume_v96;
+FROM jazzhands_audit.volume_group_physicalish_volume_v96
+;
 
 
 
@@ -5405,6 +5991,97 @@ $$;
 
 select clock_timestamp(), clock_timestamp() - now() AS len;
 --------------------------------------------------------------------
+-- DEALING WITH NEW TABLE virtual_component_logical_volume (jazzhands)
+CREATE TABLE jazzhands.virtual_component_logical_volume
+(
+	component_id	integer NOT NULL,
+	component_type_id	integer NOT NULL,
+	is_virtual_component	boolean NOT NULL,
+	logical_volume_id	integer NOT NULL,
+	data_ins_user	varchar(255)  NULL,
+	data_ins_date	timestamp with time zone  NULL,
+	data_upd_user	varchar(255)  NULL,
+	data_upd_date	timestamp with time zone  NULL
+);
+SELECT schema_support.build_audit_table('jazzhands_audit', 'jazzhands', 'virtual_component_logical_volume', true);
+ALTER TABLE virtual_component_logical_volume
+	ALTER is_virtual_component
+	SET DEFAULT true;
+ALTER TABLE jazzhands.virtual_component_logical_volume
+	ALTER is_virtual_component
+	SET DEFAULT true;
+
+-- PRIMARY AND ALTERNATE KEYS
+ALTER TABLE jazzhands.virtual_component_logical_volume ADD CONSTRAINT ak_virtual_ciomponent_logical_volume_logical_volume_id UNIQUE (component_id, logical_volume_id);
+ALTER TABLE jazzhands.virtual_component_logical_volume ADD CONSTRAINT pk_virtual_component_logical_volume PRIMARY KEY (component_id);
+
+-- Table/Column Comments
+COMMENT ON TABLE jazzhands.virtual_component_logical_volume IS 'Map a block storage device in a parent to the virtual component of a child, such as for virtual disks';
+-- INDEXES
+CREATE UNIQUE INDEX xifvirtual_component_logical_volume_id_component_id ON jazzhands.virtual_component_logical_volume USING btree (component_id);
+CREATE INDEX xifvirtual_component_logical_volume_id_component_id_component_t ON jazzhands.virtual_component_logical_volume USING btree (component_id, component_type_id);
+CREATE INDEX xifvirtual_component_logical_volume_id_component_type_is_virtua ON jazzhands.virtual_component_logical_volume USING btree (component_type_id, is_virtual_component);
+CREATE INDEX xifvirtual_component_logical_volume_id_logical_volume_id ON jazzhands.virtual_component_logical_volume USING btree (logical_volume_id);
+
+-- CHECK CONSTRAINTS
+ALTER TABLE jazzhands.virtual_component_logical_volume ADD CONSTRAINT ckc_force_true_1044305398
+	CHECK ((is_virtual_component = true));
+
+-- FOREIGN KEYS FROM
+
+-- FOREIGN KEYS TO
+-- consider FK virtual_component_logical_volume and component
+ALTER TABLE jazzhands.virtual_component_logical_volume
+	ADD CONSTRAINT fk_virtual_component_logical_volume_id_component_id
+	FOREIGN KEY (component_id) REFERENCES jazzhands.component(component_id);
+-- consider FK virtual_component_logical_volume and component
+ALTER TABLE jazzhands.virtual_component_logical_volume
+	ADD CONSTRAINT fk_virtual_component_logical_volume_id_component_id_component_t
+	FOREIGN KEY (component_id, component_type_id) REFERENCES jazzhands.component(component_id, component_type_id);
+-- consider FK virtual_component_logical_volume and component_type
+ALTER TABLE jazzhands.virtual_component_logical_volume
+	ADD CONSTRAINT fk_virtual_component_logical_volume_id_component_type_is_virtua
+	FOREIGN KEY (component_type_id, is_virtual_component) REFERENCES jazzhands.component_type(component_type_id, is_virtual_component);
+-- consider FK virtual_component_logical_volume and logical_volume
+ALTER TABLE jazzhands.virtual_component_logical_volume
+	ADD CONSTRAINT fk_virtual_component_logical_volume_id_logical_volume_id
+	FOREIGN KEY (logical_volume_id) REFERENCES jazzhands.logical_volume(logical_volume_id);
+
+-- TRIGGERS
+DO $$
+BEGIN
+		DELETE FROM __recreate WHERE schema = 'jazzhands' AND object IN ('virtual_component_logical_volume');
+	EXCEPTION WHEN undefined_table THEN
+		RAISE NOTICE 'Drop of triggers for virtual_component_logical_volume  failed but that is ok';
+		NULL;
+END;
+$$;
+
+SELECT schema_support.rebuild_stamp_trigger('jazzhands', 'virtual_component_logical_volume');
+SELECT schema_support.build_audit_table_pkak_indexes('jazzhands_audit', 'jazzhands', 'virtual_component_logical_volume');
+SELECT schema_support.rebuild_audit_trigger('jazzhands_audit', 'jazzhands', 'virtual_component_logical_volume');
+-- DONE DEALING WITH TABLE virtual_component_logical_volume (jazzhands)
+--------------------------------------------------------------------
+DO $$
+BEGIN
+	DELETE FROM __recreate WHERE schema IN ('jazzhands', 'jazzhands_audit') AND object IN ('virtual_component_logical_volume');
+EXCEPTION WHEN undefined_table THEN
+	RAISE NOTICE 'Removal of old virtual_component_logical_volume failed but that is ok';
+	NULL;
+END;
+$$;
+
+DO $$
+BEGIN
+	DELETE FROM __recreate WHERE schema IN ('jazzhands', 'jazzhands_audit') AND object IN ('virtual_component_logical_volume');
+EXCEPTION WHEN undefined_table THEN
+	RAISE NOTICE 'Removal of new virtual_component_logical_volume failed but that is ok';
+	NULL;
+END;
+$$;
+
+select clock_timestamp(), clock_timestamp() - now() AS len;
+--------------------------------------------------------------------
 -- BEGIN: DEALING WITH TABLE physicalish_volume
 -- ... renaming to block_storage_device (jazzhands))
 -- Save grants for later reapplication
@@ -5484,7 +6161,6 @@ CREATE TABLE jazzhands.block_storage_device
 	block_storage_device_type	varchar(50) NOT NULL,
 	device_id	integer NOT NULL,
 	component_id	integer  NULL,
-	logical_volume_id	integer  NULL,
 	encrypted_block_storage_device_id	integer  NULL,
 	uuid	uuid  NULL,
 	block_device_size_in_bytes	bigint  NULL,
@@ -5501,6 +6177,30 @@ ALTER TABLE block_storage_device
 
 
 -- BEGIN Manually written insert function
+--
+-- create components for all the logical volumes.  The insert back
+-- in will sort things out with them.
+--
+WITH ct AS (
+	SELECT * FROM component_type WHERE model = 'Virtual Disk'
+	AND is_virtual_component ORDER BY data_ins_date LIMIT 1
+), filtered_lv AS (
+	SELECT *, row_number() OVER (order by component_id) as rn
+        from physicalish_volume_v96 WHERE logical_volume_id IS NOT NULL
+	ORDER BY physicalish_volume_id
+), c AS (
+	INSERT INTO component ( component_type_id )
+	SELECT component_type_id FROM ct, filtered_lv
+	RETURNING *
+), cr AS (
+	SELECT *, row_number() OVER (order by component_id) as rn from c
+) INSERT INTO virtual_component_logical_volume (
+	component_id, component_type_id, is_virtual_component,
+	logical_volume_id
+) SELECT
+	cr.component_id, cr.component_type_id, true,
+	fl.logical_volume_id
+FROM cr JOIN filtered_lv fl USING (rn);
 
 INSERT INTO block_storage_device (
 	block_storage_device_id,		-- new column (block_storage_device_id)
@@ -5508,7 +6208,6 @@ INSERT INTO block_storage_device (
 	block_storage_device_type,		-- new column (block_storage_device_type)
 	device_id,
 	component_id,
-	logical_volume_id,
 	encrypted_block_storage_device_id,		-- new column (encrypted_block_storage_device_id)
 	uuid,		-- new column (uuid)
 	block_device_size_in_bytes,		-- new column (block_device_size_in_bytes)
@@ -5517,29 +6216,31 @@ INSERT INTO block_storage_device (
 	data_upd_user,
 	data_upd_date
 ) SELECT
-	physicalish_volume_id,		-- new column (block_storage_device_id)
-	physicalish_volume_name,	-- new column (block_storage_device_name)
-	physicalish_volume_type,	-- new column (block_storage_device_type)
-	device_id,
-	component_id,
-	logical_volume_id,
+	o.physicalish_volume_id,		-- new column (block_storage_device_id)
+	o.physicalish_volume_name,	-- new column (block_storage_device_name)
+	o.physicalish_volume_type,	-- new column (block_storage_device_type)
+	o.device_id,
+	coalesce(vclv.component_id, o.component_id),
 	NULL,		-- new column (encrypted_block_storage_device_id)
 	NULL,		-- new column (uuid)
 	NULL,		-- new column (block_device_size_in_bytes)
-	data_ins_user,
-	data_ins_date,
-	data_upd_user,
-	data_upd_date
-FROM physicalish_volume_v96;
+	o.data_ins_user,
+	o.data_ins_date,
+	o.data_upd_user,
+	o.data_upd_date
+FROM physicalish_volume_v96 o
+	LEFT JOIN virtual_component_logical_volume vclv USING (logical_volume_id)
+;
 
-
+--
+-- The component mapping is imperfect for history.  Cest la vie.
+--
 INSERT INTO jazzhands_audit.block_storage_device (
 	block_storage_device_id,		-- new column (block_storage_device_id)
 	block_storage_device_name,		-- new column (block_storage_device_name)
 	block_storage_device_type,		-- new column (block_storage_device_type)
 	device_id,
 	component_id,
-	logical_volume_id,
 	encrypted_block_storage_device_id,		-- new column (encrypted_block_storage_device_id)
 	uuid,		-- new column (uuid)
 	block_device_size_in_bytes,		-- new column (block_device_size_in_bytes)
@@ -5555,19 +6256,18 @@ INSERT INTO jazzhands_audit.block_storage_device (
 	"aud#actor",
 	"aud#seq"
 ) SELECT
-	physicalish_volume_id,		-- new column (block_storage_device_id)
-	physicalish_volume_name,	-- new column (block_storage_device_name)
-	physicalish_volume_type,	-- new column (block_storage_device_type)
-	device_id,
-	component_id,
-	logical_volume_id,
+	o.physicalish_volume_id,		-- new column (block_storage_device_id)
+	o.physicalish_volume_name,	-- new column (block_storage_device_name)
+	o.physicalish_volume_type,	-- new column (block_storage_device_type)
+	o.device_id,
+	coalesce(vclv.component_id, o.component_id),
 	NULL,		-- new column (encrypted_block_storage_device_id)
 	NULL,		-- new column (uuid)
 	NULL,		-- new column (block_device_size_in_bytes)
-	data_ins_user,
-	data_ins_date,
-	data_upd_user,
-	data_upd_date,
+	o.data_ins_user,
+	o.data_ins_date,
+	o.data_upd_user,
+	o.data_upd_date,
 	"aud#action",
 	"aud#timestamp",
 	"aud#realtime",
@@ -5575,8 +6275,9 @@ INSERT INTO jazzhands_audit.block_storage_device (
 	"aud#user",
 	jsonb_build_object('user', regexp_replace("aud#user", '/.*$', '')) || CASE WHEN "aud#user" ~ '/' THEN jsonb_build_object('appuser', regexp_replace("aud#user", '^[^/]*', '')) ELSE '{}' END,
 	"aud#seq"
-FROM jazzhands_audit.physicalish_volume_v96;
-
+FROM jazzhands_audit.physicalish_volume_v96 o
+	LEFT JOIN virtual_component_logical_volume vclv USING (logical_volume_id)
+;
 
 
 -- END Manually written insert function
@@ -5598,7 +6299,6 @@ COMMENT ON COLUMN jazzhands.block_storage_device.block_storage_device_name IS 'U
 COMMENT ON COLUMN jazzhands.block_storage_device.block_storage_device_type IS 'Type of block device.   There may be other tables with more information based on the type. ';
 COMMENT ON COLUMN jazzhands.block_storage_device.device_id IS 'Device that has the block device on it.';
 COMMENT ON COLUMN jazzhands.block_storage_device.component_id IS 'Only one of component, logical_volume,or encrypted_block_storage_device_id can be set.';
-COMMENT ON COLUMN jazzhands.block_storage_device.logical_volume_id IS 'Only one of component, logical_volume,or encrypted_block_storage_device_id can be set.';
 COMMENT ON COLUMN jazzhands.block_storage_device.encrypted_block_storage_device_id IS 'Only one of component, logical_volume,or encrypted_block_storage_device_id can be set.';
 COMMENT ON COLUMN jazzhands.block_storage_device.uuid IS 'device wide uuid that is an alternate name for the device.';
 -- INDEXES
@@ -5606,27 +6306,18 @@ CREATE INDEX xifblock_storage_device_blk_stg_dev_typ ON jazzhands.block_storage_
 CREATE INDEX xifblock_storage_device_component_component_id ON jazzhands.block_storage_device USING btree (component_id);
 CREATE INDEX xifblock_storage_device_device_device_id ON jazzhands.block_storage_device USING btree (device_id);
 CREATE INDEX xifblock_storage_device_enc_blk_stroage_device ON jazzhands.block_storage_device USING btree (encrypted_block_storage_device_id);
-CREATE INDEX xifblock_storage_device_lv_lv_id ON jazzhands.block_storage_device USING btree (logical_volume_id);
 
 -- CHECK CONSTRAINTS
 ALTER TABLE jazzhands.block_storage_device ADD CONSTRAINT ckc_one_of_logical_device_id_or_component_id_or_enc__1214227068
-	CHECK ((((logical_volume_id IS NOT NULL) AND (encrypted_block_storage_device_id IS NULL) AND (component_id IS NULL)) OR ((logical_volume_id IS NULL) AND (encrypted_block_storage_device_id IS NULL) AND (component_id IS NOT NULL)) OR ((logical_volume_id IS NULL) AND (encrypted_block_storage_device_id IS NOT NULL) AND (component_id IS NULL))));
-ALTER TABLE jazzhands.block_storage_device ADD CONSTRAINT ckc_one_of_logical_device_id_or_component_id_or_enc__1396903461
-	CHECK ((((logical_volume_id IS NOT NULL) AND (encrypted_block_storage_device_id IS NULL) AND (component_id IS NULL)) OR ((logical_volume_id IS NULL) AND (encrypted_block_storage_device_id IS NULL) AND (component_id IS NOT NULL)) OR ((logical_volume_id IS NULL) AND (encrypted_block_storage_device_id IS NOT NULL) AND (component_id IS NULL))));
+	CHECK ((((encrypted_block_storage_device_id IS NULL) AND (component_id IS NOT NULL)) OR ((component_id IS NOT NULL) AND (encrypted_block_storage_device_id IS NULL))));
 ALTER TABLE jazzhands.block_storage_device ADD CONSTRAINT ckc_one_of_logical_device_id_or_component_id_or_enc_b_915371407
-	CHECK ((((logical_volume_id IS NOT NULL) AND (encrypted_block_storage_device_id IS NULL) AND (component_id IS NULL)) OR ((logical_volume_id IS NULL) AND (encrypted_block_storage_device_id IS NULL) AND (component_id IS NOT NULL)) OR ((logical_volume_id IS NULL) AND (encrypted_block_storage_device_id IS NOT NULL) AND (component_id IS NULL))));
+	CHECK ((((encrypted_block_storage_device_id IS NULL) AND (component_id IS NOT NULL)) OR ((component_id IS NOT NULL) AND (encrypted_block_storage_device_id IS NULL))));
 
 -- FOREIGN KEYS FROM
 -- consider FK between block_storage_device and jazzhands.volume_group_block_storage_device
 ALTER TABLE jazzhands.volume_group_block_storage_device
 	ADD CONSTRAINT fk_bg_blk_stg_dev_blk_stg_dev_id
 	FOREIGN KEY (block_storage_device_id, device_id) REFERENCES jazzhands.block_storage_device(block_storage_device_id, device_id);
--- consider FK between block_storage_device and jazzhands.block_storage_device_virtual_component
--- Skipping this FK since column does not exist yet
---ALTER TABLE jazzhands.jazzhands.block_storage_device_virtual_component
---	ADD CONSTRAINT fk_block_storage_device_virtual_component_block_storage_device_
---	FOREIGN KEY (block_storage_device_id) REFERENCES jazzhands.block_storage_device(block_storage_device_id);
-
 -- consider FK between block_storage_device and jazzhands.encrypted_block_storage_device
 -- Skipping this FK since column does not exist yet
 --ALTER TABLE jazzhands.jazzhands.encrypted_block_storage_device
@@ -5663,10 +6354,6 @@ ALTER TABLE jazzhands.block_storage_device
 --	ADD CONSTRAINT fk_block_storage_device_enc_blk_stroage_device
 --	FOREIGN KEY (encrypted_block_storage_device_id) REFERENCES jazzhands.encrypted_block_storage_device(encrypted_block_storage_device_id);
 
--- consider FK block_storage_device and logical_volume
-ALTER TABLE jazzhands.block_storage_device
-	ADD CONSTRAINT fk_block_storage_device_lv_lv_id
-	FOREIGN KEY (logical_volume_id) REFERENCES jazzhands.logical_volume(logical_volume_id);
 
 -- TRIGGERS
 DO $$
@@ -5729,7 +6416,7 @@ ALTER TABLE jazzhands.val_block_storage_device_encryption_system ADD CONSTRAINT 
 -- consider FK between val_block_storage_device_encryption_system and jazzhands.encrypted_block_storage_device
 -- Skipping this FK since column does not exist yet
 --ALTER TABLE jazzhands.jazzhands.encrypted_block_storage_device
---	ADD CONSTRAINT fl_enc_blk_storage_device_val_block_stg_dev_enc_type
+--	ADD CONSTRAINT fk_enc_blk_storage_device_val_block_stg_dev_enc_type
 --	FOREIGN KEY (block_storage_device_encryption_system) REFERENCES jazzhands.val_block_storage_device_encryption_system(block_storage_device_encryption_system);
 
 
@@ -7154,92 +7841,6 @@ $$;
 
 select clock_timestamp(), clock_timestamp() - now() AS len;
 --------------------------------------------------------------------
--- DEALING WITH NEW TABLE block_storage_device_virtual_component (jazzhands)
-CREATE TABLE jazzhands.block_storage_device_virtual_component
-(
-	block_storage_device_id	integer NOT NULL,
-	component_id	integer NOT NULL,
-	component_type_id	integer NOT NULL,
-	is_virtual_component	boolean  NULL,
-	data_ins_user	varchar(255)  NULL,
-	data_ins_date	timestamp with time zone  NULL,
-	data_upd_user	varchar(255)  NULL,
-	data_upd_date	timestamp with time zone  NULL
-);
-SELECT schema_support.build_audit_table('jazzhands_audit', 'jazzhands', 'block_storage_device_virtual_component', true);
-ALTER TABLE block_storage_device_virtual_component
-	ALTER is_virtual_component
-	SET DEFAULT true;
-ALTER TABLE jazzhands.block_storage_device_virtual_component
-	ALTER is_virtual_component
-	SET DEFAULT true;
-
--- PRIMARY AND ALTERNATE KEYS
-ALTER TABLE jazzhands.block_storage_device_virtual_component ADD CONSTRAINT ak_block_storage_device_virtual_component_component_id UNIQUE (component_id);
-ALTER TABLE jazzhands.block_storage_device_virtual_component ADD CONSTRAINT xpkblock_storage_device_virtual_component PRIMARY KEY (block_storage_device_id);
-
--- Table/Column Comments
-COMMENT ON TABLE jazzhands.block_storage_device_virtual_component IS 'Map a block storage device in a parent to the virtual component of a child, such as for virtual disks';
--- INDEXES
-CREATE UNIQUE INDEX xifblock_storage_device_virtual_component_block_storage_device_ ON jazzhands.block_storage_device_virtual_component USING btree (block_storage_device_id);
-CREATE INDEX xifblock_storage_device_virtual_component_component ON jazzhands.block_storage_device_virtual_component USING btree (component_id, component_type_id);
-CREATE INDEX xifblock_storage_device_virtual_component_component_type ON jazzhands.block_storage_device_virtual_component USING btree (component_type_id, is_virtual_component);
-
--- CHECK CONSTRAINTS
-ALTER TABLE jazzhands.block_storage_device_virtual_component ADD CONSTRAINT ckc_force_true_2019398784
-	CHECK ((is_virtual_component = true));
-
--- FOREIGN KEYS FROM
-
--- FOREIGN KEYS TO
--- consider FK block_storage_device_virtual_component and block_storage_device
-ALTER TABLE jazzhands.block_storage_device_virtual_component
-	ADD CONSTRAINT fk_block_storage_device_virtual_component_block_storage_device_
-	FOREIGN KEY (block_storage_device_id) REFERENCES jazzhands.block_storage_device(block_storage_device_id);
--- consider FK block_storage_device_virtual_component and component
-ALTER TABLE jazzhands.block_storage_device_virtual_component
-	ADD CONSTRAINT fk_block_storage_device_virtual_component_component
-	FOREIGN KEY (component_id, component_type_id) REFERENCES jazzhands.component(component_id, component_type_id);
--- consider FK block_storage_device_virtual_component and component_type
-ALTER TABLE jazzhands.block_storage_device_virtual_component
-	ADD CONSTRAINT fk_block_storage_device_virtual_component_component_type
-	FOREIGN KEY (component_type_id, is_virtual_component) REFERENCES jazzhands.component_type(component_type_id, is_virtual_component);
-
--- TRIGGERS
-DO $$
-BEGIN
-		DELETE FROM __recreate WHERE schema = 'jazzhands' AND object IN ('block_storage_device_virtual_component');
-	EXCEPTION WHEN undefined_table THEN
-		RAISE NOTICE 'Drop of triggers for block_storage_device_virtual_component  failed but that is ok';
-		NULL;
-END;
-$$;
-
-SELECT schema_support.rebuild_stamp_trigger('jazzhands', 'block_storage_device_virtual_component');
-SELECT schema_support.build_audit_table_pkak_indexes('jazzhands_audit', 'jazzhands', 'block_storage_device_virtual_component');
-SELECT schema_support.rebuild_audit_trigger('jazzhands_audit', 'jazzhands', 'block_storage_device_virtual_component');
--- DONE DEALING WITH TABLE block_storage_device_virtual_component (jazzhands)
---------------------------------------------------------------------
-DO $$
-BEGIN
-	DELETE FROM __recreate WHERE schema IN ('jazzhands', 'jazzhands_audit') AND object IN ('block_storage_device_virtual_component');
-EXCEPTION WHEN undefined_table THEN
-	RAISE NOTICE 'Removal of old block_storage_device_virtual_component failed but that is ok';
-	NULL;
-END;
-$$;
-
-DO $$
-BEGIN
-	DELETE FROM __recreate WHERE schema IN ('jazzhands', 'jazzhands_audit') AND object IN ('block_storage_device_virtual_component');
-EXCEPTION WHEN undefined_table THEN
-	RAISE NOTICE 'Removal of new block_storage_device_virtual_component failed but that is ok';
-	NULL;
-END;
-$$;
-
-select clock_timestamp(), clock_timestamp() - now() AS len;
---------------------------------------------------------------------
 -- DEALING WITH NEW TABLE encrypted_block_storage_device (jazzhands)
 CREATE TABLE jazzhands.encrypted_block_storage_device
 (
@@ -7264,9 +7865,9 @@ ALTER TABLE jazzhands.encrypted_block_storage_device ADD CONSTRAINT pk_encrypted
 
 -- Table/Column Comments
 -- INDEXES
+CREATE INDEX xifenc_blk_storage_device_val_block_stg_dev_enc_type ON jazzhands.encrypted_block_storage_device USING btree (block_storage_device_encryption_system);
 CREATE INDEX xifenc_block_storage_device_block_storage_device ON jazzhands.encrypted_block_storage_device USING btree (block_storage_device_id);
 CREATE INDEX xifenc_block_storage_device_encryption_key_id ON jazzhands.encrypted_block_storage_device USING btree (encryption_key_id);
-CREATE INDEX xifl_enc_blk_storage_device_val_block_stg_dev_enc_type ON jazzhands.encrypted_block_storage_device USING btree (block_storage_device_encryption_system);
 
 -- CHECK CONSTRAINTS
 
@@ -7277,6 +7878,10 @@ ALTER TABLE jazzhands.block_storage_device
 	FOREIGN KEY (encrypted_block_storage_device_id) REFERENCES jazzhands.encrypted_block_storage_device(encrypted_block_storage_device_id);
 
 -- FOREIGN KEYS TO
+-- consider FK encrypted_block_storage_device and val_block_storage_device_encryption_system
+ALTER TABLE jazzhands.encrypted_block_storage_device
+	ADD CONSTRAINT fk_enc_blk_storage_device_val_block_stg_dev_enc_type
+	FOREIGN KEY (block_storage_device_encryption_system) REFERENCES jazzhands.val_block_storage_device_encryption_system(block_storage_device_encryption_system);
 -- consider FK encrypted_block_storage_device and block_storage_device
 ALTER TABLE jazzhands.encrypted_block_storage_device
 	ADD CONSTRAINT fk_enc_block_storage_device_block_storage_device
@@ -7285,10 +7890,6 @@ ALTER TABLE jazzhands.encrypted_block_storage_device
 ALTER TABLE jazzhands.encrypted_block_storage_device
 	ADD CONSTRAINT fk_enc_block_storage_device_encryption_key_id
 	FOREIGN KEY (encryption_key_id) REFERENCES jazzhands.encryption_key(encryption_key_id);
--- consider FK encrypted_block_storage_device and val_block_storage_device_encryption_system
-ALTER TABLE jazzhands.encrypted_block_storage_device
-	ADD CONSTRAINT fl_enc_blk_storage_device_val_block_stg_dev_enc_type
-	FOREIGN KEY (block_storage_device_encryption_system) REFERENCES jazzhands.val_block_storage_device_encryption_system(block_storage_device_encryption_system);
 
 -- TRIGGERS
 DO $$
@@ -7413,6 +8014,24 @@ EXCEPTION WHEN undefined_table THEN
 	NULL;
 END;
 $$;
+
+select clock_timestamp(), clock_timestamp() - now() AS len;
+-- Processing minor changes to logical_volume_property
+SELECT schema_support.save_dependent_objects_for_replay(schema := 'jazzhands', object := 'logical_volume_property');
+SELECT schema_support.save_dependent_objects_for_replay(schema := 'jazzhands_audit', object := 'logical_volume_property');
+ALTER TABLE "jazzhands"."logical_volume_property" ALTER COLUMN "logical_volume_id" SET NOT NULL;
+ALTER TABLE "jazzhands"."logical_volume_property" ALTER COLUMN "filesystem_type" SET NOT NULL;
+ALTER TABLE component_type
+	DROP CONSTRAINT IF EXISTS ckc_virtual_rack_mount_check_1365025208;
+ALTER TABLE component_type
+ADD CONSTRAINT ckc_virtual_rack_mount_check_1365025208
+	CHECK ((((is_virtual_component = true) AND (is_rack_mountable = false)) OR (is_virtual_component = false)));
+
+ALTER TABLE device
+	DROP CONSTRAINT IF EXISTS ckc_rack_location_component_non_virtual_474624417;
+ALTER TABLE device
+ADD CONSTRAINT ckc_rack_location_component_non_virtual_474624417
+	CHECK ((((rack_location_id IS NOT NULL) AND (component_id IS NOT NULL) AND (NOT is_virtual_device)) OR (rack_location_id IS NULL)));
 
 select clock_timestamp(), clock_timestamp() - now() AS len;
 -- Processing minor changes to netblock
@@ -8191,17 +8810,21 @@ SELECT schema_support.save_dependent_objects_for_replay('jazzhands_audit', 'phys
 -- restore any missing random views that may be cached that this one needs.
 DROP VIEW IF EXISTS jazzhands.physicalish_volume;
 CREATE VIEW jazzhands.physicalish_volume AS
- SELECT block_storage_device.block_storage_device_id AS physicalish_volume_id,
-    block_storage_device.block_storage_device_name AS physicalish_volume_name,
-    block_storage_device.block_storage_device_type AS physicalish_volume_type,
-    block_storage_device.device_id,
-    block_storage_device.logical_volume_id,
-    block_storage_device.component_id,
-    block_storage_device.data_ins_user,
-    block_storage_device.data_ins_date,
-    block_storage_device.data_upd_user,
-    block_storage_device.data_upd_date
-   FROM jazzhands.block_storage_device;
+ SELECT bsd.block_storage_device_id AS physicalish_volume_id,
+    bsd.block_storage_device_name AS physicalish_volume_name,
+    bsd.block_storage_device_type AS physicalish_volume_type,
+    bsd.device_id,
+    vclv.logical_volume_id,
+        CASE
+            WHEN vclv.logical_volume_id IS NULL THEN bsd.component_id
+            ELSE NULL::integer
+        END AS component_id,
+    bsd.data_ins_user,
+    bsd.data_ins_date,
+    bsd.data_upd_user,
+    bsd.data_upd_date
+   FROM jazzhands.block_storage_device bsd
+     LEFT JOIN jazzhands.virtual_component_logical_volume vclv USING (component_id);
 
 DO $$
 BEGIN
@@ -9745,7 +10368,7 @@ CREATE VIEW audit.physicalish_volume AS
     block_storage_device.block_storage_device_name AS physicalish_volume_name,
     block_storage_device.block_storage_device_type AS physicalish_volume_type,
     block_storage_device.device_id,
-    block_storage_device.logical_volume_id,
+    NULL::integer AS logical_volume_id,
     block_storage_device.component_id,
     block_storage_device.data_ins_user,
     block_storage_device.data_ins_date,
@@ -11235,80 +11858,6 @@ CREATE INDEX aud_device_ak_device_id_site_virtual_name
 --
 -- BEGIN: process_ancillary_schema(jazzhands_legacy)
 --
---- processing view physicalish_volume in ancilary schema
---------------------------------------------------------------------
--- BEGIN: DEALING WITH TABLE physicalish_volume
--- Save grants for later reapplication
-SELECT schema_support.save_grants_for_replay('jazzhands_legacy', 'physicalish_volume', 'physicalish_volume');
-SELECT schema_support.save_dependent_objects_for_replay(schema := 'jazzhands_legacy', object := 'physicalish_volume', tags := ARRAY['view_physicalish_volume']);
--- restore any missing random views that may be cached that this one needs.
-DROP VIEW IF EXISTS jazzhands_legacy.physicalish_volume;
-CREATE VIEW jazzhands_legacy.physicalish_volume AS
- SELECT block_storage_device.block_storage_device_id AS physicalish_volume_id,
-    block_storage_device.block_storage_device_name AS physicalish_volume_name,
-    block_storage_device.block_storage_device_type AS physicalish_volume_type,
-    block_storage_device.device_id,
-    block_storage_device.logical_volume_id,
-    block_storage_device.component_id,
-    block_storage_device.data_ins_user,
-    block_storage_device.data_ins_date,
-    block_storage_device.data_upd_user,
-    block_storage_device.data_upd_date
-   FROM jazzhands.block_storage_device;
-
-DO $$
-BEGIN
-	DELETE FROM __recreate WHERE schema = 'jazzhands_legacy' AND type = 'view' AND object IN ('physicalish_volume','physicalish_volume');
-EXCEPTION WHEN undefined_table THEN
-	RAISE NOTICE 'Drop of physicalish_volume failed but that is ok';
-	NULL;
-END;
-$$;
-
--- just in case
-SELECT schema_support.prepare_for_object_replay();
-
--- PRIMARY AND ALTERNATE KEYS
-
--- Table/Column Comments
--- INDEXES
-
--- CHECK CONSTRAINTS
-
--- FOREIGN KEYS FROM
-
--- FOREIGN KEYS TO
-
--- TRIGGERS
-DO $$
-BEGIN
-		DELETE FROM __recreate WHERE schema = 'jazzhands_legacy' AND object IN ('physicalish_volume');
-	EXCEPTION WHEN undefined_table THEN
-		RAISE NOTICE 'Drop of triggers for physicalish_volume  failed but that is ok';
-		NULL;
-END;
-$$;
-
--- DONE DEALING WITH TABLE physicalish_volume (jazzhands_legacy)
---------------------------------------------------------------------
-DO $$
-BEGIN
-	DELETE FROM __recreate WHERE schema IN ('jazzhands_legacy', 'jazzhands_audit') AND object IN ('physicalish_volume');
-EXCEPTION WHEN undefined_table THEN
-	RAISE NOTICE 'Removal of old physicalish_volume failed but that is ok';
-	NULL;
-END;
-$$;
-
-DO $$
-BEGIN
-	DELETE FROM __recreate WHERE schema IN ('jazzhands_legacy', 'jazzhands_audit') AND object IN ('physicalish_volume');
-EXCEPTION WHEN undefined_table THEN
-	RAISE NOTICE 'Removal of new physicalish_volume failed but that is ok';
-	NULL;
-END;
-$$;
-
 --- processing view account_auth_log in ancilary schema
 --------------------------------------------------------------------
 -- BEGIN: DEALING WITH TABLE account_auth_log
@@ -11330,6 +11879,81 @@ BEGIN
 	DELETE FROM __regrants WHERE schema IN ('jazzhands_legacy', 'jazzhands_audit') AND object IN ('account_auth_log');
 EXCEPTION WHEN undefined_table THEN
 	RAISE NOTICE 'Removal of grants on dropped account_auth_log failed but that is ok';
+	NULL;
+END;
+$$;
+
+--- processing view component in ancilary schema
+--------------------------------------------------------------------
+-- BEGIN: DEALING WITH TABLE component
+-- Save grants for later reapplication
+SELECT schema_support.save_grants_for_replay('jazzhands_legacy', 'component', 'component');
+SELECT schema_support.save_dependent_objects_for_replay(schema := 'jazzhands_legacy', object := 'component', tags := ARRAY['view_component']);
+-- restore any missing random views that may be cached that this one needs.
+DROP VIEW IF EXISTS jazzhands_legacy.component;
+CREATE VIEW jazzhands_legacy.component AS
+ SELECT component.component_id,
+    component.component_type_id,
+    component.component_name,
+    component.rack_location_id,
+    component.parent_slot_id,
+    component.data_ins_user,
+    component.data_ins_date,
+    component.data_upd_user,
+    component.data_upd_date
+   FROM jazzhands.component
+  WHERE NOT (component.component_id IN ( SELECT virtual_component_logical_volume.component_id
+           FROM jazzhands.virtual_component_logical_volume));
+
+DO $$
+BEGIN
+	DELETE FROM __recreate WHERE schema = 'jazzhands_legacy' AND type = 'view' AND object IN ('component','component');
+EXCEPTION WHEN undefined_table THEN
+	RAISE NOTICE 'Drop of component failed but that is ok';
+	NULL;
+END;
+$$;
+
+-- just in case
+SELECT schema_support.prepare_for_object_replay();
+
+-- PRIMARY AND ALTERNATE KEYS
+
+-- Table/Column Comments
+-- INDEXES
+
+-- CHECK CONSTRAINTS
+
+-- FOREIGN KEYS FROM
+
+-- FOREIGN KEYS TO
+
+-- TRIGGERS
+DO $$
+BEGIN
+		DELETE FROM __recreate WHERE schema = 'jazzhands_legacy' AND object IN ('component');
+	EXCEPTION WHEN undefined_table THEN
+		RAISE NOTICE 'Drop of triggers for component  failed but that is ok';
+		NULL;
+END;
+$$;
+
+-- DONE DEALING WITH TABLE component (jazzhands_legacy)
+--------------------------------------------------------------------
+DO $$
+BEGIN
+	DELETE FROM __recreate WHERE schema IN ('jazzhands_legacy', 'jazzhands_audit') AND object IN ('component');
+EXCEPTION WHEN undefined_table THEN
+	RAISE NOTICE 'Removal of old component failed but that is ok';
+	NULL;
+END;
+$$;
+
+DO $$
+BEGIN
+	DELETE FROM __recreate WHERE schema IN ('jazzhands_legacy', 'jazzhands_audit') AND object IN ('component');
+EXCEPTION WHEN undefined_table THEN
+	RAISE NOTICE 'Removal of new component failed but that is ok';
 	NULL;
 END;
 $$;
@@ -11999,6 +12623,78 @@ BEGIN
 	DELETE FROM __recreate WHERE schema IN ('jazzhands_legacy', 'jazzhands_audit') AND object IN ('v_company_hier');
 EXCEPTION WHEN undefined_table THEN
 	RAISE NOTICE 'Removal of new v_company_hier failed but that is ok';
+	NULL;
+END;
+$$;
+
+--- processing view v_component_hier in ancilary schema
+--------------------------------------------------------------------
+-- BEGIN: DEALING WITH TABLE v_component_hier
+-- Save grants for later reapplication
+SELECT schema_support.save_grants_for_replay('jazzhands_legacy', 'v_component_hier', 'v_component_hier');
+SELECT schema_support.save_dependent_objects_for_replay(schema := 'jazzhands_legacy', object := 'v_component_hier', tags := ARRAY['view_v_component_hier']);
+-- restore any missing random views that may be cached that this one needs.
+SELECT schema_support.replay_object_recreates(schema := 'jazzhands', object := 'v_component_hier', type := 'view');
+DROP VIEW IF EXISTS jazzhands_legacy.v_component_hier;
+CREATE VIEW jazzhands_legacy.v_component_hier AS
+ SELECT v_component_hier.component_id,
+    v_component_hier.child_component_id,
+    v_component_hier.component_path,
+    v_component_hier.level
+   FROM jazzhands.v_component_hier
+  WHERE NOT (v_component_hier.component_id IN ( SELECT virtual_component_logical_volume.component_id
+           FROM jazzhands.virtual_component_logical_volume)) AND NOT (v_component_hier.child_component_id IN ( SELECT virtual_component_logical_volume.component_id
+           FROM jazzhands.virtual_component_logical_volume));
+
+DO $$
+BEGIN
+	DELETE FROM __recreate WHERE schema = 'jazzhands_legacy' AND type = 'view' AND object IN ('v_component_hier','v_component_hier');
+EXCEPTION WHEN undefined_table THEN
+	RAISE NOTICE 'Drop of v_component_hier failed but that is ok';
+	NULL;
+END;
+$$;
+
+-- just in case
+SELECT schema_support.prepare_for_object_replay();
+
+-- PRIMARY AND ALTERNATE KEYS
+
+-- Table/Column Comments
+-- INDEXES
+
+-- CHECK CONSTRAINTS
+
+-- FOREIGN KEYS FROM
+
+-- FOREIGN KEYS TO
+
+-- TRIGGERS
+DO $$
+BEGIN
+		DELETE FROM __recreate WHERE schema = 'jazzhands_legacy' AND object IN ('v_component_hier');
+	EXCEPTION WHEN undefined_table THEN
+		RAISE NOTICE 'Drop of triggers for v_component_hier  failed but that is ok';
+		NULL;
+END;
+$$;
+
+-- DONE DEALING WITH TABLE v_component_hier (jazzhands_legacy)
+--------------------------------------------------------------------
+DO $$
+BEGIN
+	DELETE FROM __recreate WHERE schema IN ('jazzhands_legacy', 'jazzhands_audit') AND object IN ('v_component_hier');
+EXCEPTION WHEN undefined_table THEN
+	RAISE NOTICE 'Removal of old v_component_hier failed but that is ok';
+	NULL;
+END;
+$$;
+
+DO $$
+BEGIN
+	DELETE FROM __recreate WHERE schema IN ('jazzhands_legacy', 'jazzhands_audit') AND object IN ('v_component_hier');
+EXCEPTION WHEN undefined_table THEN
+	RAISE NOTICE 'Removal of new v_component_hier failed but that is ok';
 	NULL;
 END;
 $$;
@@ -15550,6 +16246,7 @@ SELECT schema_support.save_dependent_objects_for_replay(schema := 'jazzhands_leg
 -- restore any missing random views that may be cached that this one needs.
 SELECT schema_support.replay_object_recreates(schema := 'jazzhands_legacy', object := 'logical_volume', type := 'view');
 SELECT schema_support.replay_object_recreates(schema := 'jazzhands', object := 'physicalish_volume', type := 'view');
+SELECT schema_support.replay_object_recreates(schema := 'jazzhands', object := 'physicalish_volume', type := 'view');
 SELECT schema_support.replay_object_recreates(schema := 'jazzhands_legacy', object := 'physicalish_volume', type := 'view');
 SELECT schema_support.replay_object_recreates(schema := 'jazzhands_legacy', object := 'volume_group', type := 'view');
 SELECT schema_support.replay_object_recreates(schema := 'jazzhands_legacy', object := 'volume_group_physicalish_vol', type := 'view');
@@ -16357,7 +17054,7 @@ CREATE VIEW audit.physicalish_volume AS
     block_storage_device.block_storage_device_name AS physicalish_volume_name,
     block_storage_device.block_storage_device_type AS physicalish_volume_type,
     block_storage_device.device_id,
-    block_storage_device.logical_volume_id,
+    NULL::integer AS logical_volume_id,
     block_storage_device.component_id,
     block_storage_device.data_ins_user,
     block_storage_device.data_ins_date,
