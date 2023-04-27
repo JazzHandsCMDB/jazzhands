@@ -14267,6 +14267,10 @@ ALTER TABLE val_component_property
 	ADD CONSTRAINT check_prp_prmt_1651930730 CHECK  ( permit_inter_component_connection_id IN ('REQUIRED', 'PROHIBITED', 'ALLOWED') ) ;
 
 ALTER TABLE val_component_property
+	ALTER COLUMN is_multivalue
+		SET DEFAULT false;
+
+ALTER TABLE val_component_property
 	ALTER COLUMN permit_component_type_id
 		SET DEFAULT 'PROHIBITED';
 
