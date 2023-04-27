@@ -209,6 +209,20 @@ $$;
 -- not doing this  now because it gets done later.
 -- SELECT schema_support.synchronize_cache_tables();
 
+ALTER TABLE service_instance
+	ADD CONSTRAINT fk_service_instance_device_device_id FOREIGN KEY (device_id) REFERENCES jazzhands.device(device_id) DEFERRABLE;
+
+-- These are moving and there's trigger support for this later on.
+INSERT INTO val_component_property (
+	component_property_name, component_property_type, is_multivalue,
+	description,
+	property_data_type, permit_component_id, required_component_function
+) VALUES (
+	'SCSI_Id', 'disk', false,
+	'Virtual Disk SCSI Id',
+	'number', 'REQUIRED', 'storage'
+);
+
 
 -- END Misc that does not apply to above
 --
@@ -1924,6 +1938,30 @@ BEGIN
 			device_provisioning.ethtool_xcvr_to_slot_type et
 		WHERE
 			ni->'capabilities' ? et.capability AND
+			ni->'transceiver'->>'port_type' = et.port_type AND
+			ni->'transceiver'->>'media_type' = et.media_type
+		ORDER BY
+			raw_speed DESC
+		LIMIT 1;
+
+		IF FOUND THEN
+			RAISE DEBUG 'slot_type_id for slot should be %', stid;
+		ELSE
+			RAISE DEBUG 'slot_type_id for slot could not be determined';
+		END IF;
+	END IF;
+
+	--
+	-- This is needed because Ubuntu 16.04 is broken detecting 25G.  We
+	-- only want this to happen if the above fails.
+	--
+	IF stid IS NULL THEN
+		SELECT
+			slot_type_id INTO stid
+		FROM
+			device_provisioning.ethtool_xcvr_to_slot_type et
+		WHERE
+			ni->'transceiver'->>'speed' = et.speed AND
 			ni->'transceiver'->>'port_type' = et.port_type AND
 			ni->'transceiver'->>'media_type' = et.media_type;
 
@@ -5395,7 +5433,7 @@ CREATE TABLE jazzhands.volume_group
 	device_id	integer  NULL,
 	component_id	integer  NULL,
 	volume_group_name	varchar(50) NOT NULL,
-	volume_group_type	varchar(50)  NULL,
+	volume_group_type	varchar(50) NOT NULL,
 	volume_group_size_in_bytes	bigint NOT NULL,
 	raid_type	varchar(50)  NULL,
 	uuid	uuid  NULL,
@@ -6048,6 +6086,56 @@ ALTER TABLE jazzhands.virtual_component_logical_volume
 	FOREIGN KEY (logical_volume_id) REFERENCES jazzhands.logical_volume(logical_volume_id);
 
 -- TRIGGERS
+-- considering NEW jazzhands.virtual_component_logical_volume_legacy_sync
+CREATE OR REPLACE FUNCTION jazzhands.virtual_component_logical_volume_legacy_sync()
+ RETURNS trigger
+ LANGUAGE plpgsql
+ SECURITY DEFINER
+ SET search_path TO 'jazzhands'
+AS $function$
+BEGIN
+	--
+	-- This does not fire on DELETE because deleting the SCSI_id would happen
+	-- when it was removed from either logical_volume_properry OR
+	-- component_property but for INSERT, the linkage mage not have existed
+	-- yet.
+	IF TG_OP = 'INSERT' THEN
+/*
+ * These are manipulated directly.
+		INSERT INTO component_property (
+			component_id, component_property_type,
+			component_property_name, property_value
+		) SELECT NEW.component_id, 'disk',
+			logical_volume_property_name, logical_volume_property_value
+		FROM logical_volume_property
+		WHERE  logical_volume_id = NEW.logical_volume_id
+		AND logical_volume_property_name = 'SCSI_Id'
+		ON CONFLICT DO NOTHING;
+ */
+
+		INSERT INTO logical_volume_property (
+			logical_volume_id, filesystem_type,
+			logical_volume_property_name, logical_volume_property_value
+		) SELECT NEW.logical_volume_id, filesystem_type,
+			component_property_name, property_value
+		FROM component_property, logical_volume
+		WHERE logical_volume_id = NEW.logical_volume_id
+		AND component_id = NEW.component_id
+		AND component_property_type = 'disk'
+		AND component_property_name = 'SCSI_Id'
+		ON CONFLICT
+			DO NOTHING;
+	ELSIF TG_OP = 'UPDATE' THEN
+			RAISE EXCEPTION 'May not change logical_volume_id or component_id'
+				USING ERRCODE = 'invalid_parameter_value';
+	END IF;
+	RETURN NEW;
+END;
+$function$
+;
+REVOKE ALL ON FUNCTION jazzhands.virtual_component_logical_volume_legacy_sync() FROM public;
+CREATE TRIGGER trigger_virtual_component_logical_volume_legacy_sync_ins_upd AFTER INSERT OR UPDATE OF logical_volume_id, component_id ON jazzhands.virtual_component_logical_volume FOR EACH ROW EXECUTE FUNCTION jazzhands.virtual_component_logical_volume_legacy_sync();
+
 DO $$
 BEGIN
 		DELETE FROM __recreate WHERE schema = 'jazzhands' AND object IN ('virtual_component_logical_volume');
@@ -6990,6 +7078,23 @@ EXCEPTION WHEN undefined_table THEN
 	NULL;
 END;
 $$;
+
+select clock_timestamp(), clock_timestamp() - now() AS len;
+-- Processing minor changes to val_component_property
+SELECT schema_support.save_dependent_objects_for_replay(schema := 'jazzhands', object := 'val_component_property');
+SELECT schema_support.save_dependent_objects_for_replay(schema := 'jazzhands_audit', object := 'val_component_property');
+ALTER TABLE "jazzhands"."val_component_property" ALTER COLUMN "is_multivalue" SET DEFAULT false;
+ALTER TABLE component_type
+	DROP CONSTRAINT IF EXISTS ckc_virtual_rack_mount_check_1365025208;
+ALTER TABLE component_type
+ADD CONSTRAINT ckc_virtual_rack_mount_check_1365025208
+	CHECK ((((is_virtual_component = true) AND (is_rack_mountable = false)) OR (is_virtual_component = false)));
+
+ALTER TABLE device
+	DROP CONSTRAINT IF EXISTS ckc_rack_location_component_non_virtual_474624417;
+ALTER TABLE device
+ADD CONSTRAINT ckc_rack_location_component_non_virtual_474624417
+	CHECK ((((rack_location_id IS NOT NULL) AND (component_id IS NOT NULL) AND (NOT is_virtual_device)) OR (rack_location_id IS NULL)));
 
 select clock_timestamp(), clock_timestamp() - now() AS len;
 --------------------------------------------------------------------
@@ -8848,6 +8953,204 @@ $$;
 -- FOREIGN KEYS TO
 
 -- TRIGGERS
+-- considering NEW jazzhands.physicalish_volume_del
+CREATE OR REPLACE FUNCTION jazzhands.physicalish_volume_del()
+ RETURNS trigger
+ LANGUAGE plpgsql
+ SECURITY DEFINER
+ SET search_path TO 'jazzhands'
+AS $function$
+DECLARE
+	_o			block_storage_device%ROWTYPE;
+	upd_query	TEXT[];
+BEGIN
+
+	DELETE FROM block_storage_device
+		WHERE block_storage_device_id = OLD.physicalish_volume_id
+		RETURNING * INTO _o;
+
+	OLD.physicalish_volume_id	:= _o.block_storage_device_id;
+	OLD.physicalish_volume_name	:= _o.block_storage_device_name;
+	OLD.physicalish_volume_type	:= _o.block_storage_device_type;
+	OLD.device_id				:= _o.device_id;
+	OLD.component_id				:= _o.component_id;
+
+	OLD.data_del_user 			:= _o.data_del_user;
+	OLD.data_del_date 			:= _o.data_del_date;
+	OLD.data_upd_user 			:= _o.data_upd_user;
+	OLD.data_upd_date 			:= _o.data_upd_date;
+
+	IF OLD.logical_volume_id IS NOT NULL AND _o.component_id IS NOT NULL THEN
+		DELETE FROM virtual_component_logical_volume
+		WHERE component_id = _o.compnent_id
+		RETURNING logical_volume_id INTO OLD.logical_volume_id;
+
+		OLD.component_id := NULL;
+	END IF;
+
+	RETURN NEW;
+END;
+$function$
+;
+REVOKE ALL ON FUNCTION jazzhands.physicalish_volume_del() FROM public;
+CREATE TRIGGER trigger_physicalish_volume_del INSTEAD OF DELETE ON jazzhands.physicalish_volume FOR EACH ROW EXECUTE FUNCTION jazzhands.physicalish_volume_del();
+
+-- considering NEW jazzhands.physicalish_volume_ins
+CREATE OR REPLACE FUNCTION jazzhands.physicalish_volume_ins()
+ RETURNS trigger
+ LANGUAGE plpgsql
+ SECURITY DEFINER
+ SET search_path TO 'jazzhands'
+AS $function$
+DECLARE
+	_cid		component.component_id%TYPE;
+	_c			component%ROWTYPE;
+	_bsd		block_storage_device%ROWTYPE;
+BEGIN
+	IF NEW.logical_volume_id IS NOT NULL THEN
+		IF NEW.component_id IS NOT NULL THEN
+			RAISE EXCEPTION
+				'May not set both logical_volume_id and component_id'
+				USING ERRCODE = 'invalid_parameter_value';
+		END IF;
+		INSERT INTO component ( component_type_id )
+			SELECT component_type_id
+			FROM component_type
+			WHERE model = 'Virtual Disk'
+			AND is_virtual_component
+			ORDER BY component_type_id lIMIT 1
+		RETURNING * INTO _c;
+
+		_cid := _c.component_id;
+
+		INSERT INTO virtual_component_logical_volume (
+			component_id, component_type_id, is_virtual_component,
+		logical_volume_id
+		) VALUES (
+			_c.component_id, _c.component_type_id, true,
+			NEW.logical_volume_id
+		);
+
+
+		INSERT INTO component_property (
+			component_id, component_property_type,
+			component_property_name, property_value
+		) SELECT _c.component_id, 'disk',
+			logical_volume_property_name, logical_volume_property_value
+		FROM logical_volume_property
+		WHERE  logical_volume_id = NEW.logical_volume_id
+		AND logical_volume_property_name = 'SCSI_Id';
+	ELSE
+		_cid := NULL;
+	END IF;
+
+	INSERT INTO block_storage_device (
+	   	block_storage_device_name,
+	   	block_storage_device_type,
+	   	device_id,
+	   	component_id
+	) VALUES (
+		NEW.physicalish_volume_name,
+		NEW.physicalish_volume_type,
+		NEW.device_id,
+		coalesce(NEW.component_id, _cid)
+	) RETURNING * INTO _bsd;
+
+	NEW.physicalish_volume_id	:= _bsd.block_storage_device_id;
+	NEW.physicalish_volume_name	:= _bsd.block_storage_device_name;
+	NEW.physicalish_volume_type	:= _bsd.block_storage_device_type;
+	NEW.device_id				:= _bsd.device_id;
+
+	NEW.data_ins_user 			:= _bsd.data_ins_user;
+	NEW.data_ins_date 			:= _bsd.data_ins_date;
+	NEW.data_upd_user 			:= _bsd.data_upd_user;
+	NEW.data_upd_date 			:= _bsd.data_upd_date;
+
+	RETURN NEW;
+END;
+$function$
+;
+REVOKE ALL ON FUNCTION jazzhands.physicalish_volume_ins() FROM public;
+CREATE TRIGGER trigger_physicalish_volume_ins INSTEAD OF INSERT ON jazzhands.physicalish_volume FOR EACH ROW EXECUTE FUNCTION jazzhands.physicalish_volume_ins();
+
+-- considering NEW jazzhands.physicalish_volume_upd
+CREATE OR REPLACE FUNCTION jazzhands.physicalish_volume_upd()
+ RETURNS trigger
+ LANGUAGE plpgsql
+ SECURITY DEFINER
+ SET search_path TO 'jazzhands'
+AS $function$
+DECLARE
+	_n			block_storage_device%ROWTYPE;
+	upd_query	TEXT[];
+BEGIN
+	IF NEW.logical_volume_id IS NOT NULL THEN
+		IF NEW.component_id IS NOT NULL THEN
+			RAISE EXCEPTION
+				'May not set both logical_volume_id and component_id'
+				USING ERRCODE = 'invalid_parameter_value';
+		END IF;
+
+		IF OLD.logical_volume_id IS DISTINCT FROM NEW.logical_volume_id THEN
+			RAISE EXCEPTION
+				'May not change logical_volume_id'
+				USING ERRCODE = 'invalid_parameter_value';
+		END IF;
+	END IF;
+
+	upd_query := NULL;
+	IF OLD.physicalish_volume_id IS DISTINCT FROM NEW.physicalish_volume_id
+	THEN
+		upd_query := array_append(upd_query,
+			'block_storage_device_id = ' || quote_nullable(NEW.physicalish_volume_id));
+	END IF;
+	IF OLD.physicalish_volume_name IS DISTINCT FROM NEW.physicalish_volume_name
+	THEN
+		upd_query := array_append(upd_query,
+			'block_storage_device_name = ' || quote_nullable(NEW.physicalish_volume_name));
+	END IF;
+	IF OLD.physicalish_volume_type IS DISTINCT FROM NEW.physicalish_volume_type
+	THEN
+		upd_query := array_append(upd_query,
+			'block_storage_device_type = ' || quote_nullable(NEW.physicalish_volume_type));
+	END IF;
+	IF OLD.device_id IS DISTINCT FROM NEW.device_id
+	THEN
+		upd_query := array_append(upd_query,
+			'device_id = ' || quote_nullable(NEW.device_id));
+	END IF;
+	IF OLD.component_id IS DISTINCT FROM NEW.component_id
+	THEN
+		upd_query := array_append(upd_query,
+			'component_id = ' || quote_nullable(NEW.component_id));
+	END IF;
+
+	IF upd_query IS NOT NULL THEN
+		EXECUTE 'UPDATE block_storage_device SET ' ||
+			array_to_string(upd_query, ', ') ||
+			' WHERE block_storage_device_id = $1 RETURNING *'
+			USING NEW.physicalish_volume_id
+			INTO _n;
+
+		NEW.physicalish_volume_id	:= _n.block_storage_device_id;
+		NEW.physicalish_volume_name	:= _n.block_storage_device_name;
+		NEW.physicalish_volume_type	:= _n.block_storage_device_type;
+		NEW.device_id				:= _n.device_id;
+		NEW.component_id			:= _n.component_id;
+
+		NEW.data_ins_user 			:= _n.data_ins_user;
+		NEW.data_ins_date 			:= _n.data_ins_date;
+		NEW.data_upd_user 			:= _n.data_upd_user;
+		NEW.data_upd_date 			:= _n.data_upd_date;
+	END IF;
+
+	RETURN NEW;
+END;
+$function$
+;
+REVOKE ALL ON FUNCTION jazzhands.physicalish_volume_upd() FROM public;
+CREATE TRIGGER trigger_physicalish_volume_upd INSTEAD OF UPDATE ON jazzhands.physicalish_volume FOR EACH ROW EXECUTE FUNCTION jazzhands.physicalish_volume_upd();
+
 DO $$
 BEGIN
 		DELETE FROM __recreate WHERE schema = 'jazzhands' AND object IN ('physicalish_volume');
@@ -11470,6 +11773,304 @@ $function$
 ;
 
 -- New function; dropping in case it returned because of type change
+CREATE OR REPLACE FUNCTION jazzhands.component_property_scsi_id_logical_volume_sync()
+ RETURNS trigger
+ LANGUAGE plpgsql
+ SECURITY DEFINER
+ SET search_path TO 'jazzhands'
+AS $function$
+DECLARE
+	_r RECORD;
+BEGIN
+	IF NEW.component_property_name != 'SCSI_Id' OR
+		NEW.component_property_type != 'disk'
+	THEN
+		RETURN NEW;
+	ELSIF TG_OP = 'INSERT' THEN
+		BEGIN
+			INSERT INTO logical_volume_property (
+				logical_volume_id, filesystem_type,
+				logical_volume_property_name, logical_volume_property_value
+			) SELECT logical_volume_id, filesystem_type,
+				NEW.component_property_name, NEW.property_value
+			FROM virtual_component_logical_volume
+				JOIN logical_volume USING (logical_volume_id)
+			WHERE  component_id = NEW.component_id
+			ON CONFLICT (logical_volume_id, logical_volume_property_name)
+				DO NOTHING;
+		END;
+	ELSIF TG_OP = 'UPDATE' THEN
+		IF OLD.component_id IS DISTINCT FROM  NEW.component_id THEN
+			RAISE EXCEPTION 'May not update component_id on SCSI_Id'
+				USING ERRCODE = 'invalid_parameter_value';
+		END IF;
+
+		UPDATE logical_volume_property lv
+		SET property_value = NEW.property_value
+		FROM virtual_component_logical_volume vclv
+		WHERE vclv.component_id = NEW.component_id
+		AND vclv.logical_volume_id = lv.logical_volume_id
+		AND lv.logical_volume_property_name = NEW.component_property_anme
+		AND lv.logical_volume_property_value IS DISTINCT FROM NEW.property_value;
+	ELSIF TG_OP = 'DELETE' THEN
+		DELETE FROM logical_volume_property lvp
+		WHERE logical_volume_id IN (
+			SELECT logical_volume_id FROM virtual_component_logical_volume
+			WHERE component_id = OLD.component_id
+		)
+		AND lvp.logical_volume_property_name = OLD.component_property_name
+		AND lvp.logical_volume_property_value
+			IS NOT DISTINCT FROM OLD.property_value;
+	END IF;
+	RETURN NEW;
+END;
+$function$
+;
+
+-- New function; dropping in case it returned because of type change
+CREATE OR REPLACE FUNCTION jazzhands.logical_volume_property_scsi_id_sync()
+ RETURNS trigger
+ LANGUAGE plpgsql
+ SECURITY DEFINER
+ SET search_path TO 'jazzhands'
+AS $function$
+BEGIN
+	IF NEW.logical_volume_property_name != 'SCSI_Id' THEN
+		RETURN NEW;
+	ELSIF TG_OP = 'INSERT' THEN
+		BEGIN
+			INSERT INTO component_property (
+				component_id, component_property_type,
+				component_property_name, property_value
+			) SELECT component_id, 'disk',
+				NEW.logical_volume_property_name, NEW.logical_volume_property_value
+			FROM virtual_component_logical_volume
+			WHERE  logical_volume_id = NEW.logical_volume_id;
+		EXCEPTION WHEN unique_violation THEN
+			NULL;
+		END;
+	ELSIF TG_OP = 'UPDATE' THEN
+		IF OLD.logical_volume_id IS DISTINCT FROM  NEW.logical_volume_id THEN
+			RAISE EXCEPTION 'May not change logical_volume_id'
+				USING ERRCODE = 'invalid_parameter_value';
+		END IF;
+
+		UPDATE component_property cp
+		SET property_value = NEW.property_value
+		FROM virtual_component_logical_volume vclv
+		WHERE cp.component_id = lclv.component_id
+		AND vclv.logical_volume_id = NEW.logical_volume_id
+		AND cp.component_property_name = NEW.logical_volume_property_name
+		AND cp.component_property_type = 'disk'
+		AND cp.property_value IS DISTINCT FROM NEW.logical_volume_property_value;
+	ELSIF TG_OP = 'DELETE' THEN
+		DELETE FROM component_property cp
+		WHERE component_id IN (
+			SELECT component_id FROM virtual_component_logical_volume
+			WHERE logical_volume_id = OLD.logical_volume_id
+		)
+		AND cp.component_property_name = OLD.logical_volume_property_name
+		AND cp.component_property_type = 'disk'
+		AND cp.property_value IS NOT DISTINCT FROM OLD.logical_volume_property_value;
+	END IF;
+	RETURN NEW;
+END;
+$function$
+;
+
+-- New function; dropping in case it returned because of type change
+CREATE OR REPLACE FUNCTION jazzhands.physicalish_volume_del()
+ RETURNS trigger
+ LANGUAGE plpgsql
+ SECURITY DEFINER
+ SET search_path TO 'jazzhands'
+AS $function$
+DECLARE
+	_o			block_storage_device%ROWTYPE;
+	upd_query	TEXT[];
+BEGIN
+
+	DELETE FROM block_storage_device
+		WHERE block_storage_device_id = OLD.physicalish_volume_id
+		RETURNING * INTO _o;
+
+	OLD.physicalish_volume_id	:= _o.block_storage_device_id;
+	OLD.physicalish_volume_name	:= _o.block_storage_device_name;
+	OLD.physicalish_volume_type	:= _o.block_storage_device_type;
+	OLD.device_id				:= _o.device_id;
+	OLD.component_id				:= _o.component_id;
+
+	OLD.data_del_user 			:= _o.data_del_user;
+	OLD.data_del_date 			:= _o.data_del_date;
+	OLD.data_upd_user 			:= _o.data_upd_user;
+	OLD.data_upd_date 			:= _o.data_upd_date;
+
+	IF OLD.logical_volume_id IS NOT NULL AND _o.component_id IS NOT NULL THEN
+		DELETE FROM virtual_component_logical_volume
+		WHERE component_id = _o.compnent_id
+		RETURNING logical_volume_id INTO OLD.logical_volume_id;
+
+		OLD.component_id := NULL;
+	END IF;
+
+	RETURN NEW;
+END;
+$function$
+;
+
+-- New function; dropping in case it returned because of type change
+CREATE OR REPLACE FUNCTION jazzhands.physicalish_volume_ins()
+ RETURNS trigger
+ LANGUAGE plpgsql
+ SECURITY DEFINER
+ SET search_path TO 'jazzhands'
+AS $function$
+DECLARE
+	_cid		component.component_id%TYPE;
+	_c			component%ROWTYPE;
+	_bsd		block_storage_device%ROWTYPE;
+BEGIN
+	IF NEW.logical_volume_id IS NOT NULL THEN
+		IF NEW.component_id IS NOT NULL THEN
+			RAISE EXCEPTION
+				'May not set both logical_volume_id and component_id'
+				USING ERRCODE = 'invalid_parameter_value';
+		END IF;
+		INSERT INTO component ( component_type_id )
+			SELECT component_type_id
+			FROM component_type
+			WHERE model = 'Virtual Disk'
+			AND is_virtual_component
+			ORDER BY component_type_id lIMIT 1
+		RETURNING * INTO _c;
+
+		_cid := _c.component_id;
+
+		INSERT INTO virtual_component_logical_volume (
+			component_id, component_type_id, is_virtual_component,
+		logical_volume_id
+		) VALUES (
+			_c.component_id, _c.component_type_id, true,
+			NEW.logical_volume_id
+		);
+
+
+		INSERT INTO component_property (
+			component_id, component_property_type,
+			component_property_name, property_value
+		) SELECT _c.component_id, 'disk',
+			logical_volume_property_name, logical_volume_property_value
+		FROM logical_volume_property
+		WHERE  logical_volume_id = NEW.logical_volume_id
+		AND logical_volume_property_name = 'SCSI_Id';
+	ELSE
+		_cid := NULL;
+	END IF;
+
+	INSERT INTO block_storage_device (
+	   	block_storage_device_name,
+	   	block_storage_device_type,
+	   	device_id,
+	   	component_id
+	) VALUES (
+		NEW.physicalish_volume_name,
+		NEW.physicalish_volume_type,
+		NEW.device_id,
+		coalesce(NEW.component_id, _cid)
+	) RETURNING * INTO _bsd;
+
+	NEW.physicalish_volume_id	:= _bsd.block_storage_device_id;
+	NEW.physicalish_volume_name	:= _bsd.block_storage_device_name;
+	NEW.physicalish_volume_type	:= _bsd.block_storage_device_type;
+	NEW.device_id				:= _bsd.device_id;
+
+	NEW.data_ins_user 			:= _bsd.data_ins_user;
+	NEW.data_ins_date 			:= _bsd.data_ins_date;
+	NEW.data_upd_user 			:= _bsd.data_upd_user;
+	NEW.data_upd_date 			:= _bsd.data_upd_date;
+
+	RETURN NEW;
+END;
+$function$
+;
+
+-- New function; dropping in case it returned because of type change
+CREATE OR REPLACE FUNCTION jazzhands.physicalish_volume_upd()
+ RETURNS trigger
+ LANGUAGE plpgsql
+ SECURITY DEFINER
+ SET search_path TO 'jazzhands'
+AS $function$
+DECLARE
+	_n			block_storage_device%ROWTYPE;
+	upd_query	TEXT[];
+BEGIN
+	IF NEW.logical_volume_id IS NOT NULL THEN
+		IF NEW.component_id IS NOT NULL THEN
+			RAISE EXCEPTION
+				'May not set both logical_volume_id and component_id'
+				USING ERRCODE = 'invalid_parameter_value';
+		END IF;
+
+		IF OLD.logical_volume_id IS DISTINCT FROM NEW.logical_volume_id THEN
+			RAISE EXCEPTION
+				'May not change logical_volume_id'
+				USING ERRCODE = 'invalid_parameter_value';
+		END IF;
+	END IF;
+
+	upd_query := NULL;
+	IF OLD.physicalish_volume_id IS DISTINCT FROM NEW.physicalish_volume_id
+	THEN
+		upd_query := array_append(upd_query,
+			'block_storage_device_id = ' || quote_nullable(NEW.physicalish_volume_id));
+	END IF;
+	IF OLD.physicalish_volume_name IS DISTINCT FROM NEW.physicalish_volume_name
+	THEN
+		upd_query := array_append(upd_query,
+			'block_storage_device_name = ' || quote_nullable(NEW.physicalish_volume_name));
+	END IF;
+	IF OLD.physicalish_volume_type IS DISTINCT FROM NEW.physicalish_volume_type
+	THEN
+		upd_query := array_append(upd_query,
+			'block_storage_device_type = ' || quote_nullable(NEW.physicalish_volume_type));
+	END IF;
+	IF OLD.device_id IS DISTINCT FROM NEW.device_id
+	THEN
+		upd_query := array_append(upd_query,
+			'device_id = ' || quote_nullable(NEW.device_id));
+	END IF;
+	IF OLD.component_id IS DISTINCT FROM NEW.component_id
+	THEN
+		upd_query := array_append(upd_query,
+			'component_id = ' || quote_nullable(NEW.component_id));
+	END IF;
+
+	IF upd_query IS NOT NULL THEN
+		EXECUTE 'UPDATE block_storage_device SET ' ||
+			array_to_string(upd_query, ', ') ||
+			' WHERE block_storage_device_id = $1 RETURNING *'
+			USING NEW.physicalish_volume_id
+			INTO _n;
+
+		NEW.physicalish_volume_id	:= _n.block_storage_device_id;
+		NEW.physicalish_volume_name	:= _n.block_storage_device_name;
+		NEW.physicalish_volume_type	:= _n.block_storage_device_type;
+		NEW.device_id				:= _n.device_id;
+		NEW.component_id			:= _n.component_id;
+
+		NEW.data_ins_user 			:= _n.data_ins_user;
+		NEW.data_ins_date 			:= _n.data_ins_date;
+		NEW.data_upd_user 			:= _n.data_upd_user;
+		NEW.data_upd_date 			:= _n.data_upd_date;
+	END IF;
+
+	RETURN NEW;
+END;
+$function$
+;
+
+-- New function; dropping in case it returned because of type change
 CREATE OR REPLACE FUNCTION jazzhands.set_x509_certificate_private_key_id()
  RETURNS trigger
  LANGUAGE plpgsql
@@ -11588,6 +12189,54 @@ BEGIN
 	PERFORM	property_utils.validate_filesystem(f)
 	FROM filesystem f
 	WHERE f.filesystem_type = NEW.filesystem_type;
+	RETURN NEW;
+END;
+$function$
+;
+
+-- New function; dropping in case it returned because of type change
+CREATE OR REPLACE FUNCTION jazzhands.virtual_component_logical_volume_legacy_sync()
+ RETURNS trigger
+ LANGUAGE plpgsql
+ SECURITY DEFINER
+ SET search_path TO 'jazzhands'
+AS $function$
+BEGIN
+	--
+	-- This does not fire on DELETE because deleting the SCSI_id would happen
+	-- when it was removed from either logical_volume_properry OR
+	-- component_property but for INSERT, the linkage mage not have existed
+	-- yet.
+	IF TG_OP = 'INSERT' THEN
+/*
+ * These are manipulated directly.
+		INSERT INTO component_property (
+			component_id, component_property_type,
+			component_property_name, property_value
+		) SELECT NEW.component_id, 'disk',
+			logical_volume_property_name, logical_volume_property_value
+		FROM logical_volume_property
+		WHERE  logical_volume_id = NEW.logical_volume_id
+		AND logical_volume_property_name = 'SCSI_Id'
+		ON CONFLICT DO NOTHING;
+ */
+
+		INSERT INTO logical_volume_property (
+			logical_volume_id, filesystem_type,
+			logical_volume_property_name, logical_volume_property_value
+		) SELECT NEW.logical_volume_id, filesystem_type,
+			component_property_name, property_value
+		FROM component_property, logical_volume
+		WHERE logical_volume_id = NEW.logical_volume_id
+		AND component_id = NEW.component_id
+		AND component_property_type = 'disk'
+		AND component_property_name = 'SCSI_Id'
+		ON CONFLICT
+			DO NOTHING;
+	ELSIF TG_OP = 'UPDATE' THEN
+			RAISE EXCEPTION 'May not change logical_volume_id or component_id'
+				USING ERRCODE = 'invalid_parameter_value';
+	END IF;
 	RETURN NEW;
 END;
 $function$
@@ -11798,6 +12447,15 @@ SELECT schema_support.replay_object_recreates(schema := 'jazzhands', type := 'vi
 
 
 -- BEGIN Misc that does not apply to above
+--
+-- part of retiring component_property
+--
+INSERT INTO component_property (
+	component_id, component_property_type, component_property_name, property_value
+) SELECT component_id, 'disk', logical_volume_property_name, logical_volume_property_value
+FROM virtual_component_logical_volume
+	JOIN logical_volume_property USING (logical_volume_id)
+WHERE logical_volume_property_name = 'SCSI_Id';
 
 -- There's probably a bug; these will get refreshed.
 DELETE from jazzhands_cache.ct_jazzhands_legacy_device_support
@@ -11829,19 +12487,19 @@ ALTER TABLE service
 	UNIQUE (service_id, is_active) DEFERRABLE;
 
 ALTER TABLE service DROP CONSTRAINT IF EXISTS ak_service_name_type;
-ALTER TABLE ONLY service
+ALTER TABLE service
 	ADD CONSTRAINT ak_service_name_type
 	UNIQUE (service_id, service_type) DEFERRABLE;
 
 ALTER TABLE service_instance
 	DROP CONSTRAINT IF EXISTS ak_service_instance_device_id;
-ALTER TABLE ONLY service_instance
+ALTER TABLE service_instance
     ADD CONSTRAINT ak_service_instance_device_id
 	UNIQUE (service_instance_id, device_id);
 
 ALTER TABLE service_version
 	DROP CONSTRAINT IF EXISTS ak_service_version_service_name_enabled;
-ALTER TABLE ONLY service_version
+ALTER TABLE service_version
     ADD CONSTRAINT ak_service_version_service_name_enabled
 	UNIQUE (service_id, service_version_id, service_version_name, is_enabled) DEFERRABLE;
 
@@ -11852,6 +12510,10 @@ CREATE INDEX aud_device_ak_device_id_site
 DROP INDEX IF EXISTS jazzhands_audit.aud_device_ak_device_id_site;
 CREATE INDEX aud_device_ak_device_id_site_virtual_name
 	ON jazzhands_audit.device USING btree (device_id, device_name, site_code, is_virtual_device);
+
+DROP INDEX IF EXISTS xifservice_instance_device_device_id;
+CREATE INDEX xifservice_instance_device_device_id 
+	ON jazzhands.service_instance USING btree (device_id);
 
 
 -- END Misc that does not apply to above
@@ -14626,8 +15288,8 @@ SELECT schema_support.replay_object_recreates(schema := 'jazzhands_legacy', obje
 SELECT schema_support.replay_object_recreates(schema := 'jazzhands_legacy', object := 'v_acct_coll_prop_expanded', type := 'view');
 SELECT schema_support.replay_object_recreates(schema := 'jazzhands_legacy', object := 'v_device_coll_hier_detail', type := 'view');
 SELECT schema_support.replay_object_recreates(schema := 'jazzhands', object := 'v_property', type := 'view');
-SELECT schema_support.replay_object_recreates(schema := 'jazzhands', object := 'v_property', type := 'view');
 SELECT schema_support.replay_object_recreates(schema := 'jazzhands_legacy', object := 'v_property', type := 'view');
+SELECT schema_support.replay_object_recreates(schema := 'jazzhands', object := 'v_property', type := 'view');
 SELECT schema_support.replay_object_recreates(schema := 'jazzhands_legacy', object := 'v_property', type := 'view');
 SELECT schema_support.replay_object_recreates(schema := 'jazzhands_legacy', object := 'val_property', type := 'view');
 DROP VIEW IF EXISTS jazzhands_legacy.v_unix_account_overrides;
@@ -15111,8 +15773,8 @@ SELECT schema_support.replay_object_recreates(schema := 'jazzhands_legacy', obje
 SELECT schema_support.replay_object_recreates(schema := 'jazzhands_legacy', object := 'v_device_col_acct_col_unixlogin', type := 'view');
 SELECT schema_support.replay_object_recreates(schema := 'jazzhands_legacy', object := 'v_device_coll_hier_detail', type := 'view');
 SELECT schema_support.replay_object_recreates(schema := 'jazzhands', object := 'v_property', type := 'view');
-SELECT schema_support.replay_object_recreates(schema := 'jazzhands', object := 'v_property', type := 'view');
 SELECT schema_support.replay_object_recreates(schema := 'jazzhands_legacy', object := 'v_property', type := 'view');
+SELECT schema_support.replay_object_recreates(schema := 'jazzhands', object := 'v_property', type := 'view');
 SELECT schema_support.replay_object_recreates(schema := 'jazzhands_legacy', object := 'v_property', type := 'view');
 SELECT schema_support.replay_object_recreates(schema := 'jazzhands_legacy', object := 'v_unix_account_overrides', type := 'view');
 SELECT schema_support.replay_object_recreates(schema := 'jazzhands_legacy', object := 'val_property', type := 'view');
@@ -15213,8 +15875,8 @@ SELECT schema_support.replay_object_recreates(schema := 'jazzhands_legacy', obje
 SELECT schema_support.replay_object_recreates(schema := 'jazzhands_legacy', object := 'v_device_col_acct_col_unixgroup', type := 'view');
 SELECT schema_support.replay_object_recreates(schema := 'jazzhands_legacy', object := 'v_device_coll_hier_detail', type := 'view');
 SELECT schema_support.replay_object_recreates(schema := 'jazzhands', object := 'v_property', type := 'view');
-SELECT schema_support.replay_object_recreates(schema := 'jazzhands', object := 'v_property', type := 'view');
 SELECT schema_support.replay_object_recreates(schema := 'jazzhands_legacy', object := 'v_property', type := 'view');
+SELECT schema_support.replay_object_recreates(schema := 'jazzhands', object := 'v_property', type := 'view');
 SELECT schema_support.replay_object_recreates(schema := 'jazzhands_legacy', object := 'v_property', type := 'view');
 SELECT schema_support.replay_object_recreates(schema := 'jazzhands_legacy', object := 'v_unix_group_overrides', type := 'view');
 SELECT schema_support.replay_object_recreates(schema := 'jazzhands_legacy', object := 'val_property', type := 'view');
@@ -15423,12 +16085,12 @@ SELECT schema_support.replay_object_recreates(schema := 'jazzhands_legacy', obje
 SELECT schema_support.replay_object_recreates(schema := 'jazzhands', object := 'v_property', type := 'view');
 SELECT schema_support.replay_object_recreates(schema := 'jazzhands_legacy', object := 'v_property', type := 'view');
 SELECT schema_support.replay_object_recreates(schema := 'jazzhands', object := 'v_property', type := 'view');
-SELECT schema_support.replay_object_recreates(schema := 'jazzhands', object := 'v_property', type := 'view');
-SELECT schema_support.replay_object_recreates(schema := 'jazzhands_legacy', object := 'v_property', type := 'view');
 SELECT schema_support.replay_object_recreates(schema := 'jazzhands_legacy', object := 'v_property', type := 'view');
 SELECT schema_support.replay_object_recreates(schema := 'jazzhands', object := 'v_property', type := 'view');
+SELECT schema_support.replay_object_recreates(schema := 'jazzhands_legacy', object := 'v_property', type := 'view');
 SELECT schema_support.replay_object_recreates(schema := 'jazzhands', object := 'v_property', type := 'view');
 SELECT schema_support.replay_object_recreates(schema := 'jazzhands_legacy', object := 'v_property', type := 'view');
+SELECT schema_support.replay_object_recreates(schema := 'jazzhands', object := 'v_property', type := 'view');
 SELECT schema_support.replay_object_recreates(schema := 'jazzhands_legacy', object := 'v_unix_account_overrides', type := 'view');
 SELECT schema_support.replay_object_recreates(schema := 'jazzhands_legacy', object := 'v_unix_mclass_settings', type := 'view');
 SELECT schema_support.replay_object_recreates(schema := 'jazzhands_legacy', object := 'val_property', type := 'view');
@@ -15680,10 +16342,10 @@ SELECT schema_support.replay_object_recreates(schema := 'jazzhands_legacy', obje
 SELECT schema_support.replay_object_recreates(schema := 'jazzhands', object := 'v_property', type := 'view');
 SELECT schema_support.replay_object_recreates(schema := 'jazzhands_legacy', object := 'v_property', type := 'view');
 SELECT schema_support.replay_object_recreates(schema := 'jazzhands', object := 'v_property', type := 'view');
-SELECT schema_support.replay_object_recreates(schema := 'jazzhands', object := 'v_property', type := 'view');
 SELECT schema_support.replay_object_recreates(schema := 'jazzhands_legacy', object := 'v_property', type := 'view');
 SELECT schema_support.replay_object_recreates(schema := 'jazzhands', object := 'v_property', type := 'view');
 SELECT schema_support.replay_object_recreates(schema := 'jazzhands_legacy', object := 'v_property', type := 'view');
+SELECT schema_support.replay_object_recreates(schema := 'jazzhands', object := 'v_property', type := 'view');
 SELECT schema_support.replay_object_recreates(schema := 'jazzhands_legacy', object := 'v_unix_account_overrides', type := 'view');
 SELECT schema_support.replay_object_recreates(schema := 'jazzhands_legacy', object := 'v_unix_group_overrides', type := 'view');
 SELECT schema_support.replay_object_recreates(schema := 'jazzhands_legacy', object := 'v_unix_mclass_settings', type := 'view');
@@ -16246,8 +16908,8 @@ SELECT schema_support.save_dependent_objects_for_replay(schema := 'jazzhands_leg
 -- restore any missing random views that may be cached that this one needs.
 SELECT schema_support.replay_object_recreates(schema := 'jazzhands_legacy', object := 'logical_volume', type := 'view');
 SELECT schema_support.replay_object_recreates(schema := 'jazzhands', object := 'physicalish_volume', type := 'view');
-SELECT schema_support.replay_object_recreates(schema := 'jazzhands', object := 'physicalish_volume', type := 'view');
 SELECT schema_support.replay_object_recreates(schema := 'jazzhands_legacy', object := 'physicalish_volume', type := 'view');
+SELECT schema_support.replay_object_recreates(schema := 'jazzhands', object := 'physicalish_volume', type := 'view');
 SELECT schema_support.replay_object_recreates(schema := 'jazzhands_legacy', object := 'volume_group', type := 'view');
 SELECT schema_support.replay_object_recreates(schema := 'jazzhands_legacy', object := 'volume_group_physicalish_vol', type := 'view');
 DROP VIEW IF EXISTS jazzhands_legacy.v_lv_hier;
@@ -18580,6 +19242,10 @@ DROP TRIGGER IF EXISTS trig_userlog_component_property ON component_property;
 CREATE TRIGGER trig_userlog_component_property BEFORE INSERT OR UPDATE ON jazzhands.component_property FOR EACH ROW EXECUTE FUNCTION schema_support.trigger_ins_upd_generic_func();
 DROP TRIGGER IF EXISTS trigger_audit_component_property ON component_property;
 CREATE TRIGGER trigger_audit_component_property AFTER INSERT OR DELETE OR UPDATE ON jazzhands.component_property FOR EACH ROW EXECUTE FUNCTION jazzhands.perform_audit_component_property();
+DROP TRIGGER IF EXISTS trigger_component_property_scsi_id_logical_volume_sync_del ON component_property;
+CREATE TRIGGER trigger_component_property_scsi_id_logical_volume_sync_del AFTER DELETE ON jazzhands.component_property FOR EACH ROW EXECUTE FUNCTION jazzhands.component_property_scsi_id_logical_volume_sync();
+DROP TRIGGER IF EXISTS trigger_component_property_scsi_id_logical_volume_sync_ins_upd ON component_property;
+CREATE TRIGGER trigger_component_property_scsi_id_logical_volume_sync_ins_upd AFTER INSERT OR UPDATE OF component_id, property_value ON jazzhands.component_property FOR EACH ROW EXECUTE FUNCTION jazzhands.component_property_scsi_id_logical_volume_sync();
 DROP TRIGGER IF EXISTS trigger_validate_component_property ON component_property;
 CREATE CONSTRAINT TRIGGER trigger_validate_component_property AFTER INSERT OR UPDATE ON jazzhands.component_property DEFERRABLE INITIALLY IMMEDIATE FOR EACH ROW EXECUTE FUNCTION jazzhands.validate_component_property();
 DROP TRIGGER IF EXISTS trig_userlog_component_type ON component_type;
@@ -18956,6 +19622,10 @@ DROP TRIGGER IF EXISTS trig_userlog_logical_volume_property ON logical_volume_pr
 CREATE TRIGGER trig_userlog_logical_volume_property BEFORE INSERT OR UPDATE ON jazzhands.logical_volume_property FOR EACH ROW EXECUTE FUNCTION schema_support.trigger_ins_upd_generic_func();
 DROP TRIGGER IF EXISTS trigger_audit_logical_volume_property ON logical_volume_property;
 CREATE TRIGGER trigger_audit_logical_volume_property AFTER INSERT OR DELETE OR UPDATE ON jazzhands.logical_volume_property FOR EACH ROW EXECUTE FUNCTION jazzhands.perform_audit_logical_volume_property();
+DROP TRIGGER IF EXISTS trigger_logical_volume_property_scsi_id_sync_del ON logical_volume_property;
+CREATE TRIGGER trigger_logical_volume_property_scsi_id_sync_del AFTER DELETE ON jazzhands.logical_volume_property FOR EACH ROW EXECUTE FUNCTION jazzhands.logical_volume_property_scsi_id_sync();
+DROP TRIGGER IF EXISTS trigger_logical_volume_property_scsi_id_sync_ins_upd ON logical_volume_property;
+CREATE TRIGGER trigger_logical_volume_property_scsi_id_sync_ins_upd AFTER INSERT OR UPDATE OF logical_volume_id, logical_volume_property_value ON jazzhands.logical_volume_property FOR EACH ROW EXECUTE FUNCTION jazzhands.logical_volume_property_scsi_id_sync();
 DROP TRIGGER IF EXISTS trig_userlog_logical_volume_purpose ON logical_volume_purpose;
 CREATE TRIGGER trig_userlog_logical_volume_purpose BEFORE INSERT OR UPDATE ON jazzhands.logical_volume_purpose FOR EACH ROW EXECUTE FUNCTION schema_support.trigger_ins_upd_generic_func();
 DROP TRIGGER IF EXISTS trigger_audit_logical_volume_purpose ON logical_volume_purpose;
