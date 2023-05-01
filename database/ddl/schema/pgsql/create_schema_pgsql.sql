@@ -10642,7 +10642,7 @@ CREATE TABLE volume_group
 	device_id            integer  NULL ,
 	component_id         integer  NULL ,
 	volume_group_name    varchar(50)  NOT NULL ,
-	volume_group_type    varchar(50)  NULL ,
+	volume_group_type    varchar(50)  NOT NULL ,
 	volume_group_size_in_bytes bigint  NOT NULL ,
 	raid_type            varchar(50)  NULL ,
 	uuid                 uuid  NULL 

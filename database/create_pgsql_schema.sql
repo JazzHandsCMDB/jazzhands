@@ -85,6 +85,7 @@ COMMENT ON SCHEMA jazzhands_cache IS 'cache tables for jazzhands views';
 \ir ddl/schema/pgsql/create_network_range_triggers.sql
 \ir ddl/schema/pgsql/create_per_svc_env_coll_triggers.sql
 \ir ddl/schema/pgsql/create_physical_conection_triggers.sql
+\ir ddl/schema/pgsql/create_physicalish_volume_triggers.sql
 \ir ddl/schema/pgsql/create_property_name_collection_hier_triggers.sql
 \ir ddl/schema/pgsql/create_property_triggers.sql
 \ir ddl/schema/pgsql/create_svcenv_coll_hier_triggers.sql
@@ -118,6 +119,8 @@ COMMENT ON SCHEMA jazzhands_cache IS 'cache tables for jazzhands views';
 
 \ir ddl/schema/pgsql/create_device_management_controller_triggers.sql
 \ir ddl/schema/pgsql/create_fingerprint_hash_algorithm_misspelling_trigger.sql
+
+\ir ddl/schema/pgsql/logical_volume_property_deprecation_triggers.sql
 
 -- goes with the jazzhands_legacy schema
 \ir ddl/schema/pgsql/create_jazzhands_legacy_triggers-RETIRE.sql
