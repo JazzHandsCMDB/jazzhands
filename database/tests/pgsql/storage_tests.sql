@@ -187,7 +187,7 @@ BEGIN
 	END;
 
 	RETURN true;
-END;		
+END;
 $$ LANGUAGE plpgsql;
 
 SELECT storage_regression_test();
