@@ -60,10 +60,10 @@ BEGIN
 	END IF;
 
 	INSERT INTO block_storage_device (
-	   	block_storage_device_name,
-	   	block_storage_device_type,
-	   	device_id,
-	   	component_id
+		block_storage_device_name,
+		block_storage_device_type,
+		device_id,
+		component_id
 	) VALUES (
 		NEW.physicalish_volume_name,
 		NEW.physicalish_volume_type,
