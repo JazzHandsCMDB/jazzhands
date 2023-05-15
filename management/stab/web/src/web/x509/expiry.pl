@@ -51,7 +51,7 @@ sub do_cert_expiry_toplevel {
 	print $stab->build_table_from_query(
 		query => qq{
 			SELECT	
-					date_part('days', c.valid_to - now()) || ' days' as lifetime,
+					date_part('days', c.valid_to - now()) as "Lifetime (days)",
 					c.x509_signed_certificate_id as "ID",
 					c.friendly_name as "Friendly Name",
 					c.valid_to as "Valid To",

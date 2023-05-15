@@ -96,9 +96,9 @@ sub find_devices {
 		$criteria .= " d.operating_system_id = :os ";
 	}
 
-	if ( !$dormd || $dormd eq 'Y' ) {
+	if ( $dormd && $dormd ne 'Y' ) {
 		$criteria .= " and " if ( length($criteria) );
-		$criteria .= "(device_name is null or device_status = 'removed')";
+		$criteria .= "(device_name is not null and device_status <> 'removed')";
 	}
 
 	# switch /32 lookups to be simple ip_address = X
@@ -187,7 +187,7 @@ sub do_device_search {
 	my $byos     = $stab->cgi_parse_param('OPERATING_SYSTEM_ID');
 	my $Search   = $stab->cgi_parse_param('Search');
 
-	my $dormd = $stab->cgi_parse_param('INCLUDE_REMOVED');
+	my $dormd = $stab->cgi_parse_param('chk_INCLUDE_REMOVED');
 	$dormd = $stab->mk_chk_yn($dormd);
 
 	$cgi->delete('devlist');

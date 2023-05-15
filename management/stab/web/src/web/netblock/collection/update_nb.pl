@@ -64,7 +64,7 @@ sub do_netblock_collection_update {
 	}
 
 	#
-	# deal with netblock collection
+	# deal with netblock collection removals
 	#
 	foreach my $id ( $stab->cgi_get_ids('rm_NETBLOCK_COLLECTION_ID')) {
 		my $x;

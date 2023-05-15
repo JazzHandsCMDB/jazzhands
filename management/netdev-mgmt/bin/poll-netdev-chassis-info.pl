@@ -1,6 +1,7 @@
 #!/usr/bin/env perl
 
-# Copyright (c) 2017, Matthew Ragan
+# Copyright (c) 2017-2022, Matthew Ragan
+# Copyright (c) 2023, Todd Kover
 # All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
@@ -47,6 +48,9 @@ my $connect_name = undef;
 my $hostname = [];
 my $conf_mgmt_type = undef;
 my $authapp = 'net_dev_probe';
+my $encapdomain;
+my $encaptype;
+my $site;
 
 sub loggit {
 	printf STDERR join "\n", @_;
@@ -58,6 +62,9 @@ if (!(GetOptions(
 	'commit!', \$commit,
 	'connect-name=s', \$connect_name,
 	'hostname=s', $hostname,
+	'site=s', \$site,
+	'encapsulation-domain=s', \$encapdomain,
+	'encapsulation-type=s', \$encaptype,
 	'management-type=s', \$conf_mgmt_type,
 	'probe-addresses!', \$probe_addresses,
 	'probe-interfaces!', \$probe_interfaces,
@@ -67,6 +74,18 @@ if (!(GetOptions(
 ))) {
 	exit 1;
 };
+
+if($encapdomain) {
+	$encaptype = '802.1q' if(!$encaptype);
+} else {
+	if($encaptype) {
+		die "Setting an encapsulation-type requires setting an encapsulation-domain.\n";
+	}
+}
+
+if($site && !$encapdomain || $encapdomain && !$site) {
+	die "Must set both site and encapsulation domain or neither.\n";
+}
 
 #
 # Add the rest of the arguments as additional hosts
@@ -869,6 +888,40 @@ foreach my $host (@$hostname) {
 				}
 			}
 		}
+	}
+
+	if($encapdomain) {
+		my $esth = $dbh->prepare_cached(qq{
+			INSERT INTO encapsulation_domain (
+				encapsulation_domain, encapsulation_type
+			) VALUES ( ?, ?)
+			ON CONFLICT ON CONSTRAINT pk_encapsulation_domain
+				DO NOTHING;
+		}) || die "Setting up encapsulation_domain: ", $dbh->errstr;
+		$esth->execute($encapdomain, $encaptype) || die join(",", $db_dev->{device_id}, $encapdomain, $encaptype), ": ", $esth->errstr;
+
+		my $sth = $dbh->prepare_cached(qq{
+			INSERT INTO device_encapsulation_domain (
+				device_id,
+				encapsulation_domain,
+				encapsulation_type
+			) VALUES ( ?, ?, ?)
+			ON CONFLICT ON CONSTRAINT pk_device_encapsulation_domain
+				DO NOTHING;
+		}) || die "Setting up device_encapsulation_domain: ", $dbh->errstr;
+
+		$sth->execute($db_dev->{device_id}, $encapdomain, $encaptype) || die join(",", $db_dev->{device_id}, $encapdomain, $encaptype), ": ", $sth->errstr;
+
+		my $ssth = $dbh->prepare_cached(qq{
+			INSERT INTO site_encapsulation_domain (
+				site_code, encapsulation_domain, encapsulation_type
+			) VALUES ( ?, ?, ? )
+			ON CONFLICT ON CONSTRAINT pk_site_encapsulation_domain
+				DO NOTHING;
+		}) || die $dbh->errstr;
+
+		$ssth->execute($site, $encapdomain, $encaptype) || die $ssth->errstr;
+
 	}
 
 	if ($probe_addresses) {

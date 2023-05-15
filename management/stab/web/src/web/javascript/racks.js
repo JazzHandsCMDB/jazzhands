@@ -128,7 +128,7 @@ function site_to_rack(siteid, rackdivid, where, locid) {
 	if(locid != null) {
 		url += ";RACK_LOCATION_ID=" + locid;
 	}
-	console.log( url );
+	//console.log( url );
 	ajaxrequest = createRequest();
 	ajaxrequest.open("GET", url, true);
 	ajaxrequest.onreadystatechange = function () {

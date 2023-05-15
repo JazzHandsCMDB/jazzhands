@@ -877,8 +877,25 @@ sub build_passback_url {
 	}
 
 	my $uri = new URI($refurl);
-
 	my $theq = $uri->query    || "";
+
+	# Loop on parameters that are in the reference url
+	# and eliminate those missing from the $cgi-param array
+	# because those are unchecked checkboxes
+	foreach my $keypair ( split( ';', $theq ) ) {
+		my $key = (split( '=', $keypair ))[0];
+		# If the parameter doesn't start with 'chk_', it's not a checkbox, skip it
+		if ( $key !~ /^chk/ ) { next; }
+		# Does the checkbox parameter exist in the cgi parameters?
+		if ( !defined( $cgi->param($key) ) ) {
+			# No, let's remove it from the referer url
+			$theq =~ s/(^|;)$key=[^;]*(;|$)/;/;
+			# Just make sure we didn't add an extra semicolon
+			$theq =~ s/^;//;
+			$theq =~ s/;$//;
+		}
+	}
+
 	my $ref  = new CGI($theq) || "";
 
 	if ( !defined($nopreserveargs) ) {
@@ -1255,6 +1272,7 @@ sub b_nondbdropdown {
 	my $prefix   = $params->{'-prefix'} || "";
 	my $preidfix = $params->{'-preidfix'} || "";
 	my $suffix   = $params->{'-suffix'} || "";
+	my $original = $params->{'-original'};
 
 	my $xml = $params->{'-xml'};
 
@@ -1384,8 +1402,11 @@ sub b_nondbdropdown {
 		}
 	} elsif ( !defined($default) ) {
 		$default = "__unknown__";
-		unshift( @list, $default );
-		$list{$default} = "--Unset--";
+		# Don't add duplicated options
+		if( !exists( $list{$default} ) ) {
+			unshift( @list, $default );
+			$list{$default} = "--Unset--";
+		}
 	}
 
 	$field =~ tr/a-z/A-Z/;
@@ -1407,6 +1428,7 @@ sub b_nondbdropdown {
 	$popup_args->{'-default'}  = $default;
 	$popup_args->{'-onChange'} = $onchange if ($onchange);
 	$popup_args->{'-id'}       = $id if ($id);
+	$popup_args->{'-original'} = $original if ( defined($original) );
 
 	my $x = $cgi->popup_menu($popup_args);
 

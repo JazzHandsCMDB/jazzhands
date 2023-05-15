@@ -1,4 +1,4 @@
-jazzhands-perl-common (0.96.0) jammy; urgency=medium
+jazzhands-perl-common (0.95.5) jammy; urgency=medium
 
   * Add JazzHands::Common::Logging and restructure
 

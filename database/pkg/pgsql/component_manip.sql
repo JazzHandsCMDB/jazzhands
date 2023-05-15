@@ -1429,6 +1429,210 @@ SET search_path=jazzhands
 SECURITY DEFINER
 LANGUAGE plpgsql;
 
+
+CREATE OR REPLACE FUNCTION component_manip.set_component_network_interface(
+	component_id        jazzhands.component.component_id%TYPE,
+	network_interface   jsonb
+) RETURNS jazzhands.slot
+AS $$
+DECLARE
+	cid		ALIAS FOR component_id;
+	ni		ALIAS FOR network_interface;
+	cs		RECORD;
+	lldp	jsonb;
+	stid	jazzhands.slot_type.slot_type_id%TYPE;
+BEGIN
+	IF component_id IS NULL OR network_interface IS NULL THEN
+	    RETURN NULL;
+	END IF;
+
+	--
+	-- If there isn't an interface name passed, then just give up
+	--
+
+	IF NOT (ni ? 'interface_name') OR (ni->>'interface_name' IS NULL) OR
+			(ni->>'interface_name' = '') THEN
+		RETURN NULL;
+	END IF;
+
+	--
+	-- Attempt to find the slot already inserted, in this order
+	--  - slot with this permanent_mac, if permanent_mac is passed
+	--  - slot with this component_id and given interface_name
+	--  - slot with this component_id where the remote LLDP connection matches
+	--
+
+	IF ni ? 'permanent_mac' THEN
+		--
+		-- First look to see if there's a slot with this MAC already
+		--
+		RAISE DEBUG 'Looking for slot with mac_address %',
+			ni->>'permanent_mac';
+
+		SELECT 
+			* INTO cs
+		FROM
+			slot
+		WHERE
+			mac_address = (ni->>'permanent_mac')::macaddr;
+	END IF;
+
+	IF cs IS NULL AND ni ? 'interface_name' THEN
+		RAISE DEBUG 'Looking for slot for component % with name %',
+			cid,
+			ni->>'interface_name';
+
+		SELECT 
+			s.* INTO cs
+		FROM
+			slot s JOIN
+			slot_type st USING (slot_type_id)
+		WHERE
+			s.component_id = cid AND
+			st.slot_function = 'network' AND
+			s.slot_name = ni->>'interface_name';
+	END IF;
+
+	IF cs IS NULL AND ni ? 'lldp' THEN
+		lldp := ni->'lldp';
+
+		RAISE DEBUG 'Looking for slot for component % connected to %/% port %', 
+			cid,
+			lldp->>'device_name',
+			lldp->>'chassis_id',
+			lldp->>'interface';
+
+		SELECT 
+			s.* INTO cs
+		FROM
+			slot s JOIN
+			v_device_slot_connections dsc USING (slot_id) JOIN
+			device d ON (dsc.remote_device_id = d.device_id)
+		WHERE
+			s.component_id = cid AND (
+				d.host_id = lldp->>'chassis_id' OR
+				(
+					d.device_name = lldp->>'device_name' AND
+					d.host_id IS NULL
+				)
+			) AND
+			dsc.remote_slot_name = lldp->>'interface'
+		ORDER BY
+			d.host_id NULLS LAST
+		LIMiT 1;
+	END IF;
+
+	--
+	-- Figure out which slot_type we're supposed to use.  If we don't know,
+	-- then c'est la vie.
+	--
+
+	IF ni ? 'capabilities' THEN
+		SELECT
+			slot_type_id INTO stid
+		FROM
+			device_provisioning.ethtool_xcvr_to_slot_type et
+		WHERE
+			ni->'capabilities' ? et.capability AND
+			ni->'transceiver'->>'port_type' = et.port_type AND
+			ni->'transceiver'->>'media_type' = et.media_type
+		ORDER BY
+			raw_speed DESC
+		LIMIT 1;
+
+		IF FOUND THEN
+			RAISE DEBUG 'slot_type_id for slot should be %', stid;
+		ELSE
+			RAISE DEBUG 'slot_type_id for slot could not be determined';
+		END IF;
+	END IF;
+
+	--
+	-- This is needed because Ubuntu 16.04 is broken detecting 25G.  We
+	-- only want this to happen if the above fails.
+	--
+	IF stid IS NULL THEN
+		SELECT
+			slot_type_id INTO stid
+		FROM
+			device_provisioning.ethtool_xcvr_to_slot_type et
+		WHERE
+			ni->'transceiver'->>'speed' = et.speed AND
+			ni->'transceiver'->>'port_type' = et.port_type AND
+			ni->'transceiver'->>'media_type' = et.media_type;
+
+		IF FOUND THEN
+			RAISE DEBUG 'slot_type_id for slot should be %', stid;
+		ELSE
+			RAISE DEBUG 'slot_type_id for slot could not be determined';
+		END IF;
+	END IF;
+
+	IF cs IS NULL AND stid IS NOT NULL THEN
+		INSERT INTO slot (
+			component_id,
+			slot_name,
+			slot_type_id,
+			mac_address
+		) VALUES (
+			cid,
+			ni->>'interface_name',
+			stid,
+			(ni->>'permanent_mac')::macaddr
+		) RETURNING * INTO cs;
+	END IF;
+
+	--
+	-- Fix the slot name if it doesn't match the current Linux name
+	--
+	IF cs.slot_name != ni->>'interface_name' THEN
+		UPDATE
+			slot
+		SET
+			slot_name = ni->>'interface_name'
+		WHERE
+			slot_id = cs.slot_id;
+
+		cs.slot_name := ni->>'interface_name';
+	END IF;
+
+	--
+	-- Update the mac_address if it needs to be
+	--
+	IF cs.mac_address IS DISTINCT FROM (ni->>'permanent_mac')::macaddr THEN
+		UPDATE
+			slot
+		SET
+			mac_address = (ni->>'permanent_mac')::macaddr
+		WHERE
+			slot_id = cs.slot_id;
+
+		cs.mac_address := (ni->>'permanent_mac')::macaddr;
+	END IF;
+
+	--
+	-- Fix the slot type if it isn't correct
+	--
+	IF cs.slot_type_id != stid THEN
+		UPDATE
+			slot
+		SET
+			slot_type_id = stid
+		WHERE
+			slot_id = cs.slot_id;
+
+		cs.slot_type_id := stid;
+	END IF;
+
+	RETURN cs;
+END;
+$$
+set search_path=jazzhands
+SECURITY DEFINER
+LANGUAGE plpgsql;
+
+GRANT EXECUTE ON FUNCTION component_manip.set_component_network_interface(integer, jsonb)  TO iud_role;
+
 REVOKE ALL ON SCHEMA component_manip FROM public;
 REVOKE ALL ON ALL FUNCTIONS IN SCHEMA component_manip FROM public;
 

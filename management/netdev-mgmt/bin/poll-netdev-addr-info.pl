@@ -1,6 +1,7 @@
 #!/usr/bin/env perl
 
-# Copyright (c) 2017, Matthew Ragan
+# Copyright (c) 2017-2022, Matthew Ragan
+# Copyright (c) 2023, Todd M. Kover
 # All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
@@ -127,6 +128,7 @@ my $mgmt = new JazzHands::NetDev::Mgmt;
 
 if ($debug > 1) {
 	$dbh->do('set client_min_messages=debug');
+	$dbh->{RaiseWarn} = 1;
 }
 
 ##
@@ -211,6 +213,7 @@ $q = q {
 		device_id := ?,
 		layer3_interface_name := ?,
 		ip_address_hash := ?,
+		layer2_network_id := ?,
 		create_layer3_networks := true,
 		move_addresses := ?,
 		address_errors := ?
@@ -223,6 +226,30 @@ if (!($set_interface_sth = $dbh->prepare_cached($q))) {
 	print STDERR $dbh->errstr;
 	exit 1;
 }
+
+my $findl2netsth = $dbh->prepare_cached(qq{
+	SELECT layer2_network_id
+	FROM	layer2_network
+	WHERE	encapsulation_domain = ?
+	AND		encapsulation_type = ?
+	AND		encapsulation_tag = ?
+}) || die $dbh->errstr;
+
+my $il2sth = $dbh->prepare_cached(qq{
+	INSERT INTO layer2_network (
+		encapsulation_name,
+		encapsulation_domain,
+		encapsulation_type,
+		encapsulation_tag
+	) VALUES ( ?, ?, ?, ?)
+	RETURNING layer2_network_id
+}) || die $dbh->errstr;
+
+my $getedsth = $dbh->prepare_cached(qq{
+	SELECT encapsulation_type, encapsulation_domain
+	FROM device_encapsulation_domain
+	WHERE device_id = ?
+}) || die $dbh->errstr;
 
 HOSTLOOP:
 foreach my $host (@$hostname) {
@@ -312,7 +339,16 @@ foreach my $host (@$hostname) {
 			}
 		}
 
-		if (!($info = $device->GetIPAddressInformation(
+		# my $vlan = $device->GetVLANs();
+		# my $if = $device->GetInterfaceConfig();
+		# my $ip = $device->GetIPAddressInformation();
+		# die Dumper($vlan, $if, $ip);
+
+		$getedsth->execute($db_dev->{device_id});
+		my($encaptype, $encapdomain) = $getedsth->fetchrow_array;
+		$getedsth->finish;
+
+		if (!($info = $device->GetExtendedIPAddressInformation(
 			debug			=> $debug,
 			errors 			=> \@errors,
 			timeout			=> $timeout,
@@ -365,6 +401,28 @@ foreach my $host (@$hostname) {
 				}
 			}
 
+			# should probably be smarter about mismatches
+			my $l2nid;
+			if($encapdomain && (my $en = $interface->{encapsulation})) {
+				if($en->{type} ne $encaptype) {
+					warn sprintf "Skipping type % because of mismatch\n",
+						$en->{type};
+				} else {
+					my $tag = $en->{tag};
+					my $name = $en->{name};
+
+					$findl2netsth->execute($encapdomain, $en->{type}, $en->{tag}) || die $findl2netsth->errstr;
+					($l2nid) = $findl2netsth->fetchrow_array;
+					$findl2netsth->finish;
+
+					if(!$l2nid) {
+						$il2sth->execute($en->{name}, $encapdomain, $en->{type}, $en->{tag}) || die $il2sth->errstr;
+						($l2nid) = $il2sth->fetchrow_array;
+						$il2sth->finish;
+					}
+				}
+			}
+
 			my $json = JSON->new->utf8->encode({
 					ip_addresses =>
 						[
@@ -411,6 +469,7 @@ foreach my $host (@$hostname) {
 						$db_dev->{device_id},
 						$iname,
 						$json,
+						$l2nid,
 						$force ? 'always' : 'if_same_device',
 						$address_errors
 					)) {

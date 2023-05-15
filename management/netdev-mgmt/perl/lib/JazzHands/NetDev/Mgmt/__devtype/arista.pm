@@ -14,6 +14,7 @@ use JazzHands::NetDev::Mgmt::ACL;
 use Data::Dumper;
 use NetAddr::MAC;
 use UUID::Tiny ':std';
+use JazzHands::NetDev::Mgmt::Common qw(:all);
 
 sub new {
 	my $proto = shift;
@@ -1177,18 +1178,23 @@ sub GetIPAddressInformation {
 
 	$result = $self->SendCommand(
 		commands => [
-			'show ip virtual-router'
+			'show ip virtual-router',
+			'show ipv6 virtual-router',
 		],
 		timeout => $opt->{timeout},
 		errors => $err
 	);
 
-	my $vr;
-	if ($result && exists($result->[0]->{virtualRouters})) {
-		$vr = $result->[0]->{virtualRouters};
+
+	my $vr = [];
+	if ($result ) {
+		foreach my $r (@{$result}) {
+			push(@{$vr}, @{$r->{virtualRouters}});
+		}
 	} else {
 		$vr = [];
 	}
+
 
 	my $ifaceinfo;
 
@@ -1235,11 +1241,14 @@ sub GetIPAddressInformation {
 
 	foreach my $v (@$vr) {
 		next if !$v->{interface};
-		$ifaceinfo->{$v->{interface}}->{virtual_router} = [
+		my @ip;
+		push(@ip, @{$v->{virtualIps}}) if($v->{virtualIps});
+		push(@ip, @{$v->{virtualIpv6}}) if($v->{virtualIpv6});
+		push(@{$ifaceinfo->{$v->{interface}}->{virtual_router}}, 
 			map {
 				eval { NetAddr::IP->new($_) }
-			} @{$v->{virtualIps}}
-		];
+			} @ip
+		);
 	}
 
 	return $ifaceinfo;

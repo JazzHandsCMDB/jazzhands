@@ -300,6 +300,7 @@ sub link_inaddr {
 		dns_type      => 'REVERSE_ZONE_BLOCK_PTR',
 	};
 	$match->{ip_universe_id} = $universe if ( defined($universe) );
+warn "xx1: ", Dumper($match, $universe);
 	if (
 
 		my $dbrec = $self->DBFetch(
@@ -341,14 +342,15 @@ sub link_inaddr {
 		dns_domain_id  => $domid,
 		dns_class      => 'IN',
 		dns_type       => 'REVERSE_ZONE_BLOCK_PTR',
-		ip_universe_id => $universe,
+		ip_universe_id => $nblk->{ip_universe_id},
 		netblock_id    => $nblk->{netblock_id},
 	};
+	warn "xx2: ", Dumper($dns, $nblk);
 	$self->DBInsert(
 		table => 'dns_record',
 		hash  => $dns,
 		errs  => \@errs,
-	) || die join( " ", @errs );
+	) || die join( " ", @errs, ", wtf -- ", $self->dbh->errstr );
 	1;
 }
 
@@ -571,24 +573,33 @@ sub freshen_zone {
 			die "$zone: ", join( " ", @errs );
 		}
 
-		my $new = {
-			soa_name        => $zone,
-			dns_domain_type => 'service',    # XXX
-		};
-		if ($parent) {
-			$new->{parent_dns_domain_id} = $parent->{dns_domain_id};
-		}
+		# XXX - really need to think this through
+		my $type = 'service';
 
 		if ( $zone =~ /\.in-addr.arpa$/ ) {
-			$new->{dns_domain_type} = 'reverse';
+			$type = 'reverse';
 		}
 
-		$numchanges += $self->DBInsert(
-			table  => 'dns_domain',
-			hash   => $new,
-			errors => \@errs,
-		) || die join( " ", @errs );
-		$$dom = $new;
+		# this will move any existing records
+		my $sth = $self->dbh->prepare_cached( qq{
+			SELECT dns_manip.add_dns_domain(
+				dns_domain_name := ?,
+				dns_domain_type := ?,
+				add_nameservers := false
+			);
+		} ) || die $self->dbh->errstr;
+
+		$sth->execute( $zone, $type ) || die $sth->errstr;
+
+		$$dom = $self->DBFetch(
+			table           => 'dns_domain',
+			match           => { soa_name => $zone },
+			result_set_size => 'exactlyone',
+			errors          => \@errs
+		);
+
+		$numchanges++;
+
 	} else {
 		$$dom = $olddom;
 	}
