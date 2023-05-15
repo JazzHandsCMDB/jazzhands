@@ -17,23 +17,6 @@
 
 \set ON_ERROR_STOP
 
-/*
- * Copyright (c) 2010-2021 Matthew Ragan
- * All rights reserved.
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *      http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- */
-
 
 --
 -- $HeadURL$
@@ -126,6 +109,42 @@ BEGIN
 			m
 		);
 	END LOOP;
+END;
+$$
+SET search_path=schema_support
+LANGUAGE plpgsql SECURITY INVOKER;
+
+-------------------------------------------------------------------
+---
+--- resequence an audit table so audit records are generally in aud#seq
+--- order.  This is useful  when synthesizing a bunch of audit data.
+--- Note taht it does _not_ handle foreign keys.
+---
+-------------------------------------------------------------------
+CREATE OR REPLACE FUNCTION schema_support.renumber_audit_table_sequences (
+	schema	TEXT,
+	relation	TEXT
+) RETURNS VOID AS $$
+DECLARE
+	_seq	TEXT;
+BEGIN
+	_seq := concat('seq_', md5(concat(schema, '.', relation)));
+	EXECUTE format('CREATE SEQUENCE %s', _seq);
+
+	EXECUTE format('
+		UPDATE %s.%s o
+		SET "aud#seq" = newseqid
+		FROM (
+			SELECT	*, nextval(''%s'') as newseqid
+			FROM	%s.%s
+			ORDER BY	"aud#timestamp", "aud#realtime", "aud#seq"
+		) n
+		WHERE n."aud#seq" = o."aud#seq"
+		AND o."aud#seq" != newseqid
+	', schema, relation, quote_ident(_seq), schema, relation);
+
+	EXECUTE format('DROP SEQUENCE if exists %s', _seq);
+	PERFORM schema_support.reset_table_sequence(schema, relation, true);
 END;
 $$
 SET search_path=schema_support
