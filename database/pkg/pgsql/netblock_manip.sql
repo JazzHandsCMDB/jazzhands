@@ -79,7 +79,7 @@ BEGIN
 	UPDATE jazzhands.netblock SET parent_netblock_id = nbid
 		WHERE netblock_id = recalculate_parentage.netblock_id;
 
-	FOR childrec IN SELECT * 
+	FOR childrec IN SELECT *
 		FROM jazzhands.netblock  p
 		WHERE p.parent_netblock_id = nbid
 		AND p.netblock_id != recalculate_parentage.netblock_id
@@ -563,7 +563,7 @@ BEGIN
 		network_range nr
 	WHERE
 		nr.network_range_id = nr_id;
-	
+
 	IF NOT FOUND THEN
 		RAISE EXCEPTION 'network_range % does not exist', nr_id;
 	END IF;
@@ -710,7 +710,7 @@ BEGIN
 		END IF;
 	END IF;
 
-	SELECT * INTO l3i_rec FROM layer3_interface l3i WHERE 
+	SELECT * INTO l3i_rec FROM layer3_interface l3i WHERE
 		l3i.layer3_interface_id = l3i_id;
 
 	--
@@ -1010,7 +1010,7 @@ BEGIN
 			-- See if this netblock is on something else, and delete it
 			-- if move_addresses is set, otherwise skip it
 			--
-			SELECT 
+			SELECT
 				l3i.layer3_interface_id,
 				l3i.layer3_interface_name,
 				l3in.netblock_id,
@@ -1675,7 +1675,7 @@ BEGIN
 	--
 	-- Set anything that's passed into the proposed network_range
 	--
-	proposed_range.network_range_type := 
+	proposed_range.network_range_type :=
 		COALESCE(nr_type, proposed_range.network_range_type);
 
 	SELECT
@@ -1712,7 +1712,7 @@ BEGIN
 		proposed_range.netblock_type = NULL;
 		proposed_range.ip_universe_id = NULL;
 	END IF;
-	proposed_range.parent_netblock_id := 
+	proposed_range.parent_netblock_id :=
 		COALESCE(pnbid, proposed_range.parent_netblock_id);
 
 	IF (
@@ -1722,7 +1722,7 @@ BEGIN
 		RAISE 'start_ip_address and stop_ip_address must both be set for a network_range'
 			USING ERRCODE = 'check_violation';
 	END IF;
-		
+
 	--
 	-- If any other network ranges of this type exist that overlap this one,
 	-- and the network_range_type doesn't allow that, then error.  This gets
