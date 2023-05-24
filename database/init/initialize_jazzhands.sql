@@ -2068,18 +2068,22 @@ values
 -------------------------------------------------------------------------
 -- logical volumes / disks
 
-INSERT INTO val_logical_volume_type (
-	logical_volume_type, description
-) VALUES (
-	'legacy', 'data that predates existance of this table'
-);
-
 INSERT INTO val_block_storage_device_encryption_system (
 	block_storage_device_encryption_system
 ) VALUES
 	('LUKS'),
 	('VeraCrypt'),
 	('ZFS')
+;
+
+INSERT INTO val_block_storage_device_type (
+	block_storage_device_type
+) VALUES
+	('disk partition'),
+	('ZFS filesystem'),
+	('ZFS volume'),
+	('LVM volume'),
+	('encrypted_block_storage_device')
 ;
 
 -- END logical volumes
