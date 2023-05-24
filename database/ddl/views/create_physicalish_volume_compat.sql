@@ -44,6 +44,7 @@ SELECT	bsd.block_storage_device_id	AS physicalish_volume_id,
 FROM block_storage_device bsd
 	LEFT JOIN virtual_component_logical_volume vclv
 		USING (component_id)
+WHERE bsd.logical_volume_id IS NULL
 ;
 
 ---
