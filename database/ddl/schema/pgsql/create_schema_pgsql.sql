@@ -2701,7 +2701,7 @@ ALTER TABLE encapsulation_range ALTER COLUMN encapsulation_range_id ADD GENERATE
 CREATE TABLE encrypted_block_storage_device
 ( 
 	encrypted_block_storage_device_id integer  NOT NULL ,
-	block_storage_device_id integer  NULL ,
+	block_storage_device_id integer  NOT NULL ,
 	block_storage_device_encryption_system varchar(255)  NOT NULL ,
 	encryption_key_id    integer  NOT NULL ,
 	offset_sector        integer  NULL ,
@@ -3782,7 +3782,7 @@ CREATE TABLE logical_volume
 	device_id            integer  NOT NULL ,
 	logical_volume_size_in_bytes bigint  NOT NULL ,
 	logical_volume_offset_in_bytes bigint  NULL ,
-	filesystem_type      varchar(50)  NOT NULL ,
+	filesystem_type      varchar(50)  NULL ,
 	uuid                 uuid  NULL 
 );
 
@@ -3837,7 +3837,7 @@ CREATE TABLE logical_volume_property
 	logical_volume_id    integer  NOT NULL ,
 	logical_volume_type  varchar(50)  NULL ,
 	logical_volume_purpose varchar(50)  NULL ,
-	filesystem_type      character varying(50)  NOT NULL ,
+	filesystem_type      character varying(50)  NULL ,
 	logical_volume_property_name varchar(50)  NULL ,
 	logical_volume_property_value varchar(255)  NULL 
 );
@@ -3847,12 +3847,6 @@ ALTER TABLE logical_volume_property
 
 ALTER TABLE logical_volume_property
 	ADD CONSTRAINT ak_logical_vol_prop_fs_lv_name UNIQUE (logical_volume_id,logical_volume_property_name);
-
-CREATE INDEX xif_lvol_prop_lvid_fstyp ON logical_volume_property
-( 
-	logical_volume_id,
-	filesystem_type
-);
 
 CREATE INDEX xif_lvol_prop_lvpn_fsty ON logical_volume_property
 ( 
@@ -3868,6 +3862,16 @@ CREATE INDEX xif_lvprop_purpose ON logical_volume_property
 CREATE INDEX xif_lvprop_type ON logical_volume_property
 ( 
 	logical_volume_type
+);
+
+CREATE INDEX xiflogical_volume_property_filesystem_type ON logical_volume_property
+( 
+	filesystem_type ASC
+);
+
+CREATE INDEX xiflogical_volume_property_lvid ON logical_volume_property
+( 
+	logical_volume_id ASC
 );
 
 ALTER TABLE logical_volume_property ADD COLUMN data_ins_user varchar(255);
@@ -7985,7 +7989,8 @@ CREATE TABLE val_block_storage_device_type
 	description          varchar(4000)  NULL ,
 	permit_logical_volume_id char(10)  NOT NULL ,
 	permit_component_id  char(10)  NOT NULL ,
-	permit_encrypted_block_storage_device_id char(10)  NOT NULL 
+	permit_encrypted_block_storage_device_id char(10)  NOT NULL ,
+	is_encrypted         boolean  NULL 
 );
 
 ALTER TABLE val_block_storage_device_type
@@ -10649,7 +10654,7 @@ ALTER TABLE virtual_component_logical_volume ADD COLUMN data_upd_date TIMESTAMP 
 CREATE TABLE volume_group
 ( 
 	volume_group_id      integer  NOT NULL ,
-	device_id            integer  NULL ,
+	device_id            integer  NOT NULL ,
 	component_id         integer  NULL ,
 	volume_group_name    varchar(50)  NOT NULL ,
 	volume_group_type    varchar(50)  NOT NULL ,
@@ -11386,15 +11391,9 @@ ALTER TABLE badge
 
 
 ALTER TABLE block_storage_device
-	ADD CONSTRAINT ckc_block_storage_device_type_2020462787 CHECK  ( (block_storage_device_type = 'encrypted_block_storage_device' AND encrypted_block_storage_device_id IS NOT NULL) OR (block_storage_device_type != 'encrypted_block_storage_device') ) ;
-
-ALTER TABLE block_storage_device
-	ADD CONSTRAINT ckc_encfilesystem_is_encrypted_741847470 CHECK  ( (is_encrypted = true AND encrypted_block_storage_device_id IS NOT NULL) OR  encrypted_block_storage_device_id IS NULL ) ;
-
-ALTER TABLE block_storage_device
-	ADD CONSTRAINT ckc_one_of_logical_device_id_or_component_id_or_enc__1396903461 CHECK  ( ( encrypted_block_storage_device_id IS NULL AND component_id IS NOT NULL AND logical_volume_id IS NULL)
+	ADD CONSTRAINT ckc_one_of_logical_device_id_or_component_id_or_enc__1396903461 CHECK  ( ( component_id IS NOT NULL AND encrypted_block_storage_device_id IS NULL AND logical_volume_id IS NULL)
 OR
-( component_id IS NOT NULL AND encrypted_block_storage_device_id IS NULL AND logical_volume_id IS NULL)
+( component_id IS NULL AND encrypted_block_storage_device_id IS NOT NULL AND logical_volume_id IS NULL)
 OR
 ( component_id IS NULL AND encrypted_block_storage_device_id IS NULL AND logical_volume_id IS NOT NULL)
  ) ;
@@ -12597,12 +12596,6 @@ ALTER TABLE logical_volume
 
 
 ALTER TABLE logical_volume_property
-	ADD CONSTRAINT fk_lvol_prop_lvid_fstyp FOREIGN KEY (logical_volume_id,filesystem_type) REFERENCES logical_volume(logical_volume_id,filesystem_type)
-		ON UPDATE NO ACTION
-		ON DELETE NO ACTION
-		DEFERRABLE  ;
-
-ALTER TABLE logical_volume_property
 	ADD CONSTRAINT fk_lvol_prop_lvpn_fsty FOREIGN KEY (logical_volume_property_name,filesystem_type) REFERENCES val_logical_volume_property(logical_volume_property_name,filesystem_type)
 		ON UPDATE NO ACTION
 		ON DELETE NO ACTION
@@ -12615,6 +12608,16 @@ ALTER TABLE logical_volume_property
 
 ALTER TABLE logical_volume_property
 	ADD CONSTRAINT fk_lvprop_type FOREIGN KEY (logical_volume_type) REFERENCES val_logical_volume_type(logical_volume_type)
+		ON UPDATE NO ACTION
+		ON DELETE NO ACTION;
+
+ALTER TABLE logical_volume_property
+	ADD CONSTRAINT fk_logical_volume_property_filesystem_type FOREIGN KEY (filesystem_type) REFERENCES val_filesystem_type(filesystem_type)
+		ON UPDATE NO ACTION
+		ON DELETE NO ACTION;
+
+ALTER TABLE logical_volume_property
+	ADD CONSTRAINT fk_lvol_prop_lvid_fstyp FOREIGN KEY (logical_volume_id) REFERENCES logical_volume(logical_volume_id)
 		ON UPDATE NO ACTION
 		ON DELETE NO ACTION;
 
@@ -15218,7 +15221,9 @@ COMMENT ON COLUMN layer3_network.external_id IS 'opaque id used in remote system
 
 COMMENT ON COLUMN layer3_network_collection.external_id IS 'opaque id used in remote system to identifty this object.  Used for syncing an authoritative copy.';
 
-COMMENT ON COLUMN logical_volume_property.filesystem_type IS 'THIS COLUMN IS DEPRECATED AND WILL BE REMOVED >= 0.66';
+COMMENT ON COLUMN logical_volume.filesystem_type IS 'This column is deprecated and will be going away in >= 0.97.';
+
+COMMENT ON TABLE logical_volume_property IS 'This table is deprecated and will be going away in >= 0.97';
 
 COMMENT ON COLUMN netblock.external_id IS 'opaque id used in remote system to identifty this object.  Used for syncing an authoritative copy.';
 

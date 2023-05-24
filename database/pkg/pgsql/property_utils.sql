@@ -1150,6 +1150,65 @@ $$
 SET search_path=jazzhands
 LANGUAGE plpgsql SECURITY DEFINER;
 
+CREATE OR REPLACE FUNCTION property_utils.validate_block_storage_device(
+	NEW	block_storage_device
+) RETURNS block_storage_device AS $$
+DECLARE
+	_bsdt	val_block_storage_device_type%ROWTYPE;
+BEGIN
+	SELECT * INTO _bsdt
+	FROM val_block_storage_device_type
+	WHERE block_storage_device_type = NEW.block_storage_device_type;
+
+	IF _bsdt.permit_logical_volume_id = 'PROHIBITED' AND
+		NEW.logical_volume_id IS NOT NULL
+	THEN
+		RAISE EXCEPTION 'logical_volume_id is set and that is PROHIBITED'
+			USING ERRCODE = 'invalid_parameter_value';
+	ELSIF _bsdt.permit_logical_volume_id = 'REQUIRED' AND
+		NEW.logical_volume_id IS NULL
+	THEN
+		RAISE EXCEPTION 'logical_volume_id is not set and is REQUIRED'
+			USING ERRCODE = 'invalid_parameter_value';
+	END IF;
+
+	IF _bsdt.permit_component_id = 'PROHIBITED' AND
+		NEW.component_id IS NOT NULL
+	THEN
+		RAISE EXCEPTION 'component_id is set and that is PROHIBITED'
+			USING ERRCODE = 'invalid_parameter_value';
+	ELSIF _bsdt.permit_component_id = 'REQUIRED' AND
+		NEW.component_id IS NULL
+	THEN
+		RAISE EXCEPTION 'component_id is not set and is REQUIRED'
+			USING ERRCODE = 'invalid_parameter_value';
+	END IF;
+
+	IF _bsdt.permit_encrypted_block_storage_device_id = 'PROHIBITED' AND
+		NEW.encrypted_block_storage_device_id IS NOT NULL
+	THEN
+		RAISE EXCEPTION 'encrypted_block_storage_device_id is set and that is PROHIBITED'
+			USING ERRCODE = 'invalid_parameter_value';
+	ELSIF _bsdt.permit_encrypted_block_storage_device_id = 'REQUIRED' AND
+		NEW.encrypted_block_storage_device_id IS NULL
+	THEN
+		RAISE EXCEPTION 'encrypted_block_storage_device_id is not set and is REQUIRED'
+			USING ERRCODE = 'invalid_parameter_value';
+	END IF;
+
+	IF _bsdt.is_encrypted IS NOT NULL AND _bsdt.is_encrypted != NEW.is_encrypted
+	THEN
+		RAISE EXCEPTION 'is_encrypted does not match type'
+			USING ERRCODE = 'invalid_parameter_value';
+	END IF;
+
+	RETURN NEW;
+END;
+$$
+SET search_path=jazzhands
+LANGUAGE plpgsql SECURITY DEFINER;
+
+
 REVOKE ALL ON SCHEMA property_utils FROM public;
 REVOKE ALL ON ALL FUNCTIONS IN SCHEMA property_utils FROM public;
 

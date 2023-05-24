@@ -46,7 +46,6 @@ BEGIN
 			NEW.logical_volume_id
 		);
 
-
 		INSERT INTO component_property (
 			component_id, component_property_type,
 			component_property_name, property_value

@@ -76,8 +76,8 @@ BEGIN
 		VALUES ('jhvgtype');
 	INSERT INTO val_filesystem_type ( filesystem_type )
 		VALUES ('jhfstype');
-	INSERT INTO val_physicalish_volume_type ( physicalish_volume_type )
-		VALUES ('jhdisk');
+	INSERT INTO val_block_storage_device_type ( block_storage_device_type, permit_component_id  )
+		VALUES ('jhdisk', 'REQUIRED');
 
 	INSERT INTO val_logical_volume_property (
 		logical_volume_property_name, filesystem_type
