@@ -39,6 +39,9 @@ Invoked:
 	physicalish_volume:block_storage_device
 	physicalish_volume
 	volume_group_physicalish_volume
+	logical_volume_property
+	val_filesystem_type
+	filesystem
 	jazzhands_legacy.volume_group_physicalish_vol
 	--last
 	jazzhands_legacy.device_management_controller
@@ -221,7 +224,7 @@ INSERT INTO val_component_property (
 	'SCSI_Id', 'disk', false,
 	'Virtual Disk SCSI Id',
 	'number', 'REQUIRED', 'storage'
-);
+) ON CONFLICT DO NOTHING;
 
 
 -- END Misc that does not apply to above
@@ -1725,6 +1728,36 @@ $function$
 ;
 
 -- New function; dropping in case it returned because of type change
+CREATE OR REPLACE FUNCTION schema_support.renumber_audit_table_sequences(schema text, relation text)
+ RETURNS void
+ LANGUAGE plpgsql
+ SET search_path TO 'schema_support'
+AS $function$
+DECLARE
+	_seq	TEXT;
+BEGIN
+	_seq := concat('seq_', md5(concat(schema, '.', relation)));
+	EXECUTE format('CREATE SEQUENCE %s', _seq);
+
+	EXECUTE format('
+		UPDATE %s.%s o
+		SET "aud#seq" = newseqid
+		FROM (
+			SELECT	*, nextval(''%s'') as newseqid
+			FROM	%s.%s
+			ORDER BY	"aud#timestamp", "aud#realtime", "aud#seq"
+		) n
+		WHERE n."aud#seq" = o."aud#seq"
+		AND o."aud#seq" != newseqid
+	', schema, relation, quote_ident(_seq), schema, relation);
+
+	EXECUTE format('DROP SEQUENCE if exists %s', _seq);
+	PERFORM schema_support.reset_table_sequence(schema, relation, true);
+END;
+$function$
+;
+
+-- New function; dropping in case it returned because of type change
 CREATE OR REPLACE FUNCTION schema_support.reset_table_sequence(schema character varying, table_name character varying, lowerseq boolean DEFAULT true)
  RETURNS void
  LANGUAGE plpgsql
@@ -2688,10 +2721,1853 @@ SELECT schema_support.replay_object_recreates(tags := ARRAY['process_all_procs_i
 --
 -- Process middle (non-trigger) schema netblock_manip
 --
+-- Changed function
+SELECT schema_support.save_dependent_objects_for_replay('netblock_manip', 'create_network_range');
+SELECT schema_support.save_grants_for_replay('netblock_manip', 'create_network_range');
+-- Dropped in case type changes.
+DROP FUNCTION IF EXISTS netblock_manip.create_network_range ( inet,inet,character varying,integer,character varying,boolean,text,integer,integer );
+CREATE OR REPLACE FUNCTION netblock_manip.create_network_range(start_ip_address inet, stop_ip_address inet, network_range_type character varying, parent_netblock_id integer DEFAULT NULL::integer, description character varying DEFAULT NULL::character varying, allow_assigned boolean DEFAULT false, dns_prefix text DEFAULT NULL::text, dns_domain_id integer DEFAULT NULL::integer, lease_time integer DEFAULT NULL::integer)
+ RETURNS jazzhands.network_range
+ LANGUAGE plpgsql
+ SECURITY DEFINER
+ SET search_path TO 'jazzhands'
+AS $function$
+DECLARE
+	nbcheck			RECORD;
+	start_netblock	RECORD;
+	stop_netblock	RECORD;
+	netrange		RECORD;
+	nrtype			ALIAS FOR network_range_type;
+	pnbid			ALIAS FOR parent_netblock_id;
+BEGIN
+	--
+	-- If the network range already exists, then just return it
+	--
+	SELECT
+		nr.* INTO netrange
+	FROM
+		jazzhands.network_range nr JOIN
+		jazzhands.netblock startnb ON (nr.start_netblock_id =
+			startnb.netblock_id) JOIN
+		jazzhands.netblock stopnb ON (nr.stop_netblock_id = stopnb.netblock_id)
+	WHERE
+		nr.network_range_type = nrtype AND
+		host(startnb.ip_address) = host(start_ip_address) AND
+		host(stopnb.ip_address) = host(stop_ip_address) AND
+		CASE WHEN pnbid IS NOT NULL THEN
+			(pnbid = nr.parent_netblock_id)
+		ELSE
+			true
+		END;
+
+	IF FOUND THEN
+		RETURN netrange;
+	END IF;
+
+	--
+	-- Validate things passed.  This will throw an exception if things aren't
+	-- valid
+	--
+
+	SELECT * INTO nbcheck FROM netblock_manip.validate_network_range(
+		network_range_type := nrtype,
+		start_ip_address := start_ip_address,
+		stop_ip_address := stop_ip_address,
+		parent_netblock_id := parent_netblock_id
+	);
+
+	--
+	-- Validate that there are not currently any addresses assigned in the
+	-- range, unless allow_assigned is set
+	--
+	IF NOT allow_assigned THEN
+		PERFORM
+			*
+		FROM
+			jazzhands.netblock n
+		WHERE
+			n.parent_netblock_id = nbcheck.parent_netblock_id AND
+			host(n.ip_address)::inet > host(start_ip_address)::inet AND
+			host(n.ip_address)::inet < host(stop_ip_address)::inet;
+
+		IF FOUND THEN
+			RAISE 'create_network_range: netblocks are already present for parent netblock % betweeen % and %',
+			nbcheck.parent_netblock_id,
+			start_ip_address, stop_ip_address
+			USING ERRCODE = 'check_violation';
+		END IF;
+	END IF;
+
+	--
+	-- We should be able to insert things now
+	--
+
+	SELECT
+		*
+	FROM
+		jazzhands.netblock n
+	INTO
+		start_netblock
+	WHERE
+		host(n.ip_address)::inet = start_ip_address AND
+		n.netblock_type = 'network_range' AND
+		n.can_subnet = false AND
+		n.is_single_address = true AND
+		n.ip_universe_id = nbcheck.ip_universe_id;
+
+	IF NOT FOUND THEN
+		INSERT INTO netblock (
+			ip_address,
+			netblock_type,
+			is_single_address,
+			can_subnet,
+			netblock_status,
+			ip_universe_id
+		) VALUES (
+			host(start_ip_address)::inet,
+			'network_range',
+			true,
+			false,
+			'Allocated',
+			nbcheck.ip_universe_id
+		) RETURNING * INTO start_netblock;
+	END IF;
+
+	SELECT
+		*
+	FROM
+		jazzhands.netblock n
+	INTO
+		stop_netblock
+	WHERE
+		host(n.ip_address)::inet = stop_ip_address AND
+		n.netblock_type = 'network_range' AND
+		n.can_subnet = false AND
+		n.is_single_address = true AND
+		n.ip_universe_id = nbcheck.ip_universe_id;
+
+	IF NOT FOUND THEN
+		INSERT INTO netblock (
+			ip_address,
+			netblock_type,
+			is_single_address,
+			can_subnet,
+			netblock_status,
+			ip_universe_id
+		) VALUES (
+			host(stop_ip_address)::inet,
+			'network_range',
+			true,
+			false,
+			'Allocated',
+			nbcheck.ip_universe_id
+		) RETURNING * INTO stop_netblock;
+	END IF;
+
+	INSERT INTO network_range (
+		network_range_type,
+		description,
+		parent_netblock_id,
+		start_netblock_id,
+		stop_netblock_id,
+		dns_prefix,
+		dns_domain_id,
+		lease_time
+	) VALUES (
+		nrtype,
+		description,
+		nbcheck.parent_netblock_id,
+		start_netblock.netblock_id,
+		stop_netblock.netblock_id,
+		create_network_range.dns_prefix,
+		create_network_range.dns_domain_id,
+		create_network_range.lease_time
+	) RETURNING * INTO netrange;
+
+	RETURN netrange;
+
+	RETURN NULL;
+END;
+$function$
+;
+
+DO $$
+-- not dropping regrants here.
+BEGIN
+	DELETE FROM __recreate WHERE schema = 'netblock_manip' AND type = 'function' AND object IN ('create_network_range');
+EXCEPTION WHEN undefined_table THEN
+	RAISE NOTICE 'Drop of proc create_network_range failed but that is ok';
+	NULL;
+END;
+$$;
+
+-- Changed function
+SELECT schema_support.save_dependent_objects_for_replay('netblock_manip', 'recalculate_parentage');
+SELECT schema_support.save_grants_for_replay('netblock_manip', 'recalculate_parentage');
+-- Dropped in case type changes.
+DROP FUNCTION IF EXISTS netblock_manip.recalculate_parentage ( integer );
+CREATE OR REPLACE FUNCTION netblock_manip.recalculate_parentage(netblock_id integer)
+ RETURNS integer
+ LANGUAGE plpgsql
+ SET search_path TO 'jazzhands'
+AS $function$
+DECLARE
+	nbrec		RECORD;
+	childrec	RECORD;
+	nbid		jazzhands.netblock.netblock_id%type;
+	ipaddr		inet;
+
+BEGIN
+	SELECT * INTO nbrec FROM jazzhands.netblock WHERE
+		netblock_id = recalculate_parentage.netblock_id;
+
+	nbid := netblock_utils.find_best_parent_netblock_id(netblock_id);
+
+	UPDATE jazzhands.netblock SET parent_netblock_id = nbid
+		WHERE netblock_id = recalculate_parentage.netblock_id;
+
+	FOR childrec IN SELECT *
+		FROM jazzhands.netblock  p
+		WHERE p.parent_netblock_id = nbid
+		AND p.netblock_id != recalculate_parentage.netblock_id
+	LOOP
+		IF (childrec.ip_address <<= nbrec.ip_address) THEN
+			UPDATE jazzhands.netblock  n
+				SET parent_netblock_id = recalculate_parentage.netblock_id
+				WHERE n.netblock_id = childrec.netblock_id;
+		END IF;
+	END LOOP;
+	RETURN nbid;
+END;
+$function$
+;
+
+DO $$
+-- not dropping regrants here.
+BEGIN
+	DELETE FROM __recreate WHERE schema = 'netblock_manip' AND type = 'function' AND object IN ('recalculate_parentage');
+EXCEPTION WHEN undefined_table THEN
+	RAISE NOTICE 'Drop of proc recalculate_parentage failed but that is ok';
+	NULL;
+END;
+$$;
+
+-- Changed function
+SELECT schema_support.save_dependent_objects_for_replay('netblock_manip', 'set_layer3_interface_addresses');
+SELECT schema_support.save_grants_for_replay('netblock_manip', 'set_layer3_interface_addresses');
+-- Dropped in case type changes.
+DROP FUNCTION IF EXISTS netblock_manip.set_layer3_interface_addresses ( integer,integer,text,text,jsonb,boolean,text,text );
+CREATE OR REPLACE FUNCTION netblock_manip.set_layer3_interface_addresses(layer3_interface_id integer DEFAULT NULL::integer, device_id integer DEFAULT NULL::integer, layer3_interface_name text DEFAULT NULL::text, layer3_interface_type text DEFAULT 'broadcast'::text, ip_address_hash jsonb DEFAULT NULL::jsonb, create_layer3_networks boolean DEFAULT false, move_addresses text DEFAULT 'if_same_device'::text, address_errors text DEFAULT 'error'::text)
+ RETURNS boolean
+ LANGUAGE plpgsql
+ SECURITY DEFINER
+ SET search_path TO 'jazzhands'
+AS $function$
+--
+-- ip_address_hash consists of the following elements
+--
+--		"ip_addresses" : [ (inet | netblock) ... ]
+--		"shared_ip_addresses" : [ (inet | netblock) ... ]
+--
+-- where inet is a text string that can be legally converted to type inet
+-- and netblock is a JSON object with fields:
+--		"ip_address" : inet
+--		"ip_universe_id" : integer (default 0)
+--		"netblock_type" : text (default 'default')
+--		"protocol" : text (default 'VRRP')
+--
+-- If either "ip_addresses" or "shared_ip_addresses" does not exist, it
+-- will not be processed.  If the key is present and is an empty array or
+-- null, then all IP addresses of those types will be removed from the
+-- interface
+--
+-- 'protocol' is only valid for shared addresses, which is how the address
+-- is shared.  Valid values can be found in the val_shared_netblock_protocol
+-- table
+--
+DECLARE
+	l3i_id			ALIAS FOR layer3_interface_id;
+	dev_id			ALIAS FOR device_id;
+	l3i_name		ALIAS FOR layer3_interface_name;
+	l3i_type		ALIAS FOR layer3_interface_type;
+
+	addrs_ary		jsonb;
+	ipaddr			inet;
+	universe		integer;
+	nb_type			text;
+	protocol		text;
+
+	c				integer;
+	i				integer;
+
+	error_rec		RECORD;
+	nb_rec			RECORD;
+	pnb_rec			RECORD;
+	layer3_rec		RECORD;
+	sn_rec			RECORD;
+	l3i_rec			RECORD;
+	l3in_rec		RECORD;
+	nb_id			jazzhands.netblock.netblock_id%TYPE;
+	nb_id_ary		integer[];
+	l3i_id_ary		integer[];
+	del_list		integer[];
+BEGIN
+	--
+	-- Validate that we got enough information passed to do things
+	--
+
+	IF ip_address_hash IS NULL OR NOT
+		(jsonb_typeof(ip_address_hash) = 'object')
+	THEN
+		RAISE 'Must pass ip_addresses to netblock_manip.set_interface_addresses';
+	END IF;
+
+	IF layer3_interface_id IS NULL THEN
+		IF device_id IS NULL OR layer3_interface_name IS NULL THEN
+			RAISE 'netblock_manip.assign_shared_netblock: must pass either layer3_interface_id or device_id and layer3_interface_name'
+			USING ERRCODE = 'invalid_parameter_value';
+		END IF;
+
+		SELECT
+			l3i.layer3_interface_id INTO l3i_id
+		FROM
+			layer3_interface l3i
+		WHERE
+			l3i.device_id = dev_id AND
+			l3i.layer3_interface_name = l3i_name;
+
+		IF NOT FOUND THEN
+			INSERT INTO layer3_interface(
+				device_id,
+				layer3_interface_name,
+				layer3_interface_type,
+				should_monitor
+			) VALUES (
+				dev_id,
+				l3i_name,
+				l3i_type,
+				false
+			) RETURNING layer3_interface.layer3_interface_id INTO l3i_id;
+		END IF;
+	END IF;
+
+	SELECT * INTO l3i_rec FROM layer3_interface l3i WHERE
+		l3i.layer3_interface_id = l3i_id;
+
+	--
+	-- First, loop through ip_addresses passed and process those
+	--
+
+	IF ip_address_hash ? 'ip_addresses' AND
+		jsonb_typeof(ip_address_hash->'ip_addresses') = 'array'
+	THEN
+		RAISE DEBUG 'Processing ip_addresses...';
+		--
+		-- Loop through each member of the ip_addresses array
+		-- and process each address
+		--
+		addrs_ary := ip_address_hash->'ip_addresses';
+		c := jsonb_array_length(addrs_ary);
+		i := 0;
+		nb_id_ary := NULL;
+		WHILE (i < c) LOOP
+			IF jsonb_typeof(addrs_ary->i) = 'string' THEN
+				--
+				-- If this is a string, use it as an inet with default
+				-- universe and netblock_type
+				--
+				ipaddr := addrs_ary->>i;
+				universe := netblock_utils.find_best_ip_universe(ipaddr);
+				nb_type := 'default';
+			ELSIF jsonb_typeof(addrs_ary->i) = 'object' THEN
+				--
+				-- If this is an object, require 'ip_address' key
+				-- optionally use 'ip_universe_id' and 'netblock_type' keys
+				-- to override the defaults
+				--
+				IF NOT addrs_ary->i ? 'ip_address' THEN
+					RAISE E'Object in array element % of ip_addresses in ip_address_hash in netblock_manip.set_interface_addresses does not contain ip_address key:\n%',
+						i, jsonb_pretty(addrs_ary->i);
+				END IF;
+				ipaddr := addrs_ary->i->>'ip_address';
+
+				IF addrs_ary->i ? 'ip_universe_id' THEN
+					universe := addrs_ary->i->'ip_universe_id';
+				ELSE
+					universe := netblock_utils.find_best_ip_universe(ipaddr);
+				END IF;
+
+				IF addrs_ary->i ? 'netblock_type' THEN
+					nb_type := addrs_ary->i->>'netblock_type';
+				ELSE
+					nb_type := 'default';
+				END IF;
+			ELSE
+				RAISE 'Invalid type in array element % of ip_addresses in ip_address_hash in netblock_manip.set_interface_addresses (%)',
+					i, jsonb_typeof(addrs_ary->i);
+			END IF;
+			--
+			-- We're done with the array, so increment the counter so
+			-- we don't have to deal with it later
+			--
+			i := i + 1;
+
+			RAISE DEBUG 'Address is %, universe is %, nb type is %',
+				ipaddr, universe, nb_type;
+
+			--
+			-- This is a hack, because Juniper is really annoying about this.
+			-- If masklen < 8, then ignore this netblock (we specifically
+			-- want /8, because of 127/8 and 10/8, which someone could
+			-- maybe want to not subnet.
+			--
+			-- This should probably be a configuration parameter, but it's not.
+			--
+			CONTINUE WHEN masklen(ipaddr) < 8;
+
+			--
+			-- Check to see if this is a netblock that we have been
+			-- told to explicitly ignore
+			--
+			PERFORM
+				ip_address
+			FROM
+				netblock n JOIN
+				netblock_collection_netblock ncn USING (netblock_id) JOIN
+				v_netblock_collection_expanded nce USING (netblock_collection_id)
+					JOIN
+				property p ON (
+					property_name = 'IgnoreProbedNetblocks' AND
+					property_type = 'DeviceInventory' AND
+					property_value_netblock_collection_id =
+						nce.root_netblock_collection_id
+				)
+			WHERE
+				ipaddr <<= n.ip_address AND
+				n.ip_universe_id = universe
+			;
+
+			--
+			-- If we found this netblock in the ignore list, then just
+			-- skip it
+			--
+			IF FOUND THEN
+				RAISE DEBUG 'Skipping ignored address %', ipaddr;
+				CONTINUE;
+			END IF;
+
+			--
+			-- Look for an is_single_address=true, can_subnet=false netblock
+			-- with the given ip_address
+			--
+			SELECT
+				* INTO nb_rec
+			FROM
+				netblock n
+			WHERE
+				is_single_address = true AND
+				can_subnet = false AND
+				netblock_type = nb_type AND
+				ip_universe_id = universe AND
+				host(ip_address) = host(ipaddr);
+
+			IF FOUND THEN
+				RAISE DEBUG E'Located netblock:\n%',
+					jsonb_pretty(to_jsonb(nb_rec));
+
+				nb_id_ary := array_append(nb_id_ary, nb_rec.netblock_id);
+
+				--
+				-- Look to see if there's a layer3_network for the
+				-- parent netblock
+				--
+				SELECT
+					n.netblock_id,
+					n.ip_address,
+					layer3_network_id,
+					default_gateway_netblock_id
+				INTO layer3_rec
+				FROM
+					netblock n LEFT JOIN
+					layer3_network l3 USING (netblock_id)
+				WHERE
+					n.netblock_id = nb_rec.parent_netblock_id;
+
+				IF FOUND THEN
+					RAISE DEBUG E'Located layer3_network:\n%',
+						jsonb_pretty(to_jsonb(layer3_rec));
+				ELSE
+					--
+					-- If we're told to create the layer3_network,
+					-- then do that, otherwise go to the next address
+					--
+					CONTINUE WHEN NOT create_layer3_networks;
+					INSERT INTO layer3_network(
+						netblock_id
+					) VALUES (
+						layer3_rec.netblock_id
+					) RETURNING layer3_network_id INTO
+						layer3_rec.layer3_network_id;
+				END IF;
+			ELSE
+				--
+				-- If the parent netblock does not exist, then create it
+				-- if we were passed the option to
+				--
+				SELECT
+					n.netblock_id,
+					n.ip_address,
+					layer3_network_id,
+					default_gateway_netblock_id
+				INTO layer3_rec
+				FROM
+					netblock n LEFT JOIN
+					layer3_network l3 USING (netblock_id)
+				WHERE
+					n.ip_universe_id = universe AND
+					n.netblock_type = nb_type AND
+					is_single_address = false AND
+					can_subnet = false AND
+					n.ip_address >>= ipaddr;
+
+				IF NOT FOUND THEN
+					RAISE DEBUG 'Parent netblock with ip_address %, netblock_type %, ip_universe_id % not found',
+						network(ipaddr),
+						nb_type,
+						universe;
+					CONTINUE WHEN NOT create_layer3_networks;
+					--
+					-- Check to see if the netblock exists, but is
+					-- marked can_subnet=true.  If so, fix it
+					--
+					SELECT
+						* INTO pnb_rec
+					FROM
+						netblock n
+					WHERE
+						n.ip_universe_id = universe AND
+						n.netblock_type = nb_type AND
+						n.is_single_address = false AND
+						n.can_subnet = true AND
+						n.ip_address = network(ipaddr);
+
+					IF FOUND THEN
+						UPDATE netblock n SET
+							can_subnet = false
+						WHERE
+							n.netblock_id = pnb_rec.netblock_id;
+						pnb_rec.can_subnet = false;
+					ELSE
+						INSERT INTO netblock (
+							ip_address,
+							netblock_type,
+							is_single_address,
+							can_subnet,
+							ip_universe_id,
+							netblock_status
+						) VALUES (
+							network(ipaddr),
+							nb_type,
+							false,
+							false,
+							universe,
+							'Allocated'
+						) RETURNING * INTO pnb_rec;
+					END IF;
+
+					WITH l3_ins AS (
+						INSERT INTO layer3_network(
+							netblock_id
+						) VALUES (
+							pnb_rec.netblock_id
+						) RETURNING *
+					)
+					SELECT
+						pnb_rec.netblock_id,
+						pnb_rec.ip_address,
+						l3_ins.layer3_network_id,
+						NULL::inet
+					INTO layer3_rec
+					FROM
+						l3_ins;
+				ELSIF layer3_rec.layer3_network_id IS NULL THEN
+					--
+					-- If we're told to create the layer3_network,
+					-- then do that, otherwise go to the next address
+					--
+
+					RAISE DEBUG 'layer3_network for parent netblock % not found (ip_address %, netblock_type %, ip_universe_id %)',
+						layer3_rec.netblock_id,
+						network(ipaddr),
+						nb_type,
+						universe;
+					CONTINUE WHEN NOT create_layer3_networks;
+					INSERT INTO layer3_network(
+						netblock_id
+					) VALUES (
+						layer3_rec.netblock_id
+					) RETURNING layer3_network_id INTO
+						layer3_rec.layer3_network_id;
+				END IF;
+				RAISE DEBUG E'Located layer3_network:\n%',
+					jsonb_pretty(to_jsonb(layer3_rec));
+				--
+				-- Parents should be all set up now.  Insert the netblock
+				--
+				INSERT INTO netblock (
+					ip_address,
+					netblock_type,
+					ip_universe_id,
+					is_single_address,
+					can_subnet,
+					netblock_status
+				) VALUES (
+					ipaddr,
+					nb_type,
+					universe,
+					true,
+					false,
+					'Allocated'
+				) RETURNING * INTO nb_rec;
+				nb_id_ary := array_append(nb_id_ary, nb_rec.netblock_id);
+			END IF;
+			--
+			-- Now that we have the netblock and everything, check to see
+			-- if this netblock is already assigned to this layer3_interface
+			--
+			PERFORM * FROM
+				layer3_interface_netblock l3in
+			WHERE
+				l3in.netblock_id = nb_rec.netblock_id AND
+				l3in.layer3_interface_id = l3i_id;
+
+			IF FOUND THEN
+				RAISE DEBUG 'Netblock % already found on layer3_interface',
+					nb_rec.netblock_id;
+				CONTINUE;
+			END IF;
+
+			--
+			-- See if this netblock is on something else, and delete it
+			-- if move_addresses is set, otherwise skip it
+			--
+			SELECT
+				l3i.layer3_interface_id,
+				l3i.layer3_interface_name,
+				l3in.netblock_id,
+				d.device_id,
+				COALESCE(d.device_name, d.physical_label) AS device_name
+			INTO l3in_rec
+			FROM
+				layer3_interface_netblock l3in JOIN
+				layer3_interface l3i USING (layer3_interface_id) JOIN
+				device d ON (l3in.device_id = d.device_id)
+			WHERE
+				l3in.netblock_id = nb_rec.netblock_id AND
+				l3in.layer3_interface_id != l3i_id;
+
+			IF FOUND THEN
+				IF move_addresses = 'always' OR (
+					move_addresses = 'if_same_device' AND
+					l3in_rec.device_id = l3i_rec.device_id
+				)
+				THEN
+					DELETE FROM
+						layer3_interface_netblock
+					WHERE
+						netblock_id = nb_rec.netblock_id;
+				ELSE
+					IF address_errors = 'ignore' THEN
+						RAISE DEBUG 'Netblock % is assigned to layer3_interface %',
+							nb_rec.netblock_id, l3in_rec.layer3_interface_id;
+
+						CONTINUE;
+					ELSIF address_errors = 'warn' THEN
+						RAISE NOTICE 'Netblock % (%) is assigned to layer3_interface % (%) on device % (%)',
+							nb_rec.netblock_id,
+							nb_rec.ip_address,
+							l3in_rec.layer3_interface_id,
+							l3in_rec.layer3_interface_name,
+							l3in_rec.device_id,
+							l3in_rec.device_name;
+
+						CONTINUE;
+					ELSE
+						RAISE 'Netblock % (%) is assigned to layer3_interface %(%) on device % (%)',
+							nb_rec.netblock_id,
+							nb_rec.ip_address,
+							l3in_rec.layer3_interface_id,
+							l3in_rec.layer3_interface_name,
+							l3in_rec.device_id,
+							l3in_rec.device_name;
+					END IF;
+				END IF;
+			END IF;
+
+			--
+			-- See if this netblock is on a shared_address somewhere, and
+			-- move it only if move_addresses is 'always'
+			--
+			SELECT * FROM
+				shared_netblock sn
+			INTO sn_rec
+			WHERE
+				sn.netblock_id = nb_rec.netblock_id;
+
+			IF FOUND THEN
+				IF move_addresses IS NULL OR move_addresses != 'always' THEN
+					IF address_errors = 'ignore' THEN
+						RAISE DEBUG 'Netblock % is assigned to a shared_network %, but not forcing, so skipping',
+							nb_rec.netblock_id, sn.shared_netblock_id;
+						CONTINUE;
+					ELSIF address_errors = 'warn' THEN
+						RAISE NOTICE 'Netblock % (%) is assigned to a shared_network %, but not forcing, so skipping',
+							nb_rec.netblock_id, nb_rec.ip_address,
+							sn.shared_netblock_id;
+						CONTINUE;
+					ELSE
+						RAISE 'Netblock % (%) is assigned to a shared_network %, but not forcing, so skipping',
+							nb_rec.netblock_id, nb_rec.ip_address,
+							sn.shared_netblock_id;
+						CONTINUE;
+					END IF;
+				END IF;
+
+				DELETE FROM
+					shared_netblock_layer3_interface snl3i
+				WHERE
+					snl3i.shared_netblock_id = sn_rec.shared_netblock_id;
+
+				DELETE FROM
+					shared_network sn
+				WHERE
+					sn.netblock_id = sn_rec.shared_netblock_id;
+			END IF;
+
+			--
+			-- Insert the netblock onto the interface using the next
+			-- rank
+			--
+			INSERT INTO layer3_interface_netblock (
+				layer3_interface_id,
+				netblock_id,
+				layer3_interface_rank
+			) SELECT
+				l3i_id,
+				nb_rec.netblock_id,
+				COALESCE(MAX(layer3_interface_rank) + 1, 0)
+			FROM
+				layer3_interface_netblock l3in
+			WHERE
+				l3in.layer3_interface_id = l3i_id
+			RETURNING * INTO l3in_rec;
+
+			RAISE DEBUG E'Inserted into:\n%',
+				jsonb_pretty(to_jsonb(l3in_rec));
+		END LOOP;
+		--
+		-- Remove any netblocks that are on the interface that are not
+		-- supposed to be (and that aren't ignored).
+		--
+
+		FOR l3in_rec IN
+			DELETE FROM
+				layer3_interface_netblock l3in
+			WHERE
+				(l3in.layer3_interface_id, l3in.netblock_id) IN (
+				SELECT
+					l3in2.layer3_interface_id,
+					l3in2.netblock_id
+				FROM
+					layer3_interface_netblock l3in2 JOIN
+					netblock n USING (netblock_id)
+				WHERE
+					l3in2.layer3_interface_id = l3i_id AND NOT (
+						l3in.netblock_id = ANY(nb_id_ary) OR
+						n.ip_address <<= ANY ( ARRAY (
+							SELECT
+								n2.ip_address
+							FROM
+								netblock n2 JOIN
+								netblock_collection_netblock ncn USING
+									(netblock_id) JOIN
+								v_netblock_collection_expanded nce USING
+									(netblock_collection_id) JOIN
+								property p ON (
+									property_name = 'IgnoreProbedNetblocks' AND
+									property_type = 'DeviceInventory' AND
+									property_value_netblock_collection_id =
+										nce.root_netblock_collection_id
+								)
+						))
+					)
+			)
+			RETURNING *
+		LOOP
+			RAISE DEBUG 'Removed netblock % from layer3_interface %',
+				l3in_rec.netblock_id,
+				l3in_rec.layer3_interface_id;
+			--
+			-- Remove any DNS records and/or netblocks that aren't used
+			--
+			BEGIN
+				DELETE FROM dns_record WHERE netblock_id = l3in_rec.netblock_id;
+				DELETE FROM netblock_collection_netblock WHERE
+					netblock_id = l3in_rec.netblock_id;
+				DELETE FROM netblock WHERE netblock_id =
+					l3in_rec.netblock_id;
+			EXCEPTION
+				WHEN foreign_key_violation THEN NULL;
+			END;
+		END LOOP;
+	END IF;
+
+	--
+	-- Loop through shared_ip_addresses passed and process those
+	--
+
+	IF ip_address_hash ? 'shared_ip_addresses' AND
+		jsonb_typeof(ip_address_hash->'shared_ip_addresses') = 'array'
+	THEN
+		RAISE DEBUG 'Processing shared_ip_addresses...';
+		--
+		-- Loop through each member of the shared_ip_addresses array
+		-- and process each address
+		--
+		addrs_ary := ip_address_hash->'shared_ip_addresses';
+		c := jsonb_array_length(addrs_ary);
+		i := 0;
+		nb_id_ary := NULL;
+		WHILE (i < c) LOOP
+			IF jsonb_typeof(addrs_ary->i) = 'string' THEN
+				--
+				-- If this is a string, use it as an inet with default
+				-- universe and netblock_type
+				--
+				ipaddr := addrs_ary->>i;
+				universe := netblock_utils.find_best_ip_universe(ipaddr);
+				nb_type := 'default';
+				protocol := 'VRRP';
+			ELSIF jsonb_typeof(addrs_ary->i) = 'object' THEN
+				--
+				-- If this is an object, require 'ip_address' key
+				-- optionally use 'ip_universe_id' and 'netblock_type' keys
+				-- to override the defaults
+				--
+				IF NOT addrs_ary->i ? 'ip_address' THEN
+					RAISE E'Object in array element % of shared_ip_addresses in ip_address_hash in netblock_manip.set_interface_addresses does not contain ip_address key:\n%',
+						i, jsonb_pretty(addrs_ary->i);
+				END IF;
+				ipaddr := addrs_ary->i->>'ip_address';
+
+				IF addrs_ary->i ? 'ip_universe_id' THEN
+					universe := addrs_ary->i->'ip_universe_id';
+				ELSE
+					universe := netblock_utils.find_best_ip_universe(ipaddr);
+				END IF;
+
+				IF addrs_ary->i ? 'netblock_type' THEN
+					nb_type := addrs_ary->i->>'netblock_type';
+				ELSE
+					nb_type := 'default';
+				END IF;
+
+				IF addrs_ary->i ? 'shared_netblock_protocol' THEN
+					protocol := addrs_ary->i->>'shared_netblock_protocol';
+				ELSIF addrs_ary->i ? 'protocol' THEN
+					protocol := addrs_ary->i->>'protocol';
+				ELSE
+					protocol := 'VRRP';
+				END IF;
+			ELSE
+				RAISE 'Invalid type in array element % of shared_ip_addresses in ip_address_hash in netblock_manip.set_interface_addresses (%)',
+					i, jsonb_typeof(addrs_ary->i);
+			END IF;
+			--
+			-- We're done with the array, so increment the counter so
+			-- we don't have to deal with it later
+			--
+			i := i + 1;
+
+			RAISE DEBUG 'Address is %, universe is %, nb type is %',
+				ipaddr, universe, nb_type;
+
+			--
+			-- Check to see if this is a netblock that we have been
+			-- told to explicitly ignore
+			--
+			PERFORM
+				ip_address
+			FROM
+				netblock n JOIN
+				netblock_collection_netblock ncn USING (netblock_id) JOIN
+				v_netblock_collection_expanded nce USING (netblock_collection_id)
+					JOIN
+				property p ON (
+					property_name = 'IgnoreProbedNetblocks' AND
+					property_type = 'DeviceInventory' AND
+					property_value_netblock_collection_id =
+						nce.root_netblock_collection_id
+				)
+			WHERE
+				ipaddr <<= n.ip_address AND
+				n.ip_universe_id = universe AND
+				n.netblock_type = nb_type;
+
+			--
+			-- If we found this netblock in the ignore list, then just
+			-- skip it
+			--
+			IF FOUND THEN
+				RAISE DEBUG 'Skipping ignored address %', ipaddr;
+				CONTINUE;
+			END IF;
+
+			--
+			-- Look for an is_single_address=true, can_subnet=false netblock
+			-- with the given ip_address
+			--
+			SELECT
+				* INTO nb_rec
+			FROM
+				netblock n
+			WHERE
+				is_single_address = true AND
+				can_subnet = false AND
+				netblock_type = nb_type AND
+				ip_universe_id = universe AND
+				host(ip_address) = host(ipaddr);
+
+			IF FOUND THEN
+				RAISE DEBUG E'Located netblock:\n%',
+					jsonb_pretty(to_jsonb(nb_rec));
+
+				nb_id_ary := array_append(nb_id_ary, nb_rec.netblock_id);
+
+				--
+				-- Look to see if there's a layer3_network for the
+				-- parent netblock
+				--
+				SELECT
+					n.netblock_id,
+					n.ip_address,
+					layer3_network_id,
+					default_gateway_netblock_id
+				INTO layer3_rec
+				FROM
+					netblock n LEFT JOIN
+					layer3_network l3 USING (netblock_id)
+				WHERE
+					n.netblock_id = nb_rec.parent_netblock_id;
+
+				IF FOUND THEN
+					RAISE DEBUG E'Located layer3_network:\n%',
+						jsonb_pretty(to_jsonb(layer3_rec));
+				ELSE
+					--
+					-- If we're told to create the layer3_network,
+					-- then do that, otherwise go to the next address
+					--
+					CONTINUE WHEN NOT create_layer3_networks;
+					INSERT INTO layer3_network(
+						netblock_id
+					) VALUES (
+						layer3_rec.netblock_id
+					) RETURNING layer3_network_id INTO
+						layer3_rec.layer3_network_id;
+				END IF;
+			ELSE
+				--
+				-- If the parent netblock does not exist, then create it
+				-- if we were passed the option to
+				--
+				SELECT
+					n.netblock_id,
+					n.ip_address,
+					layer3_network_id,
+					default_gateway_netblock_id
+				INTO layer3_rec
+				FROM
+					netblock n LEFT JOIN
+					layer3_network l3 USING (netblock_id)
+				WHERE
+					n.ip_universe_id = universe AND
+					n.netblock_type = nb_type AND
+					is_single_address = false AND
+					can_subnet = false AND
+					n.ip_address >>= ipaddr;
+
+				IF NOT FOUND THEN
+					RAISE DEBUG 'Parent netblock with ip_address %, netblock_type %, ip_universe_id % not found',
+						network(ipaddr),
+						nb_type,
+						universe;
+					CONTINUE WHEN NOT create_layer3_networks;
+					WITH nb_ins AS (
+						INSERT INTO netblock (
+							ip_address,
+							netblock_type,
+							is_single_address,
+							can_subnet,
+							ip_universe_id,
+							netblock_status
+						) VALUES (
+							network(ipaddr),
+							nb_type,
+							false,
+							false,
+							universe,
+							'Allocated'
+						) RETURNING *
+					), l3_ins AS (
+						INSERT INTO layer3_network(
+							netblock_id
+						)
+						SELECT
+							netblock_id
+						FROM
+							nb_ins
+						RETURNING *
+					)
+					SELECT
+						nb_ins.netblock_id,
+						nb_ins.ip_address,
+						l3_ins.layer3_network_id,
+						NULL
+					INTO layer3_rec
+					FROM
+						nb_ins,
+						l3_ins;
+				ELSIF layer3_rec.layer3_network_id IS NULL THEN
+					--
+					-- If we're told to create the layer3_network,
+					-- then do that, otherwise go to the next address
+					--
+
+					RAISE DEBUG 'layer3_network for parent netblock % not found (ip_address %, netblock_type %, ip_universe_id %)',
+						layer3_rec.netblock_id,
+						network(ipaddr),
+						nb_type,
+						universe;
+					CONTINUE WHEN NOT create_layer3_networks;
+					INSERT INTO layer3_network(
+						netblock_id
+					) VALUES (
+						layer3_rec.netblock_id
+					) RETURNING layer3_network_id INTO
+						layer3_rec.layer3_network_id;
+				END IF;
+				RAISE DEBUG E'Located layer3_network:\n%',
+					jsonb_pretty(to_jsonb(layer3_rec));
+				--
+				-- Parents should be all set up now.  Insert the netblock
+				--
+				INSERT INTO netblock (
+					ip_address,
+					netblock_type,
+					ip_universe_id,
+					is_single_address,
+					can_subnet,
+					netblock_status
+				) VALUES (
+					ipaddr,
+					nb_type,
+					universe,
+					true,
+					false,
+					'Allocated'
+				) RETURNING * INTO nb_rec;
+				nb_id_ary := array_append(nb_id_ary, nb_rec.netblock_id);
+			END IF;
+
+			--
+			-- See if this netblock is directly on any layer3_interface, and
+			-- delete it if force is set, otherwise skip it
+			--
+			l3i_id_ary := ARRAY[]::integer[];
+
+			SELECT
+				l3in.netblock_id,
+				l3i.device_id
+			INTO l3in_rec
+			FROM
+				layer3_interface_netblock l3in JOIN
+				layer3_interface l3i USING (layer3_interface_id)
+			WHERE
+				l3in.netblock_id = nb_rec.netblock_id AND
+				l3in.layer3_interface_id != l3i_id;
+
+			IF FOUND THEN
+				IF move_addresses = 'always' OR (
+					move_addresses = 'if_same_device' AND
+					l3in_rec.device_id = l3i_rec.device_id
+				)
+				THEN
+					--
+					-- Remove the netblocks from the layer3_interfaces,
+					-- but save them for later so that we can migrate them
+					-- after we make sure the shared_netblock exists.
+					--
+					-- Also, append the network_inteface_id that we
+					-- specifically care about, and we'll add them all
+					-- below
+					--
+					WITH z AS (
+						DELETE FROM
+							layer3_interface_netblock
+						WHERE
+							netblock_id = nb_rec.netblock_id
+						RETURNING layer3_interface_id
+					)
+					SELECT array_agg(layer3_interface_id) FROM
+						(SELECT layer3_interface_id FROM z) v
+					INTO l3i_id_ary;
+				ELSE
+					IF address_errors = 'ignore' THEN
+						RAISE DEBUG 'Netblock % is assigned to layer3_interface %',
+							nb_rec.netblock_id, l3in_rec.layer3_interface_id;
+
+						CONTINUE;
+					ELSIF address_errors = 'warn' THEN
+						RAISE NOTICE 'Netblock % is assigned to layer3_interface %',
+							nb_rec.netblock_id, l3in_rec.layer3_interface_id;
+
+						CONTINUE;
+					ELSE
+						RAISE 'Netblock % is assigned to layer3_interface %',
+							nb_rec.netblock_id, l3in_rec.layer3_interface_id;
+					END IF;
+				END IF;
+
+			END IF;
+
+			IF NOT(l3i_id = ANY(l3i_id_ary)) THEN
+				l3i_id_ary := array_append(l3i_id_ary, l3i_id);
+			END IF;
+
+			--
+			-- See if this netblock already belongs to a shared_network
+			--
+			SELECT * FROM
+				shared_netblock sn
+			INTO sn_rec
+			WHERE
+				sn.netblock_id = nb_rec.netblock_id;
+
+			IF FOUND THEN
+				IF sn_rec.shared_netblock_protocol != protocol THEN
+					RAISE 'Netblock % (%) is assigned to shared_network %, but the shared_network_protocol does not match (% vs. %)',
+						nb_rec.netblock_id,
+						nb_rec.ip_address,
+						sn_rec.shared_netblock_id,
+						sn_rec.shared_netblock_protocol,
+						protocol;
+				END IF;
+			ELSE
+				INSERT INTO shared_netblock (
+					shared_netblock_protocol,
+					netblock_id
+				) VALUES (
+					protocol,
+					nb_rec.netblock_id
+				) RETURNING * INTO sn_rec;
+			END IF;
+
+			--
+			-- Add this to any interfaces that we found above that
+			-- need this
+			--
+
+			INSERT INTO shared_netblock_layer3_interface (
+				shared_netblock_id,
+				layer3_interface_id,
+				priority
+			) SELECT
+				sn_rec.shared_netblock_id,
+				x.layer3_interface_id,
+				0
+			FROM
+				unnest(l3i_id_ary) x(layer3_interface_id)
+			ON CONFLICT ON CONSTRAINT pk_ip_group_network_interface DO NOTHING;
+
+			RAISE DEBUG E'Inserted shared_netblock % onto interfaces:\n%',
+				sn_rec.shared_netblock_id, jsonb_pretty(to_jsonb(l3i_id_ary));
+		END LOOP;
+		--
+		-- Remove any shared_netblocks that are on the interface that are not
+		-- supposed to be (and that aren't ignored).
+		--
+
+		FOR l3in_rec IN
+			DELETE FROM
+				shared_netblock_layer3_interface snl3i
+			WHERE
+				(snl3i.layer3_interface_id, snl3i.shared_netblock_id) IN (
+				SELECT
+					snl3i2.layer3_interface_id,
+					snl3i2.shared_netblock_id
+				FROM
+					shared_netblock_layer3_interface snl3i2 JOIN
+					shared_netblock sn USING (shared_netblock_id) JOIN
+					netblock n USING (netblock_id)
+				WHERE
+					snl3i2.layer3_interface_id = l3i_id AND NOT (
+						sn.netblock_id = ANY(nb_id_ary) OR
+						n.ip_address <<= ANY ( ARRAY (
+							SELECT
+								n2.ip_address
+							FROM
+								netblock n2 JOIN
+								netblock_collection_netblock ncn USING
+									(netblock_id) JOIN
+								v_netblock_collection_expanded nce USING
+									(netblock_collection_id) JOIN
+								property p ON (
+									property_name = 'IgnoreProbedNetblocks' AND
+									property_type = 'DeviceInventory' AND
+									property_value_netblock_collection_id =
+										nce.root_netblock_collection_id
+								)
+						))
+					)
+			)
+			RETURNING *
+		LOOP
+			RAISE DEBUG 'Removed shared_netblock % from layer3_interface %',
+				l3in_rec.shared_netblock_id,
+				l3in_rec.layer3_interface_id;
+
+			--
+			-- Remove any DNS records, netblocks and shared_netblocks
+			-- that aren't used
+			--
+			SELECT netblock_id INTO nb_id FROM shared_netblock sn WHERE
+				sn.shared_netblock_id = l3in_rec.shared_netblock_id;
+			BEGIN
+				DELETE FROM dns_record WHERE netblock_id = nb_id;
+				DELETE FROM netblock_collection_netblock ncn WHERE
+					ncn.netblock_id = nb_id;
+				DELETE FROM shared_netblock WHERE netblock_id = nb_id;
+				DELETE FROM netblock WHERE netblock_id = nb_id;
+			EXCEPTION
+				WHEN foreign_key_violation THEN NULL;
+			END;
+		END LOOP;
+	END IF;
+	RETURN true;
+END;
+$function$
+;
+
+DO $$
+-- not dropping regrants here.
+BEGIN
+	DELETE FROM __recreate WHERE schema = 'netblock_manip' AND type = 'function' AND object IN ('set_layer3_interface_addresses');
+EXCEPTION WHEN undefined_table THEN
+	RAISE NOTICE 'Drop of proc set_layer3_interface_addresses failed but that is ok';
+	NULL;
+END;
+$$;
+
 SELECT schema_support.replay_object_recreates(tags := ARRAY['process_all_procs_in_schema_netblock_manip']);
+-- New function; dropping in case it returned because of type change
+SELECT schema_support.save_grants_for_replay('netblock_manip', 'remove_network_range');
+DROP FUNCTION IF EXISTS netblock_manip.remove_network_range ( integer,boolean );
+CREATE OR REPLACE FUNCTION netblock_manip.remove_network_range(network_range_id integer, force boolean DEFAULT false)
+ RETURNS boolean
+ LANGUAGE plpgsql
+ SECURITY DEFINER
+ SET search_path TO 'jazzhands'
+AS $function$
+DECLARE
+	nrrec		RECORD;
+
+	nr_id		ALIAS FOR network_range_id;
+BEGIN
+
+	SELECT
+		* INTO nrrec
+	FROM
+		network_range nr
+	WHERE
+		nr.network_range_id = nr_id;
+
+	IF NOT FOUND THEN
+		RAISE EXCEPTION 'network_range % does not exist', nr_id;
+	END IF;
+
+	IF force THEN
+		DELETE FROM property p WHERE p.network_range_id = nr_id;
+	END IF;
+
+	DELETE FROM network_range nr WHERE nr.network_range_id = nr_id;
+
+	RETURN true;
+END;
+$function$
+;
+
+-- New function; dropping in case it returned because of type change
+SELECT schema_support.save_grants_for_replay('netblock_manip', 'validate_network_range');
+DROP FUNCTION IF EXISTS netblock_manip.validate_network_range ( integer,inet,inet,character varying,integer );
+CREATE OR REPLACE FUNCTION netblock_manip.validate_network_range(network_range_id integer DEFAULT NULL::integer, start_ip_address inet DEFAULT NULL::inet, stop_ip_address inet DEFAULT NULL::inet, network_range_type character varying DEFAULT NULL::character varying, parent_netblock_id integer DEFAULT NULL::integer)
+ RETURNS jazzhands.v_network_range_expanded
+ LANGUAGE plpgsql
+ SECURITY DEFINER
+ SET search_path TO 'jazzhands'
+AS $function$
+DECLARE
+	proposed_range	jazzhands.v_network_range_expanded%ROWTYPE;
+	current_range	jazzhands.v_network_range_expanded%ROWTYPE;
+	par_netblock	RECORD;
+	start_netblock	RECORD;
+	stop_netblock	RECORD;
+	nrt				RECORD;
+	temprange		RECORD;
+
+	nr_id			ALIAS FOR network_range_id;
+	nr_type			ALIAS FOR network_range_type;
+	nr_start_addr	ALIAS FOR start_ip_address;
+	nr_stop_addr	ALIAS FOR stop_ip_address;
+	pnbid			ALIAS FOR parent_netblock_id;
+BEGIN
+	--
+	-- If network_range_id is passed, because we're modifying an existing
+	-- one, pull it in, otherwise populate a new one
+	--
+	IF nr_id IS NOT NULL THEN
+		SELECT
+			* INTO current_range
+		FROM
+			v_network_range_expanded nr
+		WHERE
+			nr.network_range_id = nr_id;
+
+		IF NOT FOUND THEN
+			RAISE 'network_range with network_range_id % does not exist',
+				nr_id
+				USING ERRCODE = 'foreign_key_violation';
+		END IF;
+	END IF;
+	--
+	-- Make a copy of the current range if it exists.
+	--
+	proposed_range := current_range;
+
+	--
+	-- Don't allow network_range_type to be changed
+	--
+	IF
+		nr_type != proposed_range.network_range_type
+	THEN
+		RAISE 'network_range_type may not be changed'
+			USING ERRCODE = 'check_violation';
+	END IF;
+
+	--
+	-- Set anything that's passed into the proposed network_range
+	--
+	proposed_range.network_range_type :=
+		COALESCE(nr_type, proposed_range.network_range_type);
+
+	SELECT
+		* INTO nrt
+	FROM
+		val_network_range_type v
+	WHERE
+		v.network_range_type = proposed_range.network_range_type;
+
+	IF NOT FOUND THEN
+		RAISE 'invalid network_range_type'
+			USING ERRCODE = 'check_violation';
+	END IF;
+
+	IF (start_ip_address IS DISTINCT FROM proposed_range.start_ip_address) THEN
+		proposed_range.start_ip_address = start_ip_address;
+		proposed_range.start_netblock_id = NULL;
+		proposed_range.start_netblock_type = NULL;
+		proposed_range.start_ip_universe_id = NULL;
+	END IF;
+
+	IF (stop_ip_address IS DISTINCT FROM proposed_range.stop_ip_address) THEN
+		proposed_range.stop_ip_address = stop_ip_address;
+		proposed_range.stop_netblock_id = NULL;
+		proposed_range.stop_netblock_type = NULL;
+		proposed_range.stop_ip_universe_id = NULL;
+	END IF;
+
+	IF parent_netblock_id IS NOT NULL AND
+		parent_netblock_id IS DISTINCT FROM proposed_range.parent_netblock_id
+	THEN
+		proposed_range.parent_netblock_id = parent_netblock_id;
+		proposed_range.ip_address = NULL;
+		proposed_range.netblock_type = NULL;
+		proposed_range.ip_universe_id = NULL;
+	END IF;
+	proposed_range.parent_netblock_id :=
+		COALESCE(pnbid, proposed_range.parent_netblock_id);
+
+	IF (
+		proposed_range.start_ip_address IS NULL OR
+		proposed_range.stop_ip_address IS NULL
+	) THEN
+		RAISE 'start_ip_address and stop_ip_address must both be set for a network_range'
+			USING ERRCODE = 'check_violation';
+	END IF;
+
+	--
+	-- If any other network ranges of this type exist that overlap this one,
+	-- and the network_range_type doesn't allow that, then error.  This gets
+	-- the situation where an address has changed or if it's a new range
+	--
+	IF NOT nrt.can_overlap AND
+		(proposed_range.start_ip_address IS DISTINCT FROM
+			current_range.start_ip_address) OR
+		(proposed_range.stop_ip_address IS DISTINCT FROM
+			current_range.stop_ip_address)
+	THEN
+		SELECT
+			nr.network_range_id,
+			startnb.ip_address as start_ip_address,
+			stopnb.ip_address as stop_ip_address
+		INTO temprange
+		FROM
+			jazzhands.network_range nr JOIN
+			jazzhands.netblock startnb ON
+				(nr.start_netblock_id = startnb.netblock_id) JOIN
+			jazzhands.netblock stopnb ON (nr.stop_netblock_id = stopnb.netblock_id)
+		WHERE
+			nr.network_range_id IS DISTINCT FROM nr_id AND
+			nr.network_range_type = proposed_range.network_range_type AND ((
+				host(startnb.ip_address)::inet <=
+					host(proposed_range.start_ip_address)::inet AND
+				host(stopnb.ip_address)::inet >=
+					host(proposed_range.start_ip_address)::inet
+			) OR (
+				host(startnb.ip_address)::inet <=
+					host(proposed_range.stop_ip_address)::inet AND
+				host(stopnb.ip_address)::inet >=
+					host(proposed_range.stop_ip_address)::inet
+			));
+
+		IF FOUND THEN
+			RAISE 'validate_network_range: network_range % of type % already exists that has addresses between % and % (% through %)',
+				temprange.network_range_id,
+				proposed_range.network_range_type,
+				proposed_range.start_ip_address,
+				proposed_range.stop_ip_address,
+				temprange.start_ip_address,
+				temprange.stop_ip_address
+				USING ERRCODE = 'check_violation';
+		END IF;
+	END IF;
+
+	IF parent_netblock_id IS NOT NULL THEN
+		SELECT * INTO par_netblock FROM jazzhands.netblock WHERE
+			netblock_id = pnbid;
+		IF NOT FOUND THEN
+			RAISE 'validate_network_range: parent_netblock_id % does not exist',
+				parent_netblock_id USING ERRCODE = 'foreign_key_violation';
+		END IF;
+	ELSE
+		SELECT * INTO par_netblock FROM jazzhands.netblock WHERE netblock_id = (
+			SELECT
+				*
+			FROM
+				netblock_utils.find_best_parent_netblock_id(
+					ip_address := start_ip_address,
+					is_single_address := true
+				)
+		);
+
+		IF NOT FOUND THEN
+			RAISE 'validate_network_range: valid parent netblock for start_ip_address % does not exist',
+				start_ip_address USING ERRCODE = 'check_violation';
+		END IF;
+	END IF;
+
+	IF par_netblock.can_subnet != false OR
+			par_netblock.is_single_address != false THEN
+		RAISE 'validate_network_range: parent netblock % must not be subnettable or a single address',
+			par_netblock.netblock_id USING ERRCODE = 'check_violation';
+	END IF;
+
+	IF NOT (start_ip_address <<= par_netblock.ip_address) THEN
+		RAISE 'validate_network_range: start_ip_address % is not contained by parent netblock % (%)',
+			start_ip_address, par_netblock.ip_address,
+			par_netblock.netblock_id USING ERRCODE = 'check_violation';
+	END IF;
+
+	IF NOT (stop_ip_address <<= par_netblock.ip_address) THEN
+		RAISE 'validate_network_range: stop_ip_address % is not contained by parent netblock % (%)',
+			stop_ip_address, par_netblock.ip_address,
+			par_netblock.netblock_id USING ERRCODE = 'check_violation';
+	END IF;
+
+	IF NOT (start_ip_address <= stop_ip_address) THEN
+		RAISE 'validate_network_range: start_ip_address % is not lower than stop_ip_address %',
+			start_ip_address, stop_ip_address
+			USING ERRCODE = 'check_violation';
+	END IF;
+
+	proposed_range.parent_netblock_id := par_netblock.netblock_id;
+    proposed_range.ip_address := par_netblock.ip_address;
+    proposed_range.netblock_type := par_netblock.netblock_type;
+    proposed_range.ip_universe_id := par_netblock.ip_universe_id;
+	RETURN proposed_range;
+END;
+$function$
+;
+
 --
 -- Process middle (non-trigger) schema netblock_utils
 --
+-- Changed function
+SELECT schema_support.save_dependent_objects_for_replay('netblock_utils', 'find_free_netblocks');
+SELECT schema_support.save_grants_for_replay('netblock_utils', 'find_free_netblocks');
+-- Dropped in case type changes.
+DROP FUNCTION IF EXISTS netblock_utils.find_free_netblocks ( integer[],integer,boolean,text,integer,inet,integer,integer );
+CREATE OR REPLACE FUNCTION netblock_utils.find_free_netblocks(parent_netblock_list integer[], netmask_bits integer DEFAULT NULL::integer, single_address boolean DEFAULT false, allocation_method text DEFAULT NULL::text, max_addresses integer DEFAULT 1024, desired_ip_address inet DEFAULT NULL::inet, rnd_masklen_threshold integer DEFAULT 110, rnd_max_count integer DEFAULT 1024)
+ RETURNS TABLE(ip_address inet, netblock_type character varying, ip_universe_id integer)
+ LANGUAGE plpgsql
+AS $function$
+DECLARE
+	parent_nbid		jazzhands.netblock.netblock_id%TYPE;
+	netblock_rec	jazzhands.netblock%ROWTYPE;
+	netrange_rec	RECORD;
+	inet_list		inet[];
+	current_ip		inet;
+	saved_method	text;
+	min_ip			inet;
+	max_ip			inet;
+	matches			integer;
+	rnd_matches		integer;
+	max_rnd_value	bigint;
+	rnd_value		bigint;
+	family_bits		integer;
+BEGIN
+	matches := 0;
+	saved_method = allocation_method;
+
+	IF allocation_method IS NOT NULL AND allocation_method
+			NOT IN ('top', 'bottom', 'random', 'default') THEN
+		RAISE 'address_type must be one of top, bottom, random, or default'
+		USING ERRCODE = 'invalid_parameter_value';
+	END IF;
+
+	--
+	-- Sanitize masklen input.  This is a little complicated.
+	--
+	-- If a single address is desired, we always use a /32 or /128
+	-- in the parent loop and everything else is ignored
+	--
+	-- Otherwise, if netmask_bits is passed, that wins, otherwise
+	-- the netmask of whatever is passed with desired_ip_address wins
+	--
+	-- If none of these are the case, then things are wrong and we
+	-- bail
+	--
+
+	IF NOT single_address THEN
+		IF desired_ip_address IS NOT NULL AND netmask_bits IS NULL THEN
+			netmask_bits := masklen(desired_ip_address);
+		ELSIF desired_ip_address IS NOT NULL AND
+				netmask_bits IS NOT NULL THEN
+			desired_ip_address := set_masklen(desired_ip_address,
+				netmask_bits);
+		END IF;
+		IF netmask_bits IS NULL THEN
+			RAISE EXCEPTION 'netmask_bits must be set'
+			USING ERRCODE = 'invalid_parameter_value';
+		END IF;
+		IF allocation_method = 'random' THEN
+			RAISE EXCEPTION 'random netblocks may only be returned for single addresses'
+			USING ERRCODE = 'invalid_parameter_value';
+		END IF;
+	END IF;
+
+	FOREACH parent_nbid IN ARRAY parent_netblock_list LOOP
+		rnd_matches := 0;
+		--
+		-- Restore this, because we may have overrridden it for a previous
+		-- block
+		--
+		allocation_method = saved_method;
+		SELECT
+			* INTO netblock_rec
+		FROM
+			jazzhands.netblock n
+		WHERE
+			n.netblock_id = parent_nbid;
+
+		IF NOT FOUND THEN
+			RAISE EXCEPTION 'Netblock % does not exist', parent_nbid;
+		END IF;
+
+		family_bits :=
+			(CASE family(netblock_rec.ip_address) WHEN 4 THEN 32 ELSE 128 END);
+
+		-- If desired_ip_address is passed, then allocation_method is
+		-- irrelevant
+
+		IF desired_ip_address IS NOT NULL THEN
+			--
+			-- If the IP address is not the same family as the parent block,
+			-- we aren't going to find it
+			--
+			IF family(desired_ip_address) !=
+					family(netblock_rec.ip_address) THEN
+				CONTINUE;
+			END IF;
+			allocation_method := 'bottom';
+		END IF;
+
+		--
+		-- If allocation_method is 'default' or NULL, then use 'bottom'
+		-- unless it's for a single IPv6 address in a netblock larger than
+		-- rnd_masklen_threshold
+		--
+		IF allocation_method IS NULL OR allocation_method = 'default' THEN
+			allocation_method :=
+				CASE WHEN
+					single_address AND
+					family(netblock_rec.ip_address) = 6 AND
+					masklen(netblock_rec.ip_address) <= rnd_masklen_threshold
+				THEN
+					'random'
+				ELSE
+					'bottom'
+				END;
+		END IF;
+
+		IF allocation_method = 'random' AND
+				family_bits - masklen(netblock_rec.ip_address) < 2 THEN
+			-- Random allocation doesn't work if we don't have enough
+			-- bits to play with, so just do sequential.
+			allocation_method := 'bottom';
+		END IF;
+
+		IF single_address THEN
+			netmask_bits := family_bits;
+			IF desired_ip_address IS NOT NULL THEN
+				desired_ip_address := set_masklen(desired_ip_address,
+					masklen(netblock_rec.ip_address));
+			END IF;
+		ELSIF netmask_bits <= masklen(netblock_rec.ip_address) THEN
+			-- If the netmask is not for a smaller netblock than this parent,
+			-- then bounce to the next one, because maybe it's larger
+			RAISE DEBUG
+				'netblock (%) is not larger than netmask_bits of % - skipping',
+				masklen(netblock_rec.ip_address),
+				netmask_bits;
+			CONTINUE;
+		END IF;
+
+		IF netmask_bits > family_bits THEN
+			RAISE EXCEPTION 'netmask_bits must be no more than % for netblock %',
+				family_bits,
+				netblock_rec.ip_address;
+		END IF;
+
+		--
+		-- Short circuit the check if we're looking for a specific address
+		-- and it's not in this netblock
+		--
+
+		IF desired_ip_address IS NOT NULL AND
+				NOT (desired_ip_address <<= netblock_rec.ip_address) THEN
+			RAISE DEBUG 'desired_ip_address % is not in netblock %',
+				desired_ip_address,
+				netblock_rec.ip_address;
+			CONTINUE;
+		END IF;
+
+		IF single_address AND netblock_rec.can_subnet = true THEN
+			RAISE EXCEPTION 'single addresses may not be assigned to to a block where can_subnet is Y';
+		END IF;
+
+		IF (NOT single_address) AND netblock_rec.can_subnet = false THEN
+			RAISE EXCEPTION 'Netblock % (%) may not be subnetted',
+				netblock_rec.ip_address,
+				netblock_rec.netblock_id;
+		END IF;
+
+		RAISE DEBUG 'Searching netblock % (%) using the % allocation method',
+			netblock_rec.netblock_id,
+			netblock_rec.ip_address,
+			allocation_method;
+
+		IF desired_ip_address IS NOT NULL THEN
+			min_ip := desired_ip_address;
+			max_ip := desired_ip_address + 1;
+		ELSE
+			min_ip := netblock_rec.ip_address;
+			max_ip := broadcast(min_ip) + 1;
+		END IF;
+
+		IF allocation_method = 'top' THEN
+			current_ip := network(set_masklen(max_ip - 1, netmask_bits));
+		ELSIF allocation_method = 'random' THEN
+			max_rnd_value := (x'7fffffffffffffff'::bigint >> CASE
+				WHEN family_bits - masklen(netblock_rec.ip_address) >= 63
+				THEN 0
+				ELSE 63 - (family_bits - masklen(netblock_rec.ip_address))
+				END) - 2;
+			-- random() appears to only do 32-bits, which is dumb
+			-- I'm pretty sure that all of the casts are not required here,
+			-- but better to make sure
+			current_ip := min_ip +
+					((((random() * x'7fffffff'::bigint)::bigint << 32) +
+					(random() * x'ffffffff'::bigint)::bigint + 1)
+					% max_rnd_value) + 1;
+		ELSE -- it's 'bottom'
+			current_ip := set_masklen(min_ip, netmask_bits);
+		END IF;
+
+		-- For single addresses, make the netmask match the netblock of the
+		-- containing block, and skip the network and broadcast addresses
+		-- We shouldn't need to skip for IPv6 addresses, but some things
+		-- apparently suck
+
+		IF single_address THEN
+			current_ip := set_masklen(current_ip,
+				masklen(netblock_rec.ip_address));
+			--
+			-- If we're not allocating a single /31 or /32 for IPv4 or
+			-- /127 or /128 for IPv6, then we want to skip the all-zeros
+			-- and all-ones addresses
+			--
+			IF masklen(netblock_rec.ip_address) < (family_bits - 1) AND
+					desired_ip_address IS NULL THEN
+				current_ip := current_ip +
+					CASE WHEN allocation_method = 'top' THEN -1 ELSE 1 END;
+				min_ip := min_ip + 1;
+				max_ip := max_ip - 1;
+			END IF;
+		END IF;
+
+		RAISE DEBUG 'Starting with IP address % with step masklen of %',
+			current_ip,
+			netmask_bits;
+
+		WHILE (
+				current_ip >= min_ip AND
+				current_ip < max_ip AND
+				matches < max_addresses AND
+				rnd_matches < rnd_max_count
+		) LOOP
+			RAISE DEBUG '   Checking netblock %', current_ip;
+
+			IF single_address THEN
+				--
+				-- Check to see if netblock is in a network_range, and if it is,
+				-- then set the value to the top or bottom of the range, or
+				-- another random value as appropriate
+				--
+				SELECT
+					network_range_id,
+					start_nb.ip_address AS start_ip_address,
+					stop_nb.ip_address AS stop_ip_address
+				INTO netrange_rec
+				FROM
+					jazzhands.network_range nr,
+					jazzhands.netblock start_nb,
+					jazzhands.netblock stop_nb
+				WHERE
+					family(current_ip) = family(start_nb.ip_address) AND
+					family(current_ip) = family(stop_nb.ip_address) AND
+					(
+						nr.start_netblock_id = start_nb.netblock_id AND
+						nr.stop_netblock_id = stop_nb.netblock_id AND
+						nr.parent_netblock_id = netblock_rec.netblock_id AND
+						start_nb.ip_address <=
+							set_masklen(current_ip, masklen(start_nb.ip_address))
+						AND stop_nb.ip_address >=
+							set_masklen(current_ip, masklen(stop_nb.ip_address))
+					);
+
+				IF FOUND THEN
+					current_ip := CASE
+						WHEN allocation_method = 'bottom' THEN
+							netrange_rec.stop_ip_address + 1
+						WHEN allocation_method = 'top' THEN
+							netrange_rec.start_ip_address - 1
+						ELSE min_ip + ((
+							((random() * x'7fffffff'::bigint)::bigint << 32)
+							+
+							(random() * x'ffffffff'::bigint)::bigint + 1
+							) % max_rnd_value) + 1
+					END;
+					current_ip := set_masklen(current_ip, masklen(max_ip));
+					CONTINUE;
+				END IF;
+			END IF;
+
+
+			PERFORM * FROM jazzhands.netblock n WHERE
+				n.ip_universe_id = netblock_rec.ip_universe_id AND
+				n.netblock_type = netblock_rec.netblock_type AND
+				-- A block with the parent either contains or is contained
+				-- by this block
+				n.parent_netblock_id = netblock_rec.netblock_id AND
+				CASE WHEN single_address THEN
+					n.ip_address = current_ip
+				ELSE
+					(n.ip_address >>= current_ip OR current_ip >>= n.ip_address)
+				END;
+			IF NOT FOUND AND (inet_list IS NULL OR
+					NOT (current_ip = ANY(inet_list))) THEN
+				find_free_netblocks.netblock_type :=
+					netblock_rec.netblock_type;
+				find_free_netblocks.ip_universe_id :=
+					netblock_rec.ip_universe_id;
+				find_free_netblocks.ip_address := current_ip;
+				RETURN NEXT;
+				inet_list := array_append(inet_list, current_ip);
+				matches := matches + 1;
+				-- Reset random counter if we found something
+				rnd_matches := 0;
+			ELSIF allocation_method = 'random' THEN
+				-- Increase random counter if we didn't find something
+				rnd_matches := rnd_matches + 1;
+			END IF;
+
+			-- Select the next IP address
+			current_ip :=
+				CASE WHEN single_address THEN
+					CASE
+						WHEN allocation_method = 'bottom' THEN current_ip + 1
+						WHEN allocation_method = 'top' THEN current_ip - 1
+						ELSE min_ip + ((
+							((random() * x'7fffffff'::bigint)::bigint << 32)
+							+
+							(random() * x'ffffffff'::bigint)::bigint + 1
+							) % max_rnd_value) + 1
+					END
+				ELSE
+					CASE WHEN allocation_method = 'bottom' THEN
+						network(broadcast(current_ip) + 1)
+					ELSE
+						network(current_ip - 1)
+					END
+				END;
+		END LOOP;
+	END LOOP;
+	RETURN;
+END;
+$function$
+;
+
+DO $$
+-- not dropping regrants here.
+BEGIN
+	DELETE FROM __recreate WHERE schema = 'netblock_utils' AND type = 'function' AND object IN ('find_free_netblocks');
+EXCEPTION WHEN undefined_table THEN
+	RAISE NOTICE 'Drop of proc find_free_netblocks failed but that is ok';
+	NULL;
+END;
+$$;
+
 SELECT schema_support.replay_object_recreates(tags := ARRAY['process_all_procs_in_schema_netblock_utils']);
 --
 -- Process middle (non-trigger) schema network_strings
@@ -4628,6 +6504,36 @@ $function$
 ;
 
 -- New function; dropping in case it returned because of type change
+CREATE OR REPLACE FUNCTION schema_support.renumber_audit_table_sequences(schema text, relation text)
+ RETURNS void
+ LANGUAGE plpgsql
+ SET search_path TO 'schema_support'
+AS $function$
+DECLARE
+	_seq	TEXT;
+BEGIN
+	_seq := concat('seq_', md5(concat(schema, '.', relation)));
+	EXECUTE format('CREATE SEQUENCE %s', _seq);
+
+	EXECUTE format('
+		UPDATE %s.%s o
+		SET "aud#seq" = newseqid
+		FROM (
+			SELECT	*, nextval(''%s'') as newseqid
+			FROM	%s.%s
+			ORDER BY	"aud#timestamp", "aud#realtime", "aud#seq"
+		) n
+		WHERE n."aud#seq" = o."aud#seq"
+		AND o."aud#seq" != newseqid
+	', schema, relation, quote_ident(_seq), schema, relation);
+
+	EXECUTE format('DROP SEQUENCE if exists %s', _seq);
+	PERFORM schema_support.reset_table_sequence(schema, relation, true);
+END;
+$function$
+;
+
+-- New function; dropping in case it returned because of type change
 CREATE OR REPLACE FUNCTION schema_support.reset_table_sequence(schema character varying, table_name character varying, lowerseq boolean DEFAULT true)
  RETURNS void
  LANGUAGE plpgsql
@@ -5112,7 +7018,7 @@ ALTER TABLE jazzhands.logical_volume DROP CONSTRAINT IF EXISTS fk_logvol_fstype;
 ALTER TABLE jazzhands.logical_volume DROP CONSTRAINT IF EXISTS fk_logvol_vgid;
 
 -- EXTRA-SCHEMA constraints
-SELECT schema_support.save_constraint_for_replay(schema := 'jazzhands', object := 'logical_volume', newobject := 'logical_volume', newmap := '{"ak_logical_volume_filesystem":{"columns":["logical_volume_id","filesystem_type"],"def":"UNIQUE (logical_volume_id, filesystem_type)","deferrable":false,"deferred":false,"name":"ak_logical_volume_filesystem","type":"u"},"ak_logvol_devid_lvname":{"columns":["logical_volume_name","logical_volume_type","volume_group_id","device_id"],"def":"UNIQUE (device_id, logical_volume_name, logical_volume_type, volume_group_id)","deferrable":false,"deferred":false,"name":"ak_logvol_devid_lvname","type":"u"},"ak_logvol_lv_devid":{"columns":["logical_volume_id"],"def":"UNIQUE (logical_volume_id)","deferrable":false,"deferred":false,"name":"ak_logvol_lv_devid","type":"u"},"pk_logical_volume":{"columns":["logical_volume_id"],"def":"PRIMARY KEY (logical_volume_id)","deferrable":false,"deferred":false,"name":"pk_logical_volume","type":"p"}}');
+SELECT schema_support.save_constraint_for_replay(schema := 'jazzhands', object := 'logical_volume', newobject := 'logical_volume', newmap := '{"ak_logical_volume_filesystem":{"columns":["logical_volume_id","filesystem_type"],"def":"UNIQUE (logical_volume_id, filesystem_type)","deferrable":false,"deferred":false,"name":"ak_logical_volume_filesystem","type":"u"},"ak_logvol_devid_lvname":{"columns":["device_id","logical_volume_name","logical_volume_type","volume_group_id"],"def":"UNIQUE (device_id, logical_volume_name, logical_volume_type, volume_group_id)","deferrable":false,"deferred":false,"name":"ak_logvol_devid_lvname","type":"u"},"ak_logvol_lv_devid":{"columns":["logical_volume_id"],"def":"UNIQUE (logical_volume_id)","deferrable":false,"deferred":false,"name":"ak_logvol_lv_devid","type":"u"},"pk_logical_volume":{"columns":["logical_volume_id"],"def":"PRIMARY KEY (logical_volume_id)","deferrable":false,"deferred":false,"name":"pk_logical_volume","type":"p"}}');
 
 -- PRIMARY and ALTERNATE KEYS
 ALTER TABLE jazzhands.logical_volume DROP CONSTRAINT IF EXISTS ak_logical_volume_filesystem;
@@ -5175,7 +7081,7 @@ CREATE TABLE jazzhands.logical_volume
 	device_id	integer NOT NULL,
 	logical_volume_size_in_bytes	bigint NOT NULL,
 	logical_volume_offset_in_bytes	bigint  NULL,
-	filesystem_type	varchar(50) NOT NULL,
+	filesystem_type	varchar(50)  NULL,
 	uuid	uuid  NULL,
 	data_ins_user	varchar(255)  NULL,
 	data_ins_date	timestamp with time zone  NULL,
@@ -5276,6 +7182,7 @@ ALTER TABLE jazzhands.logical_volume ADD CONSTRAINT ak_logvol_lv_devid UNIQUE (l
 ALTER TABLE jazzhands.logical_volume ADD CONSTRAINT pk_logical_volume PRIMARY KEY (logical_volume_id);
 
 -- Table/Column Comments
+COMMENT ON COLUMN jazzhands.logical_volume.filesystem_type IS 'This column is deprecated and will be going away in >= 0.97.';
 -- INDEXES
 CREATE INDEX xif5logical_volume ON jazzhands.logical_volume USING btree (logical_volume_type);
 CREATE INDEX xif_logvol_device_id ON jazzhands.logical_volume USING btree (device_id);
@@ -5285,10 +7192,16 @@ CREATE INDEX xif_logvol_vgid ON jazzhands.logical_volume USING btree (volume_gro
 -- CHECK CONSTRAINTS
 
 -- FOREIGN KEYS FROM
+-- consider FK between logical_volume and jazzhands.block_storage_device
+-- Skipping this FK since column does not exist yet
+--ALTER TABLE jazzhands.jazzhands.block_storage_device
+--	ADD CONSTRAINT fk_block_storage_device_logical_volume_id
+--	FOREIGN KEY (logical_volume_id) REFERENCES jazzhands.logical_volume(logical_volume_id);
+
 -- consider FK between logical_volume and jazzhands.logical_volume_property
 ALTER TABLE jazzhands.logical_volume_property
 	ADD CONSTRAINT fk_lvol_prop_lvid_fstyp
-	FOREIGN KEY (logical_volume_id, filesystem_type) REFERENCES jazzhands.logical_volume(logical_volume_id, filesystem_type) DEFERRABLE;
+	FOREIGN KEY (logical_volume_id) REFERENCES jazzhands.logical_volume(logical_volume_id);
 -- consider FK between logical_volume and jazzhands.logical_volume_purpose
 ALTER TABLE jazzhands.logical_volume_purpose
 	ADD CONSTRAINT fk_lvpurp_lvid
@@ -5372,7 +7285,7 @@ ALTER TABLE jazzhands.volume_group DROP CONSTRAINT IF EXISTS fk_volgrp_rd_type;
 ALTER TABLE jazzhands.volume_group DROP CONSTRAINT IF EXISTS fk_volgrp_volgrp_type;
 
 -- EXTRA-SCHEMA constraints
-SELECT schema_support.save_constraint_for_replay(schema := 'jazzhands', object := 'volume_group', newobject := 'volume_group', newmap := '{"ak_volume_group_devid_vgid":{"columns":["device_id","volume_group_id"],"def":"UNIQUE (volume_group_id, device_id)","deferrable":false,"deferred":false,"name":"ak_volume_group_devid_vgid","type":"u"},"ak_volume_group_vg_devid":{"columns":["device_id","volume_group_id"],"def":"UNIQUE (volume_group_id, device_id)","deferrable":false,"deferred":false,"name":"ak_volume_group_vg_devid","type":"u"},"pk_volume_group":{"columns":["volume_group_id"],"def":"PRIMARY KEY (volume_group_id)","deferrable":false,"deferred":false,"name":"pk_volume_group","type":"p"},"uq_volgrp_devid_name_type":{"columns":["device_id","component_id","volume_group_name","volume_group_type"],"def":"UNIQUE (device_id, component_id, volume_group_name, volume_group_type)","deferrable":false,"deferred":false,"name":"uq_volgrp_devid_name_type","type":"u"}}');
+SELECT schema_support.save_constraint_for_replay(schema := 'jazzhands', object := 'volume_group', newobject := 'volume_group', newmap := '{"ak_volume_group_devid_vgid":{"columns":["volume_group_id","device_id"],"def":"UNIQUE (volume_group_id, device_id)","deferrable":false,"deferred":false,"name":"ak_volume_group_devid_vgid","type":"u"},"ak_volume_group_vg_devid":{"columns":["volume_group_id","device_id"],"def":"UNIQUE (volume_group_id, device_id)","deferrable":false,"deferred":false,"name":"ak_volume_group_vg_devid","type":"u"},"pk_volume_group":{"columns":["volume_group_id"],"def":"PRIMARY KEY (volume_group_id)","deferrable":false,"deferred":false,"name":"pk_volume_group","type":"p"},"uq_volgrp_devid_name_type":{"columns":["device_id","component_id","volume_group_name","volume_group_type"],"def":"UNIQUE (device_id, component_id, volume_group_name, volume_group_type)","deferrable":false,"deferred":false,"name":"uq_volgrp_devid_name_type","type":"u"}}');
 
 -- PRIMARY and ALTERNATE KEYS
 ALTER TABLE jazzhands.volume_group DROP CONSTRAINT IF EXISTS ak_volume_group_devid_vgid;
@@ -5430,7 +7343,7 @@ ALTER TABLE jazzhands_audit.volume_group RENAME TO volume_group_v96;
 CREATE TABLE jazzhands.volume_group
 (
 	volume_group_id	integer NOT NULL,
-	device_id	integer  NULL,
+	device_id	integer NOT NULL,
 	component_id	integer  NULL,
 	volume_group_name	varchar(50) NOT NULL,
 	volume_group_type	varchar(50) NOT NULL,
@@ -5912,6 +7825,10 @@ CREATE TABLE jazzhands.val_block_storage_device_type
 (
 	block_storage_device_type	varchar(50) NOT NULL,
 	description	varchar(4000)  NULL,
+	permit_logical_volume_id	character(10) NOT NULL,
+	permit_component_id	character(10) NOT NULL,
+	permit_encrypted_block_storage_device_id	character(10) NOT NULL,
+	is_encrypted	boolean  NULL,
 	data_ins_user	varchar(255)  NULL,
 	data_ins_date	timestamp with time zone  NULL,
 	data_upd_user	varchar(255)  NULL,
@@ -5919,20 +7836,34 @@ CREATE TABLE jazzhands.val_block_storage_device_type
 );
 SELECT schema_support.build_audit_table('jazzhands_audit', 'jazzhands', 'val_block_storage_device_type', false);
 --# no idea what I was thinking:SELECT schema_support.rebuild_audit_trigger('jazzhands_audit', 'jazzhands', 'val_block_storage_device_type');
+ALTER TABLE val_block_storage_device_type
+	ALTER permit_logical_volume_id
+	SET DEFAULT 'PROHIBITED'::bpchar;
+ALTER TABLE val_block_storage_device_type
+	ALTER permit_component_id
+	SET DEFAULT 'PROHIBITED'::bpchar;
+ALTER TABLE val_block_storage_device_type
+	ALTER permit_encrypted_block_storage_device_id
+	SET DEFAULT 'PROHIBITED'::bpchar;
 
 
 -- BEGIN Manually written insert function
-
 INSERT INTO val_block_storage_device_type (
-	block_storage_device_type,		-- new column (block_storage_device_type)
+	block_storage_device_type,	-- new column (block_storage_device_type)
 	description,
+	permit_logical_volume_id,	-- new column (permit_logical_volume_id)
+	permit_component_id,		-- new column (permit_component_id)
+	permit_encrypted_block_storage_device_id,		-- new column (permit_encrypted_block_storage_device_id)
 	data_ins_user,
 	data_ins_date,
 	data_upd_user,
 	data_upd_date
 ) SELECT
-	physicalish_volume_type,		-- new column (block_storage_device_type)
+	physicalish_volume_type,	-- new column (block_storage_device_type)
 	description,
+	'PROHIBITED',			-- new column (permit_logical_volume_id)
+	'REQUIRED',			-- new column (permit_component_id)
+	'PROHIBITED',			-- new column (permit_encrypted_block_storage_device_id)
 	data_ins_user,
 	data_ins_date,
 	data_upd_user,
@@ -5943,6 +7874,9 @@ FROM val_physicalish_volume_type_v96;
 INSERT INTO jazzhands_audit.val_block_storage_device_type (
 	block_storage_device_type,		-- new column (block_storage_device_type)
 	description,
+	permit_logical_volume_id,		-- new column (permit_logical_volume_id)
+	permit_component_id,		-- new column (permit_component_id)
+	permit_encrypted_block_storage_device_id,		-- new column (permit_encrypted_block_storage_device_id)
 	data_ins_user,
 	data_ins_date,
 	data_upd_user,
@@ -5952,11 +7886,14 @@ INSERT INTO jazzhands_audit.val_block_storage_device_type (
 	"aud#realtime",
 	"aud#txid",
 	"aud#user",
-	"aud#actor",
+	"aud#actor",		-- new column (aud#actor)
 	"aud#seq"
 ) SELECT
 	physicalish_volume_type,		-- new column (block_storage_device_type)
 	description,
+	'PROHIBITED',		-- new column (permit_logical_volume_id)
+	'REQUIRED',		-- new column (permit_component_id)
+	'PROHIBITED',		-- new column (permit_encrypted_block_storage_device_id)
 	data_ins_user,
 	data_ins_date,
 	data_upd_user,
@@ -5970,9 +7907,20 @@ INSERT INTO jazzhands_audit.val_block_storage_device_type (
 	"aud#seq"
 FROM jazzhands_audit.val_physicalish_volume_type_v96;
 
+-- this happens at the end of the migraiton, but needs to happen for some inserts later.
+SELECT schema_support.reset_table_sequence('jazzhands_audit', 'val_block_storage_device_type');
 
 
 -- END Manually written insert function
+ALTER TABLE jazzhands.val_block_storage_device_type
+	ALTER permit_logical_volume_id
+	SET DEFAULT 'PROHIBITED'::bpchar;
+ALTER TABLE jazzhands.val_block_storage_device_type
+	ALTER permit_component_id
+	SET DEFAULT 'PROHIBITED'::bpchar;
+ALTER TABLE jazzhands.val_block_storage_device_type
+	ALTER permit_encrypted_block_storage_device_id
+	SET DEFAULT 'PROHIBITED'::bpchar;
 
 -- PRIMARY AND ALTERNATE KEYS
 ALTER TABLE jazzhands.val_block_storage_device_type ADD CONSTRAINT pk_block_storage_device_type PRIMARY KEY (block_storage_device_type);
@@ -5993,6 +7941,24 @@ ALTER TABLE jazzhands.val_block_storage_device_type ADD CONSTRAINT pk_block_stor
 -- FOREIGN KEYS TO
 
 -- TRIGGERS
+-- considering NEW jazzhands.val_block_storage_device_type_checks
+CREATE OR REPLACE FUNCTION jazzhands.val_block_storage_device_type_checks()
+ RETURNS trigger
+ LANGUAGE plpgsql
+ SECURITY DEFINER
+ SET search_path TO 'jazzhands'
+AS $function$
+BEGIN
+	PERFORM property_utils.validate_val_block_storage_device_type(n)
+		FROM block_storage_device n
+		WHERE n.block_storage_device_type = NEW.block_storage_device_type;
+	RETURN NEW;
+END;
+$function$
+;
+REVOKE ALL ON FUNCTION jazzhands.val_block_storage_device_type_checks() FROM public;
+CREATE CONSTRAINT TRIGGER trigger_val_block_storage_device_type_checks AFTER UPDATE ON jazzhands.val_block_storage_device_type DEFERRABLE INITIALLY IMMEDIATE FOR EACH ROW EXECUTE FUNCTION jazzhands.val_block_storage_device_type_checks();
+
 DO $$
 BEGIN
 		DELETE FROM __recreate WHERE schema = 'jazzhands' AND object IN ('val_block_storage_device_type');
@@ -6245,12 +8211,14 @@ ALTER TABLE jazzhands_audit.physicalish_volume RENAME TO physicalish_volume_v96;
 CREATE TABLE jazzhands.block_storage_device
 (
 	block_storage_device_id	integer NOT NULL,
-	block_storage_device_name	varchar(50) NOT NULL,
+	block_storage_device_name	varchar(255) NOT NULL,
 	block_storage_device_type	varchar(50) NOT NULL,
 	device_id	integer NOT NULL,
+	is_encrypted	boolean NOT NULL,
+	logical_volume_id	integer  NULL,
 	component_id	integer  NULL,
 	encrypted_block_storage_device_id	integer  NULL,
-	uuid	uuid  NULL,
+	uuid	varchar(255)  NULL,
 	block_device_size_in_bytes	bigint  NULL,
 	data_ins_user	varchar(255)  NULL,
 	data_ins_date	timestamp with time zone  NULL,
@@ -6262,9 +8230,13 @@ SELECT schema_support.build_audit_table('jazzhands_audit', 'jazzhands', 'block_s
 ALTER TABLE block_storage_device
 	ALTER COLUMN block_storage_device_id
 	ADD GENERATED BY DEFAULT AS IDENTITY;
+ALTER TABLE block_storage_device
+	ALTER is_encrypted
+	SET DEFAULT false;
 
 
 -- BEGIN Manually written insert function
+
 --
 -- create components for all the logical volumes.  The insert back
 -- in will sort things out with them.
@@ -6367,12 +8339,18 @@ FROM jazzhands_audit.physicalish_volume_v96 o
 	LEFT JOIN virtual_component_logical_volume vclv USING (logical_volume_id)
 ;
 
+-- this happens at the end of the migraiton, but needs to happen for some inserts later.
+SELECT schema_support.reset_table_sequence('jazzhands_audit', 'block_storage_device');
+
 
 -- END Manually written insert function
 -- cleaning up sequences with droppe/renamed table
 ALTER SEQUENCE IF EXISTS physicalish_volume_physicalish_volume_id_seq OWNED BY NONE;
 DROP SEQUENCE IF EXISTS physicalish_volume_physicalish_volume_id_seq;
 
+ALTER TABLE jazzhands.block_storage_device
+	ALTER is_encrypted
+	SET DEFAULT false;
 
 -- PRIMARY AND ALTERNATE KEYS
 ALTER TABLE jazzhands.block_storage_device ADD CONSTRAINT ak_block_storage_device_blk_stg_dev_id_dev_id UNIQUE (block_storage_device_id, device_id);
@@ -6386,6 +8364,8 @@ COMMENT ON TABLE jazzhands.block_storage_device IS 'Device that can be accessed 
 COMMENT ON COLUMN jazzhands.block_storage_device.block_storage_device_name IS 'Unique (on the device) name of the block storage device.  This will vary based on ussage.';
 COMMENT ON COLUMN jazzhands.block_storage_device.block_storage_device_type IS 'Type of block device.   There may be other tables with more information based on the type. ';
 COMMENT ON COLUMN jazzhands.block_storage_device.device_id IS 'Device that has the block device on it.';
+COMMENT ON COLUMN jazzhands.block_storage_device.is_encrypted IS 'Indicates that the filesystem is encrypted (lower layers may be encrypted and this is still false)';
+COMMENT ON COLUMN jazzhands.block_storage_device.logical_volume_id IS 'Only one of component, logical_volume,or encrypted_block_storage_device_id can be set.';
 COMMENT ON COLUMN jazzhands.block_storage_device.component_id IS 'Only one of component, logical_volume,or encrypted_block_storage_device_id can be set.';
 COMMENT ON COLUMN jazzhands.block_storage_device.encrypted_block_storage_device_id IS 'Only one of component, logical_volume,or encrypted_block_storage_device_id can be set.';
 COMMENT ON COLUMN jazzhands.block_storage_device.uuid IS 'device wide uuid that is an alternate name for the device.';
@@ -6394,12 +8374,11 @@ CREATE INDEX xifblock_storage_device_blk_stg_dev_typ ON jazzhands.block_storage_
 CREATE INDEX xifblock_storage_device_component_component_id ON jazzhands.block_storage_device USING btree (component_id);
 CREATE INDEX xifblock_storage_device_device_device_id ON jazzhands.block_storage_device USING btree (device_id);
 CREATE INDEX xifblock_storage_device_enc_blk_stroage_device ON jazzhands.block_storage_device USING btree (encrypted_block_storage_device_id);
+CREATE INDEX xifblock_storage_device_logical_volume_id ON jazzhands.block_storage_device USING btree (logical_volume_id);
 
 -- CHECK CONSTRAINTS
-ALTER TABLE jazzhands.block_storage_device ADD CONSTRAINT ckc_one_of_logical_device_id_or_component_id_or_enc__1214227068
-	CHECK ((((encrypted_block_storage_device_id IS NULL) AND (component_id IS NOT NULL)) OR ((component_id IS NOT NULL) AND (encrypted_block_storage_device_id IS NULL))));
-ALTER TABLE jazzhands.block_storage_device ADD CONSTRAINT ckc_one_of_logical_device_id_or_component_id_or_enc_b_915371407
-	CHECK ((((encrypted_block_storage_device_id IS NULL) AND (component_id IS NOT NULL)) OR ((component_id IS NOT NULL) AND (encrypted_block_storage_device_id IS NULL))));
+ALTER TABLE jazzhands.block_storage_device ADD CONSTRAINT ckc_one_of_logical_device_id_or_component_id_or_enc__1396903461
+	CHECK ((((component_id IS NOT NULL) AND (encrypted_block_storage_device_id IS NULL) AND (logical_volume_id IS NULL)) OR ((component_id IS NULL) AND (encrypted_block_storage_device_id IS NOT NULL) AND (logical_volume_id IS NULL)) OR ((component_id IS NULL) AND (encrypted_block_storage_device_id IS NULL) AND (logical_volume_id IS NOT NULL))));
 
 -- FOREIGN KEYS FROM
 -- consider FK between block_storage_device and jazzhands.volume_group_block_storage_device
@@ -6442,8 +8421,29 @@ ALTER TABLE jazzhands.block_storage_device
 --	ADD CONSTRAINT fk_block_storage_device_enc_blk_stroage_device
 --	FOREIGN KEY (encrypted_block_storage_device_id) REFERENCES jazzhands.encrypted_block_storage_device(encrypted_block_storage_device_id);
 
+-- consider FK block_storage_device and logical_volume
+ALTER TABLE jazzhands.block_storage_device
+	ADD CONSTRAINT fk_block_storage_device_logical_volume_id
+	FOREIGN KEY (logical_volume_id) REFERENCES jazzhands.logical_volume(logical_volume_id);
 
 -- TRIGGERS
+-- considering NEW jazzhands.block_storage_device_checks
+CREATE OR REPLACE FUNCTION jazzhands.block_storage_device_checks()
+ RETURNS trigger
+ LANGUAGE plpgsql
+ SECURITY DEFINER
+ SET search_path TO 'jazzhands'
+AS $function$
+BEGIN
+
+	PERFORM property_utils.validate_block_storage_device(NEW);
+	RETURN NEW;
+END;
+$function$
+;
+REVOKE ALL ON FUNCTION jazzhands.block_storage_device_checks() FROM public;
+CREATE CONSTRAINT TRIGGER trigger_block_storage_device_checks AFTER INSERT OR UPDATE ON jazzhands.block_storage_device DEFERRABLE INITIALLY IMMEDIATE FOR EACH ROW EXECUTE FUNCTION jazzhands.block_storage_device_checks();
+
 DO $$
 BEGIN
 		DELETE FROM __recreate WHERE schema = 'jazzhands' AND object IN ('block_storage_device');
@@ -6474,6 +8474,427 @@ BEGIN
 	DELETE FROM __recreate WHERE schema IN ('jazzhands', 'jazzhands_audit') AND object IN ('block_storage_device');
 EXCEPTION WHEN undefined_table THEN
 	RAISE NOTICE 'Removal of new block_storage_device failed but that is ok';
+	NULL;
+END;
+$$;
+
+select clock_timestamp(), clock_timestamp() - now() AS len;
+-- Processing minor changes to logical_volume_property
+SELECT schema_support.save_dependent_objects_for_replay(schema := 'jazzhands', object := 'logical_volume_property');
+SELECT schema_support.save_dependent_objects_for_replay(schema := 'jazzhands_audit', object := 'logical_volume_property');
+ALTER TABLE "jazzhands"."logical_volume_property" ALTER COLUMN "logical_volume_id" SET NOT NULL;
+DROP INDEX IF EXISTS "jazzhands"."xif_lvol_prop_lvid_fstyp";
+DROP INDEX IF EXISTS "jazzhands"."xiflogical_volume_property_filesystem_type";
+CREATE INDEX xiflogical_volume_property_filesystem_type ON jazzhands.logical_volume_property USING btree (filesystem_type);
+DROP INDEX IF EXISTS "jazzhands"."xiflogical_volume_property_lvid";
+CREATE INDEX xiflogical_volume_property_lvid ON jazzhands.logical_volume_property USING btree (logical_volume_id);
+ALTER TABLE logical_volume_property DROP CONSTRAINT IF EXISTS fk_lvol_prop_lvid_fstyp;
+ALTER TABLE logical_volume_property
+	ADD CONSTRAINT fk_lvol_prop_lvid_fstyp
+	FOREIGN KEY (logical_volume_id) REFERENCES jazzhands.logical_volume(logical_volume_id);
+
+ALTER TABLE component_type
+	DROP CONSTRAINT IF EXISTS ckc_virtual_rack_mount_check_1365025208;
+ALTER TABLE component_type
+ADD CONSTRAINT ckc_virtual_rack_mount_check_1365025208
+	CHECK ((((is_virtual_component = true) AND (is_rack_mountable = false)) OR (is_virtual_component = false)));
+
+ALTER TABLE device
+	DROP CONSTRAINT IF EXISTS ckc_rack_location_component_non_virtual_474624417;
+ALTER TABLE device
+ADD CONSTRAINT ckc_rack_location_component_non_virtual_474624417
+	CHECK ((((rack_location_id IS NOT NULL) AND (component_id IS NOT NULL) AND (NOT is_virtual_device)) OR (rack_location_id IS NULL)));
+
+select clock_timestamp(), clock_timestamp() - now() AS len;
+--------------------------------------------------------------------
+-- BEGIN: DEALING WITH TABLE val_filesystem_type
+-- Save grants for later reapplication
+SELECT schema_support.save_grants_for_replay('jazzhands', 'val_filesystem_type', 'val_filesystem_type');
+
+-- FOREIGN KEYS FROM
+ALTER TABLE logical_volume DROP CONSTRAINT IF EXISTS fk_logvol_fstype;
+ALTER TABLE val_logical_volume_property DROP CONSTRAINT IF EXISTS fk_val_lvol_prop_fstype;
+
+-- FOREIGN KEYS TO
+
+-- EXTRA-SCHEMA constraints
+SELECT schema_support.save_constraint_for_replay(schema := 'jazzhands', object := 'val_filesystem_type', newobject := 'val_filesystem_type', newmap := '{"pk_val_filesytem_type":{"columns":["filesystem_type"],"def":"PRIMARY KEY (filesystem_type)","deferrable":false,"deferred":false,"name":"pk_val_filesytem_type","type":"p"}}');
+
+-- PRIMARY and ALTERNATE KEYS
+ALTER TABLE jazzhands.val_filesystem_type DROP CONSTRAINT IF EXISTS pk_val_filesytem_type;
+-- INDEXES
+-- CHECK CONSTRAINTS, etc
+-- TRIGGERS, etc
+DROP TRIGGER IF EXISTS trig_userlog_val_filesystem_type ON jazzhands.val_filesystem_type;
+DROP TRIGGER IF EXISTS trigger_audit_val_filesystem_type ON jazzhands.val_filesystem_type;
+DROP FUNCTION IF EXISTS perform_audit_val_filesystem_type();
+-- default sequences associations and sequences (values rebuilt at end, if needed)
+SELECT schema_support.save_dependent_objects_for_replay(schema := 'jazzhands', object := 'val_filesystem_type', tags := ARRAY['table_val_filesystem_type']);
+---- BEGIN jazzhands_audit.val_filesystem_type TEARDOWN
+SELECT schema_support.save_dependent_objects_for_replay(schema := 'jazzhands_audit', object := 'val_filesystem_type', tags := ARRAY['table_val_filesystem_type']);
+-- Save grants for later reapplication
+SELECT schema_support.save_grants_for_replay('jazzhands_audit', 'val_filesystem_type', 'val_filesystem_type');
+
+-- FOREIGN KEYS FROM
+
+-- FOREIGN KEYS TO
+
+-- EXTRA-SCHEMA constraints
+SELECT schema_support.save_constraint_for_replay(schema := 'jazzhands_audit',  object := 'val_filesystem_type');
+
+-- PRIMARY and ALTERNATE KEYS
+ALTER TABLE jazzhands_audit.val_filesystem_type DROP CONSTRAINT IF EXISTS val_filesystem_type_pkey;
+-- INDEXES
+DROP INDEX IF EXISTS "jazzhands_audit"."aud_val_filesystem_type_pk_val_filesytem_type";
+DROP INDEX IF EXISTS "jazzhands_audit"."val_filesystem_type_aud#realtime_idx";
+DROP INDEX IF EXISTS "jazzhands_audit"."val_filesystem_type_aud#timestamp_idx";
+DROP INDEX IF EXISTS "jazzhands_audit"."val_filesystem_type_aud#txid_idx";
+-- CHECK CONSTRAINTS, etc
+-- TRIGGERS, etc
+-- default sequences associations and sequences (values rebuilt at end, if needed)
+-- The value of this sequence is restored based on the column at migration end
+ALTER TABLE jazzhands_audit.val_filesystem_type ALTER COLUMN "aud#seq" DROP IDENTITY;
+---- DONE jazzhands_audit.val_filesystem_type TEARDOWN
+
+
+ALTER TABLE val_filesystem_type RENAME TO val_filesystem_type_v96;
+ALTER TABLE jazzhands_audit.val_filesystem_type RENAME TO val_filesystem_type_v96;
+
+CREATE TABLE jazzhands.val_filesystem_type
+(
+	filesystem_type	varchar(50) NOT NULL,
+	description	varchar(4000)  NULL,
+	permit_mountpoint	character(10) NOT NULL,
+	permit_filesystem_label	character(10) NOT NULL,
+	permit_filesystem_serial	character(10) NOT NULL,
+	data_ins_user	varchar(255)  NULL,
+	data_ins_date	timestamp with time zone  NULL,
+	data_upd_user	varchar(255)  NULL,
+	data_upd_date	timestamp with time zone  NULL
+);
+SELECT schema_support.build_audit_table('jazzhands_audit', 'jazzhands', 'val_filesystem_type', false);
+ALTER TABLE val_filesystem_type
+	ALTER permit_mountpoint
+	SET DEFAULT 'PROHIBITED'::bpchar;
+ALTER TABLE val_filesystem_type
+	ALTER permit_filesystem_label
+	SET DEFAULT 'PROHIBITED'::bpchar;
+ALTER TABLE val_filesystem_type
+	ALTER permit_filesystem_serial
+	SET DEFAULT 'PROHIBITED'::bpchar;
+
+INSERT INTO val_filesystem_type (
+	filesystem_type,
+	description,
+	permit_mountpoint,		-- new column (permit_mountpoint)
+	permit_filesystem_label,		-- new column (permit_filesystem_label)
+	permit_filesystem_serial,		-- new column (permit_filesystem_serial)
+	data_ins_user,
+	data_ins_date,
+	data_upd_user,
+	data_upd_date
+) SELECT
+	filesystem_type,
+	description,
+	'PROHIBITED'::bpchar,		-- new column (permit_mountpoint)
+	'PROHIBITED'::bpchar,		-- new column (permit_filesystem_label)
+	'PROHIBITED'::bpchar,		-- new column (permit_filesystem_serial)
+	data_ins_user,
+	data_ins_date,
+	data_upd_user,
+	data_upd_date
+FROM val_filesystem_type_v96;
+
+
+INSERT INTO jazzhands_audit.val_filesystem_type (
+	filesystem_type,
+	description,
+	permit_mountpoint,		-- new column (permit_mountpoint)
+	permit_filesystem_label,		-- new column (permit_filesystem_label)
+	permit_filesystem_serial,		-- new column (permit_filesystem_serial)
+	data_ins_user,
+	data_ins_date,
+	data_upd_user,
+	data_upd_date,
+	"aud#action",
+	"aud#timestamp",
+	"aud#realtime",
+	"aud#txid",
+	"aud#user",
+	"aud#actor",		-- new column (aud#actor)
+	"aud#seq"
+) SELECT
+	filesystem_type,
+	description,
+	NULL,		-- new column (permit_mountpoint)
+	NULL,		-- new column (permit_filesystem_label)
+	NULL,		-- new column (permit_filesystem_serial)
+	data_ins_user,
+	data_ins_date,
+	data_upd_user,
+	data_upd_date,
+	"aud#action",
+	"aud#timestamp",
+	"aud#realtime",
+	"aud#txid",
+	"aud#user",
+	NULL,		-- new column (aud#actor)
+	"aud#seq"
+FROM jazzhands_audit.val_filesystem_type_v96;
+
+ALTER TABLE jazzhands.val_filesystem_type
+	ALTER permit_mountpoint
+	SET DEFAULT 'PROHIBITED'::bpchar;
+ALTER TABLE jazzhands.val_filesystem_type
+	ALTER permit_filesystem_label
+	SET DEFAULT 'PROHIBITED'::bpchar;
+ALTER TABLE jazzhands.val_filesystem_type
+	ALTER permit_filesystem_serial
+	SET DEFAULT 'PROHIBITED'::bpchar;
+
+-- PRIMARY AND ALTERNATE KEYS
+ALTER TABLE jazzhands.val_filesystem_type ADD CONSTRAINT pk_val_filesytem_type PRIMARY KEY (filesystem_type);
+
+-- Table/Column Comments
+-- INDEXES
+
+-- CHECK CONSTRAINTS
+
+-- FOREIGN KEYS FROM
+-- consider FK between val_filesystem_type and jazzhands.filesystem
+-- Skipping this FK since column does not exist yet
+--ALTER TABLE jazzhands.jazzhands.filesystem
+--	ADD CONSTRAINT fk_filesystem_val_filesystem_type
+--	FOREIGN KEY (filesystem_type) REFERENCES jazzhands.val_filesystem_type(filesystem_type);
+
+-- consider FK between val_filesystem_type and jazzhands.logical_volume_property
+ALTER TABLE jazzhands.logical_volume_property
+	ADD CONSTRAINT fk_logical_volume_property_filesystem_type
+	FOREIGN KEY (filesystem_type) REFERENCES jazzhands.val_filesystem_type(filesystem_type);
+-- consider FK between val_filesystem_type and jazzhands.logical_volume
+ALTER TABLE jazzhands.logical_volume
+	ADD CONSTRAINT fk_logvol_fstype
+	FOREIGN KEY (filesystem_type) REFERENCES jazzhands.val_filesystem_type(filesystem_type) DEFERRABLE;
+-- consider FK between val_filesystem_type and jazzhands.val_logical_volume_property
+ALTER TABLE jazzhands.val_logical_volume_property
+	ADD CONSTRAINT fk_val_lvol_prop_fstype
+	FOREIGN KEY (filesystem_type) REFERENCES jazzhands.val_filesystem_type(filesystem_type);
+
+-- FOREIGN KEYS TO
+
+-- TRIGGERS
+-- considering NEW jazzhands.validate_filesystem_type
+CREATE OR REPLACE FUNCTION jazzhands.validate_filesystem_type()
+ RETURNS trigger
+ LANGUAGE plpgsql
+ SECURITY DEFINER
+ SET search_path TO 'jazzhands'
+AS $function$
+BEGIN
+	PERFORM	property_utils.validate_filesystem(f)
+	FROM filesystem f
+	WHERE f.filesystem_type = NEW.filesystem_type;
+	RETURN NEW;
+END;
+$function$
+;
+REVOKE ALL ON FUNCTION jazzhands.validate_filesystem_type() FROM public;
+CREATE CONSTRAINT TRIGGER trigger_validate_filesystem_type AFTER INSERT OR UPDATE OF filesystem_type, permit_mountpoint, permit_filesystem_label, permit_filesystem_serial ON jazzhands.val_filesystem_type NOT DEFERRABLE INITIALLY IMMEDIATE FOR EACH ROW EXECUTE FUNCTION jazzhands.validate_filesystem_type();
+
+DO $$
+BEGIN
+		DELETE FROM __recreate WHERE schema = 'jazzhands' AND object IN ('val_filesystem_type');
+	EXCEPTION WHEN undefined_table THEN
+		RAISE NOTICE 'Drop of triggers for val_filesystem_type  failed but that is ok';
+		NULL;
+END;
+$$;
+
+SELECT schema_support.rebuild_stamp_trigger('jazzhands', 'val_filesystem_type');
+SELECT schema_support.build_audit_table_pkak_indexes('jazzhands_audit', 'jazzhands', 'val_filesystem_type');
+SELECT schema_support.rebuild_audit_trigger('jazzhands_audit', 'jazzhands', 'val_filesystem_type');
+DROP TABLE IF EXISTS val_filesystem_type_v96;
+DROP TABLE IF EXISTS jazzhands_audit.val_filesystem_type_v96;
+-- DONE DEALING WITH TABLE val_filesystem_type (jazzhands)
+--------------------------------------------------------------------
+DO $$
+BEGIN
+	DELETE FROM __recreate WHERE schema IN ('jazzhands', 'jazzhands_audit') AND object IN ('val_filesystem_type');
+EXCEPTION WHEN undefined_table THEN
+	RAISE NOTICE 'Removal of old val_filesystem_type failed but that is ok';
+	NULL;
+END;
+$$;
+
+DO $$
+BEGIN
+	DELETE FROM __recreate WHERE schema IN ('jazzhands', 'jazzhands_audit') AND object IN ('val_filesystem_type');
+EXCEPTION WHEN undefined_table THEN
+	RAISE NOTICE 'Removal of new val_filesystem_type failed but that is ok';
+	NULL;
+END;
+$$;
+
+select clock_timestamp(), clock_timestamp() - now() AS len;
+--------------------------------------------------------------------
+-- DEALING WITH NEW TABLE filesystem (jazzhands)
+CREATE TABLE jazzhands.filesystem
+(
+	block_storage_device_id	integer NOT NULL,
+	device_id	integer NOT NULL,
+	filesystem_type	varchar(50)  NULL,
+	mountpoint	varchar(255)  NULL,
+	filesystem_label	varchar(255)  NULL,
+	filesystem_serial	varchar(255)  NULL,
+	data_ins_user	varchar(255)  NULL,
+	data_ins_date	timestamp with time zone  NULL,
+	data_upd_user	varchar(255)  NULL,
+	data_upd_date	timestamp with time zone  NULL
+);
+SELECT schema_support.build_audit_table('jazzhands_audit', 'jazzhands', 'filesystem', 'false');
+
+
+-- BEGIN Manually written insert function
+
+savepoint prefilesystem;
+
+--- this is becoming val_block_storage_device_type
+INSERT INTO val_block_storage_device_type (
+	block_storage_device_type
+) values
+	('disk partition'),
+	('ZFS filesystem'),
+	('ZFS volume'),
+	('LVM volume')
+ON CONFLICT DO NOTHING;
+
+WITH bsd AS (
+	INSERT INTO block_storage_device (
+		block_storage_device_name, 
+		block_storage_device_type, 
+		device_id, logical_volume_id, block_device_size_in_bytes, uuid
+	) SELECT (CASE WHEN volume_group_type = 'Linux LVM' THEN concat_ws('-', volume_group_name, logical_volume_name) 
+			ELSE logical_volume_name END) AS block_storage_device_name, 
+		(CASE WHEN volume_group_type = 'Linux LVM' THEN 'LVM volume' 
+			WHEN volume_group_type = 'partitioned disk' THEN 'disk partition'
+			ELSE NULL END) AS block_storage_device_type,
+		device_Id, logical_volume_id, logical_volume_size_in_bytes, lvp.uuid
+	FROM logical_volume lv 
+	JOIN volume_group USING (volume_group_id,device_id) 
+	LEFT JOIN (SELECT logical_volume_id, logical_volume_property_value AS uuid
+		FROM logical_volume_property 
+		WHERE logical_volume_property_name = 'Serial'
+	) lvp using (logical_volume_id)  
+	WHERE logical_volume_id NOT IN ( SELECT logical_volume_Id FROM virtual_component_logical_volume )
+	RETURNING *
+)
+INSERT INTO filesystem (
+	block_storage_device_id, device_id, filesystem_type, mountpoint, filesystem_label, filesystem_serial,
+	data_ins_user, data_ins_date, data_upd_user, data_upd_date
+)
+SELECT
+	block_storage_device_id,
+	device_id,
+	filesystem_type,
+	max(logical_volume_property_value) FILTER (WHERE logical_volume_property_name = 'MountPoint') as mountpoint,
+	max(logical_volume_property_value) FILTER (WHERE logical_volume_property_name = 'Label') as filesystem_label,
+	max(logical_volume_property_value) FILTER (WHERE logical_volume_property_name = 'Serial') as filesystem_serial,
+	min(hack.data_ins_user) FILTER (WHERE i = 1),
+	min(hack.data_ins_date) FILTER (WHERE i = 1),
+	max(hack.data_upd_user) FILTER (WHERE u = 1),
+	max(hack.data_upd_date) FILTER (WHERE u = 1)
+FROM logical_volume_property
+	JOIN logical_volume USING (logical_volume_id, filesystem_type)
+	JOIN (
+		SELECT logical_volume_id,
+			data_ins_user,
+			data_ins_date,
+			data_upd_user,
+			data_upd_date,
+			row_number() OVER (PARTITION BY logical_volume_id ORDER BY data_ins_date) as i,
+			row_number() OVER (PARTITION BY logical_volume_id ORDER BY data_upd_date DESC) as u
+		FROM logical_volume_property
+	) hack USING (logical_volume_id)
+	JOIN bsd USING (logical_volume_id,device_id)
+WHERE logical_volume_property_name IN ('MountPoint', 'Label', 'Serial')
+GROUP BY block_storage_device_id, device_id, filesystem_type
+;
+
+--- XXX synthesize audit data!!
+
+
+-- END Manually written insert function
+-- WTF: SELECT schema_support.rebuild_audit_trigger('jazzhands_audit', 'jazzhands', 'filesystem');
+
+-- PRIMARY AND ALTERNATE KEYS
+ALTER TABLE jazzhands.filesystem ADD CONSTRAINT ak_filesystem_block_storage_device_id UNIQUE (block_storage_device_id);
+ALTER TABLE jazzhands.filesystem ADD CONSTRAINT pk_filesystem PRIMARY KEY (block_storage_device_id, device_id);
+
+-- Table/Column Comments
+COMMENT ON COLUMN jazzhands.filesystem.device_id IS 'Device that has the block device on it.';
+-- INDEXES
+CREATE UNIQUE INDEX xiffilesystem_block_storage_device_id ON jazzhands.filesystem USING btree (block_storage_device_id, device_id);
+CREATE INDEX xiffilesystem_val_filesystem_type ON jazzhands.filesystem USING btree (filesystem_type);
+
+-- CHECK CONSTRAINTS
+
+-- FOREIGN KEYS FROM
+
+-- FOREIGN KEYS TO
+-- consider FK filesystem and block_storage_device
+ALTER TABLE jazzhands.filesystem
+	ADD CONSTRAINT fk_filesystem_block_storage_device_id
+	FOREIGN KEY (block_storage_device_id, device_id) REFERENCES jazzhands.block_storage_device(block_storage_device_id, device_id);
+-- consider FK filesystem and val_filesystem_type
+ALTER TABLE jazzhands.filesystem
+	ADD CONSTRAINT fk_filesystem_val_filesystem_type
+	FOREIGN KEY (filesystem_type) REFERENCES jazzhands.val_filesystem_type(filesystem_type);
+
+-- TRIGGERS
+-- considering NEW jazzhands.validate_filesystem
+CREATE OR REPLACE FUNCTION jazzhands.validate_filesystem()
+ RETURNS trigger
+ LANGUAGE plpgsql
+ SECURITY DEFINER
+ SET search_path TO 'jazzhands'
+AS $function$
+BEGIN
+	PERFORM property_utils.validate_filesystem(NEW);
+	RETURN NEW;
+END;
+$function$
+;
+REVOKE ALL ON FUNCTION jazzhands.validate_filesystem() FROM public;
+CREATE CONSTRAINT TRIGGER trigger_validate_filesystem AFTER INSERT OR UPDATE OF filesystem_type, mountpoint, filesystem_label, filesystem_serial ON jazzhands.filesystem NOT DEFERRABLE INITIALLY IMMEDIATE FOR EACH ROW EXECUTE FUNCTION jazzhands.validate_filesystem();
+
+DO $$
+BEGIN
+		DELETE FROM __recreate WHERE schema = 'jazzhands' AND object IN ('filesystem');
+	EXCEPTION WHEN undefined_table THEN
+		RAISE NOTICE 'Drop of triggers for filesystem  failed but that is ok';
+		NULL;
+END;
+$$;
+
+SELECT schema_support.rebuild_stamp_trigger('jazzhands', 'filesystem');
+SELECT schema_support.build_audit_table_pkak_indexes('jazzhands_audit', 'jazzhands', 'filesystem');
+SELECT schema_support.rebuild_audit_trigger('jazzhands_audit', 'jazzhands', 'filesystem');
+-- DONE DEALING WITH TABLE filesystem (jazzhands)
+--------------------------------------------------------------------
+DO $$
+BEGIN
+	DELETE FROM __recreate WHERE schema IN ('jazzhands', 'jazzhands_audit') AND object IN ('filesystem');
+EXCEPTION WHEN undefined_table THEN
+	RAISE NOTICE 'Removal of old filesystem failed but that is ok';
+	NULL;
+END;
+$$;
+
+DO $$
+BEGIN
+	DELETE FROM __recreate WHERE schema IN ('jazzhands', 'jazzhands_audit') AND object IN ('filesystem');
+EXCEPTION WHEN undefined_table THEN
+	RAISE NOTICE 'Removal of new filesystem failed but that is ok';
 	NULL;
 END;
 $$;
@@ -7410,232 +9831,6 @@ $$;
 
 select clock_timestamp(), clock_timestamp() - now() AS len;
 --------------------------------------------------------------------
--- BEGIN: DEALING WITH TABLE val_filesystem_type
--- Save grants for later reapplication
-SELECT schema_support.save_grants_for_replay('jazzhands', 'val_filesystem_type', 'val_filesystem_type');
-
--- FOREIGN KEYS FROM
-ALTER TABLE logical_volume DROP CONSTRAINT IF EXISTS fk_logvol_fstype;
-ALTER TABLE val_logical_volume_property DROP CONSTRAINT IF EXISTS fk_val_lvol_prop_fstype;
-
--- FOREIGN KEYS TO
-
--- EXTRA-SCHEMA constraints
-SELECT schema_support.save_constraint_for_replay(schema := 'jazzhands', object := 'val_filesystem_type', newobject := 'val_filesystem_type', newmap := '{"pk_val_filesytem_type":{"columns":["filesystem_type"],"def":"PRIMARY KEY (filesystem_type)","deferrable":false,"deferred":false,"name":"pk_val_filesytem_type","type":"p"}}');
-
--- PRIMARY and ALTERNATE KEYS
-ALTER TABLE jazzhands.val_filesystem_type DROP CONSTRAINT IF EXISTS pk_val_filesytem_type;
--- INDEXES
--- CHECK CONSTRAINTS, etc
--- TRIGGERS, etc
-DROP TRIGGER IF EXISTS trig_userlog_val_filesystem_type ON jazzhands.val_filesystem_type;
-DROP TRIGGER IF EXISTS trigger_audit_val_filesystem_type ON jazzhands.val_filesystem_type;
-DROP FUNCTION IF EXISTS perform_audit_val_filesystem_type();
--- default sequences associations and sequences (values rebuilt at end, if needed)
-SELECT schema_support.save_dependent_objects_for_replay(schema := 'jazzhands', object := 'val_filesystem_type', tags := ARRAY['table_val_filesystem_type']);
----- BEGIN jazzhands_audit.val_filesystem_type TEARDOWN
-SELECT schema_support.save_dependent_objects_for_replay(schema := 'jazzhands_audit', object := 'val_filesystem_type', tags := ARRAY['table_val_filesystem_type']);
--- Save grants for later reapplication
-SELECT schema_support.save_grants_for_replay('jazzhands_audit', 'val_filesystem_type', 'val_filesystem_type');
-
--- FOREIGN KEYS FROM
-
--- FOREIGN KEYS TO
-
--- EXTRA-SCHEMA constraints
-SELECT schema_support.save_constraint_for_replay(schema := 'jazzhands_audit',  object := 'val_filesystem_type');
-
--- PRIMARY and ALTERNATE KEYS
-ALTER TABLE jazzhands_audit.val_filesystem_type DROP CONSTRAINT IF EXISTS val_filesystem_type_pkey;
--- INDEXES
-DROP INDEX IF EXISTS "jazzhands_audit"."aud_val_filesystem_type_pk_val_filesytem_type";
-DROP INDEX IF EXISTS "jazzhands_audit"."val_filesystem_type_aud#realtime_idx";
-DROP INDEX IF EXISTS "jazzhands_audit"."val_filesystem_type_aud#timestamp_idx";
-DROP INDEX IF EXISTS "jazzhands_audit"."val_filesystem_type_aud#txid_idx";
--- CHECK CONSTRAINTS, etc
--- TRIGGERS, etc
--- default sequences associations and sequences (values rebuilt at end, if needed)
--- The value of this sequence is restored based on the column at migration end
-ALTER TABLE jazzhands_audit.val_filesystem_type ALTER COLUMN "aud#seq" DROP IDENTITY;
----- DONE jazzhands_audit.val_filesystem_type TEARDOWN
-
-
-ALTER TABLE val_filesystem_type RENAME TO val_filesystem_type_v96;
-ALTER TABLE jazzhands_audit.val_filesystem_type RENAME TO val_filesystem_type_v96;
-
-CREATE TABLE jazzhands.val_filesystem_type
-(
-	filesystem_type	varchar(50) NOT NULL,
-	description	varchar(4000)  NULL,
-	permit_mountpoint	character(10) NOT NULL,
-	permit_filesystem_label	character(10) NOT NULL,
-	permit_filesystem_serial	character(10) NOT NULL,
-	data_ins_user	varchar(255)  NULL,
-	data_ins_date	timestamp with time zone  NULL,
-	data_upd_user	varchar(255)  NULL,
-	data_upd_date	timestamp with time zone  NULL
-);
-SELECT schema_support.build_audit_table('jazzhands_audit', 'jazzhands', 'val_filesystem_type', false);
-ALTER TABLE val_filesystem_type
-	ALTER permit_mountpoint
-	SET DEFAULT 'PROHIBITED'::bpchar;
-ALTER TABLE val_filesystem_type
-	ALTER permit_filesystem_label
-	SET DEFAULT 'PROHIBITED'::bpchar;
-ALTER TABLE val_filesystem_type
-	ALTER permit_filesystem_serial
-	SET DEFAULT 'PROHIBITED'::bpchar;
-
-INSERT INTO val_filesystem_type (
-	filesystem_type,
-	description,
-	permit_mountpoint,		-- new column (permit_mountpoint)
-	permit_filesystem_label,		-- new column (permit_filesystem_label)
-	permit_filesystem_serial,		-- new column (permit_filesystem_serial)
-	data_ins_user,
-	data_ins_date,
-	data_upd_user,
-	data_upd_date
-) SELECT
-	filesystem_type,
-	description,
-	'PROHIBITED'::bpchar,		-- new column (permit_mountpoint)
-	'PROHIBITED'::bpchar,		-- new column (permit_filesystem_label)
-	'PROHIBITED'::bpchar,		-- new column (permit_filesystem_serial)
-	data_ins_user,
-	data_ins_date,
-	data_upd_user,
-	data_upd_date
-FROM val_filesystem_type_v96;
-
-
-INSERT INTO jazzhands_audit.val_filesystem_type (
-	filesystem_type,
-	description,
-	permit_mountpoint,		-- new column (permit_mountpoint)
-	permit_filesystem_label,		-- new column (permit_filesystem_label)
-	permit_filesystem_serial,		-- new column (permit_filesystem_serial)
-	data_ins_user,
-	data_ins_date,
-	data_upd_user,
-	data_upd_date,
-	"aud#action",
-	"aud#timestamp",
-	"aud#realtime",
-	"aud#txid",
-	"aud#user",
-	"aud#actor",		-- new column (aud#actor)
-	"aud#seq"
-) SELECT
-	filesystem_type,
-	description,
-	NULL,		-- new column (permit_mountpoint)
-	NULL,		-- new column (permit_filesystem_label)
-	NULL,		-- new column (permit_filesystem_serial)
-	data_ins_user,
-	data_ins_date,
-	data_upd_user,
-	data_upd_date,
-	"aud#action",
-	"aud#timestamp",
-	"aud#realtime",
-	"aud#txid",
-	"aud#user",
-	NULL,		-- new column (aud#actor)
-	"aud#seq"
-FROM jazzhands_audit.val_filesystem_type_v96;
-
-ALTER TABLE jazzhands.val_filesystem_type
-	ALTER permit_mountpoint
-	SET DEFAULT 'PROHIBITED'::bpchar;
-ALTER TABLE jazzhands.val_filesystem_type
-	ALTER permit_filesystem_label
-	SET DEFAULT 'PROHIBITED'::bpchar;
-ALTER TABLE jazzhands.val_filesystem_type
-	ALTER permit_filesystem_serial
-	SET DEFAULT 'PROHIBITED'::bpchar;
-
--- PRIMARY AND ALTERNATE KEYS
-ALTER TABLE jazzhands.val_filesystem_type ADD CONSTRAINT pk_val_filesytem_type PRIMARY KEY (filesystem_type);
-
--- Table/Column Comments
--- INDEXES
-
--- CHECK CONSTRAINTS
-
--- FOREIGN KEYS FROM
--- consider FK between val_filesystem_type and jazzhands.filesystem
--- Skipping this FK since column does not exist yet
---ALTER TABLE jazzhands.jazzhands.filesystem
---	ADD CONSTRAINT fk_filesystem_val_filesystem_type
---	FOREIGN KEY (filesystem_type) REFERENCES jazzhands.val_filesystem_type(filesystem_type);
-
--- consider FK between val_filesystem_type and jazzhands.logical_volume
-ALTER TABLE jazzhands.logical_volume
-	ADD CONSTRAINT fk_logvol_fstype
-	FOREIGN KEY (filesystem_type) REFERENCES jazzhands.val_filesystem_type(filesystem_type) DEFERRABLE;
--- consider FK between val_filesystem_type and jazzhands.val_logical_volume_property
-ALTER TABLE jazzhands.val_logical_volume_property
-	ADD CONSTRAINT fk_val_lvol_prop_fstype
-	FOREIGN KEY (filesystem_type) REFERENCES jazzhands.val_filesystem_type(filesystem_type);
-
--- FOREIGN KEYS TO
-
--- TRIGGERS
--- considering NEW jazzhands.validate_filesystem_type
-CREATE OR REPLACE FUNCTION jazzhands.validate_filesystem_type()
- RETURNS trigger
- LANGUAGE plpgsql
- SECURITY DEFINER
- SET search_path TO 'jazzhands'
-AS $function$
-BEGIN
-	PERFORM	property_utils.validate_filesystem(f)
-	FROM filesystem f
-	WHERE f.filesystem_type = NEW.filesystem_type;
-	RETURN NEW;
-END;
-$function$
-;
-REVOKE ALL ON FUNCTION jazzhands.validate_filesystem_type() FROM public;
-CREATE CONSTRAINT TRIGGER trigger_validate_filesystem_type AFTER INSERT OR UPDATE OF filesystem_type, permit_mountpoint, permit_filesystem_label, permit_filesystem_serial ON jazzhands.val_filesystem_type NOT DEFERRABLE INITIALLY IMMEDIATE FOR EACH ROW EXECUTE FUNCTION jazzhands.validate_filesystem_type();
-
-DO $$
-BEGIN
-		DELETE FROM __recreate WHERE schema = 'jazzhands' AND object IN ('val_filesystem_type');
-	EXCEPTION WHEN undefined_table THEN
-		RAISE NOTICE 'Drop of triggers for val_filesystem_type  failed but that is ok';
-		NULL;
-END;
-$$;
-
-SELECT schema_support.rebuild_stamp_trigger('jazzhands', 'val_filesystem_type');
-SELECT schema_support.build_audit_table_pkak_indexes('jazzhands_audit', 'jazzhands', 'val_filesystem_type');
-SELECT schema_support.rebuild_audit_trigger('jazzhands_audit', 'jazzhands', 'val_filesystem_type');
-DROP TABLE IF EXISTS val_filesystem_type_v96;
-DROP TABLE IF EXISTS jazzhands_audit.val_filesystem_type_v96;
--- DONE DEALING WITH TABLE val_filesystem_type (jazzhands)
---------------------------------------------------------------------
-DO $$
-BEGIN
-	DELETE FROM __recreate WHERE schema IN ('jazzhands', 'jazzhands_audit') AND object IN ('val_filesystem_type');
-EXCEPTION WHEN undefined_table THEN
-	RAISE NOTICE 'Removal of old val_filesystem_type failed but that is ok';
-	NULL;
-END;
-$$;
-
-DO $$
-BEGIN
-	DELETE FROM __recreate WHERE schema IN ('jazzhands', 'jazzhands_audit') AND object IN ('val_filesystem_type');
-EXCEPTION WHEN undefined_table THEN
-	RAISE NOTICE 'Removal of new val_filesystem_type failed but that is ok';
-	NULL;
-END;
-$$;
-
-select clock_timestamp(), clock_timestamp() - now() AS len;
---------------------------------------------------------------------
 -- BEGIN: DEALING WITH TABLE val_x509_fingerprint_hash_algorithm
 -- Save grants for later reapplication
 SELECT schema_support.save_grants_for_replay('jazzhands', 'val_x509_fingerprint_hash_algorithm', 'val_x509_fingerprint_hash_algorithm');
@@ -7950,7 +10145,7 @@ select clock_timestamp(), clock_timestamp() - now() AS len;
 CREATE TABLE jazzhands.encrypted_block_storage_device
 (
 	encrypted_block_storage_device_id	integer NOT NULL,
-	block_storage_device_id	integer  NULL,
+	block_storage_device_id	integer NOT NULL,
 	block_storage_device_encryption_system	varchar(255) NOT NULL,
 	encryption_key_id	integer NOT NULL,
 	offset_sector	integer  NULL,
@@ -8028,115 +10223,6 @@ EXCEPTION WHEN undefined_table THEN
 	NULL;
 END;
 $$;
-
-select clock_timestamp(), clock_timestamp() - now() AS len;
---------------------------------------------------------------------
--- DEALING WITH NEW TABLE filesystem (jazzhands)
-CREATE TABLE jazzhands.filesystem
-(
-	block_storage_device_id	integer NOT NULL,
-	device_id	integer NOT NULL,
-	filesystem_type	varchar(50)  NULL,
-	mountpoint	varchar(50)  NULL,
-	filesystem_label	varchar(255)  NULL,
-	filesystem_serial	varchar(255)  NULL,
-	data_ins_user	varchar(255)  NULL,
-	data_ins_date	timestamp with time zone  NULL,
-	data_upd_user	varchar(255)  NULL,
-	data_upd_date	timestamp with time zone  NULL
-);
-SELECT schema_support.build_audit_table('jazzhands_audit', 'jazzhands', 'filesystem', true);
-
--- PRIMARY AND ALTERNATE KEYS
-ALTER TABLE jazzhands.filesystem ADD CONSTRAINT ak_filesystem_block_storage_device_id UNIQUE (block_storage_device_id);
-ALTER TABLE jazzhands.filesystem ADD CONSTRAINT pk_filesystem PRIMARY KEY (block_storage_device_id, device_id);
-
--- Table/Column Comments
-COMMENT ON COLUMN jazzhands.filesystem.device_id IS 'Device that has the block device on it.';
--- INDEXES
-CREATE UNIQUE INDEX xiffilesystem_block_storage_device_id ON jazzhands.filesystem USING btree (block_storage_device_id, device_id);
-CREATE INDEX xiffilesystem_val_filesystem_type ON jazzhands.filesystem USING btree (filesystem_type);
-
--- CHECK CONSTRAINTS
-
--- FOREIGN KEYS FROM
-
--- FOREIGN KEYS TO
--- consider FK filesystem and block_storage_device
-ALTER TABLE jazzhands.filesystem
-	ADD CONSTRAINT fk_filesystem_block_storage_device_id
-	FOREIGN KEY (block_storage_device_id, device_id) REFERENCES jazzhands.block_storage_device(block_storage_device_id, device_id);
--- consider FK filesystem and val_filesystem_type
-ALTER TABLE jazzhands.filesystem
-	ADD CONSTRAINT fk_filesystem_val_filesystem_type
-	FOREIGN KEY (filesystem_type) REFERENCES jazzhands.val_filesystem_type(filesystem_type);
-
--- TRIGGERS
--- considering NEW jazzhands.validate_filesystem
-CREATE OR REPLACE FUNCTION jazzhands.validate_filesystem()
- RETURNS trigger
- LANGUAGE plpgsql
- SECURITY DEFINER
- SET search_path TO 'jazzhands'
-AS $function$
-BEGIN
-	PERFORM property_utils.validate_filesystem(NEW);
-	RETURN NEW;
-END;
-$function$
-;
-REVOKE ALL ON FUNCTION jazzhands.validate_filesystem() FROM public;
-CREATE CONSTRAINT TRIGGER trigger_validate_filesystem AFTER INSERT OR UPDATE OF filesystem_type, mountpoint, filesystem_label, filesystem_serial ON jazzhands.filesystem NOT DEFERRABLE INITIALLY IMMEDIATE FOR EACH ROW EXECUTE FUNCTION jazzhands.validate_filesystem();
-
-DO $$
-BEGIN
-		DELETE FROM __recreate WHERE schema = 'jazzhands' AND object IN ('filesystem');
-	EXCEPTION WHEN undefined_table THEN
-		RAISE NOTICE 'Drop of triggers for filesystem  failed but that is ok';
-		NULL;
-END;
-$$;
-
-SELECT schema_support.rebuild_stamp_trigger('jazzhands', 'filesystem');
-SELECT schema_support.build_audit_table_pkak_indexes('jazzhands_audit', 'jazzhands', 'filesystem');
-SELECT schema_support.rebuild_audit_trigger('jazzhands_audit', 'jazzhands', 'filesystem');
--- DONE DEALING WITH TABLE filesystem (jazzhands)
---------------------------------------------------------------------
-DO $$
-BEGIN
-	DELETE FROM __recreate WHERE schema IN ('jazzhands', 'jazzhands_audit') AND object IN ('filesystem');
-EXCEPTION WHEN undefined_table THEN
-	RAISE NOTICE 'Removal of old filesystem failed but that is ok';
-	NULL;
-END;
-$$;
-
-DO $$
-BEGIN
-	DELETE FROM __recreate WHERE schema IN ('jazzhands', 'jazzhands_audit') AND object IN ('filesystem');
-EXCEPTION WHEN undefined_table THEN
-	RAISE NOTICE 'Removal of new filesystem failed but that is ok';
-	NULL;
-END;
-$$;
-
-select clock_timestamp(), clock_timestamp() - now() AS len;
--- Processing minor changes to logical_volume_property
-SELECT schema_support.save_dependent_objects_for_replay(schema := 'jazzhands', object := 'logical_volume_property');
-SELECT schema_support.save_dependent_objects_for_replay(schema := 'jazzhands_audit', object := 'logical_volume_property');
-ALTER TABLE "jazzhands"."logical_volume_property" ALTER COLUMN "logical_volume_id" SET NOT NULL;
-ALTER TABLE "jazzhands"."logical_volume_property" ALTER COLUMN "filesystem_type" SET NOT NULL;
-ALTER TABLE component_type
-	DROP CONSTRAINT IF EXISTS ckc_virtual_rack_mount_check_1365025208;
-ALTER TABLE component_type
-ADD CONSTRAINT ckc_virtual_rack_mount_check_1365025208
-	CHECK ((((is_virtual_component = true) AND (is_rack_mountable = false)) OR (is_virtual_component = false)));
-
-ALTER TABLE device
-	DROP CONSTRAINT IF EXISTS ckc_rack_location_component_non_virtual_474624417;
-ALTER TABLE device
-ADD CONSTRAINT ckc_rack_location_component_non_virtual_474624417
-	CHECK ((((rack_location_id IS NOT NULL) AND (component_id IS NOT NULL) AND (NOT is_virtual_device)) OR (rack_location_id IS NULL)));
 
 select clock_timestamp(), clock_timestamp() - now() AS len;
 -- Processing minor changes to netblock
@@ -8929,7 +11015,8 @@ CREATE VIEW jazzhands.physicalish_volume AS
     bsd.data_upd_user,
     bsd.data_upd_date
    FROM jazzhands.block_storage_device bsd
-     LEFT JOIN jazzhands.virtual_component_logical_volume vclv USING (component_id);
+     LEFT JOIN jazzhands.virtual_component_logical_volume vclv USING (component_id)
+  WHERE bsd.logical_volume_id IS NULL;
 
 DO $$
 BEGIN
@@ -9031,7 +11118,6 @@ BEGIN
 			NEW.logical_volume_id
 		);
 
-
 		INSERT INTO component_property (
 			component_id, component_property_type,
 			component_property_name, property_value
@@ -9045,10 +11131,10 @@ BEGIN
 	END IF;
 
 	INSERT INTO block_storage_device (
-	   	block_storage_device_name,
-	   	block_storage_device_type,
-	   	device_id,
-	   	component_id
+		block_storage_device_name,
+		block_storage_device_type,
+		device_id,
+		component_id
 	) VALUES (
 		NEW.physicalish_volume_name,
 		NEW.physicalish_volume_type,
@@ -11685,6 +13771,21 @@ SELECT schema_support.save_dependent_objects_for_replay(schema := 'jazzhands'::t
 DROP FUNCTION IF EXISTS jazzhands.verify_physicalish_volume (  );
 SELECT schema_support.replay_object_recreates(tags := ARRAY['process_all_procs_in_schema_jazzhands']);
 -- New function; dropping in case it returned because of type change
+CREATE OR REPLACE FUNCTION jazzhands.block_storage_device_checks()
+ RETURNS trigger
+ LANGUAGE plpgsql
+ SECURITY DEFINER
+ SET search_path TO 'jazzhands'
+AS $function$
+BEGIN
+
+	PERFORM property_utils.validate_block_storage_device(NEW);
+	RETURN NEW;
+END;
+$function$
+;
+
+-- New function; dropping in case it returned because of type change
 CREATE OR REPLACE FUNCTION jazzhands.check_component_type_device_virtual_match()
  RETURNS trigger
  LANGUAGE plpgsql
@@ -11954,7 +14055,6 @@ BEGIN
 			NEW.logical_volume_id
 		);
 
-
 		INSERT INTO component_property (
 			component_id, component_property_type,
 			component_property_name, property_value
@@ -11968,10 +14068,10 @@ BEGIN
 	END IF;
 
 	INSERT INTO block_storage_device (
-	   	block_storage_device_name,
-	   	block_storage_device_type,
-	   	device_id,
-	   	component_id
+		block_storage_device_name,
+		block_storage_device_type,
+		device_id,
+		component_id
 	) VALUES (
 		NEW.physicalish_volume_name,
 		NEW.physicalish_volume_type,
@@ -12159,6 +14259,22 @@ BEGIN
 		END IF;
 	END IF;
 
+	RETURN NEW;
+END;
+$function$
+;
+
+-- New function; dropping in case it returned because of type change
+CREATE OR REPLACE FUNCTION jazzhands.val_block_storage_device_type_checks()
+ RETURNS trigger
+ LANGUAGE plpgsql
+ SECURITY DEFINER
+ SET search_path TO 'jazzhands'
+AS $function$
+BEGIN
+	PERFORM property_utils.validate_val_block_storage_device_type(n)
+		FROM block_storage_device n
+		WHERE n.block_storage_device_type = NEW.block_storage_device_type;
 	RETURN NEW;
 END;
 $function$
@@ -12514,6 +14630,10 @@ CREATE INDEX aud_device_ak_device_id_site_virtual_name
 DROP INDEX IF EXISTS xifservice_instance_device_device_id;
 CREATE INDEX xifservice_instance_device_device_id 
 	ON jazzhands.service_instance USING btree (device_id);
+
+COMMENT ON COLUMN jazzhands.logical_volume_property.filesystem_type IS NULL;
+
+COMMENT ON TABLE jazzhands.logical_volume_property IS 'This table is deprecated and will be going away in >= 0.97';
 
 
 -- END Misc that does not apply to above
@@ -15288,8 +17408,8 @@ SELECT schema_support.replay_object_recreates(schema := 'jazzhands_legacy', obje
 SELECT schema_support.replay_object_recreates(schema := 'jazzhands_legacy', object := 'v_acct_coll_prop_expanded', type := 'view');
 SELECT schema_support.replay_object_recreates(schema := 'jazzhands_legacy', object := 'v_device_coll_hier_detail', type := 'view');
 SELECT schema_support.replay_object_recreates(schema := 'jazzhands', object := 'v_property', type := 'view');
-SELECT schema_support.replay_object_recreates(schema := 'jazzhands_legacy', object := 'v_property', type := 'view');
 SELECT schema_support.replay_object_recreates(schema := 'jazzhands', object := 'v_property', type := 'view');
+SELECT schema_support.replay_object_recreates(schema := 'jazzhands_legacy', object := 'v_property', type := 'view');
 SELECT schema_support.replay_object_recreates(schema := 'jazzhands_legacy', object := 'v_property', type := 'view');
 SELECT schema_support.replay_object_recreates(schema := 'jazzhands_legacy', object := 'val_property', type := 'view');
 DROP VIEW IF EXISTS jazzhands_legacy.v_unix_account_overrides;
@@ -15773,8 +17893,8 @@ SELECT schema_support.replay_object_recreates(schema := 'jazzhands_legacy', obje
 SELECT schema_support.replay_object_recreates(schema := 'jazzhands_legacy', object := 'v_device_col_acct_col_unixlogin', type := 'view');
 SELECT schema_support.replay_object_recreates(schema := 'jazzhands_legacy', object := 'v_device_coll_hier_detail', type := 'view');
 SELECT schema_support.replay_object_recreates(schema := 'jazzhands', object := 'v_property', type := 'view');
-SELECT schema_support.replay_object_recreates(schema := 'jazzhands_legacy', object := 'v_property', type := 'view');
 SELECT schema_support.replay_object_recreates(schema := 'jazzhands', object := 'v_property', type := 'view');
+SELECT schema_support.replay_object_recreates(schema := 'jazzhands_legacy', object := 'v_property', type := 'view');
 SELECT schema_support.replay_object_recreates(schema := 'jazzhands_legacy', object := 'v_property', type := 'view');
 SELECT schema_support.replay_object_recreates(schema := 'jazzhands_legacy', object := 'v_unix_account_overrides', type := 'view');
 SELECT schema_support.replay_object_recreates(schema := 'jazzhands_legacy', object := 'val_property', type := 'view');
@@ -15875,8 +17995,8 @@ SELECT schema_support.replay_object_recreates(schema := 'jazzhands_legacy', obje
 SELECT schema_support.replay_object_recreates(schema := 'jazzhands_legacy', object := 'v_device_col_acct_col_unixgroup', type := 'view');
 SELECT schema_support.replay_object_recreates(schema := 'jazzhands_legacy', object := 'v_device_coll_hier_detail', type := 'view');
 SELECT schema_support.replay_object_recreates(schema := 'jazzhands', object := 'v_property', type := 'view');
-SELECT schema_support.replay_object_recreates(schema := 'jazzhands_legacy', object := 'v_property', type := 'view');
 SELECT schema_support.replay_object_recreates(schema := 'jazzhands', object := 'v_property', type := 'view');
+SELECT schema_support.replay_object_recreates(schema := 'jazzhands_legacy', object := 'v_property', type := 'view');
 SELECT schema_support.replay_object_recreates(schema := 'jazzhands_legacy', object := 'v_property', type := 'view');
 SELECT schema_support.replay_object_recreates(schema := 'jazzhands_legacy', object := 'v_unix_group_overrides', type := 'view');
 SELECT schema_support.replay_object_recreates(schema := 'jazzhands_legacy', object := 'val_property', type := 'view');
@@ -16085,12 +18205,12 @@ SELECT schema_support.replay_object_recreates(schema := 'jazzhands_legacy', obje
 SELECT schema_support.replay_object_recreates(schema := 'jazzhands', object := 'v_property', type := 'view');
 SELECT schema_support.replay_object_recreates(schema := 'jazzhands_legacy', object := 'v_property', type := 'view');
 SELECT schema_support.replay_object_recreates(schema := 'jazzhands', object := 'v_property', type := 'view');
-SELECT schema_support.replay_object_recreates(schema := 'jazzhands_legacy', object := 'v_property', type := 'view');
 SELECT schema_support.replay_object_recreates(schema := 'jazzhands', object := 'v_property', type := 'view');
 SELECT schema_support.replay_object_recreates(schema := 'jazzhands_legacy', object := 'v_property', type := 'view');
-SELECT schema_support.replay_object_recreates(schema := 'jazzhands', object := 'v_property', type := 'view');
 SELECT schema_support.replay_object_recreates(schema := 'jazzhands_legacy', object := 'v_property', type := 'view');
 SELECT schema_support.replay_object_recreates(schema := 'jazzhands', object := 'v_property', type := 'view');
+SELECT schema_support.replay_object_recreates(schema := 'jazzhands', object := 'v_property', type := 'view');
+SELECT schema_support.replay_object_recreates(schema := 'jazzhands_legacy', object := 'v_property', type := 'view');
 SELECT schema_support.replay_object_recreates(schema := 'jazzhands_legacy', object := 'v_unix_account_overrides', type := 'view');
 SELECT schema_support.replay_object_recreates(schema := 'jazzhands_legacy', object := 'v_unix_mclass_settings', type := 'view');
 SELECT schema_support.replay_object_recreates(schema := 'jazzhands_legacy', object := 'val_property', type := 'view');
@@ -16342,10 +18462,10 @@ SELECT schema_support.replay_object_recreates(schema := 'jazzhands_legacy', obje
 SELECT schema_support.replay_object_recreates(schema := 'jazzhands', object := 'v_property', type := 'view');
 SELECT schema_support.replay_object_recreates(schema := 'jazzhands_legacy', object := 'v_property', type := 'view');
 SELECT schema_support.replay_object_recreates(schema := 'jazzhands', object := 'v_property', type := 'view');
-SELECT schema_support.replay_object_recreates(schema := 'jazzhands_legacy', object := 'v_property', type := 'view');
 SELECT schema_support.replay_object_recreates(schema := 'jazzhands', object := 'v_property', type := 'view');
 SELECT schema_support.replay_object_recreates(schema := 'jazzhands_legacy', object := 'v_property', type := 'view');
 SELECT schema_support.replay_object_recreates(schema := 'jazzhands', object := 'v_property', type := 'view');
+SELECT schema_support.replay_object_recreates(schema := 'jazzhands_legacy', object := 'v_property', type := 'view');
 SELECT schema_support.replay_object_recreates(schema := 'jazzhands_legacy', object := 'v_unix_account_overrides', type := 'view');
 SELECT schema_support.replay_object_recreates(schema := 'jazzhands_legacy', object := 'v_unix_group_overrides', type := 'view');
 SELECT schema_support.replay_object_recreates(schema := 'jazzhands_legacy', object := 'v_unix_mclass_settings', type := 'view');
@@ -16908,8 +19028,8 @@ SELECT schema_support.save_dependent_objects_for_replay(schema := 'jazzhands_leg
 -- restore any missing random views that may be cached that this one needs.
 SELECT schema_support.replay_object_recreates(schema := 'jazzhands_legacy', object := 'logical_volume', type := 'view');
 SELECT schema_support.replay_object_recreates(schema := 'jazzhands', object := 'physicalish_volume', type := 'view');
-SELECT schema_support.replay_object_recreates(schema := 'jazzhands_legacy', object := 'physicalish_volume', type := 'view');
 SELECT schema_support.replay_object_recreates(schema := 'jazzhands', object := 'physicalish_volume', type := 'view');
+SELECT schema_support.replay_object_recreates(schema := 'jazzhands_legacy', object := 'physicalish_volume', type := 'view');
 SELECT schema_support.replay_object_recreates(schema := 'jazzhands_legacy', object := 'volume_group', type := 'view');
 SELECT schema_support.replay_object_recreates(schema := 'jazzhands_legacy', object := 'volume_group_physicalish_vol', type := 'view');
 DROP VIEW IF EXISTS jazzhands_legacy.v_lv_hier;
@@ -18926,6 +21046,69 @@ END;
 $$;
 
 SELECT schema_support.replay_object_recreates(tags := ARRAY['process_all_procs_in_schema_property_utils']);
+-- New function; dropping in case it returned because of type change
+SELECT schema_support.save_grants_for_replay('property_utils', 'validate_block_storage_device');
+DROP FUNCTION IF EXISTS property_utils.validate_block_storage_device ( new jazzhands.block_storage_device );
+CREATE OR REPLACE FUNCTION property_utils.validate_block_storage_device(new jazzhands.block_storage_device)
+ RETURNS jazzhands.block_storage_device
+ LANGUAGE plpgsql
+ SECURITY DEFINER
+ SET search_path TO 'jazzhands'
+AS $function$
+DECLARE
+	_bsdt	val_block_storage_device_type%ROWTYPE;
+BEGIN
+	SELECT * INTO _bsdt
+	FROM val_block_storage_device_type
+	WHERE block_storage_device_type = NEW.block_storage_device_type;
+
+	IF _bsdt.permit_logical_volume_id = 'PROHIBITED' AND
+		NEW.logical_volume_id IS NOT NULL
+	THEN
+		RAISE EXCEPTION 'logical_volume_id is set and that is PROHIBITED'
+			USING ERRCODE = 'invalid_parameter_value';
+	ELSIF _bsdt.permit_logical_volume_id = 'REQUIRED' AND
+		NEW.logical_volume_id IS NULL
+	THEN
+		RAISE EXCEPTION 'logical_volume_id is not set and is REQUIRED'
+			USING ERRCODE = 'invalid_parameter_value';
+	END IF;
+
+	IF _bsdt.permit_component_id = 'PROHIBITED' AND
+		NEW.component_id IS NOT NULL
+	THEN
+		RAISE EXCEPTION 'component_id is set and that is PROHIBITED'
+			USING ERRCODE = 'invalid_parameter_value';
+	ELSIF _bsdt.permit_component_id = 'REQUIRED' AND
+		NEW.component_id IS NULL
+	THEN
+		RAISE EXCEPTION 'component_id is not set and is REQUIRED'
+			USING ERRCODE = 'invalid_parameter_value';
+	END IF;
+
+	IF _bsdt.permit_encrypted_block_storage_device_id = 'PROHIBITED' AND
+		NEW.encrypted_block_storage_device_id IS NOT NULL
+	THEN
+		RAISE EXCEPTION 'encrypted_block_storage_device_id is set and that is PROHIBITED'
+			USING ERRCODE = 'invalid_parameter_value';
+	ELSIF _bsdt.permit_encrypted_block_storage_device_id = 'REQUIRED' AND
+		NEW.encrypted_block_storage_device_id IS NULL
+	THEN
+		RAISE EXCEPTION 'encrypted_block_storage_device_id is not set and is REQUIRED'
+			USING ERRCODE = 'invalid_parameter_value';
+	END IF;
+
+	IF _bsdt.is_encrypted IS NOT NULL AND _bsdt.is_encrypted != NEW.is_encrypted
+	THEN
+		RAISE EXCEPTION 'is_encrypted does not match type'
+			USING ERRCODE = 'invalid_parameter_value';
+	END IF;
+
+	RETURN NEW;
+END;
+$function$
+;
+
 -- New function; dropping in case it returned because of type change
 SELECT schema_support.save_grants_for_replay('property_utils', 'validate_filesystem');
 DROP FUNCTION IF EXISTS property_utils.validate_filesystem ( new jazzhands.filesystem );
