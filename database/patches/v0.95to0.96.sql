@@ -8343,6 +8343,24 @@ FROM jazzhands_audit.physicalish_volume_v96 o
 SELECT schema_support.reset_table_sequence('jazzhands_audit', 'block_storage_device');
 
 
+--- add constraint function stub that will be replaced later.
+DO $$
+BEGIN
+CREATE FUNCTION property_utils.validate_block_storage_device(new jazzhands.block_storage_device)
+ RETURNS jazzhands.block_storage_device
+ LANGUAGE plpgsql SECURITY DEFINER SET search_path TO 'jazzhands'
+AS $function$
+BEGIN
+        RETURN new;
+END;
+$function$
+;
+EXCEPTION WHEN duplicate_function THEN
+	RAISE NOTICE 'property_utils.validate_block_storage_device already exists, all is well';
+END;
+$$;
+
+
 -- END Manually written insert function
 -- cleaning up sequences with droppe/renamed table
 ALTER SEQUENCE IF EXISTS physicalish_volume_physicalish_volume_id_seq OWNED BY NONE;
@@ -8742,7 +8760,7 @@ CREATE TABLE jazzhands.filesystem
 (
 	block_storage_device_id	integer NOT NULL,
 	device_id	integer NOT NULL,
-	filesystem_type	varchar(50)  NULL,
+	filesystem_type	varchar(50) NOT NULL,
 	mountpoint	varchar(255)  NULL,
 	filesystem_label	varchar(255)  NULL,
 	filesystem_serial	varchar(255)  NULL,
@@ -8758,14 +8776,20 @@ SELECT schema_support.build_audit_table('jazzhands_audit', 'jazzhands', 'filesys
 
 savepoint prefilesystem;
 
---- this is becoming val_block_storage_device_type
 INSERT INTO val_block_storage_device_type (
-	block_storage_device_type
-) values
-	('disk partition'),
-	('ZFS filesystem'),
-	('ZFS volume'),
-	('LVM volume')
+	block_storage_device_type, permit_logical_volume_id
+) VALUES
+	('disk partition', 'REQUIRED'),
+	('ZFS filesystem', 'REQUIRED'),
+	('ZFS volume', 'REQUIRED'),
+	('LVM volume', 'REQUIRED')
+ON CONFLICT DO NOTHING;
+
+INSERT INTO val_block_storage_device_type (
+	block_storage_device_type, permit_encrypted_block_storage_device_id,
+	is_encrypted
+) VALUES
+	('encrypted_block_storage_device', 'REQUIRED', true)
 ON CONFLICT DO NOTHING;
 
 WITH bsd AS (
