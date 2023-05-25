@@ -55,7 +55,6 @@ if ($@) {
 umask 022;
 
 my $help;
-my $daemonize = 1;
 my $onetime = 0;
 my $local_options = {};
 
@@ -73,10 +72,9 @@ my $conf = {
 GetOptions(
 	'help'				=> \$help,
 	'hostname=s'		=> \$conf->{hostname},
-	'd|daemonize!'		=> \$daemonize,
 	'debug+'			=> \$conf->{debug},
 	'l|logfile=s'		=> \$conf->{logfile},
-	'o|onetime'			=> sub { $daemonize = 0; $onetime=1 },
+	'o|onetime'			=> sub { $onetime = 1 },
 	'restart-dhcpd!'	=> \$conf->{restart_dhcpd},
 	'w|workdir=s'		=> \$conf->{workdir},
 	'rootdir=s'			=> \$conf->{rootdir},
@@ -155,31 +153,18 @@ if (!$conf->{hostname}) {
 # Yes, this defeats a lot of the purpose of Log4Perl.  Sue me.
 #
 my $log;
-if ($daemonize) {
-	Log::Log4perl::init( 
-		{
-			"log4perl.rootLogger" => "DEBUG, dhcpgen",
-			"log4perl.additivity.dhcpgen" => 0,
-			"log4perl.appender.dhcpgen" => "Log::Log4perl::Appender::File",
-			"log4perl.appender.dhcpgen.filename" => $conf->{logfile},
-			"log4perl.appender.dhcpgen.mode" => "append",
-			"log4perl.appender.dhcpgen.layout" => "PatternLayout",
-			"log4perl.appender.dhcpgen.layout.ConversionPattern" => "[%d] %m%n",
-		}
-	);
-	$log = Log::Log4perl::get_logger('dhcpgen');
-
-#	daemonize( 'log' => $log );
-} else {
-	Log::Log4perl->init( {
-		"log4perl.rootLogger", "DEBUG, Screen",
-		"log4perl.appender.Screen", "Log::Log4perl::Appender::Screen",
-		"log4perl.appender.Screen.stderr", 1,
-		"log4perl.appender.Screen.layout", "Log::Log4perl::Layout::PatternLayout",
-		"log4perl.appender.Screen.layout.ConversionPattern", "[%d] %p: %m%n",
-	});
-	$log = Log::Log4perl::get_logger('dhcpgen');
-}
+Log::Log4perl::init(
+	{
+		"log4perl.rootLogger" => "DEBUG, dhcpgen",
+		"log4perl.additivity.dhcpgen" => 0,
+		"log4perl.appender.dhcpgen" => "Log::Log4perl::Appender::File",
+		"log4perl.appender.dhcpgen.filename" => $conf->{logfile},
+		"log4perl.appender.dhcpgen.mode" => "append",
+		"log4perl.appender.dhcpgen.layout" => "PatternLayout",
+		"log4perl.appender.dhcpgen.layout.ConversionPattern" => "[%d] %m%n",
+	}
+);
+$log = Log::Log4perl::get_logger('dhcpgen');
 
 $log->info ("dhcpgen starting");
 
@@ -196,9 +181,6 @@ if ($onetime) {
 		exit 1;
 	}
 	$conf->{stomp} = $record->{stomp};	
-	if ($daemonize) {
-		daemonize('log' => $log);
-	}
 	
 	handle_stomp_frames(
 		conf => $conf,
@@ -263,20 +245,6 @@ sub get_stomp_client {
 	}
 
 	return $stomp;
-}
-
-sub daemonize {
-	my $opt = &_options(@_);
-	my $log = $opt->{'log'};
-	open STDOUT, '>', '/dev/null'
-	  or $log->logdie("Unable to redirect STDOUT: $!");
-	open STDIN, '<', '/dev/null'
-	  or $log->logdie("Unable to redirect STDIN: $!");
-	defined( my $pid = fork ) or $log->logdie("Can not fork: $!");
-	exit if $pid;
-	setsid() or $log->logdie("Unable to initiate new session: $!");
-	open STDERR, '>&STDOUT'
-	  or $log->logdie("Unable to redirect STDERR: $!");
 }
 
 sub handle_stomp_frames {
@@ -373,10 +341,8 @@ sub do_rebuild {
 	if ($ret) {
 		$log->info ("Rebuild completed successfully");
 		if ($conf->{restart_dhcpd}) {
-			if (-x "/etc/init.d/dhcpd") {
-				system("/etc/init.d/dhcpd restart");
-			} if (-x "/etc/init.d/isc-dhcp-server") {
-				system("/etc/init.d/isc-dhcp-server restart");
+			if (-e "/lib/systemd/system/isc-dhcp-server.service") {
+				system("systemctl restart isc-dhcp-server")
 			}
 		}
 	} else {

@@ -1,3 +1,9 @@
+jazzhands-dhcpgen (0.95.8) trusty; urgency=medium
+
+  * No need to daemonize anymore. Systemd will do it.
+
+ -- Thomas Avril <github@contact.avril.name>  Thu, 27 Apr 2023 09:12:05 +0000
+
 jazzhands-dhcpgen (0.95.7) trusty; urgency=medium
 
   * revert order change from 0.87.2
@@ -9,7 +15,6 @@ jazzhands-dhcpgen (0.87.2) trusty; urgency=medium
   * Change order of device_name/physical_label for returning DHCP hostname
 
  -- Matthew Ragan <mdr@sucksless.net>  Thu, 09 Jul 2020 07:31:34 +0000
-
 
 jazzhands-dhcpgen (0.86.6.1) trusty; urgency=medium
 
@@ -77,7 +82,7 @@ jazzhands-dhcpgen (0.76.1) trusty; urgency=medium
     parent device_collections.
 
  -- Matthew Ragan <mdr@sucksless.net>  Thu, 23 Feb 2017 03:29:26 -0600
-
+  
 jazzhands-dhcpgen (0.75.0) trusty; urgency=medium
 
   * Deal with val_property getting a network_range_type column
