@@ -2077,13 +2077,19 @@ INSERT INTO val_block_storage_device_encryption_system (
 ;
 
 INSERT INTO val_block_storage_device_type (
-	block_storage_device_type
+	block_storage_device_type, permit_logical_volume_id
 ) VALUES
-	('disk partition'),
-	('ZFS filesystem'),
-	('ZFS volume'),
-	('LVM volume'),
-	('encrypted_block_storage_device')
+	('disk partition', 'REQUIRED'),
+	('ZFS filesystem', 'REQUIRED'),
+	('ZFS volume', 'REQUIRED'),
+	('LVM volume', 'REQUIRED')
+;
+
+INSERT INTO val_block_storage_device_type (
+	block_storage_device_type, permit_encrypted_block_storage_device_id,
+	is_encrypted
+) VALUES
+	('encrypted_block_storage_device', 'REQUIRED', true)
 ;
 
 -- END logical volumes
