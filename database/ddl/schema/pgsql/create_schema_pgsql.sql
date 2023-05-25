@@ -2767,7 +2767,7 @@ CREATE TABLE filesystem
 ( 
 	block_storage_device_id integer  NOT NULL ,
 	device_id            integer  NOT NULL ,
-	filesystem_type      varchar(50)  NULL ,
+	filesystem_type      varchar(50)  NOT NULL ,
 	mountpoint           varchar(255)  NULL ,
 	filesystem_label     varchar(255)  NULL ,
 	filesystem_serial    varchar(255)  NULL 
