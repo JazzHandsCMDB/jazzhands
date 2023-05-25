@@ -1,4 +1,5 @@
 -- Copyright (c) 2013-2020, Todd M. Kover
+-- Copyright (c) 2013-2023, Matthew Ragan
 -- All rights reserved.
 --
 -- Licensed under the Apache License, Version 2.0 (the "License");
@@ -641,6 +642,7 @@ BEGIN
 							(random() * x'ffffffff'::bigint)::bigint + 1
 							) % max_rnd_value) + 1
 					END;
+					current_ip := set_masklen(current_ip, masklen(max_ip));
 					CONTINUE;
 				END IF;
 			END IF;
