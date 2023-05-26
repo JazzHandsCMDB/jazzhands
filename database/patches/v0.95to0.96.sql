@@ -7018,7 +7018,7 @@ ALTER TABLE jazzhands.logical_volume DROP CONSTRAINT IF EXISTS fk_logvol_fstype;
 ALTER TABLE jazzhands.logical_volume DROP CONSTRAINT IF EXISTS fk_logvol_vgid;
 
 -- EXTRA-SCHEMA constraints
-SELECT schema_support.save_constraint_for_replay(schema := 'jazzhands', object := 'logical_volume', newobject := 'logical_volume', newmap := '{"ak_logical_volume_filesystem":{"columns":["logical_volume_id","filesystem_type"],"def":"UNIQUE (logical_volume_id, filesystem_type)","deferrable":false,"deferred":false,"name":"ak_logical_volume_filesystem","type":"u"},"ak_logvol_devid_lvname":{"columns":["device_id","logical_volume_name","logical_volume_type","volume_group_id"],"def":"UNIQUE (device_id, logical_volume_name, logical_volume_type, volume_group_id)","deferrable":false,"deferred":false,"name":"ak_logvol_devid_lvname","type":"u"},"ak_logvol_lv_devid":{"columns":["logical_volume_id"],"def":"UNIQUE (logical_volume_id)","deferrable":false,"deferred":false,"name":"ak_logvol_lv_devid","type":"u"},"pk_logical_volume":{"columns":["logical_volume_id"],"def":"PRIMARY KEY (logical_volume_id)","deferrable":false,"deferred":false,"name":"pk_logical_volume","type":"p"}}');
+SELECT schema_support.save_constraint_for_replay(schema := 'jazzhands', object := 'logical_volume', newobject := 'logical_volume', newmap := '{"ak_logical_volume_filesystem":{"columns":["logical_volume_id","filesystem_type"],"def":"UNIQUE (logical_volume_id, filesystem_type)","deferrable":false,"deferred":false,"name":"ak_logical_volume_filesystem","type":"u"},"ak_logvol_devid_lvname":{"columns":["logical_volume_name","logical_volume_type","volume_group_id","device_id"],"def":"UNIQUE (device_id, logical_volume_name, logical_volume_type, volume_group_id)","deferrable":false,"deferred":false,"name":"ak_logvol_devid_lvname","type":"u"},"ak_logvol_lv_devid":{"columns":["logical_volume_id"],"def":"UNIQUE (logical_volume_id)","deferrable":false,"deferred":false,"name":"ak_logvol_lv_devid","type":"u"},"pk_logical_volume":{"columns":["logical_volume_id"],"def":"PRIMARY KEY (logical_volume_id)","deferrable":false,"deferred":false,"name":"pk_logical_volume","type":"p"}}');
 
 -- PRIMARY and ALTERNATE KEYS
 ALTER TABLE jazzhands.logical_volume DROP CONSTRAINT IF EXISTS ak_logical_volume_filesystem;
@@ -7285,7 +7285,7 @@ ALTER TABLE jazzhands.volume_group DROP CONSTRAINT IF EXISTS fk_volgrp_rd_type;
 ALTER TABLE jazzhands.volume_group DROP CONSTRAINT IF EXISTS fk_volgrp_volgrp_type;
 
 -- EXTRA-SCHEMA constraints
-SELECT schema_support.save_constraint_for_replay(schema := 'jazzhands', object := 'volume_group', newobject := 'volume_group', newmap := '{"ak_volume_group_devid_vgid":{"columns":["volume_group_id","device_id"],"def":"UNIQUE (volume_group_id, device_id)","deferrable":false,"deferred":false,"name":"ak_volume_group_devid_vgid","type":"u"},"ak_volume_group_vg_devid":{"columns":["volume_group_id","device_id"],"def":"UNIQUE (volume_group_id, device_id)","deferrable":false,"deferred":false,"name":"ak_volume_group_vg_devid","type":"u"},"pk_volume_group":{"columns":["volume_group_id"],"def":"PRIMARY KEY (volume_group_id)","deferrable":false,"deferred":false,"name":"pk_volume_group","type":"p"},"uq_volgrp_devid_name_type":{"columns":["device_id","component_id","volume_group_name","volume_group_type"],"def":"UNIQUE (device_id, component_id, volume_group_name, volume_group_type)","deferrable":false,"deferred":false,"name":"uq_volgrp_devid_name_type","type":"u"}}');
+SELECT schema_support.save_constraint_for_replay(schema := 'jazzhands', object := 'volume_group', newobject := 'volume_group', newmap := '{"ak_volume_group_devid_vgid":{"columns":["device_id","volume_group_id"],"def":"UNIQUE (volume_group_id, device_id)","deferrable":false,"deferred":false,"name":"ak_volume_group_devid_vgid","type":"u"},"ak_volume_group_vg_devid":{"columns":["volume_group_id","device_id"],"def":"UNIQUE (volume_group_id, device_id)","deferrable":false,"deferred":false,"name":"ak_volume_group_vg_devid","type":"u"},"pk_volume_group":{"columns":["volume_group_id"],"def":"PRIMARY KEY (volume_group_id)","deferrable":false,"deferred":false,"name":"pk_volume_group","type":"p"},"uq_volgrp_devid_name_type":{"columns":["device_id","component_id","volume_group_name","volume_group_type"],"def":"UNIQUE (device_id, component_id, volume_group_name, volume_group_type)","deferrable":false,"deferred":false,"name":"uq_volgrp_devid_name_type","type":"u"}}');
 
 -- PRIMARY and ALTERNATE KEYS
 ALTER TABLE jazzhands.volume_group DROP CONSTRAINT IF EXISTS ak_volume_group_devid_vgid;
@@ -8875,6 +8875,194 @@ ALTER TABLE jazzhands.filesystem
 	FOREIGN KEY (filesystem_type) REFERENCES jazzhands.val_filesystem_type(filesystem_type);
 
 -- TRIGGERS
+-- considering NEW jazzhands.filesystem_to_logical_volume_property_del
+CREATE OR REPLACE FUNCTION jazzhands.filesystem_to_logical_volume_property_del()
+ RETURNS trigger
+ LANGUAGE plpgsql
+ SECURITY DEFINER
+ SET search_path TO 'jazzhands'
+AS $function$
+DECLARE
+	_lv	logical_volume%ROWTYPE;
+BEGIN
+	SELECT lv.* INTO _lv
+	FROM logical_volume lv
+		JOIN block_storage_device USING (logical_volume_id)
+	WHERE block_storage_device_id = OLD.block_storage_device_id;
+
+	IF FOUND THEN
+		DELETE FROM logical_volume_property
+		WHERE logical_volume_id = _lv.logical_volume_id
+		AND logical_volume_type = _lv.logical_volume_type
+		AND filesystem_type = _lv.filesystem_type
+		AND logical_volume_property_name IN ('MountPoint', 'Serial', 'Label');
+	END IF;
+
+	RETURN OLD;
+
+END;
+$function$
+;
+REVOKE ALL ON FUNCTION jazzhands.filesystem_to_logical_volume_property_del() FROM public;
+CREATE TRIGGER trigger_filesystem_to_logical_volume_property_del BEFORE DELETE ON jazzhands.filesystem FOR EACH ROW EXECUTE FUNCTION jazzhands.filesystem_to_logical_volume_property_del();
+
+-- considering NEW jazzhands.filesystem_to_logical_volume_property_ins
+CREATE OR REPLACE FUNCTION jazzhands.filesystem_to_logical_volume_property_ins()
+ RETURNS trigger
+ LANGUAGE plpgsql
+ SECURITY DEFINER
+ SET search_path TO 'jazzhands'
+AS $function$
+DECLARE
+	_lv	logical_volume%ROWTYPE;
+	_r RECORD;
+BEGIN
+	iF pg_trigger_depth() >= 2 THEN
+		RETURN NEW;
+	END IF;
+	SELECT lv.* INTO _lv
+	FROM logical_volume lv
+		JOIN block_storage_device USING (logical_volume_id)
+	WHERE block_storage_device_id = NEW.block_storage_device_id;
+
+	IF NOT FOUND THEN
+		RETURN NEW;
+	END IF;
+
+	UPDATE logical_volume
+	SET filesystem_type = NEW.filesystem_type
+	WHERE logical_volume_id = _lv.logical_volume_id
+	AND filesystem_type != NEW.filesystem_type;
+
+	IF NEW.mountpoint IS NOT NULL THEN
+		INSERT INTO logical_volume_property (
+			logical_volume_id, logical_volume_type, filesystem_type,
+			logical_volume_property_name, logical_volume_property_value
+		) VALUES (
+			_lv.logical_volume_id, _lv.logical_volume_type, NEW.filesystem_type,
+			'MountPoint', NEW.mountpoint
+		) RETURNING * INTO _r;
+	END IF;
+
+	IF NEW.filesystem_serial IS NOT NULL THEN
+		INSERT INTO logical_volume_property (
+			logical_volume_id, logical_volume_type, filesystem_type,
+			logical_volume_property_name, logical_volume_property_value
+		) VALUES (
+			_lv.logical_volume_id, _lv.logical_volume_type, NEW.filesystem_type,
+			'Serial', NEW.filesystem_serial
+		);
+	END IF;
+
+	IF NEW.filesystem_label IS NOT NULL THEN
+		INSERT INTO logical_volume_property (
+			logical_volume_id, logical_volume_type, filesystem_type,
+			logical_volume_property_name, logical_volume_property_value
+		) VALUES (
+			_lv.logical_volume_id, _lv.logical_volume_type, NEW.filesystem_type,
+			'Label', NEW.filesystem_label
+		);
+	END IF;
+	RETURN NEW;
+END;
+$function$
+;
+REVOKE ALL ON FUNCTION jazzhands.filesystem_to_logical_volume_property_ins() FROM public;
+CREATE TRIGGER trigger_filesystem_to_logical_volume_property_ins AFTER INSERT ON jazzhands.filesystem FOR EACH ROW EXECUTE FUNCTION jazzhands.filesystem_to_logical_volume_property_ins();
+
+-- considering NEW jazzhands.filesystem_to_logical_volume_property_upd
+CREATE OR REPLACE FUNCTION jazzhands.filesystem_to_logical_volume_property_upd()
+ RETURNS trigger
+ LANGUAGE plpgsql
+ SECURITY DEFINER
+ SET search_path TO 'jazzhands'
+AS $function$
+DECLARE
+	_lv		logical_volume%ROWTYPE;
+BEGIN
+	SELECT lv.* INTO _lv
+	FROM logical_volume lv
+		JOIN block_storage_device USING (logical_volume_id)
+	WHERE block_storage_device_id = NEW.block_storage_device_id;
+
+	IF NOT FOUND THEN
+		RETURN NEW;
+	END IF;
+
+	UPDATE logical_volume
+	SET filesystem_type = NEW.filesystem_type
+	WHERE logical_volume_id = _lv.logical_volume_id
+	AND filesystem_type != NEW.filesystem_type;
+
+	IF OLD.filesystem_type IS DISTINCT FROM NEW.filesystem_type THEN
+		UPDATE logical_volume_property
+			SET filesystem_type = NEW.filesystem_type
+		WHERE logical_volume_id = _lv.logical_volume_id
+		AND logical_volume_type = _lv.logical_volume_type
+		AND filesystem_type = OLD.filesystem_type;
+	END IF;
+
+	IF OLD.mountpoint IS DISTINCT FROM NEW.mountpoint THEN
+		IF NEW.mountpoint IS NULL THEN
+			DELETE FROM logical_volume_property
+			WHERE logical_volume_property_name = 'MountPoint'
+			AND logical_volume_id = _lv.logical_volume_id
+			AND logical_volume_type = _lv.logical_volume_type
+			AND filesystem_type = NEW.filesystem_type;
+		ELSE
+			UPDATE logical_volume_property
+				SET logical_volume_property_value = NEW.mountpoint
+			WHERE logical_volume_property_name = 'MountPoint'
+			AND logical_volume_id = _lv.logical_volume_id
+			AND logical_volume_type = _lv.logical_volume_type
+			AND filesystem_type = NEW.filesystem_type
+			AND logical_volume_property_value IS DISTINCT FROM NEW.mountpoint;
+		END IF;
+	END IF;
+
+	IF OLD.filesystem_label IS DISTINCT FROM NEW.filesystem_label THEN
+		IF NEW.filesystem_label IS NULL THEN
+			DELETE FROM logical_volume_property
+			WHERE logical_volume_property_name = 'Label'
+			AND logical_volume_id = _lv.logical_volume_id
+			AND logical_volume_type = _lv.logical_volume_type
+			AND filesystem_type = NEW.filesystem_type;
+		ELSE
+			UPDATE logical_volume_property
+				SET logical_volume_property_value = NEW.filesystem_label
+			WHERE logical_volume_property_name = 'Label'
+			AND logical_volume_id = _lv.logical_volume_id
+			AND logical_volume_type = _lv.logical_volume_type
+			AND filesystem_type = NEW.filesystem_type
+			AND logical_volume_property_value IS DISTINCT FROM NEW.filesystem_label;
+		END IF;
+	END IF;
+
+	IF OLD.filesystem_serial IS DISTINCT FROM NEW.filesystem_serial THEN
+		IF NEW.filesystem_serial IS NULL THEN
+			DELETE FROM logical_volume_property
+			WHERE logical_volume_property_name = 'Serial'
+			AND logical_volume_id = _lv.logical_volume_id
+			AND logical_volume_type = _lv.logical_volume_type
+			AND filesystem_type = NEW.filesystem_type;
+		ELSE
+			UPDATE logical_volume_property
+				SET logical_volume_property_value = NEW.filesystem_serial
+			WHERE logical_volume_property_name = 'Serial'
+			AND logical_volume_id = _lv.logical_volume_id
+			AND logical_volume_type = _lv.logical_volume_type
+			AND filesystem_type = NEW.filesystem_type
+			AND logical_volume_property_value IS DISTINCT FROM NEW.filesystem_serial;
+		END IF;
+	END IF;
+
+	RETURN NEW;
+END;
+$function$
+;
+REVOKE ALL ON FUNCTION jazzhands.filesystem_to_logical_volume_property_upd() FROM public;
+CREATE TRIGGER trigger_filesystem_to_logical_volume_property_upd AFTER UPDATE ON jazzhands.filesystem FOR EACH ROW EXECUTE FUNCTION jazzhands.filesystem_to_logical_volume_property_upd();
+
 -- considering NEW jazzhands.validate_filesystem
 CREATE OR REPLACE FUNCTION jazzhands.validate_filesystem()
  RETURNS trigger
@@ -13953,6 +14141,188 @@ $function$
 ;
 
 -- New function; dropping in case it returned because of type change
+CREATE OR REPLACE FUNCTION jazzhands.filesystem_to_logical_volume_property_del()
+ RETURNS trigger
+ LANGUAGE plpgsql
+ SECURITY DEFINER
+ SET search_path TO 'jazzhands'
+AS $function$
+DECLARE
+	_lv	logical_volume%ROWTYPE;
+BEGIN
+	SELECT lv.* INTO _lv
+	FROM logical_volume lv
+		JOIN block_storage_device USING (logical_volume_id)
+	WHERE block_storage_device_id = OLD.block_storage_device_id;
+
+	IF FOUND THEN
+		DELETE FROM logical_volume_property
+		WHERE logical_volume_id = _lv.logical_volume_id
+		AND logical_volume_type = _lv.logical_volume_type
+		AND filesystem_type = _lv.filesystem_type
+		AND logical_volume_property_name IN ('MountPoint', 'Serial', 'Label');
+	END IF;
+
+	RETURN OLD;
+
+END;
+$function$
+;
+
+-- New function; dropping in case it returned because of type change
+CREATE OR REPLACE FUNCTION jazzhands.filesystem_to_logical_volume_property_ins()
+ RETURNS trigger
+ LANGUAGE plpgsql
+ SECURITY DEFINER
+ SET search_path TO 'jazzhands'
+AS $function$
+DECLARE
+	_lv	logical_volume%ROWTYPE;
+	_r RECORD;
+BEGIN
+	iF pg_trigger_depth() >= 2 THEN
+		RETURN NEW;
+	END IF;
+	SELECT lv.* INTO _lv
+	FROM logical_volume lv
+		JOIN block_storage_device USING (logical_volume_id)
+	WHERE block_storage_device_id = NEW.block_storage_device_id;
+
+	IF NOT FOUND THEN
+		RETURN NEW;
+	END IF;
+
+	UPDATE logical_volume
+	SET filesystem_type = NEW.filesystem_type
+	WHERE logical_volume_id = _lv.logical_volume_id
+	AND filesystem_type != NEW.filesystem_type;
+
+	IF NEW.mountpoint IS NOT NULL THEN
+		INSERT INTO logical_volume_property (
+			logical_volume_id, logical_volume_type, filesystem_type,
+			logical_volume_property_name, logical_volume_property_value
+		) VALUES (
+			_lv.logical_volume_id, _lv.logical_volume_type, NEW.filesystem_type,
+			'MountPoint', NEW.mountpoint
+		) RETURNING * INTO _r;
+	END IF;
+
+	IF NEW.filesystem_serial IS NOT NULL THEN
+		INSERT INTO logical_volume_property (
+			logical_volume_id, logical_volume_type, filesystem_type,
+			logical_volume_property_name, logical_volume_property_value
+		) VALUES (
+			_lv.logical_volume_id, _lv.logical_volume_type, NEW.filesystem_type,
+			'Serial', NEW.filesystem_serial
+		);
+	END IF;
+
+	IF NEW.filesystem_label IS NOT NULL THEN
+		INSERT INTO logical_volume_property (
+			logical_volume_id, logical_volume_type, filesystem_type,
+			logical_volume_property_name, logical_volume_property_value
+		) VALUES (
+			_lv.logical_volume_id, _lv.logical_volume_type, NEW.filesystem_type,
+			'Label', NEW.filesystem_label
+		);
+	END IF;
+	RETURN NEW;
+END;
+$function$
+;
+
+-- New function; dropping in case it returned because of type change
+CREATE OR REPLACE FUNCTION jazzhands.filesystem_to_logical_volume_property_upd()
+ RETURNS trigger
+ LANGUAGE plpgsql
+ SECURITY DEFINER
+ SET search_path TO 'jazzhands'
+AS $function$
+DECLARE
+	_lv		logical_volume%ROWTYPE;
+BEGIN
+	SELECT lv.* INTO _lv
+	FROM logical_volume lv
+		JOIN block_storage_device USING (logical_volume_id)
+	WHERE block_storage_device_id = NEW.block_storage_device_id;
+
+	IF NOT FOUND THEN
+		RETURN NEW;
+	END IF;
+
+	UPDATE logical_volume
+	SET filesystem_type = NEW.filesystem_type
+	WHERE logical_volume_id = _lv.logical_volume_id
+	AND filesystem_type != NEW.filesystem_type;
+
+	IF OLD.filesystem_type IS DISTINCT FROM NEW.filesystem_type THEN
+		UPDATE logical_volume_property
+			SET filesystem_type = NEW.filesystem_type
+		WHERE logical_volume_id = _lv.logical_volume_id
+		AND logical_volume_type = _lv.logical_volume_type
+		AND filesystem_type = OLD.filesystem_type;
+	END IF;
+
+	IF OLD.mountpoint IS DISTINCT FROM NEW.mountpoint THEN
+		IF NEW.mountpoint IS NULL THEN
+			DELETE FROM logical_volume_property
+			WHERE logical_volume_property_name = 'MountPoint'
+			AND logical_volume_id = _lv.logical_volume_id
+			AND logical_volume_type = _lv.logical_volume_type
+			AND filesystem_type = NEW.filesystem_type;
+		ELSE
+			UPDATE logical_volume_property
+				SET logical_volume_property_value = NEW.mountpoint
+			WHERE logical_volume_property_name = 'MountPoint'
+			AND logical_volume_id = _lv.logical_volume_id
+			AND logical_volume_type = _lv.logical_volume_type
+			AND filesystem_type = NEW.filesystem_type
+			AND logical_volume_property_value IS DISTINCT FROM NEW.mountpoint;
+		END IF;
+	END IF;
+
+	IF OLD.filesystem_label IS DISTINCT FROM NEW.filesystem_label THEN
+		IF NEW.filesystem_label IS NULL THEN
+			DELETE FROM logical_volume_property
+			WHERE logical_volume_property_name = 'Label'
+			AND logical_volume_id = _lv.logical_volume_id
+			AND logical_volume_type = _lv.logical_volume_type
+			AND filesystem_type = NEW.filesystem_type;
+		ELSE
+			UPDATE logical_volume_property
+				SET logical_volume_property_value = NEW.filesystem_label
+			WHERE logical_volume_property_name = 'Label'
+			AND logical_volume_id = _lv.logical_volume_id
+			AND logical_volume_type = _lv.logical_volume_type
+			AND filesystem_type = NEW.filesystem_type
+			AND logical_volume_property_value IS DISTINCT FROM NEW.filesystem_label;
+		END IF;
+	END IF;
+
+	IF OLD.filesystem_serial IS DISTINCT FROM NEW.filesystem_serial THEN
+		IF NEW.filesystem_serial IS NULL THEN
+			DELETE FROM logical_volume_property
+			WHERE logical_volume_property_name = 'Serial'
+			AND logical_volume_id = _lv.logical_volume_id
+			AND logical_volume_type = _lv.logical_volume_type
+			AND filesystem_type = NEW.filesystem_type;
+		ELSE
+			UPDATE logical_volume_property
+				SET logical_volume_property_value = NEW.filesystem_serial
+			WHERE logical_volume_property_name = 'Serial'
+			AND logical_volume_id = _lv.logical_volume_id
+			AND logical_volume_type = _lv.logical_volume_type
+			AND filesystem_type = NEW.filesystem_type
+			AND logical_volume_property_value IS DISTINCT FROM NEW.filesystem_serial;
+		END IF;
+	END IF;
+
+	RETURN NEW;
+END;
+$function$
+;
+
+-- New function; dropping in case it returned because of type change
 CREATE OR REPLACE FUNCTION jazzhands.logical_volume_property_scsi_id_sync()
  RETURNS trigger
  LANGUAGE plpgsql
@@ -13997,6 +14367,224 @@ BEGIN
 		AND cp.component_property_name = OLD.logical_volume_property_name
 		AND cp.component_property_type = 'disk'
 		AND cp.property_value IS NOT DISTINCT FROM OLD.logical_volume_property_value;
+	END IF;
+	RETURN NEW;
+END;
+$function$
+;
+
+-- New function; dropping in case it returned because of type change
+CREATE OR REPLACE FUNCTION jazzhands.logical_volume_property_to_filesystem_del()
+ RETURNS trigger
+ LANGUAGE plpgsql
+ SECURITY DEFINER
+ SET search_path TO 'jazzhands'
+AS $function$
+DECLARE
+	_bsd		block_storage_device;
+	_fs			filesystem;
+	_tally		INTEGER;
+	upd_query	TEXT[];
+BEGIN
+	iF pg_trigger_depth() >= 2 THEN
+		RETURN OLD;
+	END IF;
+	IF OLD.logical_volume_property_name NOT IN ('MountPoint','Serial','Label')
+	THEN
+		RETURN OLD;
+	END IF;
+
+	SELECT bsd.* INTO _bsd
+	FROM logical_volume lv
+		JOIN block_storage_device bsd USING (logical_volume_id)
+	WHERE logical_volume_id = OLD.logical_volume_id;
+
+	---
+	--- This should generally not happen
+	---
+	IF NOT FOUND THEN
+		RETURN OLD;
+	END IF;
+
+	SELECT * INTO _fs FROM filesystem
+		WHERE block_storage_device_id = _bsd.block_storage_device_id;
+
+	IF FOUND THEN
+		_tally := 0;
+		IF _fs.mountpoint IS NOT NULL THEN
+			_tally := _tally + 1;
+		END IF;
+		IF _fs.filesystem_serial IS NOT NULL THEN
+			_tally := _tally + 1;
+		END IF;
+		IF _fs.filesystem_label IS NOT NULL THEN
+			_tally := _tally + 1;
+		END IF;
+
+		IF OLD.logical_volume_property_name = 'MountPoint'
+		THEN
+			upd_query := array_append(upd_query,
+				'mountpoint = NULL');
+		END IF;
+
+		IF OLD.logical_volume_property_name = 'Serial'
+		THEN
+			upd_query := array_append(upd_query,
+				'filesystem_serial = NULL');
+		END IF;
+
+		IF OLD.logical_volume_property_name = 'Label'
+		THEN
+			upd_query := array_append(upd_query,
+				'filesystem_label = NULL');
+		END IF;
+
+		IF _tally = 1 THEN
+			DELETE FROM filesystem
+				WHERE block_storage_device_id = _bsd.block_storage_device_id;
+			DELETE FROM block_storage_device
+			WHERE block_storage_device_id = _bsd.block_storage_device_id;
+		ELSIF upd_query IS NOT NULL THEN
+			EXECUTE 'UPDATE filesystem SET ' ||
+				array_to_string(upd_query, ', ') ||
+			' WHERE block_storage_device_id = $1 RETURNING *'
+			USING _bsd.block_storage_device_Id INTO _fs;
+		END IF;
+	END IF;
+
+
+	RETURN OLD;
+END;
+$function$
+;
+
+-- New function; dropping in case it returned because of type change
+CREATE OR REPLACE FUNCTION jazzhands.logical_volume_property_to_filesystem_insupd()
+ RETURNS trigger
+ LANGUAGE plpgsql
+ SECURITY DEFINER
+ SET search_path TO 'jazzhands'
+AS $function$
+DECLARE
+	_bsd		block_storage_device;
+	_lv			logical_volume;
+	_vg			volume_group;
+	_fs			filesystem;
+	upd_query	TEXT[];
+BEGIN
+	iF pg_trigger_depth() >= 2 THEN
+		RETURN NEW;
+	END IF;
+	IF NEW.logical_volume_property_name NOT IN ('MountPoint','Serial','Label')
+	THEN
+		RETURN NEW;
+	END IF;
+
+	SELECT bsd.* INTO _bsd
+	FROM logical_volume lv
+		JOIN block_storage_device bsd USING (logical_volume_id)
+	WHERE logical_volume_id = NEW.logical_volume_id;
+
+	IF NOT FOUND THEN
+		SELECT * INTO _lv FROM logical_volume
+			WHERE logical_volume_id = NEW.logical_volume_id;
+
+		SELECT * INTO _vg FROM volume_group
+			WHERE volume_group_id = _lv.volume_group_id;
+
+		---
+		--- This is fragile
+		---
+		INSERT INTO block_storage_device (
+				block_storage_device_name, block_storage_device_type,
+                device_id, logical_volume_id,
+				block_device_size_in_bytes,
+				uuid
+		) VALUES (
+			(CASE WHEN _vg.volume_group_type = 'Linux LVM' THEN concat_ws('-', _vg.volume_group_name, _lv.logical_volume_name)
+				ELSE _lv.logical_volume_name END),
+			(CASE WHEN _vg.volume_group_type = 'Linux LVM' THEN 'LVM volume'
+				WHEN _vg.volume_group_type = 'partitioned disk' THEN 'disk partition'
+			ELSE 'disk partition' END),		--- this is hackish
+			_lv.device_id, NEW.logical_volume_id,
+			_lv.logical_volume_size_in_bytes,
+			(CASE WHEN NEW.logical_volume_property_name = 'Serial'
+				THEN NEW.logical_volume_property_value
+				ELSE NULL END)
+		) RETURNING * INTO _bsd;
+	END IF;
+
+	SELECT * INTO _fs FROM filesystem
+		WHERE block_storage_device_id = _bsd.block_storage_device_id;
+
+	IF NOT FOUND THEN
+		INSERT INTO filesystem (
+			block_storage_device_id, filesystem_type, device_id,
+			mountpoint,
+			filesystem_label,
+			filesystem_serial
+		) VALUES (
+			_bsd.block_storage_device_id, NEW.filesystem_type, _bsd.device_id,
+			(CASE WHEN NEW.logical_volume_property_name = 'MountPoint'
+				THEN NEW.logical_volume_property_value
+				ELSE NULL END),
+			(CASE WHEN NEW.logical_volume_property_name = 'Label'
+				THEN NEW.logical_volume_property_value
+				ELSE NULL END),
+			(CASE WHEN NEW.logical_volume_property_name = 'Serial'
+				THEN NEW.logical_volume_property_value
+				ELSE NULL END)
+		) RETURNING * INTO _fs;
+	ELSE
+		IF _fs.filesystem_type != NEW.filesystem_type THEN
+			upd_query := array_append(upd_query,
+				'filesystem_type = ' || quote_nullable(NEW.filesystem_type));
+		END IF;
+		IF NEW.logical_volume_property_name = 'MountPoint' AND
+			_fs.mountpoint IS DISTINCT FROM NEW.logical_volume_property_value
+		THEN
+			upd_query := array_append(upd_query,
+				'mountpoint = ' || quote_nullable(NEW.logical_volume_property_value));
+		END IF;
+
+		IF NEW.logical_volume_property_name = 'Serial' AND
+			_fs.filesystem_serial IS DISTINCT FROM NEW.logical_volume_property_value
+		THEN
+			upd_query := array_append(upd_query,
+				'filesystem_serial = ' || quote_nullable(NEW.logical_volume_property_value));
+		END IF;
+
+		IF NEW.logical_volume_property_name = 'Label' AND
+			_fs.filesystem_label IS DISTINCT FROM NEW.logical_volume_property_value
+		THEN
+			upd_query := array_append(upd_query,
+				'filesystem_label = ' || quote_nullable(NEW.logical_volume_property_value));
+		END IF;
+
+		IF TG_OP = 'UPDATE' AND
+			OLD.logical_volume_property_name IS DISTINCT FROM NEW.logical_volume_property_name
+		THEN
+			IF NEW.logical_volume_property_name = 'MountPoint' THEN
+				upd_query := array_append(upd_query,
+					'mountpoint = NULL');
+			END IF;
+			IF NEW.logical_volume_property_name = 'Serial' THEN
+				upd_query := array_append(upd_query,
+					'filesystem_serial = NULL');
+			END IF;
+			IF NEW.logical_volume_property_name = 'Label' THEN
+				upd_query := array_append(upd_query,
+					'filesystem_label = NULL');
+			END IF;
+		END IF;
+
+		IF upd_query IS NOT NULL THEN
+			EXECUTE 'UPDATE filesystem SET ' ||
+				array_to_string(upd_query, ', ') ||
+			' WHERE block_storage_device_id = $1 RETURNING *'
+			USING _bsd.block_storage_device_Id INTO _fs;
+		END IF;
+
 	END IF;
 	RETURN NEW;
 END;
@@ -21833,6 +22421,10 @@ DROP TRIGGER IF EXISTS trigger_logical_volume_property_scsi_id_sync_del ON logic
 CREATE TRIGGER trigger_logical_volume_property_scsi_id_sync_del AFTER DELETE ON jazzhands.logical_volume_property FOR EACH ROW EXECUTE FUNCTION jazzhands.logical_volume_property_scsi_id_sync();
 DROP TRIGGER IF EXISTS trigger_logical_volume_property_scsi_id_sync_ins_upd ON logical_volume_property;
 CREATE TRIGGER trigger_logical_volume_property_scsi_id_sync_ins_upd AFTER INSERT OR UPDATE OF logical_volume_id, logical_volume_property_value ON jazzhands.logical_volume_property FOR EACH ROW EXECUTE FUNCTION jazzhands.logical_volume_property_scsi_id_sync();
+DROP TRIGGER IF EXISTS trigger_logical_volume_property_to_filesystem_del ON logical_volume_property;
+CREATE TRIGGER trigger_logical_volume_property_to_filesystem_del AFTER DELETE ON jazzhands.logical_volume_property FOR EACH ROW EXECUTE FUNCTION jazzhands.logical_volume_property_to_filesystem_del();
+DROP TRIGGER IF EXISTS trigger_logical_volume_property_to_filesystem_insupd ON logical_volume_property;
+CREATE TRIGGER trigger_logical_volume_property_to_filesystem_insupd AFTER INSERT OR UPDATE ON jazzhands.logical_volume_property FOR EACH ROW EXECUTE FUNCTION jazzhands.logical_volume_property_to_filesystem_insupd();
 DROP TRIGGER IF EXISTS trig_userlog_logical_volume_purpose ON logical_volume_purpose;
 CREATE TRIGGER trig_userlog_logical_volume_purpose BEFORE INSERT OR UPDATE ON jazzhands.logical_volume_purpose FOR EACH ROW EXECUTE FUNCTION schema_support.trigger_ins_upd_generic_func();
 DROP TRIGGER IF EXISTS trigger_audit_logical_volume_purpose ON logical_volume_purpose;
