@@ -2,7 +2,7 @@ Source: jazzhands-dhcpgen
 Section: System/Management
 Priority: optional
 Maintainer: Matthew Ragan <mdr@sucksless.net>
-Build-Depends: debhelper (>= 8.0.0)
+Build-Depends: debhelper (>= 8.0.0), base-files (>= 12ubuntu4) | dh-systemd (>= 1.5)
 Standards-Version: 3.9.4
 
 Package: jazzhands-dhcpgen

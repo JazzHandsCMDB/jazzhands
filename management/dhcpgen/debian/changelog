@@ -1,3 +1,9 @@
+jazzhands-dhcpgen (0.95.8.1) trusty; urgency=medium
+
+  * Fix package building
+
+ -- Thomas Avril <github@contact.avril.name>  Thu, 01 Jun 2023 14:06:14 +0000
+
 jazzhands-dhcpgen (0.95.8) trusty; urgency=medium
 
   * No need to daemonize anymore. Systemd will do it.
