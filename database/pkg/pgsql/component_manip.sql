@@ -388,11 +388,6 @@ SET search_path=jazzhands
 SECURITY DEFINER
 LANGUAGE plpgsql;
 
---
--- These need to all call a generic component/component_type insertion
--- function, rather than all of the specific types, but that's thinking
---
-
 CREATE OR REPLACE FUNCTION component_manip.insert_pci_component(
 	pci_vendor_id	integer,
 	pci_device_id	integer,
@@ -409,13 +404,14 @@ CREATE OR REPLACE FUNCTION component_manip.insert_pci_component(
 AS $$
 DECLARE
 	sn			ALIAS FOR serial_number;
-	ctid		integer;
+	ct			RECORD;
 	comp_id		integer;
 	sub_comp_id	integer;
 	stid		integer;
 	vendor_name	text;
 	sub_vendor_name	text;
 	model_name	text;
+	descrip		text;
 	c			RECORD;
 BEGIN
 	IF (pci_sub_vendor_id IS NULL AND pci_subsystem_id IS NOT NULL) OR
@@ -428,7 +424,7 @@ BEGIN
 	-- See if we have this component type in the database already
 	--
 	SELECT
-		vid.component_type_id INTO ctid
+		component_type.* INTO ct
 	FROM
 		component_property vid JOIN
 		component_property did ON (
@@ -444,7 +440,9 @@ BEGIN
 		component_property sid ON (
 			sid.component_property_name = 'PCISubsystemID' AND
 			sid.component_property_type = 'PCI' AND
-			sid.component_type_id = did.component_type_id )
+			sid.component_type_id = did.component_type_id ) JOIN
+		component_type ON (
+			did.component_type_id = component_type.component_type_id )
 	WHERE
 		vid.property_value = pci_vendor_id::varchar AND
 		did.property_value = pci_device_id::varchar AND
@@ -562,16 +560,27 @@ BEGIN
 		--
 		-- Figure out the best name/description to insert this component with
 		--
-		IF pci_sub_device_name IS NOT NULL AND pci_sub_device_name != 'Device' THEN
-			model_name = concat_ws(' ', 
+		IF
+			pci_sub_device_name IS NOT NULL AND
+			pci_sub_device_name !~ '^Device'
+		THEN
+			model_name = pci_sub_device_name;
+			descrip = concat_ws(' ',
 				sub_vendor_name, pci_sub_device_name,
 				'(' || vendor_name, pci_device_name || ')');
-		ELSIF pci_sub_device_name = 'Device' THEN
-			model_name = concat_ws(' ', 
-				vendor_name, '(' || sub_vendor_name || ')', pci_device_name);
+		ELSIF pci_sub_device_name ~ '^Device' THEN
+			model_name = pci_device_name;
+			descrip = concat_ws(
+				' ',
+				vendor_name,
+				'(' || sub_vendor_name || ')',
+				pci_device_name
+			);
 		ELSE
-			model_name = concat_ws(' ', vendor_name, pci_device_name);
+			model_name = pci_device_name;
+			descrip = concat_ws(' ', vendor_name, pci_device_name);
 		END IF;
+
 		INSERT INTO component_type (
 			company_id,
 			model,
@@ -579,27 +588,12 @@ BEGIN
 			asset_permitted,
 			description
 		) VALUES (
-			CASE WHEN 
-				sub_comp_id IS NULL OR
-				pci_sub_device_name IS NULL OR
-				pci_sub_device_name = 'Device'
-			THEN
-				comp_id
-			ELSE
-				sub_comp_id
-			END,
-			CASE WHEN
-				pci_sub_device_name IS NULL OR
-				pci_sub_device_name = 'Device'
-			THEN
-				pci_device_name
-			ELSE
-				pci_sub_device_name
-			END,
+			COALESCE(sub_comp_id, comp_id),
+			model_name,
 			stid,
 			true,
-			model_name
-		) RETURNING component_type_id INTO ctid;
+			descrip
+		) RETURNING * INTO ct;
 		--
 		-- Insert properties for the PCI vendor/device IDs
 		--
@@ -609,8 +603,8 @@ BEGIN
 			component_type_id,
 			property_value
 		) VALUES 
-			('PCIVendorID', 'PCI', ctid, pci_vendor_id),
-			('PCIDeviceID', 'PCI', ctid, pci_device_id);
+			('PCIVendorID', 'PCI', ct.component_type_id, pci_vendor_id),
+			('PCIDeviceID', 'PCI', ct.component_type_id, pci_device_id);
 		
 		IF (pci_subsystem_id IS NOT NULL) THEN
 			INSERT INTO component_property (
@@ -619,8 +613,18 @@ BEGIN
 				component_type_id,
 				property_value
 			) VALUES 
-				('PCISubsystemVendorID', 'PCI', ctid, pci_sub_vendor_id),
-				('PCISubsystemID', 'PCI', ctid, pci_subsystem_id);
+				(
+					'PCISubsystemVendorID',
+					'PCI',
+					ct.component_type_id,
+					pci_sub_vendor_id
+				),
+				(
+					'PCISubsystemID',
+					'PCI',
+					ct.component_type_id,
+					pci_subsystem_id)
+				;
 		END IF;
 		--
 		-- Insert the component functions
@@ -630,10 +634,45 @@ BEGIN
 			component_type_id,
 			component_function
 		) SELECT DISTINCT
-			ctid,
+			ct.component_type_id,
 			cf
 		FROM
 			unnest(array_append(component_function_list, 'PCI')) x(cf);
+	ELSE
+		IF
+			ct.model ~ '^Device [0-9a-f]{4}$'
+		THEN
+			IF
+				pci_sub_device_name IS NOT NULL AND
+				pci_sub_device_name !~ '^Device'
+			THEN
+				model_name = pci_sub_device_name;
+				descrip = concat_ws(' ',
+					sub_vendor_name, pci_sub_device_name,
+					'(' || vendor_name, pci_device_name || ')');
+			ELSIF pci_sub_device_name ~ '^Device' THEN
+				model_name = pci_device_name;
+				descrip = concat_ws(
+					' ',
+					vendor_name,
+					'(' || sub_vendor_name || ')',
+					pci_device_name
+				);
+			ELSE
+				model_name = pci_device_name;
+				descrip = concat_ws(' ', vendor_name, pci_device_name);
+			END IF;
+
+			IF model_name IS DISTINCT FROM ct.model THEN
+				UPDATE
+					component_type
+				SET
+					model = model_name,
+					description = descrip
+				WHERE
+					component_type_id = ct.component_type_id;
+			END IF;
+		END IF;
 	END IF;
 
 
@@ -648,7 +687,7 @@ BEGIN
 			component JOIN
 			asset a USING (component_id)
 		WHERE
-			component_type_id = ctid AND
+			component_type_id = ct.component_type_id AND
 			a.serial_number = sn;
 
 		IF FOUND THEN
@@ -659,7 +698,7 @@ BEGIN
 	INSERT INTO jazzhands.component (
 		component_type_id
 	) VALUES (
-		ctid
+		ct.component_type_id
 	) RETURNING * INTO c;
 
 	IF serial_number IS NOT NULL THEN
@@ -675,6 +714,108 @@ BEGIN
 	END IF;
 
 	RETURN c;
+END;
+$$
+SET search_path=jazzhands
+SECURITY DEFINER
+LANGUAGE plpgsql;
+
+CREATE OR REPLACE FUNCTION component_manip.update_pci_component_type_model(
+	component_type_id		jazzhands.component_type.component_type_id%TYPE,
+	pci_device_name			text,
+	pci_sub_device_name		text DEFAULT NULL,
+	pci_vendor_name			text DEFAULT NULL,
+	pci_sub_vendor_name		text DEFAULT NULL
+) RETURNS jazzhands.component_type
+AS $$
+DECLARE
+	ct			RECORD;
+	model_name	text;
+	descrip		text;
+BEGIN
+	SELECT
+		* INTO ct
+	FROM
+		component_type comptype
+	WHERE
+		comptype.component_type_id = 
+			update_pci_component_type_model.component_type_id;
+
+	IF NOT FOUND THEN
+		RETURN NULL;
+	END IF;
+
+	IF pci_vendor_name IS NULL THEN
+		SELECT
+			company_name INTO pci_vendor_name
+		FROM
+			component_property cp JOIN
+			property p ON (
+				p.property_name = 'PCIVendorID' AND
+				p.property_type = 'DeviceProvisioning' AND
+				p.property_value = cp.property_value
+			) JOIN
+			company c ON (c.company_id = p.company_id)
+		WHERE
+			cp.component_property_name = 'PCIVendorID' AND
+			cp.component_property_type = 'PCI' AND
+			cp.component_type_id = 
+				update_pci_component_type_model.component_type_id;
+	END IF;
+
+	IF pci_sub_vendor_name IS NULL THEN
+		SELECT
+			company_name INTO pci_sub_vendor_name
+		FROM
+			component_property cp JOIN
+			property p ON (
+				p.property_name = 'PCIVendorID' AND
+				p.property_type = 'DeviceProvisioning' AND
+				p.property_value = cp.property_value
+			) JOIN
+			company c ON (c.company_id = p.company_id)
+		WHERE
+			cp.component_property_name = 'PCISubsystemVendorID' AND
+			cp.component_property_type = 'PCI' AND
+			cp.component_type_id = 
+				update_pci_component_type_model.component_type_id;
+	END IF;
+
+	IF
+		pci_sub_device_name IS NOT NULL AND
+		pci_sub_device_name !~ '^Device'
+	THEN
+		model_name = pci_sub_device_name;
+		descrip = concat_ws(' ',
+			pci_sub_vendor_name, pci_sub_device_name,
+			'(' || coalesce(pci_vendor_name, 'Unknown'),
+			pci_device_name || ')'
+		);
+	ELSIF pci_sub_device_name ~ '^Device' THEN
+		model_name = pci_device_name;
+		descrip = concat_ws(
+			' ',
+			vendor_name,
+			'(' || pci_sub_vendor_name || ')',
+			pci_device_name
+		);
+	ELSE
+		model_name = pci_device_name;
+		descrip = concat_ws(' ', pci_vendor_name, pci_device_name);
+	END IF;
+
+	IF model_name IS DISTINCT FROM ct.model THEN
+		UPDATE
+			component_type comptype
+		SET
+			model = model_name,
+			description = descrip
+		WHERE
+			comptype.component_type_id = ct.component_type_id
+		RETURNING * INTO ct;
+	END IF;
+
+	RETURN ct;
 END;
 $$
 SET search_path=jazzhands
