@@ -31,6 +31,8 @@ DECLARE
 	_ctid	component_type.component_type_id%TYPE;
 	_r		RECORD;
 	_bsd	block_storage_device%ROWTYPE;
+	_bsda	block_storage_device%ROWTYPE;
+	_bsdb	block_storage_device%ROWTYPE;
 	_vg		volume_group%ROWTYPE;
 	_lv		logical_volume%ROWTYPE;
 	_c		component%ROWTYPE;
@@ -178,7 +180,7 @@ BEGIN
 		) SELECT block_storage_device_id, device_id, 'label', '/fp1' FROM bs
 		RETURNING * INTO _r;
 	EXCEPTION WHEN invalid_parameter_value THEN
-		RAISE NOTICE '... failed correctly';
+		RAISE NOTICE '... failed correctly: (%: %)', SQLSTATE, SQLERRM;
 	END;
 
 	BEGIN
@@ -195,7 +197,7 @@ BEGIN
 		) SELECT block_storage_device_id, device_id, 'serial', '/fp1' FROM bs
 		RETURNING * INTO _r;
 	EXCEPTION WHEN invalid_parameter_value THEN
-		RAISE NOTICE '... failed correctly';
+		RAISE NOTICE '... failed correctly: (%: %)', SQLSTATE, SQLERRM;
 	END;
 
 	------------------------------------------------------------------------
@@ -248,7 +250,7 @@ BEGIN
 			component_id, device_id
 		) VALUES ( 'jhtest', 'JHTEST', _c.component_id, _d.device_id );
 	EXCEPTION WHEN invalid_parameter_value THEN
-		RAISE NOTICE '... failed correctly';
+		RAISE NOTICE '... failed correctly: (%: %)', SQLSTATE, SQLERRM;
 	END;
 
 	BEGIN
@@ -274,7 +276,7 @@ BEGIN
 			component_id, device_id
 		) VALUES ( 'jhtest', 'JHTEST', _c.component_id, _d.device_id );
 	EXCEPTION WHEN invalid_parameter_value THEN
-		RAISE NOTICE '... failed correctly';
+		RAISE NOTICE '... failed correctly: (%: %)', SQLSTATE, SQLERRM;
 	END;
 
 	BEGIN
@@ -387,12 +389,13 @@ BEGIN
 			) VALUES ( 'jhtest', 'EJHTEST',
 				_ebsd.encrypted_block_storage_device_id, _d.device_id );
 		EXCEPTION WHEN invalid_parameter_value THEN
-			RAISE EXCEPTION 'worked' USING ERRCODE = 'JH999';
+			RAISE EXCEPTION 'worked: (%: %)', SQLSTATE, SQLERRM 
+				USING ERRCODE = 'JH999';
 		END;
 
 		RAISE EXCEPTION '... It succeeded, ugh';
 	EXCEPTION WHEN SQLSTATE 'JH999' THEN
-		RAISE NOTICE '... failed correctly';
+		RAISE NOTICE '... failed correctly: (%: %)', SQLSTATE, SQLERRM;
 	END;
 
 	BEGIN
@@ -449,12 +452,13 @@ BEGIN
 			) VALUES ( 'jhtest', 'EJHTEST',
 				false, _ebsd.encrypted_block_storage_device_id, _d.device_id );
 		EXCEPTION WHEN invalid_parameter_value THEN
-			RAISE EXCEPTION 'worked' USING ERRCODE = 'JH999';
+			RAISE EXCEPTION 'worked: (%: %)', SQLSTATE, SQLERRM 
+				USING ERRCODE = 'JH999';
 		END;
 
 		RAISE EXCEPTION 'it worked, ugh';
 	EXCEPTION WHEN SQLSTATE 'JH999' THEN
-		RAISE NOTICE '... failed correctly';
+		RAISE NOTICE '... failed correctly: (%: %)', SQLSTATE, SQLERRM;
 	END;
 
 
@@ -555,11 +559,200 @@ BEGIN
 				_lv.logical_volume_id, _d.device_id
 			);
 		EXCEPTION WHEN invalid_parameter_value THEN
-			RAISE EXCEPTION 'worked' USING ERRCODE = 'JH999';
+			RAISE EXCEPTION 'worked: (%: %)', SQLSTATE, SQLERRM 
+				USING ERRCODE = 'JH999';
 		END;
 		RAISE EXCEPTION '... It succeeded, ugh';
 	EXCEPTION WHEN SQLSTATE 'JH999' THEN
-		RAISE NOTICE '... failed correctly';
+		RAISE NOTICE '... failed correctly: (%: %)', SQLSTATE, SQLERRM;
+	END;
+
+	BEGIN
+		RAISE NOTICE 'Checking allow_mulitiple_block_storage_devices on new...';
+
+		INSERT INTO val_volume_group_relation (
+			volume_group_relation ) VALUES ('jhthing');
+
+		INSERT INTO val_volume_group_type ( volume_group_type, allow_mulitiple_block_storage_devices )
+			VALUES ('JHTEST', true);
+
+		INSERT INTO val_block_storage_device_type (
+			block_storage_device_type, permit_component_id
+		) VALUES (
+			'JHTESTBSD', 'REQIURED'
+		);
+
+		WITH c AS (
+			INSERT INTO component ( component_type_id ) 
+			VALUES (_ctid) RETURNING *
+		) INSERT INTO block_storage_device (
+			block_storage_device_name, block_storage_device_type,
+			component_id, device_id
+		) SELECT 'jhtest0', 'JHTESTBSD', component_Id, _d.device_id
+			FROM c
+		RETURNING * INTO _bsda;
+
+		WITH c AS (
+			INSERT INTO component ( component_type_id ) 
+			VALUES (_ctid) RETURNING *
+		) INSERT INTO block_storage_device (
+			block_storage_device_name, block_storage_device_type,
+			component_id, device_id
+		) SELECT 'jhtest1', 'JHTESTBSD', component_Id, _d.device_id
+			FROM c
+		RETURNING * INTO _bsdb;
+
+		INSERT INTO volume_group (
+			volume_group_name, volume_group_type, device_id,
+			volume_group_size_in_bytes
+		) VALUES ( 'JHTEST', 'JHTEST', _d.device_id, 42 )
+			RETURNING * INTO _vg;
+
+		INSERT INTO volume_group_block_storage_device (
+			volume_group_id, blocK_storage_device_id, volume_group_relation
+		) VALUES (
+			_vg.volume_group_id, _bsda.block_storage_device_id, 'jhthing'
+		);
+		
+
+		INSERT INTO volume_group_block_storage_device (
+			volume_group_id, blocK_storage_device_id, volume_group_relation
+		) VALUES (
+			_vg.volume_group_id, _bsdb.block_storage_device_id, 'jhthing'
+		);
+		
+		RAISE EXCEPTION 'worked' USING ERRCODE = 'JH999';
+		RAISE EXCEPTION '... It succeeded, ugh';
+	EXCEPTION WHEN SQLSTATE 'JH999' THEN
+		RAISE NOTICE '... failed correctly: (%: %)', SQLSTATE, SQLERRM;
+	END;
+
+	BEGIN
+		RAISE NOTICE 'Checking NOT allow_mulitiple_block_storage_devices on new...';
+
+		INSERT INTO val_volume_group_relation (
+			volume_group_relation ) VALUES ('jhthing');
+
+		INSERT INTO val_volume_group_type ( volume_group_type, allow_mulitiple_block_storage_devices )
+			VALUES ('JHTEST', false);
+
+		INSERT INTO val_block_storage_device_type (
+			block_storage_device_type, permit_component_id
+		) VALUES (
+			'JHTESTBSD', 'REQIURED'
+		);
+
+		WITH c AS (
+			INSERT INTO component ( component_type_id ) 
+			VALUES (_ctid) RETURNING *
+		) INSERT INTO block_storage_device (
+			block_storage_device_name, block_storage_device_type,
+			component_id, device_id
+		) SELECT 'jhtest0', 'JHTESTBSD', component_Id, _d.device_id
+			FROM c
+		RETURNING * INTO _bsda;
+
+		WITH c AS (
+			INSERT INTO component ( component_type_id ) 
+			VALUES (_ctid) RETURNING *
+		) INSERT INTO block_storage_device (
+			block_storage_device_name, block_storage_device_type,
+			component_id, device_id
+		) SELECT 'jhtest1', 'JHTESTBSD', component_Id, _d.device_id
+			FROM c
+		RETURNING * INTO _bsdb;
+
+		INSERT INTO volume_group (
+			volume_group_name, volume_group_type, device_id,
+			volume_group_size_in_bytes
+		) VALUES ( 'JHTEST', 'JHTEST', _d.device_id, 42 )
+			RETURNING * INTO _vg;
+
+		INSERT INTO volume_group_block_storage_device (
+			volume_group_id, blocK_storage_device_id, volume_group_relation
+		) VALUES (
+			_vg.volume_group_id, _bsda.block_storage_device_id, 'jhthing'
+		);
+		
+		BEGIN
+			INSERT INTO volume_group_block_storage_device (
+				volume_group_id, blocK_storage_device_id, volume_group_relation
+			) VALUES (
+				_vg.volume_group_id, _bsdb.block_storage_device_id, 'jhthing'
+			);
+		EXCEPTION WHEN unique_violation THEN
+			RAISE EXCEPTION 'worked: (%: %)', SQLSTATE, SQLERRM 
+				USING ERRCODE = 'JH999';
+		END;
+		RAISE EXCEPTION '... It succeeded, ugh';
+	EXCEPTION WHEN SQLSTATE 'JH999' THEN
+		RAISE NOTICE '... failed correctly: (%: %)', SQLSTATE, SQLERRM;
+	END;
+
+	BEGIN
+		RAISE NOTICE 'Checking if allow_mulitiple_block_storage_devices change fails properly...';
+
+		INSERT INTO val_volume_group_relation (
+			volume_group_relation ) VALUES ('jhthing');
+
+		INSERT INTO val_volume_group_type ( volume_group_type, allow_mulitiple_block_storage_devices )
+			VALUES ('JHTEST', true);
+
+		INSERT INTO val_block_storage_device_type (
+			block_storage_device_type, permit_component_id
+		) VALUES (
+			'JHTESTBSD', 'REQIURED'
+		);
+
+		WITH c AS (
+			INSERT INTO component ( component_type_id ) 
+			VALUES (_ctid) RETURNING *
+		) INSERT INTO block_storage_device (
+			block_storage_device_name, block_storage_device_type,
+			component_id, device_id
+		) SELECT 'jhtest0', 'JHTESTBSD', component_Id, _d.device_id
+			FROM c
+		RETURNING * INTO _bsda;
+
+		WITH c AS (
+			INSERT INTO component ( component_type_id ) 
+			VALUES (_ctid) RETURNING *
+		) INSERT INTO block_storage_device (
+			block_storage_device_name, block_storage_device_type,
+			component_id, device_id
+		) SELECT 'jhtest1', 'JHTESTBSD', component_Id, _d.device_id
+			FROM c
+		RETURNING * INTO _bsdb;
+
+		INSERT INTO volume_group (
+			volume_group_name, volume_group_type, device_id,
+			volume_group_size_in_bytes
+		) VALUES ( 'JHTEST', 'JHTEST', _d.device_id, 42 )
+			RETURNING * INTO _vg;
+
+		INSERT INTO volume_group_block_storage_device (
+			volume_group_id, blocK_storage_device_id, volume_group_relation
+		) VALUES (
+			_vg.volume_group_id, _bsda.block_storage_device_id, 'jhthing'
+		);
+		
+		INSERT INTO volume_group_block_storage_device (
+			volume_group_id, blocK_storage_device_id, volume_group_relation
+		) VALUES (
+			_vg.volume_group_id, _bsdb.block_storage_device_id, 'jhthing'
+		);
+
+		BEGIN
+			UPDATE val_volume_group_type
+				SET allow_mulitiple_block_storage_devices = false
+				WHERE volume_group_type = 'JHTEST';
+		EXCEPTION WHEN unique_violation THEN
+			RAISE EXCEPTION 'worked: (%: %)', SQLSTATE, SQLERRM 
+				USING ERRCODE = 'JH999';
+		END;
+		RAISE EXCEPTION '... It succeeded, ugh';
+	EXCEPTION WHEN SQLSTATE 'JH999' THEN
+		RAISE NOTICE '... failed correctly: (%: %)', SQLSTATE, SQLERRM;
 	END;
 
 	RETURN true;

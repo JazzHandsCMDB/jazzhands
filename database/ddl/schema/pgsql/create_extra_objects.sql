@@ -28,6 +28,10 @@ CREATE UNIQUE INDEX ak_dns_record_generate_ptr
 WHERE should_generate_ptr AND dns_type IN ('A','AAAA')
 	AND netblock_id IS NOT NULL;
 
+CREATE UNIQUE INDEX ak_service_instance_device_is_primary
+        ON service_instance ( device_id, is_primary )
+WHERE is_primary;
+
 create index idx_netblock_host_ip_address  ON netblock
 USING btree (host(ip_address));
 
