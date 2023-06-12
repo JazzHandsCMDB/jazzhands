@@ -1,13 +1,13 @@
 --
 -- Copyright (c) 2015-2020 Matthew Ragan
 -- All rights reserved.
--- 
+--
 -- Licensed under the Apache License, Version 2.0 (the "License");
 -- you may not use this file except in compliance with the License.
 -- You may obtain a copy of the License at
--- 
+--
 --      http://www.apache.org/licenses/LICENSE-2.0
--- 
+--
 -- Unless required by applicable law or agreed to in writing, software
 -- distributed under the License is distributed on an "AS IS" BASIS,
 -- WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
@@ -114,7 +114,7 @@ BEGIN
 			st.slot_function,
 			ctst.component_type_slot_template_id
 		FROM
-			slot s JOIN 
+			slot s JOIN
 			slot_type st USING (slot_type_id) JOIN
 			component c USING (component_id) LEFT JOIN
 			component_type_slot_template ctst USING (component_type_slot_template_id)
@@ -128,7 +128,7 @@ BEGIN
 			s.slot_type_id,
 			st.slot_function
 		FROM
-			slot s JOIN 
+			slot s JOIN
 			slot_type st USING (slot_type_id) JOIN
 			component c USING (component_id) LEFT JOIN
 			component_type_slot_template ctst USING (component_type_slot_template_id)
@@ -241,7 +241,7 @@ BEGIN
 	-- Get a list of all slots that have replacement values
 
 	FOR slot_rec IN
-		SELECT 
+		SELECT
 			s.slot_id,
 			COALESCE(pst.child_slot_name_template, st.slot_name_template)
 				AS slot_name_template,
@@ -277,7 +277,7 @@ BEGIN
 		IF (slot_rec.parent_slot_index IS NOT NULL AND
 			slot_rec.slot_index IS NOT NULL) THEN
 			sn := regexp_replace(sn,
-				'%\{relative_slot_index\}', 
+				'%\{relative_slot_index\}',
 				(slot_rec.parent_slot_index + slot_rec.slot_index)::text,
 				'g');
 		END IF;
@@ -369,13 +369,13 @@ BEGIN
 	DELETE FROM component_property cp WHERE
 		cp.component_id = ANY (delete_list) OR
 		slot_id = ANY (slot_list);
-		
+
 	DELETE FROM
 		slot s
 	WHERE
 		slot_id = ANY (slot_list) AND
 		s.component_id = ANY(delete_list);
-		
+
 	DELETE FROM
 		component c
 	WHERE
@@ -453,7 +453,7 @@ BEGIN
 	-- The device type doesn't exist, so attempt to insert it
 	--
 
-	IF NOT FOUND THEN	
+	IF NOT FOUND THEN
 		IF pci_device_name IS NULL OR component_function_list IS NULL THEN
 			RAISE EXCEPTION 'component_id not found and pci_device_name or component_function_list was not passed' USING ERRCODE = 'JH501';
 		END IF;
@@ -470,14 +470,14 @@ BEGIN
 			property_type = 'DeviceProvisioning' AND
 			property_name = 'PCIVendorID' AND
 			property_value = pci_vendor_id::text;
-		
+
 		IF NOT FOUND THEN
 			IF pci_vendor_name IS NULL THEN
 				RAISE EXCEPTION 'PCI vendor id mapping not found and pci_vendor_name was not passed' USING ERRCODE = 'JH501';
 			END IF;
 			SELECT company_id INTO comp_id FROM company
 			WHERE company_name = pci_vendor_name;
-		
+
 			IF NOT FOUND THEN
 				SELECT company_manip.add_company(
 					_company_name := pci_vendor_name,
@@ -509,14 +509,14 @@ BEGIN
 			property_type = 'DeviceProvisioning' AND
 			property_name = 'PCIVendorID' AND
 			property_value = pci_sub_vendor_id::text;
-		
+
 		IF NOT FOUND THEN
 			IF pci_sub_vendor_name IS NULL THEN
 				RAISE EXCEPTION 'PCI subsystem vendor id mapping not found and pci_sub_vendor_name was not passed' USING ERRCODE = 'JH501';
 			END IF;
 			SELECT company_id INTO sub_comp_id FROM company
 			WHERE company_name = pci_sub_vendor_name;
-		
+
 			IF NOT FOUND THEN
 				SELECT company_manip.add_company(
 					_company_name := pci_sub_vendor_name,
@@ -543,7 +543,7 @@ BEGIN
 		-- Fetch the slot type
 		--
 
-		SELECT 
+		SELECT
 			slot_type_id INTO stid
 		FROM
 			slot_type st
@@ -602,17 +602,17 @@ BEGIN
 			component_property_type,
 			component_type_id,
 			property_value
-		) VALUES 
+		) VALUES
 			('PCIVendorID', 'PCI', ct.component_type_id, pci_vendor_id),
 			('PCIDeviceID', 'PCI', ct.component_type_id, pci_device_id);
-		
+
 		IF (pci_subsystem_id IS NOT NULL) THEN
 			INSERT INTO component_property (
 				component_property_name,
 				component_property_type,
 				component_type_id,
 				property_value
-			) VALUES 
+			) VALUES
 				(
 					'PCISubsystemVendorID',
 					'PCI',
@@ -681,7 +681,7 @@ BEGIN
 	-- serial number already exists
 	--
 	IF serial_number IS NOT NULL THEN
-		SELECT 
+		SELECT
 			component.* INTO c
 		FROM
 			component JOIN
@@ -738,7 +738,7 @@ BEGIN
 	FROM
 		component_type comptype
 	WHERE
-		comptype.component_type_id = 
+		comptype.component_type_id =
 			update_pci_component_type_model.component_type_id;
 
 	IF NOT FOUND THEN
@@ -759,7 +759,7 @@ BEGIN
 		WHERE
 			cp.component_property_name = 'PCIVendorID' AND
 			cp.component_property_type = 'PCI' AND
-			cp.component_type_id = 
+			cp.component_type_id =
 				update_pci_component_type_model.component_type_id;
 	END IF;
 
@@ -777,7 +777,7 @@ BEGIN
 		WHERE
 			cp.component_property_name = 'PCISubsystemVendorID' AND
 			cp.component_property_type = 'PCI' AND
-			cp.component_type_id = 
+			cp.component_type_id =
 				update_pci_component_type_model.component_type_id;
 	END IF;
 
@@ -846,8 +846,8 @@ DECLARE
 BEGIN
 	cid := NULL;
 
-	IF vendor_name IS NOT NULL THEN	
-		SELECT 
+	IF vendor_name IS NOT NULL THEN
+		SELECT
 			company_id INTO cid
 		FROM
 			company c LEFT JOIN
@@ -882,7 +882,7 @@ BEGIN
 		--
 		-- Fetch the slot type
 		--
-		SELECT 
+		SELECT
 			slot_type_id INTO stid
 		FROM
 			slot_type st
@@ -934,11 +934,11 @@ BEGIN
 			component_property_type,
 			component_type_id,
 			property_value
-		) VALUES 
+		) VALUES
 			('DiskSize', 'disk', ctid, bytes),
 			('DiskProtocol', 'disk', ctid, protocol),
 			('MediaType', 'disk', ctid, media_type);
-		
+
 		--
 		-- Insert the component functions
 		--
@@ -958,7 +958,7 @@ BEGIN
 	-- serial number already exists
 	--
 	IF serial_number IS NOT NULL THEN
-		SELECT 
+		SELECT
 			component.* INTO c
 		FROM
 			component JOIN
@@ -1017,8 +1017,8 @@ DECLARE
 BEGIN
 	cid := NULL;
 
-	IF vendor_name IS NOT NULL THEN	
-		SELECT 
+	IF vendor_name IS NOT NULL THEN
+		SELECT
 			company_id INTO cid
 		FROM
 			company c LEFT JOIN
@@ -1053,7 +1053,7 @@ BEGIN
 		--
 		-- Fetch the slot type
 		--
-		SELECT 
+		SELECT
 			slot_type_id INTO stid
 		FROM
 			slot_type st
@@ -1105,10 +1105,10 @@ BEGIN
 			component_property_type,
 			component_type_id,
 			property_value
-		) VALUES 
+		) VALUES
 			('MemorySize', 'memory', ctid, memory_size),
 			('MemorySpeed', 'memory', ctid, memory_speed);
-		
+
 		--
 		-- Insert the component functions
 		--
@@ -1128,7 +1128,7 @@ BEGIN
 	-- serial number already exists
 	--
 	IF serial_number IS NOT NULL THEN
-		SELECT 
+		SELECT
 			component.* INTO c
 		FROM
 			component JOIN
@@ -1188,8 +1188,8 @@ DECLARE
 BEGIN
 	cid := NULL;
 
-	IF vendor_name IS NOT NULL THEN	
-		SELECT 
+	IF vendor_name IS NOT NULL THEN
+		SELECT
 			company.company_id INTO cid
 		FROM
 			company JOIN
@@ -1233,7 +1233,7 @@ BEGIN
 		--
 		-- Fetch the slot type
 		--
-		SELECT 
+		SELECT
 			slot_type_id INTO stid
 		FROM
 			slot_type st
@@ -1288,10 +1288,10 @@ BEGIN
 			component_property_type,
 			component_type_id,
 			property_value
-		) VALUES 
+		) VALUES
 			('ProcessorCores', 'CPU', ctid, processor_cores),
 			('ProcessorSpeed', 'CPU', ctid, processor_speed);
-		
+
 		--
 		-- Insert the component functions
 		--
@@ -1311,7 +1311,7 @@ BEGIN
 	-- serial number already exists
 	--
 	IF serial_number IS NOT NULL THEN
-		SELECT 
+		SELECT
 			component.* INTO c
 		FROM
 			component JOIN
@@ -1420,7 +1420,7 @@ BEGIN
 	RAISE DEBUG 'Assigning component with component_id % to slot %',
 		cid, s.slot_id;
 
-	UPDATE 
+	UPDATE
 		component c
 	SET
 		parent_slot_id = s.slot_id
@@ -1466,7 +1466,7 @@ BEGIN
 	WHERE
 		component_id = old_component_id;
 
-	UPDATE 
+	UPDATE
 		component
 	SET
 		parent_slot_id = oc.parent_slot_id
@@ -1479,7 +1479,7 @@ BEGIN
 		component_id = new_component_id
 	WHERE
 		component_id = old_component_id;
-	
+
 	UPDATE
 		physicalish_volume
 	SET
@@ -1514,7 +1514,7 @@ BEGIN
 	cid := NULL;
 
 	IF sn IS NOT NULL THEN
-		SELECT 
+		SELECT
 			comp.* INTO c
 		FROM
 			component comp JOIN
@@ -1610,7 +1610,7 @@ BEGIN
 		RAISE DEBUG 'Looking for slot with mac_address %',
 			ni->>'permanent_mac';
 
-		SELECT 
+		SELECT
 			* INTO cs
 		FROM
 			slot
@@ -1623,7 +1623,7 @@ BEGIN
 			cid,
 			ni->>'interface_name';
 
-		SELECT 
+		SELECT
 			s.* INTO cs
 		FROM
 			slot s JOIN
@@ -1637,13 +1637,13 @@ BEGIN
 	IF cs IS NULL AND ni ? 'lldp' THEN
 		lldp := ni->'lldp';
 
-		RAISE DEBUG 'Looking for slot for component % connected to %/% port %', 
+		RAISE DEBUG 'Looking for slot for component % connected to %/% port %',
 			cid,
 			lldp->>'device_name',
 			lldp->>'chassis_id',
 			lldp->>'interface';
 
-		SELECT 
+		SELECT
 			s.* INTO cs
 		FROM
 			slot s JOIN
