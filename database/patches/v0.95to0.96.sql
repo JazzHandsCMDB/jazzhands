@@ -28,6 +28,7 @@ Invoked:
 	--post
 	post
 	--reinsert-dir=i
+	encryption_key
 	layer3_interface
 	component_type
 	dns_record
@@ -1518,6 +1519,38 @@ $$;
 
 SELECT schema_support.replay_object_recreates(tags := ARRAY['process_all_procs_in_schema_schema_support']);
 -- New function; dropping in case it returned because of type change
+CREATE OR REPLACE FUNCTION schema_support.jsonb_diff(one jsonb, other jsonb)
+ RETURNS jsonb
+ LANGUAGE plpgsql
+AS $function$
+DECLARE
+	key	TEXT;
+	rv	JSONB;
+BEGIN
+	rv := '{}';
+	FOR key IN SELECT * FROM jsonb_object_keys(one)
+	LOOP
+		IF NOT other ? key THEN
+			rv := rv || jsonb_build_object(
+					key, jsonb_build_array(one->key, NULL));
+		ELSIF other->>key IS DISTINCT FROM one->>key THEN
+			rv := rv || jsonb_build_object(
+					key, jsonb_build_array(one->key, other->key));
+		END IF;
+	END LOOP;
+	FOR key IN SELECT * FROM jsonb_object_keys(other)
+	LOOP
+		IF NOT one ? key THEN
+			rv := rv || jsonb_build_object(
+					key, jsonb_build_array(NULL, other->key));
+		END IF;
+	END LOOP;
+	RETURN rv;
+END;
+$function$
+;
+
+-- New function; dropping in case it returned because of type change
 CREATE OR REPLACE FUNCTION schema_support.migrate_grants(username text, direction text, old_schema text, new_schema text, name_map jsonb DEFAULT NULL::jsonb, name_map_exception boolean DEFAULT true)
  RETURNS text[]
  LANGUAGE plpgsql
@@ -1862,6 +1895,1482 @@ SELECT schema_support.replay_object_recreates(tags := ARRAY['process_all_procs_i
 --
 -- Process middle (non-trigger) schema component_manip
 --
+-- Changed function
+SELECT schema_support.save_dependent_objects_for_replay('component_manip', 'fetch_component');
+SELECT schema_support.save_grants_for_replay('component_manip', 'fetch_component');
+-- Dropped in case type changes.
+DROP FUNCTION IF EXISTS component_manip.fetch_component ( integer,text,boolean,text,integer );
+CREATE OR REPLACE FUNCTION component_manip.fetch_component(component_type_id integer, serial_number text, no_create boolean DEFAULT false, ownership_status text DEFAULT 'unknown'::text, parent_slot_id integer DEFAULT NULL::integer)
+ RETURNS jazzhands.component
+ LANGUAGE plpgsql
+ SECURITY DEFINER
+ SET search_path TO 'jazzhands'
+AS $function$
+DECLARE
+	ctid		ALIAS FOR component_type_id;
+	sn			ALIAS FOR serial_number;
+	psid		ALIAS FOR parent_slot_id;
+	os			ALIAS FOR ownership_status;
+	c			RECORD;
+	cid			integer;
+BEGIN
+	cid := NULL;
+
+	IF sn IS NOT NULL THEN
+		SELECT
+			comp.* INTO c
+		FROM
+			component comp JOIN
+			asset a USING (component_id)
+		WHERE
+			comp.component_type_id = ctid AND
+			a.serial_number = sn;
+
+		IF FOUND THEN
+			--
+			-- Only update the parent slot if it isn't set already
+			--
+			IF c.parent_slot_id IS NULL THEN
+				UPDATE
+					component comp
+				SET
+					parent_slot_id = psid
+				WHERE
+					comp.component_id = c.component_id;
+			END IF;
+			RETURN c;
+		END IF;
+	END IF;
+
+	IF no_create THEN
+		RETURN NULL;
+	END IF;
+
+	INSERT INTO jazzhands.component (
+		component_type_id,
+		parent_slot_id
+	) VALUES (
+		ctid,
+		parent_slot_id
+	) RETURNING * INTO c;
+
+	IF serial_number IS NOT NULL THEN
+		INSERT INTO asset (
+			component_id,
+			serial_number,
+			ownership_status
+		) VALUES (
+			c.component_id,
+			serial_number,
+			os
+		);
+	END IF;
+
+	RETURN c;
+END;
+$function$
+;
+
+DO $$
+-- not dropping regrants here.
+BEGIN
+	DELETE FROM __recreate WHERE schema = 'component_manip' AND type = 'function' AND object IN ('fetch_component');
+EXCEPTION WHEN undefined_table THEN
+	RAISE NOTICE 'Drop of proc fetch_component failed but that is ok';
+	NULL;
+END;
+$$;
+
+-- Changed function
+SELECT schema_support.save_dependent_objects_for_replay('component_manip', 'insert_component_into_parent_slot');
+SELECT schema_support.save_grants_for_replay('component_manip', 'insert_component_into_parent_slot');
+-- Dropped in case type changes.
+DROP FUNCTION IF EXISTS component_manip.insert_component_into_parent_slot ( integer,integer,text,text,text,integer,text );
+CREATE OR REPLACE FUNCTION component_manip.insert_component_into_parent_slot(parent_component_id integer, component_id integer, slot_name text, slot_function text, slot_type text DEFAULT 'unknown'::text, slot_index integer DEFAULT NULL::integer, physical_label text DEFAULT NULL::text)
+ RETURNS jazzhands.slot
+ LANGUAGE plpgsql
+ SECURITY DEFINER
+ SET search_path TO 'jazzhands'
+AS $function$
+DECLARE
+	pcid 	ALIAS FOR parent_component_id;
+	cid		ALIAS FOR component_id;
+	sf		ALIAS FOR slot_function;
+	sn		ALIAS FOR slot_name;
+	st		ALIAS FOR slot_type;
+	s		RECORD;
+	stid	integer;
+BEGIN
+	--
+	-- Look for this slot assigned to the component
+	--
+	SELECT
+		slot.* INTO s
+	FROM
+		slot JOIN
+		slot_type USING (slot_type_id)
+	WHERE
+		slot.component_id = pcid AND
+		slot_type.slot_type = st AND
+		slot_type.slot_function = sf AND
+		slot.slot_name = sn;
+
+	IF NOT FOUND THEN
+		RAISE DEBUG 'Auto-creating slot for component assignment';
+		SELECT
+			slot_type_id INTO stid
+		FROM
+			slot_type
+		WHERE
+			slot_type.slot_type = st AND
+			slot_type.slot_function = sf;
+
+		IF NOT FOUND THEN
+			RAISE EXCEPTION 'slot type %, function % not found adding component_type',
+				st,
+				sf
+				USING ERRCODE = 'JH501';
+		END IF;
+
+		INSERT INTO slot (
+			component_id,
+			slot_name,
+			slot_index,
+			slot_type_id,
+			physical_label,
+			description
+		) VALUES (
+			pcid,
+			sn,
+			slot_index,
+			stid,
+			physical_label,
+			'autocreated component slot'
+		) RETURNING * INTO s;
+	END IF;
+
+	RAISE DEBUG 'Assigning component with component_id % to slot %',
+		cid, s.slot_id;
+
+	UPDATE
+		component c
+	SET
+		parent_slot_id = s.slot_id
+	WHERE
+		c.component_id = cid;
+
+	RETURN s;
+END;
+$function$
+;
+
+DO $$
+-- not dropping regrants here.
+BEGIN
+	DELETE FROM __recreate WHERE schema = 'component_manip' AND type = 'function' AND object IN ('insert_component_into_parent_slot');
+EXCEPTION WHEN undefined_table THEN
+	RAISE NOTICE 'Drop of proc insert_component_into_parent_slot failed but that is ok';
+	NULL;
+END;
+$$;
+
+-- Changed function
+SELECT schema_support.save_dependent_objects_for_replay('component_manip', 'insert_cpu_component');
+SELECT schema_support.save_grants_for_replay('component_manip', 'insert_cpu_component');
+-- Dropped in case type changes.
+DROP FUNCTION IF EXISTS component_manip.insert_cpu_component ( text,bigint,bigint,text,text,text,boolean );
+CREATE OR REPLACE FUNCTION component_manip.insert_cpu_component(model text, processor_speed bigint, processor_cores bigint, socket_type text, vendor_name text DEFAULT NULL::text, serial_number text DEFAULT NULL::text, virtual_component boolean DEFAULT false)
+ RETURNS jazzhands.component
+ LANGUAGE plpgsql
+ SECURITY DEFINER
+ SET search_path TO 'jazzhands'
+AS $function$
+DECLARE
+	m			ALIAS FOR model;
+	sn			ALIAS FOR serial_number;
+	ctid		integer;
+	stid		integer;
+	c			RECORD;
+	cid			integer;
+BEGIN
+	cid := NULL;
+
+	IF vendor_name IS NOT NULL THEN
+		SELECT
+			company.company_id INTO cid
+		FROM
+			company JOIN
+			company_collection_company ccc using (company_id) JOIN
+			company_collection cc using (company_collection_id) JOIN
+			property p USING (company_collection_id)
+		WHERE
+			property_type = 'DeviceProvisioning' AND
+			property_name = 'VendorCPUProbeString' AND
+			property_value = vendor_name;
+	END IF;
+
+	--
+	-- See if we have this component type in the database already.
+	--
+	SELECT DISTINCT
+		ct.component_type_id INTO ctid
+	FROM
+		component_type ct JOIN
+		component_type_component_function ctcf USING (component_type_id) JOIN
+		component_property cp ON (
+			ct.component_type_id = cp.component_type_id AND
+			cp.component_property_type = 'CPU' AND
+			cp.component_property_name = 'ProcessorCores' AND
+			cp.property_value::integer = processor_cores
+		)
+	WHERE
+		ctcf.component_function = 'CPU' AND
+		ct.model = m AND
+		ct.is_virtual_component = virtual_component AND
+		CASE WHEN cid IS NOT NULL THEN
+			(company_id = cid)
+		ELSE
+			true
+		END;
+
+	--
+	-- If the type isn't found, then we need to insert it
+	--
+	IF NOT FOUND THEN
+		--
+		-- Fetch the slot type
+		--
+		SELECT
+			slot_type_id INTO stid
+		FROM
+			slot_type st
+		WHERE
+			st.slot_type = socket_type AND
+			slot_function = 'CPU';
+
+		IF NOT FOUND THEN
+			RAISE EXCEPTION 'slot type %, function % not found adding component_type',
+				socket_type,
+				'CPU'
+				USING ERRCODE = 'JH501';
+		END IF;
+
+		IF cid IS NULL THEN
+			SELECT
+				company_id INTO cid
+			FROM
+				company
+			WHERE
+				company_name = 'unknown';
+
+			IF NOT FOUND THEN
+				IF NOT FOUND THEN
+					RAISE EXCEPTION 'company_id for unknown company not found adding component_type'
+						USING ERRCODE = 'JH501';
+				END IF;
+			END IF;
+		END IF;
+
+		INSERT INTO component_type (
+			company_id,
+			model,
+			slot_type_id,
+			asset_permitted,
+			description,
+			is_virtual_component
+		) VALUES (
+			cid,
+			model,
+			stid,
+			true,
+			model,
+			virtual_component
+		) RETURNING component_type_id INTO ctid;
+
+		--
+		-- Insert component properties for the CPU
+		--
+		INSERT INTO component_property (
+			component_property_name,
+			component_property_type,
+			component_type_id,
+			property_value
+		) VALUES
+			('ProcessorCores', 'CPU', ctid, processor_cores),
+			('ProcessorSpeed', 'CPU', ctid, processor_speed);
+
+		--
+		-- Insert the component functions
+		--
+
+		INSERT INTO component_type_component_function (
+			component_type_id,
+			component_function
+		) SELECT DISTINCT
+			ctid,
+			cf
+		FROM
+			unnest(ARRAY['CPU']) x(cf);
+	END IF;
+
+	--
+	-- We have a component_type_id now, so look to see if this component
+	-- serial number already exists
+	--
+	IF serial_number IS NOT NULL THEN
+		SELECT
+			component.* INTO c
+		FROM
+			component JOIN
+			asset a USING (component_id)
+		WHERE
+			component_type_id = ctid AND
+			a.serial_number = sn;
+
+		IF FOUND THEN
+			RETURN c;
+		END IF;
+	END IF;
+
+	INSERT INTO jazzhands.component (
+		component_type_id
+	) VALUES (
+		ctid
+	) RETURNING * INTO c;
+
+	IF serial_number IS NOT NULL THEN
+		INSERT INTO asset (
+			component_id,
+			serial_number,
+			ownership_status
+		) VALUES (
+			c.component_id,
+			serial_number,
+			'unknown'
+		);
+	END IF;
+
+	RETURN c;
+END;
+$function$
+;
+
+DO $$
+-- not dropping regrants here.
+BEGIN
+	DELETE FROM __recreate WHERE schema = 'component_manip' AND type = 'function' AND object IN ('insert_cpu_component');
+EXCEPTION WHEN undefined_table THEN
+	RAISE NOTICE 'Drop of proc insert_cpu_component failed but that is ok';
+	NULL;
+END;
+$$;
+
+-- Changed function
+SELECT schema_support.save_dependent_objects_for_replay('component_manip', 'insert_disk_component');
+SELECT schema_support.save_grants_for_replay('component_manip', 'insert_disk_component');
+-- Dropped in case type changes.
+DROP FUNCTION IF EXISTS component_manip.insert_disk_component ( text,bigint,text,text,text,text );
+CREATE OR REPLACE FUNCTION component_manip.insert_disk_component(model text, bytes bigint, vendor_name text DEFAULT NULL::text, protocol text DEFAULT 'SATA'::text, media_type text DEFAULT 'Rotational'::text, serial_number text DEFAULT NULL::text)
+ RETURNS jazzhands.component
+ LANGUAGE plpgsql
+ SECURITY DEFINER
+ SET search_path TO 'jazzhands'
+AS $function$
+DECLARE
+	m			ALIAS FOR model;
+	sn			ALIAS FOR serial_number;
+	ctid		integer;
+	stid		integer;
+	c			RECORD;
+	cid			integer;
+BEGIN
+	cid := NULL;
+
+	IF vendor_name IS NOT NULL THEN
+		SELECT
+			company_id INTO cid
+		FROM
+			company c LEFT JOIN
+			property p USING (company_id)
+		WHERE
+			property_type = 'DeviceProvisioning' AND
+			property_name = 'VendorDiskProbeString' AND
+			property_value = vendor_name;
+	END IF;
+
+	--
+	-- See if we have this component type in the database already.
+	--
+	SELECT DISTINCT
+		component_type_id INTO ctid
+	FROM
+		component_type ct JOIN
+		component_type_component_function ctcf USING (component_type_id)
+	WHERE
+		component_function = 'disk' AND
+		ct.model = m AND
+		CASE WHEN cid IS NOT NULL THEN
+			(company_id = cid)
+		ELSE
+			true
+		END;
+
+	--
+	-- If the type isn't found, then we need to insert it
+	--
+	IF NOT FOUND THEN
+		--
+		-- Fetch the slot type
+		--
+		SELECT
+			slot_type_id INTO stid
+		FROM
+			slot_type st
+		WHERE
+			st.slot_type = protocol AND
+			slot_function = 'disk';
+
+		IF NOT FOUND THEN
+			RAISE EXCEPTION 'slot type % with function disk not found adding component_type',
+				protocol
+				USING ERRCODE = 'JH501';
+		END IF;
+
+		IF cid IS NULL THEN
+			SELECT
+				company_id INTO cid
+			FROM
+				company
+			WHERE
+				company_name = 'unknown';
+
+			IF NOT FOUND THEN
+				IF NOT FOUND THEN
+					RAISE EXCEPTION 'company_id for unknown company not found adding component_type'
+						USING ERRCODE = 'JH501';
+				END IF;
+			END IF;
+		END IF;
+
+		INSERT INTO component_type (
+			company_id,
+			model,
+			slot_type_id,
+			asset_permitted,
+			description
+		) VALUES (
+			cid,
+			model,
+			stid,
+			true,
+			concat_ws(' ', vendor_name, model, media_type, 'disk')
+		) RETURNING component_type_id INTO ctid;
+
+		--
+		-- Insert component properties for the disk
+		--
+		INSERT INTO component_property (
+			component_property_name,
+			component_property_type,
+			component_type_id,
+			property_value
+		) VALUES
+			('DiskSize', 'disk', ctid, bytes),
+			('DiskProtocol', 'disk', ctid, protocol),
+			('MediaType', 'disk', ctid, media_type);
+
+		--
+		-- Insert the component functions
+		--
+
+		INSERT INTO component_type_component_function (
+			component_type_id,
+			component_function
+		) SELECT DISTINCT
+			ctid,
+			cf
+		FROM
+			unnest(ARRAY['storage', 'disk']) x(cf);
+	END IF;
+
+	--
+	-- We have a component_type_id now, so look to see if this component
+	-- serial number already exists
+	--
+	IF serial_number IS NOT NULL THEN
+		SELECT
+			component.* INTO c
+		FROM
+			component JOIN
+			asset a USING (component_id)
+		WHERE
+			component_type_id = ctid AND
+			a.serial_number = sn;
+
+		IF FOUND THEN
+			RETURN c;
+		END IF;
+	END IF;
+
+	INSERT INTO jazzhands.component (
+		component_type_id
+	) VALUES (
+		ctid
+	) RETURNING * INTO c;
+
+	IF serial_number IS NOT NULL THEN
+		INSERT INTO asset (
+			component_id,
+			serial_number,
+			ownership_status
+		) VALUES (
+			c.component_id,
+			serial_number,
+			'unknown'
+		);
+	END IF;
+
+	RETURN c;
+
+END;
+$function$
+;
+
+DO $$
+-- not dropping regrants here.
+BEGIN
+	DELETE FROM __recreate WHERE schema = 'component_manip' AND type = 'function' AND object IN ('insert_disk_component');
+EXCEPTION WHEN undefined_table THEN
+	RAISE NOTICE 'Drop of proc insert_disk_component failed but that is ok';
+	NULL;
+END;
+$$;
+
+-- Changed function
+SELECT schema_support.save_dependent_objects_for_replay('component_manip', 'insert_memory_component');
+SELECT schema_support.save_grants_for_replay('component_manip', 'insert_memory_component');
+-- Dropped in case type changes.
+DROP FUNCTION IF EXISTS component_manip.insert_memory_component ( text,bigint,bigint,text,text,text );
+CREATE OR REPLACE FUNCTION component_manip.insert_memory_component(model text, memory_size bigint, memory_speed bigint, memory_type text DEFAULT 'DDR3'::text, vendor_name text DEFAULT NULL::text, serial_number text DEFAULT NULL::text)
+ RETURNS jazzhands.component
+ LANGUAGE plpgsql
+ SECURITY DEFINER
+ SET search_path TO 'jazzhands'
+AS $function$
+DECLARE
+	m			ALIAS FOR model;
+	sn			ALIAS FOR serial_number;
+	ctid		integer;
+	stid		integer;
+	c			RECORD;
+	cid			integer;
+BEGIN
+	cid := NULL;
+
+	IF vendor_name IS NOT NULL THEN
+		SELECT
+			company_id INTO cid
+		FROM
+			company c LEFT JOIN
+			property p USING (company_id)
+		WHERE
+			property_type = 'DeviceProvisioning' AND
+			property_name = 'VendorMemoryProbeString' AND
+			property_value = vendor_name;
+	END IF;
+
+	--
+	-- See if we have this component type in the database already.
+	--
+	SELECT DISTINCT
+		component_type_id INTO ctid
+	FROM
+		component_type ct JOIN
+		component_type_component_function ctcf USING (component_type_id)
+	WHERE
+		component_function = 'memory' AND
+		ct.model = m AND
+		CASE WHEN cid IS NOT NULL THEN
+			(company_id = cid)
+		ELSE
+			true
+		END;
+
+	--
+	-- If the type isn't found, then we need to insert it
+	--
+	IF NOT FOUND THEN
+		--
+		-- Fetch the slot type
+		--
+		SELECT
+			slot_type_id INTO stid
+		FROM
+			slot_type st
+		WHERE
+			st.slot_type = memory_type AND
+			slot_function = 'memory';
+
+		IF NOT FOUND THEN
+			RAISE EXCEPTION 'slot type % with function memory not found adding component_type',
+				memory_type
+				USING ERRCODE = 'JH501';
+		END IF;
+
+		IF cid IS NULL THEN
+			SELECT
+				company_id INTO cid
+			FROM
+				company
+			WHERE
+				company_name = 'unknown';
+
+			IF NOT FOUND THEN
+				IF NOT FOUND THEN
+					RAISE EXCEPTION 'company_id for unknown company not found adding component_type'
+						USING ERRCODE = 'JH501';
+				END IF;
+			END IF;
+		END IF;
+
+		INSERT INTO component_type (
+			company_id,
+			model,
+			slot_type_id,
+			asset_permitted,
+			description
+		) VALUES (
+			cid,
+			model,
+			stid,
+			true,
+			concat_ws(' ', vendor_name, model, (memory_size || 'MB'), 'memory')
+		) RETURNING component_type_id INTO ctid;
+
+		--
+		-- Insert component properties for the memory
+		--
+		INSERT INTO component_property (
+			component_property_name,
+			component_property_type,
+			component_type_id,
+			property_value
+		) VALUES
+			('MemorySize', 'memory', ctid, memory_size),
+			('MemorySpeed', 'memory', ctid, memory_speed);
+
+		--
+		-- Insert the component functions
+		--
+
+		INSERT INTO component_type_component_function (
+			component_type_id,
+			component_function
+		) SELECT DISTINCT
+			ctid,
+			cf
+		FROM
+			unnest(ARRAY['memory']) x(cf);
+	END IF;
+
+	--
+	-- We have a component_type_id now, so look to see if this component
+	-- serial number already exists
+	--
+	IF serial_number IS NOT NULL THEN
+		SELECT
+			component.* INTO c
+		FROM
+			component JOIN
+			asset a USING (component_id)
+		WHERE
+			component_type_id = ctid AND
+			a.serial_number = sn;
+
+		IF FOUND THEN
+			RETURN c;
+		END IF;
+	END IF;
+
+	INSERT INTO jazzhands.component (
+		component_type_id
+	) VALUES (
+		ctid
+	) RETURNING * INTO c;
+
+	IF serial_number IS NOT NULL THEN
+		INSERT INTO asset (
+			component_id,
+			serial_number,
+			ownership_status
+		) VALUES (
+			c.component_id,
+			serial_number,
+			'unknown'
+		);
+	END IF;
+
+	RETURN c;
+END;
+$function$
+;
+
+DO $$
+-- not dropping regrants here.
+BEGIN
+	DELETE FROM __recreate WHERE schema = 'component_manip' AND type = 'function' AND object IN ('insert_memory_component');
+EXCEPTION WHEN undefined_table THEN
+	RAISE NOTICE 'Drop of proc insert_memory_component failed but that is ok';
+	NULL;
+END;
+$$;
+
+-- Changed function
+SELECT schema_support.save_dependent_objects_for_replay('component_manip', 'insert_pci_component');
+SELECT schema_support.save_grants_for_replay('component_manip', 'insert_pci_component');
+-- Dropped in case type changes.
+DROP FUNCTION IF EXISTS component_manip.insert_pci_component ( integer,integer,integer,integer,text,text,text,text,text[],text,text );
+CREATE OR REPLACE FUNCTION component_manip.insert_pci_component(pci_vendor_id integer, pci_device_id integer, pci_sub_vendor_id integer DEFAULT NULL::integer, pci_subsystem_id integer DEFAULT NULL::integer, pci_vendor_name text DEFAULT NULL::text, pci_device_name text DEFAULT NULL::text, pci_sub_vendor_name text DEFAULT NULL::text, pci_sub_device_name text DEFAULT NULL::text, component_function_list text[] DEFAULT NULL::text[], slot_type text DEFAULT 'unknown'::text, serial_number text DEFAULT NULL::text)
+ RETURNS jazzhands.component
+ LANGUAGE plpgsql
+ SECURITY DEFINER
+ SET search_path TO 'jazzhands'
+AS $function$
+DECLARE
+	sn			ALIAS FOR serial_number;
+	ct			RECORD;
+	comp_id		integer;
+	sub_comp_id	integer;
+	stid		integer;
+	vendor_name	text;
+	sub_vendor_name	text;
+	model_name	text;
+	descrip		text;
+	c			RECORD;
+BEGIN
+	IF (pci_sub_vendor_id IS NULL AND pci_subsystem_id IS NOT NULL) OR
+			(pci_sub_vendor_id IS NOT NULL AND pci_subsystem_id IS NULL) THEN
+		RAISE EXCEPTION
+			'pci_sub_vendor_id and pci_subsystem_id must be set together';
+	END IF;
+
+	--
+	-- See if we have this component type in the database already
+	--
+	SELECT
+		component_type.* INTO ct
+	FROM
+		component_property vid JOIN
+		component_property did ON (
+			vid.component_property_name = 'PCIVendorID' AND
+			vid.component_property_type = 'PCI' AND
+			did.component_property_name = 'PCIDeviceID' AND
+			did.component_property_type = 'PCI' AND
+			vid.component_type_id = did.component_type_id ) LEFT JOIN
+		component_property svid ON (
+			svid.component_property_name = 'PCISubsystemVendorID' AND
+			svid.component_property_type = 'PCI' AND
+			svid.component_type_id = did.component_type_id ) LEFT JOIN
+		component_property sid ON (
+			sid.component_property_name = 'PCISubsystemID' AND
+			sid.component_property_type = 'PCI' AND
+			sid.component_type_id = did.component_type_id ) JOIN
+		component_type ON (
+			did.component_type_id = component_type.component_type_id )
+	WHERE
+		vid.property_value = pci_vendor_id::varchar AND
+		did.property_value = pci_device_id::varchar AND
+		svid.property_value IS NOT DISTINCT FROM pci_sub_vendor_id::varchar AND
+		sid.property_value IS NOT DISTINCT FROM pci_subsystem_id::varchar;
+
+	--
+	-- The device type doesn't exist, so attempt to insert it
+	--
+
+	IF NOT FOUND THEN
+		IF pci_device_name IS NULL OR component_function_list IS NULL THEN
+			RAISE EXCEPTION 'component_id not found and pci_device_name or component_function_list was not passed' USING ERRCODE = 'JH501';
+		END IF;
+
+		--
+		-- Ensure that there's a company linkage for the PCI (subsystem)vendor
+		--
+		SELECT
+			company_id, company_name INTO comp_id, vendor_name
+		FROM
+			property p JOIN
+			company c USING (company_id)
+		WHERE
+			property_type = 'DeviceProvisioning' AND
+			property_name = 'PCIVendorID' AND
+			property_value = pci_vendor_id::text;
+
+		IF NOT FOUND THEN
+			IF pci_vendor_name IS NULL THEN
+				RAISE EXCEPTION 'PCI vendor id mapping not found and pci_vendor_name was not passed' USING ERRCODE = 'JH501';
+			END IF;
+			SELECT company_id INTO comp_id FROM company
+			WHERE company_name = pci_vendor_name;
+
+			IF NOT FOUND THEN
+				SELECT company_manip.add_company(
+					_company_name := pci_vendor_name,
+					_company_types := ARRAY['hardware provider'],
+					 _description := 'PCI vendor auto-insert'
+				) INTO comp_id;
+			END IF;
+
+			INSERT INTO property (
+				property_name,
+				property_type,
+				property_value,
+				company_id
+			) VALUES (
+				'PCIVendorID',
+				'DeviceProvisioning',
+				pci_vendor_id,
+				comp_id
+			);
+			vendor_name := pci_vendor_name;
+		END IF;
+
+		SELECT
+			company_id, company_name INTO sub_comp_id, sub_vendor_name
+		FROM
+			property JOIN
+			company c USING (company_id)
+		WHERE
+			property_type = 'DeviceProvisioning' AND
+			property_name = 'PCIVendorID' AND
+			property_value = pci_sub_vendor_id::text;
+
+		IF NOT FOUND THEN
+			IF pci_sub_vendor_name IS NULL THEN
+				RAISE EXCEPTION 'PCI subsystem vendor id mapping not found and pci_sub_vendor_name was not passed' USING ERRCODE = 'JH501';
+			END IF;
+			SELECT company_id INTO sub_comp_id FROM company
+			WHERE company_name = pci_sub_vendor_name;
+
+			IF NOT FOUND THEN
+				SELECT company_manip.add_company(
+					_company_name := pci_sub_vendor_name,
+					_company_types := ARRAY['hardware provider'],
+					 _description := 'PCI vendor auto-insert'
+				) INTO sub_comp_id;
+			END IF;
+
+			INSERT INTO property (
+				property_name,
+				property_type,
+				property_value,
+				company_id
+			) VALUES (
+				'PCIVendorID',
+				'DeviceProvisioning',
+				pci_sub_vendor_id,
+				sub_comp_id
+			);
+			sub_vendor_name := pci_sub_vendor_name;
+		END IF;
+
+		--
+		-- Fetch the slot type
+		--
+
+		SELECT
+			slot_type_id INTO stid
+		FROM
+			slot_type st
+		WHERE
+			st.slot_type = insert_pci_component.slot_type AND
+			slot_function = 'PCI';
+
+		IF NOT FOUND THEN
+			RAISE EXCEPTION 'slot type % with function PCI not found adding component_type',
+				insert_pci_component.slot_type
+				USING ERRCODE = 'JH501';
+		END IF;
+
+		--
+		-- Figure out the best name/description to insert this component with
+		--
+		IF
+			pci_sub_device_name IS NOT NULL AND
+			pci_sub_device_name !~ '^Device'
+		THEN
+			model_name = pci_sub_device_name;
+			descrip = concat_ws(' ',
+				sub_vendor_name, pci_sub_device_name,
+				'(' || vendor_name, pci_device_name || ')');
+		ELSIF pci_sub_device_name ~ '^Device' THEN
+			model_name = pci_device_name;
+			descrip = concat_ws(
+				' ',
+				vendor_name,
+				'(' || sub_vendor_name || ')',
+				pci_device_name
+			);
+		ELSE
+			model_name = pci_device_name;
+			descrip = concat_ws(' ', vendor_name, pci_device_name);
+		END IF;
+
+		INSERT INTO component_type (
+			company_id,
+			model,
+			slot_type_id,
+			asset_permitted,
+			description
+		) VALUES (
+			COALESCE(sub_comp_id, comp_id),
+			model_name,
+			stid,
+			true,
+			descrip
+		) RETURNING * INTO ct;
+		--
+		-- Insert properties for the PCI vendor/device IDs
+		--
+		INSERT INTO component_property (
+			component_property_name,
+			component_property_type,
+			component_type_id,
+			property_value
+		) VALUES
+			('PCIVendorID', 'PCI', ct.component_type_id, pci_vendor_id),
+			('PCIDeviceID', 'PCI', ct.component_type_id, pci_device_id);
+
+		IF (pci_subsystem_id IS NOT NULL) THEN
+			INSERT INTO component_property (
+				component_property_name,
+				component_property_type,
+				component_type_id,
+				property_value
+			) VALUES
+				(
+					'PCISubsystemVendorID',
+					'PCI',
+					ct.component_type_id,
+					pci_sub_vendor_id
+				),
+				(
+					'PCISubsystemID',
+					'PCI',
+					ct.component_type_id,
+					pci_subsystem_id)
+				;
+		END IF;
+		--
+		-- Insert the component functions
+		--
+
+		INSERT INTO component_type_component_function (
+			component_type_id,
+			component_function
+		) SELECT DISTINCT
+			ct.component_type_id,
+			cf
+		FROM
+			unnest(array_append(component_function_list, 'PCI')) x(cf);
+	ELSE
+		IF
+			ct.model ~ '^Device [0-9a-f]{4}$'
+		THEN
+			IF
+				pci_sub_device_name IS NOT NULL AND
+				pci_sub_device_name !~ '^Device'
+			THEN
+				model_name = pci_sub_device_name;
+				descrip = concat_ws(' ',
+					sub_vendor_name, pci_sub_device_name,
+					'(' || vendor_name, pci_device_name || ')');
+			ELSIF pci_sub_device_name ~ '^Device' THEN
+				model_name = pci_device_name;
+				descrip = concat_ws(
+					' ',
+					vendor_name,
+					'(' || sub_vendor_name || ')',
+					pci_device_name
+				);
+			ELSE
+				model_name = pci_device_name;
+				descrip = concat_ws(' ', vendor_name, pci_device_name);
+			END IF;
+
+			IF model_name IS DISTINCT FROM ct.model THEN
+				UPDATE
+					component_type
+				SET
+					model = model_name,
+					description = descrip
+				WHERE
+					component_type_id = ct.component_type_id;
+			END IF;
+		END IF;
+	END IF;
+
+
+	--
+	-- We have a component_type_id now, so look to see if this component
+	-- serial number already exists
+	--
+	IF serial_number IS NOT NULL THEN
+		SELECT
+			component.* INTO c
+		FROM
+			component JOIN
+			asset a USING (component_id)
+		WHERE
+			component_type_id = ct.component_type_id AND
+			a.serial_number = sn;
+
+		IF FOUND THEN
+			RETURN c;
+		END IF;
+	END IF;
+
+	INSERT INTO jazzhands.component (
+		component_type_id
+	) VALUES (
+		ct.component_type_id
+	) RETURNING * INTO c;
+
+	IF serial_number IS NOT NULL THEN
+		INSERT INTO asset (
+			component_id,
+			serial_number,
+			ownership_status
+		) VALUES (
+			c.component_id,
+			serial_number,
+			'unknown'
+		);
+	END IF;
+
+	RETURN c;
+END;
+$function$
+;
+
+DO $$
+-- not dropping regrants here.
+BEGIN
+	DELETE FROM __recreate WHERE schema = 'component_manip' AND type = 'function' AND object IN ('insert_pci_component');
+EXCEPTION WHEN undefined_table THEN
+	RAISE NOTICE 'Drop of proc insert_pci_component failed but that is ok';
+	NULL;
+END;
+$$;
+
+-- Changed function
+SELECT schema_support.save_dependent_objects_for_replay('component_manip', 'migrate_component_template_slots');
+SELECT schema_support.save_grants_for_replay('component_manip', 'migrate_component_template_slots');
+-- Dropped in case type changes.
+DROP FUNCTION IF EXISTS component_manip.migrate_component_template_slots ( integer );
+CREATE OR REPLACE FUNCTION component_manip.migrate_component_template_slots(component_id integer)
+ RETURNS SETOF jazzhands.slot
+ LANGUAGE plpgsql
+ SECURITY DEFINER
+ SET search_path TO 'jazzhands'
+AS $function$
+DECLARE
+	cid 	ALIAS FOR component_id;
+BEGIN
+	-- Ensure all of the new slots have appropriate names
+
+	PERFORM component_manip.set_slot_names(
+		slot_id_list := ARRAY(
+				SELECT s.slot_id FROM slot s WHERE s.component_id = cid
+			)
+	);
+
+	-- Move everything from the old slot to the new slot if the slot name
+	-- and component functions match up, then delete the old slot
+
+	RETURN QUERY
+	WITH old_slot AS (
+		SELECT
+			s.slot_id,
+			s.slot_name,
+			s.slot_type_id,
+			st.slot_function,
+			ctst.component_type_slot_template_id
+		FROM
+			slot s JOIN
+			slot_type st USING (slot_type_id) JOIN
+			component c USING (component_id) LEFT JOIN
+			component_type_slot_template ctst USING (component_type_slot_template_id)
+		WHERE
+			s.component_id = cid AND
+			ctst.component_type_id IS DISTINCT FROM c.component_type_id
+	), new_slot AS (
+		SELECT
+			s.slot_id,
+			s.slot_name,
+			s.slot_type_id,
+			st.slot_function
+		FROM
+			slot s JOIN
+			slot_type st USING (slot_type_id) JOIN
+			component c USING (component_id) LEFT JOIN
+			component_type_slot_template ctst USING (component_type_slot_template_id)
+		WHERE
+			s.component_id = cid AND
+			ctst.component_type_id IS NOT DISTINCT FROM c.component_type_id
+	), slot_map AS (
+		SELECT
+			o.slot_id AS old_slot_id,
+			n.slot_id AS new_slot_id
+		FROM
+			old_slot o JOIN
+			new_slot n ON (
+				o.slot_name = n.slot_name AND o.slot_function = n.slot_function)
+	), slot_1_upd AS (
+		UPDATE
+			inter_component_connection ic
+		SET
+			slot1_id = slot_map.new_slot_id
+		FROM
+			slot_map
+		WHERE
+			slot1_id = slot_map.old_slot_id
+		RETURNING *
+	), slot_2_upd AS (
+		UPDATE
+			inter_component_connection ic
+		SET
+			slot2_id = slot_map.new_slot_id
+		FROM
+			slot_map
+		WHERE
+			slot2_id = slot_map.old_slot_id
+		RETURNING *
+	), prop_upd AS (
+		UPDATE
+			component_property cp
+		SET
+			slot_id = slot_map.new_slot_id
+		FROM
+			slot_map
+		WHERE
+			slot_id = slot_map.old_slot_id
+		RETURNING *
+	), comp_upd AS (
+		UPDATE
+			component c
+		SET
+			parent_slot_id = slot_map.new_slot_id
+		FROM
+			slot_map
+		WHERE
+			parent_slot_id = slot_map.old_slot_id
+		RETURNING *
+	), l3i_upd AS (
+		UPDATE
+			layer3_interface l3i
+		SET
+			slot_id = slot_map.new_slot_id
+		FROM
+			slot_map
+		WHERE
+			l3i.slot_id = slot_map.old_slot_id
+		RETURNING *
+	), delete_migrated_slots AS (
+		DELETE FROM
+			slot
+		WHERE
+			slot_id IN (SELECT old_slot_id FROM slot_map)
+		RETURNING *
+	), delete_empty_slots AS (
+		DELETE FROM
+			slot s
+		WHERE
+			slot_id IN (
+				SELECT os.slot_id FROM
+					old_slot os LEFT JOIN
+					component_property cp ON (os.slot_id = cp.slot_id) LEFT JOIN
+					layer3_interface l3i ON (
+						l3i.slot_id = os.slot_id OR
+						l3i.slot_id = os.slot_id) LEFT JOIN
+					inter_component_connection ic ON (
+						slot1_id = os.slot_id OR
+						slot2_id = os.slot_id) LEFT JOIN
+					component c ON (c.parent_slot_id = os.slot_id)
+				WHERE
+					ic.inter_component_connection_id IS NULL AND
+					c.component_id IS NULL AND
+					l3i.layer3_interface_id IS NULL AND
+					cp.component_property_id IS NULL AND
+					os.component_type_slot_template_id IS NOT NULL
+			)
+	) SELECT s.* FROM slot s JOIN slot_map sm ON s.slot_id = sm.new_slot_id;
+
+	RETURN;
+END;
+$function$
+;
+
+DO $$
+-- not dropping regrants here.
+BEGIN
+	DELETE FROM __recreate WHERE schema = 'component_manip' AND type = 'function' AND object IN ('migrate_component_template_slots');
+EXCEPTION WHEN undefined_table THEN
+	RAISE NOTICE 'Drop of proc migrate_component_template_slots failed but that is ok';
+	NULL;
+END;
+$$;
+
+-- Changed function
+SELECT schema_support.save_dependent_objects_for_replay('component_manip', 'remove_component_hier');
+SELECT schema_support.save_grants_for_replay('component_manip', 'remove_component_hier');
+-- Dropped in case type changes.
+DROP FUNCTION IF EXISTS component_manip.remove_component_hier ( integer,boolean );
+CREATE OR REPLACE FUNCTION component_manip.remove_component_hier(component_id integer, really_delete boolean DEFAULT false)
+ RETURNS boolean
+ LANGUAGE plpgsql
+ SECURITY DEFINER
+ SET search_path TO 'jazzhands'
+AS $function$
+DECLARE
+	slot_list		integer[];
+	shelf_list		integer[];
+	delete_list		integer[];
+	cid				integer;
+BEGIN
+	cid := component_id;
+
+	SELECT ARRAY(
+		SELECT
+			slot_id
+		FROM
+			v_component_hier h JOIN
+			slot s ON (h.child_component_id = s.component_id)
+		WHERE
+			h.component_id = cid)
+	INTO slot_list;
+
+	IF really_delete THEN
+		SELECT ARRAY(
+			SELECT
+				child_component_id
+			FROM
+				v_component_hier h
+			WHERE
+				h.component_id = cid)
+		INTO delete_list;
+	ELSE
+
+		SELECT ARRAY(
+			SELECT
+				child_component_id
+			FROM
+				v_component_hier h LEFT JOIN
+				asset a on (a.component_id = h.child_component_id)
+			WHERE
+				h.component_id = cid AND
+				serial_number IS NOT NULL
+		)
+		INTO shelf_list;
+
+		SELECT ARRAY(
+			SELECT
+				child_component_id
+			FROM
+				v_component_hier h LEFT JOIN
+				asset a on (a.component_id = h.child_component_id)
+			WHERE
+				h.component_id = cid AND
+				serial_number IS NULL
+		)
+		INTO delete_list;
+
+	END IF;
+
+	DELETE FROM
+		inter_component_connection
+	WHERE
+		slot1_id = ANY (slot_list) OR
+		slot2_id = ANY (slot_list);
+
+	UPDATE
+		component c
+	SET
+		parent_slot_id = NULL
+	WHERE
+		c.component_id = ANY (array_cat(delete_list, shelf_list)) AND
+		parent_slot_id IS NOT NULL;
+
+	DELETE FROM component_property cp WHERE
+		cp.component_id = ANY (delete_list) OR
+		slot_id = ANY (slot_list);
+
+	DELETE FROM
+		slot s
+	WHERE
+		slot_id = ANY (slot_list) AND
+		s.component_id = ANY(delete_list);
+
+	DELETE FROM
+		component c
+	WHERE
+		c.component_id = ANY (delete_list);
+
+	RETURN true;
+END;
+$function$
+;
+
+DO $$
+-- not dropping regrants here.
+BEGIN
+	DELETE FROM __recreate WHERE schema = 'component_manip' AND type = 'function' AND object IN ('remove_component_hier');
+EXCEPTION WHEN undefined_table THEN
+	RAISE NOTICE 'Drop of proc remove_component_hier failed but that is ok';
+	NULL;
+END;
+$$;
+
+-- Changed function
+SELECT schema_support.save_dependent_objects_for_replay('component_manip', 'replace_component');
+SELECT schema_support.save_grants_for_replay('component_manip', 'replace_component');
+-- Dropped in case type changes.
+DROP FUNCTION IF EXISTS component_manip.replace_component ( integer,integer );
+CREATE OR REPLACE FUNCTION component_manip.replace_component(old_component_id integer, new_component_id integer)
+ RETURNS void
+ LANGUAGE plpgsql
+ SECURITY DEFINER
+ SET search_path TO 'jazzhands'
+AS $function$
+DECLARE
+	oc	RECORD;
+BEGIN
+	SELECT
+		* INTO oc
+	FROM
+		component
+	WHERE
+		component_id = old_component_id;
+
+	UPDATE
+		component
+	SET
+		parent_slot_id = NULL
+	WHERE
+		component_id = old_component_id;
+
+	UPDATE
+		component
+	SET
+		parent_slot_id = oc.parent_slot_id
+	WHERE
+		component_id = new_component_id;
+
+	UPDATE
+		device
+	SET
+		component_id = new_component_id
+	WHERE
+		component_id = old_component_id;
+
+	UPDATE
+		physicalish_volume
+	SET
+		component_id = new_component_id
+	WHERE
+		component_id = old_component_id;
+
+	RETURN;
+END;
+$function$
+;
+
+DO $$
+-- not dropping regrants here.
+BEGIN
+	DELETE FROM __recreate WHERE schema = 'component_manip' AND type = 'function' AND object IN ('replace_component');
+EXCEPTION WHEN undefined_table THEN
+	RAISE NOTICE 'Drop of proc replace_component failed but that is ok';
+	NULL;
+END;
+$$;
+
+-- Changed function
+SELECT schema_support.save_dependent_objects_for_replay('component_manip', 'set_slot_names');
+SELECT schema_support.save_grants_for_replay('component_manip', 'set_slot_names');
+-- Dropped in case type changes.
+DROP FUNCTION IF EXISTS component_manip.set_slot_names ( integer[] );
+CREATE OR REPLACE FUNCTION component_manip.set_slot_names(slot_id_list integer[] DEFAULT NULL::integer[])
+ RETURNS void
+ LANGUAGE plpgsql
+ SECURITY DEFINER
+ SET search_path TO 'jazzhands'
+AS $function$
+DECLARE
+	slot_rec	RECORD;
+	sn			text;
+BEGIN
+	-- Get a list of all slots that have replacement values
+
+	FOR slot_rec IN
+		SELECT
+			s.slot_id,
+			COALESCE(pst.child_slot_name_template, st.slot_name_template)
+				AS slot_name_template,
+			st.slot_index as slot_index,
+			pst.slot_index as parent_slot_index,
+			pst.child_slot_offset as child_slot_offset
+		FROM
+			slot s JOIN
+			component_type_slot_template st ON (s.component_type_slot_template_id =
+				st.component_type_slot_template_id) JOIN
+			component c ON (s.component_id = c.component_id) LEFT JOIN
+			slot ps ON (c.parent_slot_id = ps.slot_id) LEFT JOIN
+			component_type_slot_template pst ON (ps.component_type_slot_template_id =
+				pst.component_type_slot_template_id)
+		WHERE
+			s.slot_id = ANY(slot_id_list) AND
+			(
+				st.slot_name_template ~ '%{' OR
+				pst.child_slot_name_template ~ '%{'
+			)
+	LOOP
+		sn := slot_rec.slot_name_template;
+		IF (slot_rec.slot_index IS NOT NULL) THEN
+			sn := regexp_replace(sn,
+				'%\{slot_index\}', slot_rec.slot_index::text,
+				'g');
+		END IF;
+		IF (slot_rec.parent_slot_index IS NOT NULL) THEN
+			sn := regexp_replace(sn,
+				'%\{parent_slot_index\}', slot_rec.parent_slot_index::text,
+				'g');
+		END IF;
+		IF (slot_rec.parent_slot_index IS NOT NULL AND
+			slot_rec.slot_index IS NOT NULL) THEN
+			sn := regexp_replace(sn,
+				'%\{relative_slot_index\}',
+				(slot_rec.parent_slot_index + slot_rec.slot_index)::text,
+				'g');
+		END IF;
+		RAISE DEBUG 'Setting name of slot % to %',
+			slot_rec.slot_id,
+			sn;
+		UPDATE slot SET slot_name = sn WHERE slot_id = slot_rec.slot_id;
+	END LOOP;
+END;
+$function$
+;
+
+DO $$
+-- not dropping regrants here.
+BEGIN
+	DELETE FROM __recreate WHERE schema = 'component_manip' AND type = 'function' AND object IN ('set_slot_names');
+EXCEPTION WHEN undefined_table THEN
+	RAISE NOTICE 'Drop of proc set_slot_names failed but that is ok';
+	NULL;
+END;
+$$;
+
 SELECT schema_support.replay_object_recreates(tags := ARRAY['process_all_procs_in_schema_component_manip']);
 -- New function; dropping in case it returned because of type change
 SELECT schema_support.save_grants_for_replay('component_manip', 'set_component_network_interface');
@@ -1906,7 +3415,7 @@ BEGIN
 		RAISE DEBUG 'Looking for slot with mac_address %',
 			ni->>'permanent_mac';
 
-		SELECT 
+		SELECT
 			* INTO cs
 		FROM
 			slot
@@ -1919,7 +3428,7 @@ BEGIN
 			cid,
 			ni->>'interface_name';
 
-		SELECT 
+		SELECT
 			s.* INTO cs
 		FROM
 			slot s JOIN
@@ -1933,13 +3442,13 @@ BEGIN
 	IF cs IS NULL AND ni ? 'lldp' THEN
 		lldp := ni->'lldp';
 
-		RAISE DEBUG 'Looking for slot for component % connected to %/% port %', 
+		RAISE DEBUG 'Looking for slot for component % connected to %/% port %',
 			cid,
 			lldp->>'device_name',
 			lldp->>'chassis_id',
 			lldp->>'interface';
 
-		SELECT 
+		SELECT
 			s.* INTO cs
 		FROM
 			slot s JOIN
@@ -2062,6 +3571,107 @@ BEGIN
 	END IF;
 
 	RETURN cs;
+END;
+$function$
+;
+
+-- New function; dropping in case it returned because of type change
+SELECT schema_support.save_grants_for_replay('component_manip', 'update_pci_component_type_model');
+DROP FUNCTION IF EXISTS component_manip.update_pci_component_type_model ( integer,text,text,text,text );
+CREATE OR REPLACE FUNCTION component_manip.update_pci_component_type_model(component_type_id integer, pci_device_name text, pci_sub_device_name text DEFAULT NULL::text, pci_vendor_name text DEFAULT NULL::text, pci_sub_vendor_name text DEFAULT NULL::text)
+ RETURNS jazzhands.component_type
+ LANGUAGE plpgsql
+ SECURITY DEFINER
+ SET search_path TO 'jazzhands'
+AS $function$
+DECLARE
+	ct			RECORD;
+	model_name	text;
+	descrip		text;
+BEGIN
+	SELECT
+		* INTO ct
+	FROM
+		component_type comptype
+	WHERE
+		comptype.component_type_id =
+			update_pci_component_type_model.component_type_id;
+
+	IF NOT FOUND THEN
+		RETURN NULL;
+	END IF;
+
+	IF pci_vendor_name IS NULL THEN
+		SELECT
+			company_name INTO pci_vendor_name
+		FROM
+			component_property cp JOIN
+			property p ON (
+				p.property_name = 'PCIVendorID' AND
+				p.property_type = 'DeviceProvisioning' AND
+				p.property_value = cp.property_value
+			) JOIN
+			company c ON (c.company_id = p.company_id)
+		WHERE
+			cp.component_property_name = 'PCIVendorID' AND
+			cp.component_property_type = 'PCI' AND
+			cp.component_type_id =
+				update_pci_component_type_model.component_type_id;
+	END IF;
+
+	IF pci_sub_vendor_name IS NULL THEN
+		SELECT
+			company_name INTO pci_sub_vendor_name
+		FROM
+			component_property cp JOIN
+			property p ON (
+				p.property_name = 'PCIVendorID' AND
+				p.property_type = 'DeviceProvisioning' AND
+				p.property_value = cp.property_value
+			) JOIN
+			company c ON (c.company_id = p.company_id)
+		WHERE
+			cp.component_property_name = 'PCISubsystemVendorID' AND
+			cp.component_property_type = 'PCI' AND
+			cp.component_type_id =
+				update_pci_component_type_model.component_type_id;
+	END IF;
+
+	IF
+		pci_sub_device_name IS NOT NULL AND
+		pci_sub_device_name !~ '^Device'
+	THEN
+		model_name = pci_sub_device_name;
+		descrip = concat_ws(' ',
+			pci_sub_vendor_name, pci_sub_device_name,
+			'(' || coalesce(pci_vendor_name, 'Unknown'),
+			pci_device_name || ')'
+		);
+	ELSIF pci_sub_device_name ~ '^Device' THEN
+		model_name = pci_device_name;
+		descrip = concat_ws(
+			' ',
+			vendor_name,
+			'(' || pci_sub_vendor_name || ')',
+			pci_device_name
+		);
+	ELSE
+		model_name = pci_device_name;
+		descrip = concat_ws(' ', pci_vendor_name, pci_device_name);
+	END IF;
+
+	IF model_name IS DISTINCT FROM ct.model THEN
+		UPDATE
+			component_type comptype
+		SET
+			model = model_name,
+			description = descrip
+		WHERE
+			comptype.component_type_id = ct.component_type_id
+		RETURNING * INTO ct;
+	END IF;
+
+	RETURN ct;
 END;
 $function$
 ;
@@ -4576,6 +6186,70 @@ SELECT schema_support.replay_object_recreates(tags := ARRAY['process_all_procs_i
 --
 -- Process middle (non-trigger) schema obfuscation_utils
 --
+-- Changed function
+SELECT schema_support.save_dependent_objects_for_replay('obfuscation_utils', 'deobfuscate_text');
+SELECT schema_support.save_grants_for_replay('obfuscation_utils', 'deobfuscate_text');
+-- Dropped in case type changes.
+DROP FUNCTION IF EXISTS obfuscation_utils.deobfuscate_text ( text,text,text );
+CREATE OR REPLACE FUNCTION obfuscation_utils.deobfuscate_text(encoded text, type text, label text DEFAULT 'default'::text)
+ RETURNS text
+ LANGUAGE plpgsql
+ SECURITY DEFINER
+AS $function$
+DECLARE
+	_key	BYTEA;
+	_de	BYTEA;
+	_iv	BYTEA;
+	_enc	BYTEA;
+	_parts	TEXT[];
+	_len	INTEGER;
+BEGIN
+	IF type = 'none' THEN
+		RETURN encoded;
+	END iF;
+	_key := obfuscation_utils.get_session_secret(label)::text;
+
+	IF type = 'base64' THEN
+		RETURN decode(encoded, 'base64');
+	ELSIF type ~ '^pgp' THEN
+		IF  type = 'pgp+base64' THEN
+			--
+			-- not using armor because of compatablity issues with 
+			-- Crypt::OpenPGP armoring that I gave up on.
+			--
+			encoded := decode(encoded, 'base64');
+		END IF;
+		IF _key IS NULL THEN
+			RAISE EXCEPTION 'pgp requries setup';
+		END IF;
+		_de := pgcrypto.pgp_sym_decrypt_bytea(encoded::bytea, _key::text);
+		RETURN encode(_de, 'escape');
+	ELSIF type ~ 'cbc/pad:pkcs' THEN
+		_parts := regexp_matches(encoded, '^([^-]+)-(.+)$');
+		_iv := decode(_parts[1], 'base64');
+		_enc := decode(_parts[2], 'base64');
+
+		_de := pgcrypto.decrypt_iv(_enc::bytea, _key, _iv, type);
+		RETURN encode(_de, 'escape');
+	ELSE
+		RAISE EXCEPTION 'unknown decryption type %', type
+			USING ERRCODE = invalid_parameter;
+	END IF;
+	RETURN NULL;
+END;
+$function$
+;
+
+DO $$
+-- not dropping regrants here.
+BEGIN
+	DELETE FROM __recreate WHERE schema = 'obfuscation_utils' AND type = 'function' AND object IN ('deobfuscate_text');
+EXCEPTION WHEN undefined_table THEN
+	RAISE NOTICE 'Drop of proc deobfuscate_text failed but that is ok';
+	NULL;
+END;
+$$;
+
 SELECT schema_support.replay_object_recreates(tags := ARRAY['process_all_procs_in_schema_obfuscation_utils']);
 --
 -- Process middle (non-trigger) schema person_manip
@@ -6294,6 +7968,38 @@ $$;
 
 SELECT schema_support.replay_object_recreates(tags := ARRAY['process_all_procs_in_schema_schema_support']);
 -- New function; dropping in case it returned because of type change
+CREATE OR REPLACE FUNCTION schema_support.jsonb_diff(one jsonb, other jsonb)
+ RETURNS jsonb
+ LANGUAGE plpgsql
+AS $function$
+DECLARE
+	key	TEXT;
+	rv	JSONB;
+BEGIN
+	rv := '{}';
+	FOR key IN SELECT * FROM jsonb_object_keys(one)
+	LOOP
+		IF NOT other ? key THEN
+			rv := rv || jsonb_build_object(
+					key, jsonb_build_array(one->key, NULL));
+		ELSIF other->>key IS DISTINCT FROM one->>key THEN
+			rv := rv || jsonb_build_object(
+					key, jsonb_build_array(one->key, other->key));
+		END IF;
+	END LOOP;
+	FOR key IN SELECT * FROM jsonb_object_keys(other)
+	LOOP
+		IF NOT one ? key THEN
+			rv := rv || jsonb_build_object(
+					key, jsonb_build_array(NULL, other->key));
+		END IF;
+	END LOOP;
+	RETURN rv;
+END;
+$function$
+;
+
+-- New function; dropping in case it returned because of type change
 CREATE OR REPLACE FUNCTION schema_support.migrate_grants(username text, direction text, old_schema text, new_schema text, name_map jsonb DEFAULT NULL::jsonb, name_map_exception boolean DEFAULT true)
  RETURNS text[]
  LANGUAGE plpgsql
@@ -6920,6 +8626,272 @@ $function$
 
 -- Processing tables in main schema...
 select clock_timestamp(), clock_timestamp() - now() AS len;
+--------------------------------------------------------------------
+-- BEGIN: DEALING WITH TABLE encryption_key
+-- Save grants for later reapplication
+SELECT schema_support.save_grants_for_replay('jazzhands', 'encryption_key', 'encryption_key');
+
+-- FOREIGN KEYS FROM
+ALTER TABLE account_password DROP CONSTRAINT IF EXISTS fk_account_passwd_enc_key;
+ALTER TABLE appaal_instance_property DROP CONSTRAINT IF EXISTS fk_apalinstprp_enc_id_id;
+ALTER TABLE property DROP CONSTRAINT IF EXISTS fk_property_val_enc_key;
+ALTER TABLE private_key DROP CONSTRAINT IF EXISTS fk_pvtkey_enckey_id;
+ALTER TABLE ssh_key DROP CONSTRAINT IF EXISTS fk_ssh_key_enc_key_id;
+ALTER TABLE token DROP CONSTRAINT IF EXISTS fk_token_enc_id_id;
+
+-- FOREIGN KEYS TO
+ALTER TABLE jazzhands.encryption_key DROP CONSTRAINT IF EXISTS fk_enckey_enckeypurpose_val;
+ALTER TABLE jazzhands.encryption_key DROP CONSTRAINT IF EXISTS fk_enckey_encmethod_val;
+
+-- EXTRA-SCHEMA constraints
+SELECT schema_support.save_constraint_for_replay(schema := 'jazzhands', object := 'encryption_key', newobject := 'encryption_key', newmap := '{"pk_encryption_key":{"columns":["encryption_key_id"],"def":"PRIMARY KEY (encryption_key_id)","deferrable":false,"deferred":false,"name":"pk_encryption_key","type":"p"}}');
+
+-- PRIMARY and ALTERNATE KEYS
+ALTER TABLE jazzhands.encryption_key DROP CONSTRAINT IF EXISTS pk_encryption_key;
+-- INDEXES
+-- CHECK CONSTRAINTS, etc
+-- TRIGGERS, etc
+DROP TRIGGER IF EXISTS trig_userlog_encryption_key ON jazzhands.encryption_key;
+DROP TRIGGER IF EXISTS trigger_audit_encryption_key ON jazzhands.encryption_key;
+DROP FUNCTION IF EXISTS perform_audit_encryption_key();
+-- default sequences associations and sequences (values rebuilt at end, if needed)
+-- The value of this sequence is restored based on the column at migration end
+ALTER TABLE jazzhands.encryption_key ALTER COLUMN "encryption_key_id" DROP IDENTITY;
+SELECT schema_support.save_dependent_objects_for_replay(schema := 'jazzhands', object := 'encryption_key', tags := ARRAY['table_encryption_key']);
+---- BEGIN jazzhands_audit.encryption_key TEARDOWN
+SELECT schema_support.save_dependent_objects_for_replay(schema := 'jazzhands_audit', object := 'encryption_key', tags := ARRAY['table_encryption_key']);
+-- Save grants for later reapplication
+SELECT schema_support.save_grants_for_replay('jazzhands_audit', 'encryption_key', 'encryption_key');
+
+-- FOREIGN KEYS FROM
+
+-- FOREIGN KEYS TO
+
+-- EXTRA-SCHEMA constraints
+SELECT schema_support.save_constraint_for_replay(schema := 'jazzhands_audit',  object := 'encryption_key');
+
+-- PRIMARY and ALTERNATE KEYS
+ALTER TABLE jazzhands_audit.encryption_key DROP CONSTRAINT IF EXISTS encryption_key_pkey;
+-- INDEXES
+DROP INDEX IF EXISTS "jazzhands_audit"."aud_encryption_key_pk_encryption_key";
+DROP INDEX IF EXISTS "jazzhands_audit"."encryption_key_aud#realtime_idx";
+DROP INDEX IF EXISTS "jazzhands_audit"."encryption_key_aud#timestamp_idx";
+DROP INDEX IF EXISTS "jazzhands_audit"."encryption_key_aud#txid_idx";
+-- CHECK CONSTRAINTS, etc
+-- TRIGGERS, etc
+-- default sequences associations and sequences (values rebuilt at end, if needed)
+-- The value of this sequence is restored based on the column at migration end
+ALTER TABLE jazzhands_audit.encryption_key ALTER COLUMN "aud#seq" DROP IDENTITY;
+---- DONE jazzhands_audit.encryption_key TEARDOWN
+
+
+ALTER TABLE encryption_key RENAME TO encryption_key_v96;
+ALTER TABLE jazzhands_audit.encryption_key RENAME TO encryption_key_v96;
+
+CREATE TABLE jazzhands.encryption_key
+(
+	encryption_key_id	integer NOT NULL,
+	encryption_key_purpose	varchar(50) NOT NULL,
+	encryption_key_purpose_version	integer NOT NULL,
+	encryption_method	varchar(50) NOT NULL,
+	encryption_key_db_value	varchar(255)  NULL,
+	external_id	varchar(255)  NULL,
+	data_ins_user	varchar(255)  NULL,
+	data_ins_date	timestamp with time zone  NULL,
+	data_upd_user	varchar(255)  NULL,
+	data_upd_date	timestamp with time zone  NULL
+);
+SELECT schema_support.build_audit_table('jazzhands_audit', 'jazzhands', 'encryption_key', false);
+ALTER TABLE encryption_key
+	ALTER COLUMN encryption_key_id
+	ADD GENERATED BY DEFAULT AS IDENTITY;
+
+INSERT INTO encryption_key (
+	encryption_key_id,
+	encryption_key_purpose,
+	encryption_key_purpose_version,
+	encryption_method,
+	encryption_key_db_value,
+	external_id,
+	data_ins_user,
+	data_ins_date,
+	data_upd_user,
+	data_upd_date
+) SELECT
+	encryption_key_id,
+	encryption_key_purpose,
+	encryption_key_purpose_version,
+	encryption_method,
+	encryption_key_db_value,
+	external_id,
+	data_ins_user,
+	data_ins_date,
+	data_upd_user,
+	data_upd_date
+FROM encryption_key_v96;
+
+
+INSERT INTO jazzhands_audit.encryption_key (
+	encryption_key_id,
+	encryption_key_purpose,
+	encryption_key_purpose_version,
+	encryption_method,
+	encryption_key_db_value,
+	external_id,
+	data_ins_user,
+	data_ins_date,
+	data_upd_user,
+	data_upd_date,
+	"aud#action",
+	"aud#timestamp",
+	"aud#realtime",
+	"aud#txid",
+	"aud#user",
+	"aud#actor",		-- new column (aud#actor)
+	"aud#seq"
+) SELECT
+	encryption_key_id,
+	encryption_key_purpose,
+	encryption_key_purpose_version,
+	encryption_method,
+	encryption_key_db_value,
+	external_id,
+	data_ins_user,
+	data_ins_date,
+	data_upd_user,
+	data_upd_date,
+	"aud#action",
+	"aud#timestamp",
+	"aud#realtime",
+	"aud#txid",
+	"aud#user",
+	NULL,		-- new column (aud#actor)
+	"aud#seq"
+FROM jazzhands_audit.encryption_key_v96;
+
+
+-- PRIMARY AND ALTERNATE KEYS
+ALTER TABLE jazzhands.encryption_key ADD CONSTRAINT pk_encryption_key PRIMARY KEY (encryption_key_id);
+
+-- Table/Column Comments
+COMMENT ON TABLE jazzhands.encryption_key IS 'Keep information on keys used to encrypt sensitive data in the schema';
+COMMENT ON COLUMN jazzhands.encryption_key.encryption_key_purpose IS 'indicates the purpose of infrastructure providing the key.  Used externally by applications to manage their portion of the key';
+COMMENT ON COLUMN jazzhands.encryption_key.encryption_key_purpose_version IS 'indicates the version of the application portion of the key.  Used externally by applications to manage their portion of the key';
+COMMENT ON COLUMN jazzhands.encryption_key.encryption_method IS 'Text representation of the method of encryption.  Format is the same as Kerberos uses such as in rfc3962';
+COMMENT ON COLUMN jazzhands.encryption_key.encryption_key_db_value IS 'part of 3-tuple that is the key used to encrypt.  The other portions are provided by a user and stored in the key_crypto package';
+COMMENT ON COLUMN jazzhands.encryption_key.external_id IS 'pointer to where to find the encrypted material in an external system.';
+-- INDEXES
+
+-- CHECK CONSTRAINTS
+
+-- FOREIGN KEYS FROM
+-- consider FK between encryption_key and jazzhands.account_password
+ALTER TABLE jazzhands.account_password
+	ADD CONSTRAINT fk_account_passwd_enc_key
+	FOREIGN KEY (encryption_key_id) REFERENCES jazzhands.encryption_key(encryption_key_id);
+-- consider FK between encryption_key and jazzhands.appaal_instance_property
+ALTER TABLE jazzhands.appaal_instance_property
+	ADD CONSTRAINT fk_apalinstprp_enc_id_id
+	FOREIGN KEY (encryption_key_id) REFERENCES jazzhands.encryption_key(encryption_key_id);
+-- consider FK between encryption_key and jazzhands.encrypted_block_storage_device
+-- Skipping this FK since column does not exist yet
+--ALTER TABLE jazzhands.jazzhands.encrypted_block_storage_device
+--	ADD CONSTRAINT fk_enc_block_storage_device_encryption_key_id
+--	FOREIGN KEY (encryption_key_id) REFERENCES jazzhands.encryption_key(encryption_key_id);
+
+-- consider FK between encryption_key and jazzhands.property
+ALTER TABLE jazzhands.property
+	ADD CONSTRAINT fk_property_val_enc_key
+	FOREIGN KEY (property_value_encryption_key_id) REFERENCES jazzhands.encryption_key(encryption_key_id);
+-- consider FK between encryption_key and jazzhands.private_key
+ALTER TABLE jazzhands.private_key
+	ADD CONSTRAINT fk_pvtkey_enckey_id
+	FOREIGN KEY (encryption_key_id) REFERENCES jazzhands.encryption_key(encryption_key_id) DEFERRABLE;
+-- consider FK between encryption_key and jazzhands.ssh_key
+ALTER TABLE jazzhands.ssh_key
+	ADD CONSTRAINT fk_ssh_key_enc_key_id
+	FOREIGN KEY (encryption_key_id) REFERENCES jazzhands.encryption_key(encryption_key_id);
+-- consider FK between encryption_key and jazzhands.token
+ALTER TABLE jazzhands.token
+	ADD CONSTRAINT fk_token_enc_id_id
+	FOREIGN KEY (encryption_key_id) REFERENCES jazzhands.encryption_key(encryption_key_id);
+
+-- FOREIGN KEYS TO
+-- consider FK encryption_key and val_encryption_key_purpose
+ALTER TABLE jazzhands.encryption_key
+	ADD CONSTRAINT fk_enckey_enckeypurpose_val
+	FOREIGN KEY (encryption_key_purpose, encryption_key_purpose_version) REFERENCES jazzhands.val_encryption_key_purpose(encryption_key_purpose, encryption_key_purpose_version);
+-- consider FK encryption_key and val_encryption_method
+ALTER TABLE jazzhands.encryption_key
+	ADD CONSTRAINT fk_enckey_encmethod_val
+	FOREIGN KEY (encryption_method) REFERENCES jazzhands.val_encryption_method(encryption_method);
+
+-- TRIGGERS
+-- considering NEW jazzhands.encryption_key_validation
+CREATE OR REPLACE FUNCTION jazzhands.encryption_key_validation()
+ RETURNS trigger
+ LANGUAGE plpgsql
+ SECURITY DEFINER
+ SET search_path TO 'jazzhands'
+AS $function$
+DECLARE
+	_val	val_encryption_key_purpose;
+BEGIN
+
+	IF _val.permit_encryption_key_db_value = 'PROHIBITED' THEN
+		IF NEW.encryption_key_db_value IS NOT NULL THEN
+			RAISE EXCEPTION 'encryption_key_db_value must be null for this purpose/version'
+				USING ERRCODE = 'invalid_parameter_value';
+		END IF;
+	ELSIF _val.permit_encryption_key_db_value = 'REQUIRED' THEN
+		IF NEW.encryption_key_db_value IS NULL THEN
+			RAISE EXCEPTION 'encryption_key_db_value must be set for this purpose/version'
+				USING ERRCODE = 'not_null_violation';
+		END IF;
+	END IF;
+
+	RETURN NEW;
+END;
+$function$
+;
+REVOKE ALL ON FUNCTION jazzhands.encryption_key_validation() FROM public;
+CREATE CONSTRAINT TRIGGER trigger_encryption_key_validation AFTER INSERT OR UPDATE OF encryption_key_db_value ON jazzhands.encryption_key DEFERRABLE INITIALLY IMMEDIATE FOR EACH ROW EXECUTE FUNCTION jazzhands.encryption_key_validation();
+
+DO $$
+BEGIN
+		DELETE FROM __recreate WHERE schema = 'jazzhands' AND object IN ('encryption_key');
+	EXCEPTION WHEN undefined_table THEN
+		RAISE NOTICE 'Drop of triggers for encryption_key  failed but that is ok';
+		NULL;
+END;
+$$;
+
+SELECT schema_support.rebuild_stamp_trigger('jazzhands', 'encryption_key');
+SELECT schema_support.build_audit_table_pkak_indexes('jazzhands_audit', 'jazzhands', 'encryption_key');
+SELECT schema_support.rebuild_audit_trigger('jazzhands_audit', 'jazzhands', 'encryption_key');
+DROP TABLE IF EXISTS encryption_key_v96;
+DROP TABLE IF EXISTS jazzhands_audit.encryption_key_v96;
+-- DONE DEALING WITH TABLE encryption_key (jazzhands)
+--------------------------------------------------------------------
+DO $$
+BEGIN
+	DELETE FROM __recreate WHERE schema IN ('jazzhands', 'jazzhands_audit') AND object IN ('encryption_key');
+EXCEPTION WHEN undefined_table THEN
+	RAISE NOTICE 'Removal of old encryption_key failed but that is ok';
+	NULL;
+END;
+$$;
+
+DO $$
+BEGIN
+	DELETE FROM __recreate WHERE schema IN ('jazzhands', 'jazzhands_audit') AND object IN ('encryption_key');
+EXCEPTION WHEN undefined_table THEN
+	RAISE NOTICE 'Removal of new encryption_key failed but that is ok';
+	NULL;
+END;
+$$;
+
+select clock_timestamp(), clock_timestamp() - now() AS len;
 -- Processing minor changes to layer3_interface
 SELECT schema_support.save_dependent_objects_for_replay(schema := 'jazzhands', object := 'layer3_interface');
 SELECT schema_support.save_dependent_objects_for_replay(schema := 'jazzhands_audit', object := 'layer3_interface');
@@ -7018,7 +8990,7 @@ ALTER TABLE jazzhands.logical_volume DROP CONSTRAINT IF EXISTS fk_logvol_fstype;
 ALTER TABLE jazzhands.logical_volume DROP CONSTRAINT IF EXISTS fk_logvol_vgid;
 
 -- EXTRA-SCHEMA constraints
-SELECT schema_support.save_constraint_for_replay(schema := 'jazzhands', object := 'logical_volume', newobject := 'logical_volume', newmap := '{"ak_logical_volume_filesystem":{"columns":["logical_volume_id","filesystem_type"],"def":"UNIQUE (logical_volume_id, filesystem_type)","deferrable":false,"deferred":false,"name":"ak_logical_volume_filesystem","type":"u"},"ak_logvol_devid_lvname":{"columns":["logical_volume_name","logical_volume_type","volume_group_id","device_id"],"def":"UNIQUE (device_id, logical_volume_name, logical_volume_type, volume_group_id)","deferrable":false,"deferred":false,"name":"ak_logvol_devid_lvname","type":"u"},"ak_logvol_lv_devid":{"columns":["logical_volume_id"],"def":"UNIQUE (logical_volume_id)","deferrable":false,"deferred":false,"name":"ak_logvol_lv_devid","type":"u"},"pk_logical_volume":{"columns":["logical_volume_id"],"def":"PRIMARY KEY (logical_volume_id)","deferrable":false,"deferred":false,"name":"pk_logical_volume","type":"p"}}');
+SELECT schema_support.save_constraint_for_replay(schema := 'jazzhands', object := 'logical_volume', newobject := 'logical_volume', newmap := '{"ak_logical_volume_filesystem":{"columns":["logical_volume_id","filesystem_type"],"def":"UNIQUE (logical_volume_id, filesystem_type)","deferrable":false,"deferred":false,"name":"ak_logical_volume_filesystem","type":"u"},"ak_logvol_devid_lvname":{"columns":["device_id","logical_volume_name","logical_volume_type","volume_group_id"],"def":"UNIQUE (device_id, logical_volume_name, logical_volume_type, volume_group_id)","deferrable":false,"deferred":false,"name":"ak_logvol_devid_lvname","type":"u"},"ak_logvol_lv_devid":{"columns":["logical_volume_id"],"def":"UNIQUE (logical_volume_id)","deferrable":false,"deferred":false,"name":"ak_logvol_lv_devid","type":"u"},"pk_logical_volume":{"columns":["logical_volume_id"],"def":"PRIMARY KEY (logical_volume_id)","deferrable":false,"deferred":false,"name":"pk_logical_volume","type":"p"}}');
 
 -- PRIMARY and ALTERNATE KEYS
 ALTER TABLE jazzhands.logical_volume DROP CONSTRAINT IF EXISTS ak_logical_volume_filesystem;
@@ -7285,7 +9257,7 @@ ALTER TABLE jazzhands.volume_group DROP CONSTRAINT IF EXISTS fk_volgrp_rd_type;
 ALTER TABLE jazzhands.volume_group DROP CONSTRAINT IF EXISTS fk_volgrp_volgrp_type;
 
 -- EXTRA-SCHEMA constraints
-SELECT schema_support.save_constraint_for_replay(schema := 'jazzhands', object := 'volume_group', newobject := 'volume_group', newmap := '{"ak_volume_group_devid_vgid":{"columns":["device_id","volume_group_id"],"def":"UNIQUE (volume_group_id, device_id)","deferrable":false,"deferred":false,"name":"ak_volume_group_devid_vgid","type":"u"},"ak_volume_group_vg_devid":{"columns":["volume_group_id","device_id"],"def":"UNIQUE (volume_group_id, device_id)","deferrable":false,"deferred":false,"name":"ak_volume_group_vg_devid","type":"u"},"pk_volume_group":{"columns":["volume_group_id"],"def":"PRIMARY KEY (volume_group_id)","deferrable":false,"deferred":false,"name":"pk_volume_group","type":"p"},"uq_volgrp_devid_name_type":{"columns":["device_id","component_id","volume_group_name","volume_group_type"],"def":"UNIQUE (device_id, component_id, volume_group_name, volume_group_type)","deferrable":false,"deferred":false,"name":"uq_volgrp_devid_name_type","type":"u"}}');
+SELECT schema_support.save_constraint_for_replay(schema := 'jazzhands', object := 'volume_group', newobject := 'volume_group', newmap := '{"ak_volume_group_devid_vgid":{"columns":["device_id","volume_group_id"],"def":"UNIQUE (volume_group_id, device_id)","deferrable":false,"deferred":false,"name":"ak_volume_group_devid_vgid","type":"u"},"ak_volume_group_vg_devid":{"columns":["device_id","volume_group_id"],"def":"UNIQUE (volume_group_id, device_id)","deferrable":false,"deferred":false,"name":"ak_volume_group_vg_devid","type":"u"},"pk_volume_group":{"columns":["volume_group_id"],"def":"PRIMARY KEY (volume_group_id)","deferrable":false,"deferred":false,"name":"pk_volume_group","type":"p"},"uq_volgrp_devid_name_type":{"columns":["device_id","component_id","volume_group_name","volume_group_type"],"def":"UNIQUE (device_id, component_id, volume_group_name, volume_group_type)","deferrable":false,"deferred":false,"name":"uq_volgrp_devid_name_type","type":"u"}}');
 
 -- PRIMARY and ALTERNATE KEYS
 ALTER TABLE jazzhands.volume_group DROP CONSTRAINT IF EXISTS ak_volume_group_devid_vgid;
@@ -7598,10 +9570,10 @@ CREATE TABLE jazzhands.volume_group_block_storage_device
 (
 	volume_group_id	integer NOT NULL,
 	block_storage_device_id	integer NOT NULL,
+	volume_group_relation	varchar(50) NOT NULL,
 	device_id	integer  NULL,
 	volume_group_primary_position	integer  NULL,
 	volume_group_secondary_position	integer  NULL,
-	volume_group_relation	varchar(50) NOT NULL,
 	data_ins_user	varchar(255)  NULL,
 	data_ins_date	timestamp with time zone  NULL,
 	data_upd_user	varchar(255)  NULL,
@@ -7686,10 +9658,10 @@ ALTER TABLE jazzhands.volume_group_block_storage_device ADD CONSTRAINT pk_volume
 ALTER TABLE jazzhands.volume_group_block_storage_device ADD CONSTRAINT uq_volgrp_blk_stor_dev_position UNIQUE (volume_group_id, volume_group_primary_position) DEFERRABLE;
 
 -- Table/Column Comments
-COMMENT ON COLUMN jazzhands.volume_group_block_storage_device.volume_group_primary_position IS 'position within the primary raid, sometimes called span by at least one raid vendor.';
-COMMENT ON COLUMN jazzhands.volume_group_block_storage_device.volume_group_secondary_position IS 'position within the secondary raid, sometimes called arm by at least one raid vendor.';
 COMMENT ON COLUMN jazzhands.volume_group_block_storage_device.volume_group_relation IS 'purpose of volume in raid (member, hotspare, etc, based on val table)
 ';
+COMMENT ON COLUMN jazzhands.volume_group_block_storage_device.volume_group_primary_position IS 'position within the primary raid, sometimes called span by at least one raid vendor.';
+COMMENT ON COLUMN jazzhands.volume_group_block_storage_device.volume_group_secondary_position IS 'position within the secondary raid, sometimes called arm by at least one raid vendor.';
 -- INDEXES
 CREATE INDEX xifbg_blk_stg_dev_blk_stg_dev_id ON jazzhands.volume_group_block_storage_device USING btree (block_storage_device_id, device_id);
 CREATE INDEX xifvg_blk_stg_dev_blk_stg_dev_id ON jazzhands.volume_group_block_storage_device USING btree (block_storage_device_id);
@@ -7729,6 +9701,39 @@ ALTER TABLE jazzhands.volume_group_block_storage_device
 	FOREIGN KEY (volume_group_relation) REFERENCES jazzhands.val_volume_group_relation(volume_group_relation);
 
 -- TRIGGERS
+-- considering NEW jazzhands.volume_group_block_storage_device_enforcement
+CREATE OR REPLACE FUNCTION jazzhands.volume_group_block_storage_device_enforcement()
+ RETURNS trigger
+ LANGUAGE plpgsql
+ SECURITY DEFINER
+ SET search_path TO 'jazzhands'
+AS $function$
+DECLARE
+	_val	val_volume_group_type;
+	tally	INTEGER;
+BEGIN
+	SELECT vgt.* INTO _val FROM val_volume_group_type vgt
+		JOIN volume_group USING (volume_group_type)
+		WHERE volume_group_id = NEW.volume_group_id;
+
+	IF NOT _val.allow_mulitiple_block_storage_devices THEN
+		SELECT count(*) INTO tally
+			FROM volume_group_block_storage_device
+			WHERE volume_group_id = NEW.volume_group_id;
+		RAISE NOTICE 'tally: %', tally;
+		IF tally > 1 THEN
+			RAISE EXCEPTION 'Volume Group Type % must not have multiple block storage devices', _val.volume_group_type
+				USING ERRCODE = 'unique_violation';
+		END IF;
+	END IF;
+
+	RETURN NEW;
+END;
+$function$
+;
+REVOKE ALL ON FUNCTION jazzhands.volume_group_block_storage_device_enforcement() FROM public;
+CREATE CONSTRAINT TRIGGER trigger_volume_group_block_storage_device_enforcement AFTER INSERT OR UPDATE OF volume_group_id, block_storage_device_id ON jazzhands.volume_group_block_storage_device DEFERRABLE INITIALLY IMMEDIATE FOR EACH ROW EXECUTE FUNCTION jazzhands.volume_group_block_storage_device_enforcement();
+
 DO $$
 BEGIN
 		DELETE FROM __recreate WHERE schema = 'jazzhands' AND object IN ('volume_group_block_storage_device');
@@ -9816,6 +11821,239 @@ $$;
 
 select clock_timestamp(), clock_timestamp() - now() AS len;
 --------------------------------------------------------------------
+-- BEGIN: DEALING WITH TABLE val_encryption_key_purpose
+-- Save grants for later reapplication
+SELECT schema_support.save_grants_for_replay('jazzhands', 'val_encryption_key_purpose', 'val_encryption_key_purpose');
+
+-- FOREIGN KEYS FROM
+ALTER TABLE encryption_key DROP CONSTRAINT IF EXISTS fk_enckey_enckeypurpose_val;
+
+-- FOREIGN KEYS TO
+
+-- EXTRA-SCHEMA constraints
+SELECT schema_support.save_constraint_for_replay(schema := 'jazzhands', object := 'val_encryption_key_purpose', newobject := 'val_encryption_key_purpose', newmap := '{"pk_val_encryption_key_purpose":{"columns":["encryption_key_purpose","encryption_key_purpose_version"],"def":"PRIMARY KEY (encryption_key_purpose, encryption_key_purpose_version)","deferrable":false,"deferred":false,"name":"pk_val_encryption_key_purpose","type":"p"}}');
+
+-- PRIMARY and ALTERNATE KEYS
+ALTER TABLE jazzhands.val_encryption_key_purpose DROP CONSTRAINT IF EXISTS pk_val_encryption_key_purpose;
+-- INDEXES
+-- CHECK CONSTRAINTS, etc
+-- TRIGGERS, etc
+DROP TRIGGER IF EXISTS trig_userlog_val_encryption_key_purpose ON jazzhands.val_encryption_key_purpose;
+DROP TRIGGER IF EXISTS trigger_audit_val_encryption_key_purpose ON jazzhands.val_encryption_key_purpose;
+DROP FUNCTION IF EXISTS perform_audit_val_encryption_key_purpose();
+-- default sequences associations and sequences (values rebuilt at end, if needed)
+-- The value of this sequence is restored based on the column at migration end
+ALTER TABLE jazzhands.val_encryption_key_purpose ALTER COLUMN "encryption_key_purpose_version" DROP IDENTITY;
+SELECT schema_support.save_dependent_objects_for_replay(schema := 'jazzhands', object := 'val_encryption_key_purpose', tags := ARRAY['table_val_encryption_key_purpose']);
+---- BEGIN jazzhands_audit.val_encryption_key_purpose TEARDOWN
+SELECT schema_support.save_dependent_objects_for_replay(schema := 'jazzhands_audit', object := 'val_encryption_key_purpose', tags := ARRAY['table_val_encryption_key_purpose']);
+-- Save grants for later reapplication
+SELECT schema_support.save_grants_for_replay('jazzhands_audit', 'val_encryption_key_purpose', 'val_encryption_key_purpose');
+
+-- FOREIGN KEYS FROM
+
+-- FOREIGN KEYS TO
+
+-- EXTRA-SCHEMA constraints
+SELECT schema_support.save_constraint_for_replay(schema := 'jazzhands_audit',  object := 'val_encryption_key_purpose');
+
+-- PRIMARY and ALTERNATE KEYS
+ALTER TABLE jazzhands_audit.val_encryption_key_purpose DROP CONSTRAINT IF EXISTS val_encryption_key_purpose_pkey;
+-- INDEXES
+DROP INDEX IF EXISTS "jazzhands_audit"."aud_val_encryption_key_purpose_pk_val_encryption_key_purpose";
+DROP INDEX IF EXISTS "jazzhands_audit"."val_encryption_key_purpose_aud#realtime_idx";
+DROP INDEX IF EXISTS "jazzhands_audit"."val_encryption_key_purpose_aud#timestamp_idx";
+DROP INDEX IF EXISTS "jazzhands_audit"."val_encryption_key_purpose_aud#txid_idx";
+-- CHECK CONSTRAINTS, etc
+-- TRIGGERS, etc
+-- default sequences associations and sequences (values rebuilt at end, if needed)
+-- The value of this sequence is restored based on the column at migration end
+ALTER TABLE jazzhands_audit.val_encryption_key_purpose ALTER COLUMN "aud#seq" DROP IDENTITY;
+---- DONE jazzhands_audit.val_encryption_key_purpose TEARDOWN
+
+
+ALTER TABLE val_encryption_key_purpose RENAME TO val_encryption_key_purpose_v96;
+ALTER TABLE jazzhands_audit.val_encryption_key_purpose RENAME TO val_encryption_key_purpose_v96;
+
+CREATE TABLE jazzhands.val_encryption_key_purpose
+(
+	encryption_key_purpose	varchar(50) NOT NULL,
+	encryption_key_purpose_version	integer NOT NULL,
+	permit_encryption_key_db_value	character(10) NOT NULL,
+	external_id	varchar(255)  NULL,
+	description	varchar(255)  NULL,
+	data_ins_user	varchar(255)  NULL,
+	data_ins_date	timestamp with time zone  NULL,
+	data_upd_user	varchar(255)  NULL,
+	data_upd_date	timestamp with time zone  NULL
+);
+SELECT schema_support.build_audit_table('jazzhands_audit', 'jazzhands', 'val_encryption_key_purpose', false);
+ALTER TABLE val_encryption_key_purpose
+	ALTER COLUMN encryption_key_purpose_version
+	ADD GENERATED BY DEFAULT AS IDENTITY;
+ALTER TABLE val_encryption_key_purpose
+	ALTER permit_encryption_key_db_value
+	SET DEFAULT 'PROHIBITED'::bpchar;
+
+INSERT INTO val_encryption_key_purpose (
+	encryption_key_purpose,
+	encryption_key_purpose_version,
+	permit_encryption_key_db_value,		-- new column (permit_encryption_key_db_value)
+	external_id,
+	description,
+	data_ins_user,
+	data_ins_date,
+	data_upd_user,
+	data_upd_date
+) SELECT
+	encryption_key_purpose,
+	encryption_key_purpose_version,
+	'PROHIBITED'::bpchar,		-- new column (permit_encryption_key_db_value)
+	external_id,
+	description,
+	data_ins_user,
+	data_ins_date,
+	data_upd_user,
+	data_upd_date
+FROM val_encryption_key_purpose_v96;
+
+
+INSERT INTO jazzhands_audit.val_encryption_key_purpose (
+	encryption_key_purpose,
+	encryption_key_purpose_version,
+	permit_encryption_key_db_value,		-- new column (permit_encryption_key_db_value)
+	external_id,
+	description,
+	data_ins_user,
+	data_ins_date,
+	data_upd_user,
+	data_upd_date,
+	"aud#action",
+	"aud#timestamp",
+	"aud#realtime",
+	"aud#txid",
+	"aud#user",
+	"aud#actor",		-- new column (aud#actor)
+	"aud#seq"
+) SELECT
+	encryption_key_purpose,
+	encryption_key_purpose_version,
+	NULL,		-- new column (permit_encryption_key_db_value)
+	external_id,
+	description,
+	data_ins_user,
+	data_ins_date,
+	data_upd_user,
+	data_upd_date,
+	"aud#action",
+	"aud#timestamp",
+	"aud#realtime",
+	"aud#txid",
+	"aud#user",
+	NULL,		-- new column (aud#actor)
+	"aud#seq"
+FROM jazzhands_audit.val_encryption_key_purpose_v96;
+
+ALTER TABLE jazzhands.val_encryption_key_purpose
+	ALTER permit_encryption_key_db_value
+	SET DEFAULT 'PROHIBITED'::bpchar;
+
+-- PRIMARY AND ALTERNATE KEYS
+ALTER TABLE jazzhands.val_encryption_key_purpose ADD CONSTRAINT pk_val_encryption_key_purpose PRIMARY KEY (encryption_key_purpose, encryption_key_purpose_version);
+
+-- Table/Column Comments
+COMMENT ON TABLE jazzhands.val_encryption_key_purpose IS 'Valid purpose of encryption used by the key_crypto package; Used to identify which functional application knows the app provided portion of the encryption key';
+COMMENT ON COLUMN jazzhands.val_encryption_key_purpose.external_id IS 'opaque id used in remote system to identifty this object.  Used for syncing an authoritative copy.';
+-- INDEXES
+
+-- CHECK CONSTRAINTS
+
+-- FOREIGN KEYS FROM
+-- consider FK between val_encryption_key_purpose and jazzhands.encryption_key
+ALTER TABLE jazzhands.encryption_key
+	ADD CONSTRAINT fk_enckey_enckeypurpose_val
+	FOREIGN KEY (encryption_key_purpose, encryption_key_purpose_version) REFERENCES jazzhands.val_encryption_key_purpose(encryption_key_purpose, encryption_key_purpose_version);
+
+-- FOREIGN KEYS TO
+
+-- TRIGGERS
+-- considering NEW jazzhands.val_encryption_key_purpose_validation
+CREATE OR REPLACE FUNCTION jazzhands.val_encryption_key_purpose_validation()
+ RETURNS trigger
+ LANGUAGE plpgsql
+ SECURITY DEFINER
+ SET search_path TO 'jazzhands'
+AS $function$
+DECLARE
+	_val	val_encryption_key_purpose;
+BEGIN
+	IF NEW.permit_encryption_key_db_value = 'REQUIRED' THEN
+		PERFORM *
+			FROM encryption_key
+			WHERE encryption_key_purpose = NEW.encryption_key_purpose
+			AND encryption_key_purpose_version = NEw.encryption_key_purpose_version
+			AND encryption_key_db_value IS NULL;
+
+		IF FOUND THEN
+			RAISE EXCEPTION 'encryption_key_db_value must be null for this purpose/version'
+				USING ERRCODE = 'not_null_violation';
+		END IF;
+	ELSIF NEW.permit_encryption_key_db_value = 'PROHIBITED' THEN
+		PERFORM *
+			FROM encryption_key
+			WHERE encryption_key_purpose = NEW.encryption_key_purpose
+			AND encryption_key_purpose_version = NEw.encryption_key_purpose_version
+			AND encryption_key_db_value IS NOT NULL;
+
+		IF FOUND THEN
+			RAISE EXCEPTION 'encryption_key_db_value must be null for this purpose/version'
+				USING ERRCODE = 'invalid_parameter_value';
+		END IF;
+	END IF;
+
+	RETURN NEW;
+END;
+$function$
+;
+REVOKE ALL ON FUNCTION jazzhands.val_encryption_key_purpose_validation() FROM public;
+CREATE CONSTRAINT TRIGGER trigger_val_encryption_key_purpose_validation AFTER INSERT OR UPDATE OF permit_encryption_key_db_value ON jazzhands.val_encryption_key_purpose DEFERRABLE INITIALLY IMMEDIATE FOR EACH ROW EXECUTE FUNCTION jazzhands.val_encryption_key_purpose_validation();
+
+DO $$
+BEGIN
+		DELETE FROM __recreate WHERE schema = 'jazzhands' AND object IN ('val_encryption_key_purpose');
+	EXCEPTION WHEN undefined_table THEN
+		RAISE NOTICE 'Drop of triggers for val_encryption_key_purpose  failed but that is ok';
+		NULL;
+END;
+$$;
+
+SELECT schema_support.rebuild_stamp_trigger('jazzhands', 'val_encryption_key_purpose');
+SELECT schema_support.build_audit_table_pkak_indexes('jazzhands_audit', 'jazzhands', 'val_encryption_key_purpose');
+SELECT schema_support.rebuild_audit_trigger('jazzhands_audit', 'jazzhands', 'val_encryption_key_purpose');
+DROP TABLE IF EXISTS val_encryption_key_purpose_v96;
+DROP TABLE IF EXISTS jazzhands_audit.val_encryption_key_purpose_v96;
+-- DONE DEALING WITH TABLE val_encryption_key_purpose (jazzhands)
+--------------------------------------------------------------------
+DO $$
+BEGIN
+	DELETE FROM __recreate WHERE schema IN ('jazzhands', 'jazzhands_audit') AND object IN ('val_encryption_key_purpose');
+EXCEPTION WHEN undefined_table THEN
+	RAISE NOTICE 'Removal of old val_encryption_key_purpose failed but that is ok';
+	NULL;
+END;
+$$;
+
+DO $$
+BEGIN
+	DELETE FROM __recreate WHERE schema IN ('jazzhands', 'jazzhands_audit') AND object IN ('val_encryption_key_purpose');
+EXCEPTION WHEN undefined_table THEN
+	RAISE NOTICE 'Removal of new val_encryption_key_purpose failed but that is ok';
+	NULL;
+END;
+$$;
+
+select clock_timestamp(), clock_timestamp() - now() AS len;
+--------------------------------------------------------------------
 -- BEGIN: DEALING WITH TABLE val_encryption_method
 -- Save grants for later reapplication
 SELECT schema_support.save_grants_for_replay('jazzhands', 'val_encryption_method', 'val_encryption_method');
@@ -10037,6 +12275,212 @@ BEGIN
 	DELETE FROM __recreate WHERE schema IN ('jazzhands', 'jazzhands_audit') AND object IN ('val_encryption_method');
 EXCEPTION WHEN undefined_table THEN
 	RAISE NOTICE 'Removal of new val_encryption_method failed but that is ok';
+	NULL;
+END;
+$$;
+
+select clock_timestamp(), clock_timestamp() - now() AS len;
+--------------------------------------------------------------------
+-- BEGIN: DEALING WITH TABLE val_volume_group_type
+-- Save grants for later reapplication
+SELECT schema_support.save_grants_for_replay('jazzhands', 'val_volume_group_type', 'val_volume_group_type');
+
+-- FOREIGN KEYS FROM
+ALTER TABLE volume_group DROP CONSTRAINT IF EXISTS fk_volgrp_volgrp_type;
+
+-- FOREIGN KEYS TO
+
+-- EXTRA-SCHEMA constraints
+SELECT schema_support.save_constraint_for_replay(schema := 'jazzhands', object := 'val_volume_group_type', newobject := 'val_volume_group_type', newmap := '{"pk_volume_group_type":{"columns":["volume_group_type"],"def":"PRIMARY KEY (volume_group_type)","deferrable":false,"deferred":false,"name":"pk_volume_group_type","type":"p"}}');
+
+-- PRIMARY and ALTERNATE KEYS
+ALTER TABLE jazzhands.val_volume_group_type DROP CONSTRAINT IF EXISTS pk_volume_group_type;
+-- INDEXES
+-- CHECK CONSTRAINTS, etc
+-- TRIGGERS, etc
+DROP TRIGGER IF EXISTS trig_userlog_val_volume_group_type ON jazzhands.val_volume_group_type;
+DROP TRIGGER IF EXISTS trigger_audit_val_volume_group_type ON jazzhands.val_volume_group_type;
+DROP FUNCTION IF EXISTS perform_audit_val_volume_group_type();
+-- default sequences associations and sequences (values rebuilt at end, if needed)
+SELECT schema_support.save_dependent_objects_for_replay(schema := 'jazzhands', object := 'val_volume_group_type', tags := ARRAY['table_val_volume_group_type']);
+---- BEGIN jazzhands_audit.val_volume_group_type TEARDOWN
+SELECT schema_support.save_dependent_objects_for_replay(schema := 'jazzhands_audit', object := 'val_volume_group_type', tags := ARRAY['table_val_volume_group_type']);
+-- Save grants for later reapplication
+SELECT schema_support.save_grants_for_replay('jazzhands_audit', 'val_volume_group_type', 'val_volume_group_type');
+
+-- FOREIGN KEYS FROM
+
+-- FOREIGN KEYS TO
+
+-- EXTRA-SCHEMA constraints
+SELECT schema_support.save_constraint_for_replay(schema := 'jazzhands_audit',  object := 'val_volume_group_type');
+
+-- PRIMARY and ALTERNATE KEYS
+ALTER TABLE jazzhands_audit.val_volume_group_type DROP CONSTRAINT IF EXISTS val_volume_group_type_pkey;
+-- INDEXES
+DROP INDEX IF EXISTS "jazzhands_audit"."aud_val_volume_group_type_pk_volume_group_type";
+DROP INDEX IF EXISTS "jazzhands_audit"."val_volume_group_type_aud#realtime_idx";
+DROP INDEX IF EXISTS "jazzhands_audit"."val_volume_group_type_aud#timestamp_idx";
+DROP INDEX IF EXISTS "jazzhands_audit"."val_volume_group_type_aud#txid_idx";
+-- CHECK CONSTRAINTS, etc
+-- TRIGGERS, etc
+-- default sequences associations and sequences (values rebuilt at end, if needed)
+-- The value of this sequence is restored based on the column at migration end
+ALTER TABLE jazzhands_audit.val_volume_group_type ALTER COLUMN "aud#seq" DROP IDENTITY;
+---- DONE jazzhands_audit.val_volume_group_type TEARDOWN
+
+
+ALTER TABLE val_volume_group_type RENAME TO val_volume_group_type_v96;
+ALTER TABLE jazzhands_audit.val_volume_group_type RENAME TO val_volume_group_type_v96;
+
+CREATE TABLE jazzhands.val_volume_group_type
+(
+	volume_group_type	varchar(50) NOT NULL,
+	description	varchar(4000)  NULL,
+	allow_mulitiple_block_storage_devices	boolean NOT NULL,
+	data_ins_user	varchar(255)  NULL,
+	data_ins_date	timestamp with time zone  NULL,
+	data_upd_user	varchar(255)  NULL,
+	data_upd_date	timestamp with time zone  NULL
+);
+SELECT schema_support.build_audit_table('jazzhands_audit', 'jazzhands', 'val_volume_group_type', false);
+ALTER TABLE val_volume_group_type
+	ALTER allow_mulitiple_block_storage_devices
+	SET DEFAULT true;
+
+INSERT INTO val_volume_group_type (
+	volume_group_type,
+	description,
+	allow_mulitiple_block_storage_devices,		-- new column (allow_mulitiple_block_storage_devices)
+	data_ins_user,
+	data_ins_date,
+	data_upd_user,
+	data_upd_date
+) SELECT
+	volume_group_type,
+	description,
+	true,		-- new column (allow_mulitiple_block_storage_devices)
+	data_ins_user,
+	data_ins_date,
+	data_upd_user,
+	data_upd_date
+FROM val_volume_group_type_v96;
+
+
+INSERT INTO jazzhands_audit.val_volume_group_type (
+	volume_group_type,
+	description,
+	allow_mulitiple_block_storage_devices,		-- new column (allow_mulitiple_block_storage_devices)
+	data_ins_user,
+	data_ins_date,
+	data_upd_user,
+	data_upd_date,
+	"aud#action",
+	"aud#timestamp",
+	"aud#realtime",
+	"aud#txid",
+	"aud#user",
+	"aud#actor",		-- new column (aud#actor)
+	"aud#seq"
+) SELECT
+	volume_group_type,
+	description,
+	NULL,		-- new column (allow_mulitiple_block_storage_devices)
+	data_ins_user,
+	data_ins_date,
+	data_upd_user,
+	data_upd_date,
+	"aud#action",
+	"aud#timestamp",
+	"aud#realtime",
+	"aud#txid",
+	"aud#user",
+	NULL,		-- new column (aud#actor)
+	"aud#seq"
+FROM jazzhands_audit.val_volume_group_type_v96;
+
+ALTER TABLE jazzhands.val_volume_group_type
+	ALTER allow_mulitiple_block_storage_devices
+	SET DEFAULT true;
+
+-- PRIMARY AND ALTERNATE KEYS
+ALTER TABLE jazzhands.val_volume_group_type ADD CONSTRAINT pk_volume_group_type PRIMARY KEY (volume_group_type);
+
+-- Table/Column Comments
+-- INDEXES
+
+-- CHECK CONSTRAINTS
+
+-- FOREIGN KEYS FROM
+-- consider FK between val_volume_group_type and jazzhands.volume_group
+ALTER TABLE jazzhands.volume_group
+	ADD CONSTRAINT fk_volgrp_volgrp_type
+	FOREIGN KEY (volume_group_type) REFERENCES jazzhands.val_volume_group_type(volume_group_type) DEFERRABLE;
+
+-- FOREIGN KEYS TO
+
+-- TRIGGERS
+-- considering NEW jazzhands.val_volume_group_type_enforcement
+CREATE OR REPLACE FUNCTION jazzhands.val_volume_group_type_enforcement()
+ RETURNS trigger
+ LANGUAGE plpgsql
+ SECURITY DEFINER
+ SET search_path TO 'jazzhands'
+AS $function$
+DECLARE
+	_val	val_volume_group_type;
+BEGIN
+	IF NOT NEW.allow_mulitiple_block_storage_devices  THEN
+		PERFORM volume_group_id
+		FROM volume_group_block_storage_device
+			JOIN volume_group USING (volume_group_id)
+		WHERE volume_group_type = NEW.volume_group_type
+		GROUP BY volume_group_id
+		HAVING count(*) > 1;
+
+		IF FOUND THEN
+			RAISE EXCEPTION 'Volume Group Type has volume groups with multiple block storage devices'
+				USING ERRCODE = 'unique_violation';
+		END IF;
+	END IF;
+
+	RETURN NEW;
+END;
+$function$
+;
+REVOKE ALL ON FUNCTION jazzhands.val_volume_group_type_enforcement() FROM public;
+CREATE CONSTRAINT TRIGGER trigger_val_volume_group_type_enforcement AFTER UPDATE OF allow_mulitiple_block_storage_devices ON jazzhands.val_volume_group_type DEFERRABLE INITIALLY IMMEDIATE FOR EACH ROW EXECUTE FUNCTION jazzhands.val_volume_group_type_enforcement();
+
+DO $$
+BEGIN
+		DELETE FROM __recreate WHERE schema = 'jazzhands' AND object IN ('val_volume_group_type');
+	EXCEPTION WHEN undefined_table THEN
+		RAISE NOTICE 'Drop of triggers for val_volume_group_type  failed but that is ok';
+		NULL;
+END;
+$$;
+
+SELECT schema_support.rebuild_stamp_trigger('jazzhands', 'val_volume_group_type');
+SELECT schema_support.build_audit_table_pkak_indexes('jazzhands_audit', 'jazzhands', 'val_volume_group_type');
+SELECT schema_support.rebuild_audit_trigger('jazzhands_audit', 'jazzhands', 'val_volume_group_type');
+DROP TABLE IF EXISTS val_volume_group_type_v96;
+DROP TABLE IF EXISTS jazzhands_audit.val_volume_group_type_v96;
+-- DONE DEALING WITH TABLE val_volume_group_type (jazzhands)
+--------------------------------------------------------------------
+DO $$
+BEGIN
+	DELETE FROM __recreate WHERE schema IN ('jazzhands', 'jazzhands_audit') AND object IN ('val_volume_group_type');
+EXCEPTION WHEN undefined_table THEN
+	RAISE NOTICE 'Removal of old val_volume_group_type failed but that is ok';
+	NULL;
+END;
+$$;
+
+DO $$
+BEGIN
+	DELETE FROM __recreate WHERE schema IN ('jazzhands', 'jazzhands_audit') AND object IN ('val_volume_group_type');
+EXCEPTION WHEN undefined_table THEN
+	RAISE NOTICE 'Removal of new val_volume_group_type failed but that is ok';
 	NULL;
 END;
 $$;
@@ -10440,7 +12884,7 @@ select clock_timestamp(), clock_timestamp() - now() AS len;
 -- Processing minor changes to netblock
 SELECT schema_support.save_dependent_objects_for_replay(schema := 'jazzhands', object := 'netblock');
 SELECT schema_support.save_dependent_objects_for_replay(schema := 'jazzhands_audit', object := 'netblock');
-ALTER TABLE "jazzhands"."netblock" ALTER COLUMN "netblock_status" SET DEFAULT 'Alloocated'::character varying;
+ALTER TABLE "jazzhands"."netblock" ALTER COLUMN "netblock_status" SET DEFAULT 'Allocated'::character varying;
 ALTER TABLE component_type
 	DROP CONSTRAINT IF EXISTS ckc_virtual_rack_mount_check_1365025208;
 ALTER TABLE component_type
@@ -10684,6 +13128,239 @@ BEGIN
 	DELETE FROM __recreate WHERE schema IN ('jazzhands', 'jazzhands_audit') AND object IN ('public_key_hash_hash');
 EXCEPTION WHEN undefined_table THEN
 	RAISE NOTICE 'Removal of new public_key_hash_hash failed but that is ok';
+	NULL;
+END;
+$$;
+
+select clock_timestamp(), clock_timestamp() - now() AS len;
+--------------------------------------------------------------------
+-- BEGIN: DEALING WITH TABLE service_instance
+-- Save grants for later reapplication
+SELECT schema_support.save_grants_for_replay('jazzhands', 'service_instance', 'service_instance');
+
+-- FOREIGN KEYS FROM
+ALTER TABLE service_endpoint_provider_service_instance DROP CONSTRAINT IF EXISTS fk_service_endpoint_provider_service_instance_siid;
+ALTER TABLE service_instance_provided_feature DROP CONSTRAINT IF EXISTS fk_svc_inst_prov_feature_inst_id;
+
+-- FOREIGN KEYS TO
+ALTER TABLE jazzhands.service_instance DROP CONSTRAINT IF EXISTS fk_service_instance_dev_nblk;
+ALTER TABLE jazzhands.service_instance DROP CONSTRAINT IF EXISTS fk_service_instance_service_env_id;
+ALTER TABLE jazzhands.service_instance DROP CONSTRAINT IF EXISTS fk_service_instance_svcversionid;
+
+-- EXTRA-SCHEMA constraints
+SELECT schema_support.save_constraint_for_replay(schema := 'jazzhands', object := 'service_instance', newobject := 'service_instance', newmap := '{"ak_service_instance_device_id":{"columns":["service_instance_id","device_id"],"def":"UNIQUE (service_instance_id, device_id)","deferrable":false,"deferred":false,"name":"ak_service_instance_device_id","type":"u"},"ak_svc_instance_device_id_version":{"columns":["device_id","service_version_id"],"def":"UNIQUE (device_id, service_version_id)","deferrable":false,"deferred":false,"name":"ak_svc_instance_device_id_version","type":"u"},"pk_service_instance":{"columns":["service_instance_id"],"def":"PRIMARY KEY (service_instance_id)","deferrable":false,"deferred":false,"name":"pk_service_instance","type":"p"}}');
+
+-- PRIMARY and ALTERNATE KEYS
+ALTER TABLE jazzhands.service_instance DROP CONSTRAINT IF EXISTS ak_svc_instance_device_id_version;
+ALTER TABLE jazzhands.service_instance DROP CONSTRAINT IF EXISTS pk_service_instance;
+-- INDEXES
+DROP INDEX IF EXISTS "jazzhands"."xifservice_instance_dev_nblk";
+DROP INDEX IF EXISTS "jazzhands"."xifservice_instance_service_env_id";
+DROP INDEX IF EXISTS "jazzhands"."xifservice_instance_svcversionid";
+-- CHECK CONSTRAINTS, etc
+-- TRIGGERS, etc
+DROP TRIGGER IF EXISTS trig_userlog_service_instance ON jazzhands.service_instance;
+DROP TRIGGER IF EXISTS trigger_audit_service_instance ON jazzhands.service_instance;
+DROP FUNCTION IF EXISTS perform_audit_service_instance();
+-- default sequences associations and sequences (values rebuilt at end, if needed)
+-- The value of this sequence is restored based on the column at migration end
+ALTER TABLE jazzhands.service_instance ALTER COLUMN "service_instance_id" DROP IDENTITY;
+SELECT schema_support.save_dependent_objects_for_replay(schema := 'jazzhands', object := 'service_instance', tags := ARRAY['table_service_instance']);
+---- BEGIN jazzhands_audit.service_instance TEARDOWN
+SELECT schema_support.save_dependent_objects_for_replay(schema := 'jazzhands_audit', object := 'service_instance', tags := ARRAY['table_service_instance']);
+-- Save grants for later reapplication
+SELECT schema_support.save_grants_for_replay('jazzhands_audit', 'service_instance', 'service_instance');
+
+-- FOREIGN KEYS FROM
+
+-- FOREIGN KEYS TO
+
+-- EXTRA-SCHEMA constraints
+SELECT schema_support.save_constraint_for_replay(schema := 'jazzhands_audit',  object := 'service_instance');
+
+-- PRIMARY and ALTERNATE KEYS
+ALTER TABLE jazzhands_audit.service_instance DROP CONSTRAINT IF EXISTS service_instance_pkey;
+-- INDEXES
+DROP INDEX IF EXISTS "jazzhands_audit"."aud_service_instance_ak_svc_instance_device_id_version";
+DROP INDEX IF EXISTS "jazzhands_audit"."aud_service_instance_pk_service_instance";
+DROP INDEX IF EXISTS "jazzhands_audit"."service_instance_aud#realtime_idx";
+DROP INDEX IF EXISTS "jazzhands_audit"."service_instance_aud#timestamp_idx";
+DROP INDEX IF EXISTS "jazzhands_audit"."service_instance_aud#txid_idx";
+-- CHECK CONSTRAINTS, etc
+-- TRIGGERS, etc
+-- default sequences associations and sequences (values rebuilt at end, if needed)
+-- The value of this sequence is restored based on the column at migration end
+ALTER TABLE jazzhands_audit.service_instance ALTER COLUMN "aud#seq" DROP IDENTITY;
+---- DONE jazzhands_audit.service_instance TEARDOWN
+
+
+ALTER TABLE service_instance RENAME TO service_instance_v96;
+ALTER TABLE jazzhands_audit.service_instance RENAME TO service_instance_v96;
+
+CREATE TABLE jazzhands.service_instance
+(
+	service_instance_id	integer NOT NULL,
+	device_id	integer NOT NULL,
+	service_version_id	integer NOT NULL,
+	service_environment_id	integer NOT NULL,
+	is_primary	boolean NOT NULL,
+	netblock_id	integer  NULL,
+	data_ins_user	varchar(255)  NULL,
+	data_ins_date	timestamp with time zone  NULL,
+	data_upd_user	varchar(255)  NULL,
+	data_upd_date	timestamp with time zone  NULL
+);
+SELECT schema_support.build_audit_table('jazzhands_audit', 'jazzhands', 'service_instance', false);
+ALTER TABLE service_instance
+	ALTER COLUMN service_instance_id
+	ADD GENERATED BY DEFAULT AS IDENTITY;
+ALTER TABLE service_instance
+	ALTER is_primary
+	SET DEFAULT true;
+
+INSERT INTO service_instance (
+	service_instance_id,
+	device_id,
+	service_version_id,
+	service_environment_id,
+	is_primary,		-- new column (is_primary)
+	netblock_id,
+	data_ins_user,
+	data_ins_date,
+	data_upd_user,
+	data_upd_date
+) SELECT
+	service_instance_id,
+	device_id,
+	service_version_id,
+	service_environment_id,
+	true,		-- new column (is_primary)
+	netblock_id,
+	data_ins_user,
+	data_ins_date,
+	data_upd_user,
+	data_upd_date
+FROM service_instance_v96;
+
+
+INSERT INTO jazzhands_audit.service_instance (
+	service_instance_id,
+	device_id,
+	service_version_id,
+	service_environment_id,
+	is_primary,		-- new column (is_primary)
+	netblock_id,
+	data_ins_user,
+	data_ins_date,
+	data_upd_user,
+	data_upd_date,
+	"aud#action",
+	"aud#timestamp",
+	"aud#realtime",
+	"aud#txid",
+	"aud#user",
+	"aud#actor",		-- new column (aud#actor)
+	"aud#seq"
+) SELECT
+	service_instance_id,
+	device_id,
+	service_version_id,
+	service_environment_id,
+	NULL,		-- new column (is_primary)
+	netblock_id,
+	data_ins_user,
+	data_ins_date,
+	data_upd_user,
+	data_upd_date,
+	"aud#action",
+	"aud#timestamp",
+	"aud#realtime",
+	"aud#txid",
+	"aud#user",
+	NULL,		-- new column (aud#actor)
+	"aud#seq"
+FROM jazzhands_audit.service_instance_v96;
+
+ALTER TABLE jazzhands.service_instance
+	ALTER is_primary
+	SET DEFAULT true;
+
+-- PRIMARY AND ALTERNATE KEYS
+ALTER TABLE jazzhands.service_instance ADD CONSTRAINT ak_service_instance_device_id UNIQUE (service_instance_id, device_id);
+ALTER TABLE jazzhands.service_instance ADD CONSTRAINT ak_svc_instance_device_id_version UNIQUE (device_id, service_version_id);
+ALTER TABLE jazzhands.service_instance ADD CONSTRAINT pk_service_instance PRIMARY KEY (service_instance_id);
+
+-- Table/Column Comments
+COMMENT ON TABLE jazzhands.service_instance IS 'Model the presence of something that serves up a service on a device';
+COMMENT ON COLUMN jazzhands.service_instance.service_version_id IS 'This is where a specific version of a service is mapped to a host';
+-- INDEXES
+CREATE UNIQUE INDEX ak_service_instance_device_is_primary ON jazzhands.service_instance USING btree (device_id, is_primary) WHERE is_primary;
+CREATE INDEX xifservice_instance_dev_nblk ON jazzhands.service_instance USING btree (device_id, netblock_id);
+CREATE INDEX xifservice_instance_device_device_id ON jazzhands.service_instance USING btree (device_id);
+CREATE INDEX xifservice_instance_service_env_id ON jazzhands.service_instance USING btree (service_environment_id);
+CREATE INDEX xifservice_instance_svcversionid ON jazzhands.service_instance USING btree (service_version_id);
+
+-- CHECK CONSTRAINTS
+
+-- FOREIGN KEYS FROM
+-- consider FK between service_instance and jazzhands.service_endpoint_provider_service_instance
+ALTER TABLE jazzhands.service_endpoint_provider_service_instance
+	ADD CONSTRAINT fk_service_endpoint_provider_service_instance_siid
+	FOREIGN KEY (service_instance_id) REFERENCES jazzhands.service_instance(service_instance_id) DEFERRABLE;
+-- consider FK between service_instance and jazzhands.service_instance_provided_feature
+ALTER TABLE jazzhands.service_instance_provided_feature
+	ADD CONSTRAINT fk_svc_inst_prov_feature_inst_id
+	FOREIGN KEY (service_instance_id) REFERENCES jazzhands.service_instance(service_instance_id) DEFERRABLE;
+
+-- FOREIGN KEYS TO
+-- consider FK service_instance and layer3_interface_netblock
+ALTER TABLE jazzhands.service_instance
+	ADD CONSTRAINT fk_service_instance_dev_nblk
+	FOREIGN KEY (device_id, netblock_id) REFERENCES jazzhands.layer3_interface_netblock(device_id, netblock_id) DEFERRABLE;
+-- consider FK service_instance and device
+ALTER TABLE jazzhands.service_instance
+	ADD CONSTRAINT fk_service_instance_device_device_id
+	FOREIGN KEY (device_id) REFERENCES jazzhands.device(device_id) DEFERRABLE;
+-- consider FK service_instance and service_environment
+ALTER TABLE jazzhands.service_instance
+	ADD CONSTRAINT fk_service_instance_service_env_id
+	FOREIGN KEY (service_environment_id) REFERENCES jazzhands.service_environment(service_environment_id);
+-- consider FK service_instance and service_version
+ALTER TABLE jazzhands.service_instance
+	ADD CONSTRAINT fk_service_instance_svcversionid
+	FOREIGN KEY (service_version_id) REFERENCES jazzhands.service_version(service_version_id) DEFERRABLE;
+
+-- TRIGGERS
+DO $$
+BEGIN
+		DELETE FROM __recreate WHERE schema = 'jazzhands' AND object IN ('service_instance');
+	EXCEPTION WHEN undefined_table THEN
+		RAISE NOTICE 'Drop of triggers for service_instance  failed but that is ok';
+		NULL;
+END;
+$$;
+
+SELECT schema_support.rebuild_stamp_trigger('jazzhands', 'service_instance');
+SELECT schema_support.build_audit_table_pkak_indexes('jazzhands_audit', 'jazzhands', 'service_instance');
+SELECT schema_support.rebuild_audit_trigger('jazzhands_audit', 'jazzhands', 'service_instance');
+DROP TABLE IF EXISTS service_instance_v96;
+DROP TABLE IF EXISTS jazzhands_audit.service_instance_v96;
+-- DONE DEALING WITH TABLE service_instance (jazzhands)
+--------------------------------------------------------------------
+DO $$
+BEGIN
+	DELETE FROM __recreate WHERE schema IN ('jazzhands', 'jazzhands_audit') AND object IN ('service_instance');
+EXCEPTION WHEN undefined_table THEN
+	RAISE NOTICE 'Removal of old service_instance failed but that is ok';
+	NULL;
+END;
+$$;
+
+DO $$
+BEGIN
+	DELETE FROM __recreate WHERE schema IN ('jazzhands', 'jazzhands_audit') AND object IN ('service_instance');
+EXCEPTION WHEN undefined_table THEN
+	RAISE NOTICE 'Removal of new service_instance failed but that is ok';
 	NULL;
 END;
 $$;
@@ -14141,6 +16818,34 @@ $function$
 ;
 
 -- New function; dropping in case it returned because of type change
+CREATE OR REPLACE FUNCTION jazzhands.encryption_key_validation()
+ RETURNS trigger
+ LANGUAGE plpgsql
+ SECURITY DEFINER
+ SET search_path TO 'jazzhands'
+AS $function$
+DECLARE
+	_val	val_encryption_key_purpose;
+BEGIN
+
+	IF _val.permit_encryption_key_db_value = 'PROHIBITED' THEN
+		IF NEW.encryption_key_db_value IS NOT NULL THEN
+			RAISE EXCEPTION 'encryption_key_db_value must be null for this purpose/version'
+				USING ERRCODE = 'invalid_parameter_value';
+		END IF;
+	ELSIF _val.permit_encryption_key_db_value = 'REQUIRED' THEN
+		IF NEW.encryption_key_db_value IS NULL THEN
+			RAISE EXCEPTION 'encryption_key_db_value must be set for this purpose/version'
+				USING ERRCODE = 'not_null_violation';
+		END IF;
+	END IF;
+
+	RETURN NEW;
+END;
+$function$
+;
+
+-- New function; dropping in case it returned because of type change
 CREATE OR REPLACE FUNCTION jazzhands.filesystem_to_logical_volume_property_del()
  RETURNS trigger
  LANGUAGE plpgsql
@@ -14893,6 +17598,74 @@ $function$
 ;
 
 -- New function; dropping in case it returned because of type change
+CREATE OR REPLACE FUNCTION jazzhands.val_encryption_key_purpose_validation()
+ RETURNS trigger
+ LANGUAGE plpgsql
+ SECURITY DEFINER
+ SET search_path TO 'jazzhands'
+AS $function$
+DECLARE
+	_val	val_encryption_key_purpose;
+BEGIN
+	IF NEW.permit_encryption_key_db_value = 'REQUIRED' THEN
+		PERFORM *
+			FROM encryption_key
+			WHERE encryption_key_purpose = NEW.encryption_key_purpose
+			AND encryption_key_purpose_version = NEw.encryption_key_purpose_version
+			AND encryption_key_db_value IS NULL;
+
+		IF FOUND THEN
+			RAISE EXCEPTION 'encryption_key_db_value must be null for this purpose/version'
+				USING ERRCODE = 'not_null_violation';
+		END IF;
+	ELSIF NEW.permit_encryption_key_db_value = 'PROHIBITED' THEN
+		PERFORM *
+			FROM encryption_key
+			WHERE encryption_key_purpose = NEW.encryption_key_purpose
+			AND encryption_key_purpose_version = NEw.encryption_key_purpose_version
+			AND encryption_key_db_value IS NOT NULL;
+
+		IF FOUND THEN
+			RAISE EXCEPTION 'encryption_key_db_value must be null for this purpose/version'
+				USING ERRCODE = 'invalid_parameter_value';
+		END IF;
+	END IF;
+
+	RETURN NEW;
+END;
+$function$
+;
+
+-- New function; dropping in case it returned because of type change
+CREATE OR REPLACE FUNCTION jazzhands.val_volume_group_type_enforcement()
+ RETURNS trigger
+ LANGUAGE plpgsql
+ SECURITY DEFINER
+ SET search_path TO 'jazzhands'
+AS $function$
+DECLARE
+	_val	val_volume_group_type;
+BEGIN
+	IF NOT NEW.allow_mulitiple_block_storage_devices  THEN
+		PERFORM volume_group_id
+		FROM volume_group_block_storage_device
+			JOIN volume_group USING (volume_group_id)
+		WHERE volume_group_type = NEW.volume_group_type
+		GROUP BY volume_group_id
+		HAVING count(*) > 1;
+
+		IF FOUND THEN
+			RAISE EXCEPTION 'Volume Group Type has volume groups with multiple block storage devices'
+				USING ERRCODE = 'unique_violation';
+		END IF;
+	END IF;
+
+	RETURN NEW;
+END;
+$function$
+;
+
+-- New function; dropping in case it returned because of type change
 CREATE OR REPLACE FUNCTION jazzhands.validate_filesystem()
  RETURNS trigger
  LANGUAGE plpgsql
@@ -14965,6 +17738,37 @@ BEGIN
 			RAISE EXCEPTION 'May not change logical_volume_id or component_id'
 				USING ERRCODE = 'invalid_parameter_value';
 	END IF;
+	RETURN NEW;
+END;
+$function$
+;
+
+-- New function; dropping in case it returned because of type change
+CREATE OR REPLACE FUNCTION jazzhands.volume_group_block_storage_device_enforcement()
+ RETURNS trigger
+ LANGUAGE plpgsql
+ SECURITY DEFINER
+ SET search_path TO 'jazzhands'
+AS $function$
+DECLARE
+	_val	val_volume_group_type;
+	tally	INTEGER;
+BEGIN
+	SELECT vgt.* INTO _val FROM val_volume_group_type vgt
+		JOIN volume_group USING (volume_group_type)
+		WHERE volume_group_id = NEW.volume_group_id;
+
+	IF NOT _val.allow_mulitiple_block_storage_devices THEN
+		SELECT count(*) INTO tally
+			FROM volume_group_block_storage_device
+			WHERE volume_group_id = NEW.volume_group_id;
+		RAISE NOTICE 'tally: %', tally;
+		IF tally > 1 THEN
+			RAISE EXCEPTION 'Volume Group Type % must not have multiple block storage devices', _val.volume_group_type
+				USING ERRCODE = 'unique_violation';
+		END IF;
+	END IF;
+
 	RETURN NEW;
 END;
 $function$
@@ -15202,22 +18006,22 @@ WHERE device_id IN (
 
 ALTER TABLE device DROP CONSTRAINT IF EXISTS ak_device_id_site;
 ALTER TABLE device
-    ADD CONSTRAINT ak_device_id_site UNIQUE (device_id, site_code) DEFERRABLE;
+    ADD CONSTRAINT ak_device_id_site UNIQUE (device_id, site_code);
 
 ALTER TABLE device DROP CONSTRAINT IF EXISTS ak_device_id_site_virtual_name;
 ALTER TABLE device
     ADD CONSTRAINT ak_device_id_site_virtual_name
-UNIQUE (device_id, device_name, site_code, is_virtual_device) DEFERRABLE;
+UNIQUE (device_id, device_name, site_code, is_virtual_device);
 
 ALTER TABLE service DROP CONSTRAINT IF EXISTS ak_service_id_active;
 ALTER TABLE service
     ADD CONSTRAINT ak_service_id_active
-	UNIQUE (service_id, is_active) DEFERRABLE;
+	UNIQUE (service_id, is_active);
 
 ALTER TABLE service DROP CONSTRAINT IF EXISTS ak_service_name_type;
 ALTER TABLE service
 	ADD CONSTRAINT ak_service_name_type
-	UNIQUE (service_id, service_type) DEFERRABLE;
+	UNIQUE (service_id, service_type);
 
 ALTER TABLE service_instance
 	DROP CONSTRAINT IF EXISTS ak_service_instance_device_id;
@@ -15229,7 +18033,7 @@ ALTER TABLE service_version
 	DROP CONSTRAINT IF EXISTS ak_service_version_service_name_enabled;
 ALTER TABLE service_version
     ADD CONSTRAINT ak_service_version_service_name_enabled
-	UNIQUE (service_id, service_version_id, service_version_name, is_enabled) DEFERRABLE;
+	UNIQUE (service_id, service_version_id, service_version_name, is_enabled);
 
 DROP INDEX IF EXISTS jazzhands_audit.aud_device_ak_device_id_site;
 CREATE INDEX aud_device_ak_device_id_site
@@ -22263,10 +25067,6 @@ DROP TRIGGER IF EXISTS trig_userlog_encapsulation_range ON encapsulation_range;
 CREATE TRIGGER trig_userlog_encapsulation_range BEFORE INSERT OR UPDATE ON jazzhands.encapsulation_range FOR EACH ROW EXECUTE FUNCTION schema_support.trigger_ins_upd_generic_func();
 DROP TRIGGER IF EXISTS trigger_audit_encapsulation_range ON encapsulation_range;
 CREATE TRIGGER trigger_audit_encapsulation_range AFTER INSERT OR DELETE OR UPDATE ON jazzhands.encapsulation_range FOR EACH ROW EXECUTE FUNCTION jazzhands.perform_audit_encapsulation_range();
-DROP TRIGGER IF EXISTS trig_userlog_encryption_key ON encryption_key;
-CREATE TRIGGER trig_userlog_encryption_key BEFORE INSERT OR UPDATE ON jazzhands.encryption_key FOR EACH ROW EXECUTE FUNCTION schema_support.trigger_ins_upd_generic_func();
-DROP TRIGGER IF EXISTS trigger_audit_encryption_key ON encryption_key;
-CREATE TRIGGER trigger_audit_encryption_key AFTER INSERT OR DELETE OR UPDATE ON jazzhands.encryption_key FOR EACH ROW EXECUTE FUNCTION jazzhands.perform_audit_encryption_key();
 DROP TRIGGER IF EXISTS trig_userlog_inter_component_connection ON inter_component_connection;
 CREATE TRIGGER trig_userlog_inter_component_connection BEFORE INSERT OR UPDATE ON jazzhands.inter_component_connection FOR EACH ROW EXECUTE FUNCTION schema_support.trigger_ins_upd_generic_func();
 DROP TRIGGER IF EXISTS trigger_audit_inter_component_connection ON inter_component_connection;
@@ -22743,10 +25543,6 @@ DROP TRIGGER IF EXISTS trigger_audit_service_environment_collection_service_envi
 CREATE TRIGGER trigger_audit_service_environment_collection_service_environmen AFTER INSERT OR DELETE OR UPDATE ON jazzhands.service_environment_collection_service_environment FOR EACH ROW EXECUTE FUNCTION jazzhands.perform_audit_service_environment_collection_service_environmen();
 DROP TRIGGER IF EXISTS trigger_service_environment_collection_member_enforce ON service_environment_collection_service_environment;
 CREATE CONSTRAINT TRIGGER trigger_service_environment_collection_member_enforce AFTER INSERT OR UPDATE ON jazzhands.service_environment_collection_service_environment DEFERRABLE INITIALLY IMMEDIATE FOR EACH ROW EXECUTE FUNCTION jazzhands.service_environment_collection_member_enforce();
-DROP TRIGGER IF EXISTS trig_userlog_service_instance ON service_instance;
-CREATE TRIGGER trig_userlog_service_instance BEFORE INSERT OR UPDATE ON jazzhands.service_instance FOR EACH ROW EXECUTE FUNCTION schema_support.trigger_ins_upd_generic_func();
-DROP TRIGGER IF EXISTS trigger_audit_service_instance ON service_instance;
-CREATE TRIGGER trigger_audit_service_instance AFTER INSERT OR DELETE OR UPDATE ON jazzhands.service_instance FOR EACH ROW EXECUTE FUNCTION jazzhands.perform_audit_service_instance();
 DROP TRIGGER IF EXISTS trig_userlog_service_instance_provided_feature ON service_instance_provided_feature;
 CREATE TRIGGER trig_userlog_service_instance_provided_feature BEFORE INSERT OR UPDATE ON jazzhands.service_instance_provided_feature FOR EACH ROW EXECUTE FUNCTION schema_support.trigger_ins_upd_generic_func();
 DROP TRIGGER IF EXISTS trigger_audit_service_instance_provided_feature ON service_instance_provided_feature;
@@ -23139,10 +25935,6 @@ DROP TRIGGER IF EXISTS trig_userlog_val_encapsulation_type ON val_encapsulation_
 CREATE TRIGGER trig_userlog_val_encapsulation_type BEFORE INSERT OR UPDATE ON jazzhands.val_encapsulation_type FOR EACH ROW EXECUTE FUNCTION schema_support.trigger_ins_upd_generic_func();
 DROP TRIGGER IF EXISTS trigger_audit_val_encapsulation_type ON val_encapsulation_type;
 CREATE TRIGGER trigger_audit_val_encapsulation_type AFTER INSERT OR DELETE OR UPDATE ON jazzhands.val_encapsulation_type FOR EACH ROW EXECUTE FUNCTION jazzhands.perform_audit_val_encapsulation_type();
-DROP TRIGGER IF EXISTS trig_userlog_val_encryption_key_purpose ON val_encryption_key_purpose;
-CREATE TRIGGER trig_userlog_val_encryption_key_purpose BEFORE INSERT OR UPDATE ON jazzhands.val_encryption_key_purpose FOR EACH ROW EXECUTE FUNCTION schema_support.trigger_ins_upd_generic_func();
-DROP TRIGGER IF EXISTS trigger_audit_val_encryption_key_purpose ON val_encryption_key_purpose;
-CREATE TRIGGER trigger_audit_val_encryption_key_purpose AFTER INSERT OR DELETE OR UPDATE ON jazzhands.val_encryption_key_purpose FOR EACH ROW EXECUTE FUNCTION jazzhands.perform_audit_val_encryption_key_purpose();
 DROP TRIGGER IF EXISTS trig_userlog_val_gender ON val_gender;
 CREATE TRIGGER trig_userlog_val_gender BEFORE INSERT OR UPDATE ON jazzhands.val_gender FOR EACH ROW EXECUTE FUNCTION schema_support.trigger_ins_upd_generic_func();
 DROP TRIGGER IF EXISTS trigger_audit_val_gender ON val_gender;
@@ -23463,10 +26255,6 @@ DROP TRIGGER IF EXISTS trig_userlog_val_volume_group_relation ON val_volume_grou
 CREATE TRIGGER trig_userlog_val_volume_group_relation BEFORE INSERT OR UPDATE ON jazzhands.val_volume_group_relation FOR EACH ROW EXECUTE FUNCTION schema_support.trigger_ins_upd_generic_func();
 DROP TRIGGER IF EXISTS trigger_audit_val_volume_group_relation ON val_volume_group_relation;
 CREATE TRIGGER trigger_audit_val_volume_group_relation AFTER INSERT OR DELETE OR UPDATE ON jazzhands.val_volume_group_relation FOR EACH ROW EXECUTE FUNCTION jazzhands.perform_audit_val_volume_group_relation();
-DROP TRIGGER IF EXISTS trig_userlog_val_volume_group_type ON val_volume_group_type;
-CREATE TRIGGER trig_userlog_val_volume_group_type BEFORE INSERT OR UPDATE ON jazzhands.val_volume_group_type FOR EACH ROW EXECUTE FUNCTION schema_support.trigger_ins_upd_generic_func();
-DROP TRIGGER IF EXISTS trigger_audit_val_volume_group_type ON val_volume_group_type;
-CREATE TRIGGER trigger_audit_val_volume_group_type AFTER INSERT OR DELETE OR UPDATE ON jazzhands.val_volume_group_type FOR EACH ROW EXECUTE FUNCTION jazzhands.perform_audit_val_volume_group_type();
 DROP TRIGGER IF EXISTS trig_userlog_val_x509_certificate_file_format ON val_x509_certificate_file_format;
 CREATE TRIGGER trig_userlog_val_x509_certificate_file_format BEFORE INSERT OR UPDATE ON jazzhands.val_x509_certificate_file_format FOR EACH ROW EXECUTE FUNCTION schema_support.trigger_ins_upd_generic_func();
 DROP TRIGGER IF EXISTS trigger_audit_val_x509_certificate_file_format ON val_x509_certificate_file_format;
