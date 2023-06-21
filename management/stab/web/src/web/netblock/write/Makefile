@@ -29,7 +29,7 @@ STAB_DIR=/prod/www/stab/docs/netblock/write
 SUBDIRS=
 
 SCRIPTS= addchild.pl doadd.pl rmblock.pl edit_netblock.pl \
-	addnetblock.pl rmnetblock.pl
+	addnetblock.pl rmnetblock.pl edit_networkrange.pl
 
 all:
 	@echo nothing to do

@@ -52,121 +52,98 @@ function forcedevtabload(tabname, devid) {
 		return;
 	}
 
-	ShowDevTab(gotoTab.value, devid);
+	ShowDevTab(gotoTab.value, devid, true);
 }
 
-function ShowDevTab(what,devid) {
-	var url;
-	var i, o, onext, otabs, goawayTab;
-	var holdingDiv, holdingDiv_Name, deviceForm;
-	var forcedloadElem;
+// This functions loads and displays a tab of the device page
+function ShowDevTab( what, devid, bForceReload ) {
 
-	var ajaxrequest = createRequest();
+	// If the device id is null, we shouldn't be here
+	if( devid === null ) return;
 
-	var gotoTab = document.getElementById(what);
-	//
-	// reset tabbage
-	//
-	otabs = document.getElementsByTagName("a");
-	for(i = 0; i < otabs.length; i++) {
-		if (otabs[i].className == 'tabgroupactive') {
-			otabs[i].className = 'tabgrouptab';
-			goawayTab = otabs[i];
-		}
-	}
+	// Get all the tab divs - they only exist if they have been loaded previously
+	let tabDivs = document.getElementsByClassName( 'tabcontent' );
 
-	if(goawayTab && gotoTab ) {
-		if(goawayTab.id == gotoTab.id) {
-			if(goawayTab.className == gotoTab.className) {
-				return;
-			}
-		}
-	}
+	// Create the div for the current content if it doesn't exist
+	let divName = what + '_content';
+	let divElement = document.getElementById( divName );
+	let bNeedsLoading = false;
+	if( ! divElement ) {
+		bNeedsLoading = true;
+		divElement = document.createElement( 'div' );
+		divElement.id = divName;
+		divElement.className = 'tabcontent active';
+		divElement.style.textAlign = 'center';
+		divElement.style.padding = '50px';
+		divElement.innerHTML = '<img src=\"../stabcons/progress.gif\"> <em>Loading ' + what + ' Tab, Please Wait...</em>';
+		// Get the tabgroup div, and bail out if it doesn't exist
+		let tabgroupDiv = document.getElementById( 'tabgroup' );
+		if( ! tabgroupDiv ) return;
+		tabgroupDiv.appendChild( divElement );
 
-	var divObj = document.getElementById("tabthis");
-
-	deviceForm = document.getElementById('deviceForm');
-	if(deviceForm == null) {
-		alert("Can't find form on the document");
-		return;
-	}
-
-	if(goawayTab) {
-		holdingDiv_Name = "STAB__TabHold_"+goawayTab.id;
-		holdingDiv = document.getElementById(holdingDiv_Name);
-
-		if(holdingDiv == null) {
-			holdingDiv = document.createElement("div");
-			holdingDiv.id = holdingDiv_Name;
-			holdingDiv.style.visibility = 'hidden';
-			deviceForm.appendChild(holdingDiv);
-		}
-
-		for(o = divObj.firstChild; o; o = onext) {
-			onext = o.nextSibling;
-			divObj.removeChild(o);
-			holdingDiv.appendChild(o);
-		}
-	}
-
-	holdingDiv_Name = "STAB__TabHold_"+what;
-	holdingDiv = document.getElementById(holdingDiv_Name);
-
-	if(holdingDiv != null) {
-		for(o = holdingDiv.firstChild; o; o = onext) {
-			onext = o.nextSibling;
-			holdingDiv.removeChild(o);
-			divObj.appendChild(o);
-		}
+	// The div has already been loaded, just make it active
 	} else {
-		var qstr;
-		url = 'device-ajax.pl?what='+ what;
-
-		qstr = document.location + "";
-		qstr = encodeURIComponent(qstr);
-		if(qstr) {
-			re = /^.*\?/;
-			qstr.replace(re,  '');
-			qstr.replace(/devid=\d+./, '');
-			qstr.replace(/__notemsg__=[^&;]+/, '');
-			qstr.replace(/__errormsg__=[^&;]+/, '');
+		if( bForceReload ) {
+			divElement.style.textAlign = 'center';
+			divElement.style.padding = '50px';
+			divElement.innerHTML = '<img src=\"../stabcons/progress.gif\"> <em>Loading ' + what + ' Tab, Please Wait...</em>';
 		}
-		url += ";passedin=" + qstr;
+		divElement.classList.add( 'active' );
+	}
 
-		divObj.style.textAlign = 'center';
-		divObj.style.padding = '50px';
-		divObj.innerHTML = "<img src=\"../stabcons/progress.gif\"> <em>Loading, Please Wait...</em>"
+	// Make all tab divs inactive, except the current one
+	for( let i = 0; i < tabDivs.length; i++ ) {
+		if( tabDivs[i].id === divName ) continue;
+		tabDivs[i].classList.remove( 'active' );
+	}
 
-		url += ";DEVICE_ID=" + devid;
-		ajaxrequest.open("GET", url, true);
-		ajaxrequest.onreadystatechange = function() {
-			if(ajaxrequest.readyState == 4) {
-				var htmlgoo = ajaxrequest.responseText;
-				var obj = document.getElementById("tabthis");
-				//dynamiccontentNS6("tabthis", htmlgoo);
-				obj.style.textAlign = '';
-				obj.style.padding = '';
-				obj.innerHTML = htmlgoo;
-			}
-			// Update the change tracking status of elements once the document is loaded
-			$('.tracked').each( function() { updateChangeTrackingStatus( $(this)[0] ); } );
-			// Update colors based on toggle swtich statuses
-			$('.button_switch').each( function() {
-				updateNetworkInterfaceUI( $(this)[0], $(this)[0].getAttribute('state'), false );
-			} );
+	// Now loop on the tabs (<a> elements) and set the styles based on selection
+	let tabElements = document.getElementsByClassName( 'tabgrouptab' );
+	for( let i = 0; i < tabElements.length; i++ ) {
+		if( tabElements[i].id === what ) {
+			tabElements[i].classList.add( 'active' );
+		} else {
+			tabElements[i].classList.remove( 'active' );
 		}
-		ajaxrequest.send(null);
 	}
 
-	forcedloadElem = document.getElementById('__default_tab__');
-	if(forcedloadElem) {
-		forcedloadElem.value = what;
+	// If the selected tab was already loaded
+	// and if we aren't forced to reload, we're done
+	if( bNeedsLoading === false && bForceReload === false ) return;
+
+	// Prepare the ajax call url
+	let qstr = document.location + "";
+	qstr = encodeURIComponent(qstr);
+	if(qstr) {
+		re = /^.*\?/;
+		qstr.replace(re,  '');
+		qstr.replace(/devid=\d+./, '');
+		qstr.replace(/__notemsg__=[^&;]+/, '');
+		qstr.replace(/__errormsg__=[^&;]+/, '');
 	}
 
-	if(gotoTab) {
-		gotoTab.className = 'tabgroupactive';
-	}
+	let url = 'device-ajax.pl?what='+ what;
+	url += ";passedin=" + qstr;
+	url += ";DEVICE_ID=" + devid;
 
+	// Execute the ajax query
+	let ajaxrequest = createRequest();
+	ajaxrequest.open("GET", url, true);
+	ajaxrequest.onreadystatechange = function() {
+		if(ajaxrequest.readyState == 4) {
+			var htmlgoo = ajaxrequest.responseText;
+			divElement.style.textAlign = '';
+			divElement.style.padding = '';
+			divElement.innerHTML = htmlgoo;
+		}
+		// Update the change tracking status of elements once the document is loaded
+		$('.tracked').each( function() { updateChangeTrackingStatus( $(this)[0] ); } );
+		// Update colors based on toggle swtich statuses
+		$('.button_switch').each( function() {
+			updateNetworkInterfaceUI( $(this)[0], $(this)[0].getAttribute('state'), false );
+		} );
+	}
+	ajaxrequest.send(null);
 }
 
 // this is the legal way to do innerHTML, but this appears to be
@@ -1256,86 +1233,6 @@ function updateNetworkInterfaceUI( element, stateOverride = '', propagate = true
 
 
 
-// Update chnage tracking status of specified element
-function updateChangeTrackingStatus( element ) {
-
-	// Do we have the 'original' custom attribute - which is needed to track original values from DB
-	if( element.hasAttribute( 'original' ) ) {
-		// Does the element have an options parameter (it's a select)?
-		if( element.options ) {
-			// Are the currently selected values identical to the original ones?
-			// Lopp on options
-			let bDefaultSelected = true;
-			// Let's consider the original string as a comma separated listed
-			var originalSelectedValues = element.getAttribute( 'original' ).split( ',' );
-			for( let option of element.options ) {
-				// Is the option selected now but not in the original setup?
-				// Or the other way round?
-				if( ( originalSelectedValues.includes( option.value ) && ! option.selected ) || ( ! originalSelectedValues.includes( option.value ) && option.selected ) ) {
-					bDefaultSelected = false;
-					break;
-				}
-			}
-			// Do we have default values selected?
-			if( bDefaultSelected ) {
-				element.classList.remove( 'changed' );
-			} else {
-				element.classList.add( 'changed' );
-			}
-		// Is it a radio control?
-		} else if( element.type === 'radio' ) {
-			// We need to update all radio buttons of the group, because the onchange event only targets the clicked one
-			$( 'input[type="radio"][name="' + element.name + '"]' ).each( function() {
-				// The 'original' custom attribute is the id of the selected radio group member selected by default
-				( this.checked && this.getAttribute( 'original' ) === 'checked' ) || ( ! this.checked && this.getAttribute( 'original' ) === '' ) ? this.classList.remove( 'changed' ):this.classList.add( 'changed' );
-			});
-		// Is it a checkbox?
-		} else if( element.type === 'checkbox' ) {
-			( element.getAttribute( 'original' ) === 'checked' && element.checked ) || ( element.getAttribute( 'original' ) === '' && ! element.checked ) ? element.classList.remove( 'changed' ):element.classList.add( 'changed' );
-		// It's not a select, not a radio and not a checkbox
-		} else {
-			element.getAttribute( 'original' ) === element.value ? element.classList.remove( 'changed' ):element.classList.add( 'changed' );
-		}
-		// We stop the processing here
-		return;
-	}
-
-	// At this point, the element has no 'original' custom attribute
-	// Let's use what html has to offer as a fallback
-	// That won't work after failed updates with modified fields, but it will work for display before the first submit
-
-	// Does the element have an options parameter (it's a select)?
-	if( element.options ) {
-		// Lopp on options
-		let bDefaultSelected = true;
-		for( let option of element.options ) {
-			if( option.defaultSelected !== option.selected ) {
-				bDefaultSelected = false;
-				break;
-			}
-		}
-		// Do we have default values selected?
-		if( bDefaultSelected ) {
-			element.classList.remove( 'changed' );
-		} else {
-			element.classList.add( 'changed' );
-		}
-	// Is it a radio control?
-	} else if( element.type === 'radio' ) {
-		// We need to update all radio buttons of the group, because the onchange event only targets the clicked one
-		$( 'input[type="radio"][name="' + element.name + '"]' ).each( function() {
-			this.defaultChecked === this.checked ? this.classList.remove( 'changed' ):this.classList.add( 'changed' );
-		});
-		//element.defaultChecked === element.checked ? element.classList.remove( 'changed' ):element.classList.add( 'changed' );
-	} else if( element.type === 'checkbox' ) {
-		element.defaultChecked === element.checked ? element.classList.remove( 'changed' ):element.classList.add( 'changed' );
-	// No, it's another input field
-	} else {
-		element.defaultValue === element.value ? element.classList.remove( 'changed' ):element.classList.add( 'changed' );
-	}
-}
-
-
 // jQuery magic!
 $(document).ready(function(){
 	// this causes the EDIT button to show up where needed
@@ -1370,15 +1267,9 @@ $(document).ready(function(){
 		}
 	});
 
-	// Add change tracking to relevant elements (those having the 'tracked' class)
-	$('div.maindiv').on( 'change keyup input', '.tracked', function( event ) {
-		// Get the element that triggered the event
-		let element = $(this)[0];
-		updateChangeTrackingStatus( element );
-	});
-
 	// Get dns domains from the database and populate a json object
 	get_dns_domains();
 
 	create_dns_reference_jquery("div.maindiv");
+
 });

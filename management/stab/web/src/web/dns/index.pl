@@ -672,7 +672,7 @@ sub dump_zone {
 	} else {
 		$zonelink = $cgi->br(
 			$cgi->a(
-				{ -href => "./?dnsdomid=" . $dnsdomainid },
+				{ -href => "./?dnsdomainid=" . $dnsdomainid },
 				"full zone: ",
 				$hr->{ _dbx('SOA_NAME') }
 			)

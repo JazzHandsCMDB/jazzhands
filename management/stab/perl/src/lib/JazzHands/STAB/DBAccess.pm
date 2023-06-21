@@ -225,6 +225,37 @@ sub get_network_int_purpose {
 	\@rv;
 }
 
+sub get_device_functions {
+	my ( $self, $devid ) = @_;
+
+	# Note: while the device_collection_device table has a rank column,
+	# it's not used by the device-function collection type, only by the
+	# lb-cluster one, so we simply ignore it here
+	my $sth = $self->prepare(
+		q{
+			select
+				device_collection_id,
+				device_collection_name,
+				(select
+					count(*)
+				from
+					device_collection_device
+				where
+					device_collection_id=device_collection.device_collection_id and
+					device_id=?
+				) as selected
+			from
+				device_collection
+			where
+				device_collection_type='device-function'
+			order by
+				device_collection_name
+		}
+	);
+	$sth->execute($devid) || $self->return_db_err($sth);
+	$sth->fetchall_hashref('device_collection_name');
+}
+
 sub get_interface_from_ip {
 	my ( $self, $ip ) = @_;
 
@@ -383,6 +414,41 @@ sub add_netblock {
 	}
 
 	return ( $new->{ _dbx('NETBLOCK_ID') } );
+}
+
+sub get_network_range_from_id {
+	my ( $self, $nrid, $opts ) = @_;
+
+	return undef if ( !$nrid );
+
+	my $morewhere = "";
+
+	#
+	# This allows restriction of types of network range if necessary.
+	#
+	if ($opts) {
+		foreach my $flag ( keys %$opts ) {
+			$morewhere .= "AND $flag = :$flag\n";
+		}
+	}
+
+	my $q = qq{
+		select  network_range.*
+		 from   network_range
+		where   network_range_id = :nrid
+			$morewhere
+	};
+	my $sth = $self->prepare($q) || $self->return_db_err($self);
+	foreach my $flag ( keys %$opts ) {
+		$sth->bind_param( ":$flag", $opts->{$flag} );
+	}
+	$sth->bind_param( ':nrid', $nrid )
+	  || die $self->return_db_err($sth);
+	$sth->execute || $self->return_db_err($sth);
+	my $hr = $sth->fetchrow_hashref;
+	$sth->finish;
+
+	return $hr;
 }
 
 #############################################################################
@@ -585,11 +651,11 @@ sub get_netblock_from_ip {
 	if ( $opts->{ip_address} !~ m,/, ) {
 		$args->{'host(ip_address)'} = $opts->{ip_address};
 
-	# Remove the implicit /32 netmask suffix if present
+		# Remove the implicit /32 netmask suffix if present
 	} elsif ( $opts->{ip_address} =~ m,/32 *$, ) {
-		$args->{'host(ip_address)'} = $opts->{'ip_address'} =~ s,/32 *$,,r;;
+		$args->{'host(ip_address)'} = $opts->{'ip_address'} =~ s,/32 *$,,r;
 
-	# The ip address has a netmask suffix, but not a /32
+		# The ip address has a netmask suffix, but not a /32
 	} else {
 		$args->{ip_address} = $opts->{ip_address};
 	}
@@ -619,6 +685,7 @@ sub get_netblock_from_ip {
 		return undef;
 	}
 
+	# XXX - This code doesn't seem to be reachable - to be removed? - smesserli - 2023-05-03
 	if ( !$netblock ) {
 		if (@errors) {
 			$self->error_return(
@@ -1949,6 +2016,12 @@ sub process_and_insert_dns_record {
 				$opts->{ _dbx('SHOULD_GENERATE_PTR') } = 'N';
 			}
 		}
+
+		# Wildcard dns records must not have the PTR set
+		if ( $opts->{dns_name} =~ /\*/ ) {
+			$opts->{ _dbx('SHOULD_GENERATE_PTR') } = 'N';
+		}
+
 		my $id;
 		if ( !defined($block) ) {
 			my $h = {

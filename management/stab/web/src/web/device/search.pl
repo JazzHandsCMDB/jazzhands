@@ -50,7 +50,8 @@ use Net::IP;
 do_device_search();
 
 sub find_devices {
-	my ( $stab, $name, $ipblock, $type, $os, $mac, $serial, $dormd ) = @_;
+	my ( $stab, $site, $id, $name, $ipblock, $type, $os, $mac, $serial, $dormd )
+	  = @_;
 
 	my $cgi = $stab->cgi || die "Could not create cgi";
 	my $dbh = $stab->dbh || die "Could not create dbh";
@@ -68,22 +69,44 @@ sub find_devices {
 	my $criteria =
 	  "(d.device_name IS NULL OR d.device_name not like '%--otherside%')";
 
+	if ( defined($site) ) {
+		$criteria .= " and " if ( length($criteria) );
+		$criteria .= " d.site_code = :site::text";
+
+	}
+
+	if ( defined($id) ) {
+
+		# Get the numerical device id if it's a Maestro or Cloud API id
+		$id =~ s,^.*:,,;
+		$id =~ s,[^0-9],,g;
+		$criteria .= " and " if ( length($criteria) );
+		$criteria .= " d.device_id::text = :id::text";
+
+	}
+
 	if ( defined($name) ) {
 		$criteria .= " and " if ( length($criteria) );
 		$criteria .=
-		  " (lower(d.device_name) like lower(:name) or lower(dns.dns_name) like lower(:name) or lower(d.physical_label) like lower(:name))";
+		  " (lower(d.device_name) ~ lower(:name) or concat(lower(dns.dns_name),'.',lower(dom.dns_domain_name)) ~ lower(:name) or lower(d.physical_label) ~ lower(:name))";
 
 	}
 
 	if ( defined($serial) ) {
 		$criteria .= " and " if ( length($criteria) );
-		$criteria .= " (lower(a.serial_number) like lower(:serial)";
-		$criteria .= "  OR lower(d.host_id) like lower(:serial))";
+		$criteria .= " (lower(a.serial_number) ~ lower(:serial)";
+		$criteria .= "  OR lower(d.host_id) ~ lower(:serial))";
 	}
 
 	if ( defined($mac) ) {
+
+		# Convert Arista mac format xxxx.xxxx.xxxx to our internal format if needed
+		if ( $mac =~ /\./ ) {
+			$mac =~ s,\.,,g;
+			$mac =~ s,(..),\1:,g;
+		}
 		$criteria .= " and " if ( length($criteria) );
-		$criteria .= " ni.mac_addr = :mac";
+		$criteria .= " ni.mac_addr::text ~ :mac";
 	}
 
 	if ( defined($type) ) {
@@ -121,12 +144,16 @@ sub find_devices {
 	my $q = qq{
 		select	distinct d.device_id, d.device_name
 		  from	device d
-			left join network_interface_netblock ni
+			left join network_interface_netblock nin
+				on nin.device_id = d.device_id
+			left join network_interface ni
 				on ni.device_id = d.device_id
 			left join netblock nb
-				on nb.netblock_id = ni.netblock_id
+				on nb.netblock_id = nin.netblock_id
 			left join dns_record dns
 				on dns.netblock_id = nb.netblock_id
+			left join dns_domain dom
+				using( dns_domain_id )
 			left join component c USING (component_id)
 			left join asset a USING (component_id)
 		 where
@@ -135,8 +162,16 @@ sub find_devices {
 	};
 	my $sth = $stab->prepare($q) || $stab->return_db_err($dbh);
 
+	if ( defined($site) ) {
+		$sth->bind_param( ":site", "$site" )
+		  || $stab->return_db_err($sth);
+	}
+	if ( defined($id) ) {
+		$sth->bind_param( ":id", "$id" )
+		  || $stab->return_db_err($sth);
+	}
 	if ( defined($name) ) {
-		$sth->bind_param( ":name", "%$name%" )
+		$sth->bind_param( ":name", "$name" )
 		  || $stab->return_db_err($sth);
 	}
 	if ( defined($type) ) {
@@ -154,7 +189,7 @@ sub find_devices {
 		}
 	}
 	if ( defined($serial) ) {
-		$sth->bind_param( ":serial", "%$serial%" )
+		$sth->bind_param( ":serial", "$serial" )
 		  || $stab->return_db_err($sth);
 	}
 	if ( defined($mac) ) {
@@ -179,7 +214,9 @@ sub do_device_search {
 	my $cgi  = $stab->cgi          || die "Could not create cgi";
 	my $dbh  = $stab->dbh          || die "Could not create dbh";
 
+	my $bysite   = $stab->cgi_parse_param('SITE_CODE');
 	my $byip     = $stab->cgi_parse_param('byip');
+	my $byid     = $stab->cgi_parse_param('byid');
 	my $byname   = $stab->cgi_parse_param('byname');
 	my $bymac    = $stab->cgi_parse_param('bymac');
 	my $byserial = $stab->cgi_parse_param('byserial');
@@ -196,7 +233,9 @@ sub do_device_search {
 	# if no search terms, then redirect to where they can be entered.
 	#
 	if (   !$cgi->referer
+		&& !defined($bysite)
 		&& !defined($byip)
+		&& !defined($byid)
 		&& !defined($byname)
 		&& !defined($bymac)
 		&& !defined($byserial)
@@ -207,9 +246,10 @@ sub do_device_search {
 		return;
 	}
 
-	my @searchresults =
-	  find_devices( $stab, $byname, $byip, $bytype, $byos, $bymac,
-		$byserial, $dormd );
+	my @searchresults = find_devices(
+		$stab,   $bysite, $byid,  $byname,   $byip,
+		$bytype, $byos,   $bymac, $byserial, $dormd
+	);
 
 	#
 	# exactly one search result, so redirect to that result.  If Search is

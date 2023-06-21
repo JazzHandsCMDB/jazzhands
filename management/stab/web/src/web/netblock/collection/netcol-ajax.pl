@@ -65,10 +65,11 @@ sub do_netcol_ajax {
 
 	$what = "" if ( !defined($what) );
 
+	# Collections of specific type requested
 	if ( $what eq 'Collections' ) {
-		my $type  = $stab->cgi_parse_param('type');
-		my $r = {};
-		my $sth = $stab->prepare(
+		my $type = $stab->cgi_parse_param('type');
+		my $r    = {};
+		my $sth  = $stab->prepare(
 			qq{
 			select  netblock_collection_id,
 				netblock_collection_name, description
@@ -77,25 +78,53 @@ sub do_netcol_ajax {
 			order by netblock_collection_name,
 				netblock_collection_type,
 				netblock_collection_id
-		}
+			}
 		);
 		$sth->execute($type) || die $sth->errstr;
 		my $j = JSON::PP->new->utf8;
 		while ( my ( $id, $name, $desc ) = $sth->fetchrow_array ) {
-			push(@{$r->{'NETBLOCK_COLLECTIONS'}}, {
-				id => $id,
-				name => $name,
-				type => $type,
-				desc => $desc,
-				human => "$name".  (($desc)?" - $desc":"")
-			});
+			push(
+				@{ $r->{'NETBLOCK_COLLECTIONS'} },
+				{
+					id    => $id,
+					name  => $name,
+					type  => $type,
+					desc  => $desc,
+					human => "$name" . ( ($desc) ? " - $desc" : "" )
+				}
+			);
 
 		}
 		print $j->encode($r);
+
+		# Collection Types requested
+	} elsif ( $what eq 'CollectionTypes' ) {
+		my $r   = {};
+		my $sth = $stab->prepare(
+			qq{
+				select   netblock_collection_type, description
+				from     val_netblock_collection_type
+				order by netblock_collection_type
+			}
+		);
+		$sth->execute() || die $sth->errstr;
+		my $j = JSON::PP->new->utf8;
+		while ( my ( $name, $desc ) = $sth->fetchrow_array ) {
+			push(
+				@{ $r->{'NETBLOCK_COLLECTION_TYPES'} },
+				{
+					name  => $name,
+					human => "$name" . ( ($desc) ? " - $desc" : "" )
+				}
+			);
+
+		}
+		print $j->encode($r);
+
 	} else {
+
 		# catch-all error condition
-		print $cgi->div(
-			{ -style => 'text-align: center; padding: 50px', },
+		print $cgi->div( { -style => 'text-align: center; padding: 50px', },
 			$cgi->em("not implemented yet.") );
 	}
 
