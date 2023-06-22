@@ -2,7 +2,7 @@ jazzhands-perl-vault (0.95.5) jammy; urgency=medium
 
   * support for VAULT_CAPATH
 
- -- Todd Kover <kovert@omniscient.com>  <pm, 13 Feb 2023 12:31:00 -0500
+ -- Todd Kover <kovert@omniscient.com>  Mon, 13 Feb 2023 12:31:00 -0500
 
 jazzhands-perl-vault (0.95.0) jammy; urgency=medium
 

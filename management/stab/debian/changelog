@@ -1,3 +1,9 @@
+jazzhands-stab (0.95.9.1) jammy; urgency=medium
+
+  * include missing file in debian packaging
+
+ -- Todd Kover <kovert@omniscient.com>  Thu, 22 Jun 2023 16:41:22 -0400
+
 jazzhands-stab (0.95.9) jammy; urgency=medium
 
   * Fix device search by mac address
