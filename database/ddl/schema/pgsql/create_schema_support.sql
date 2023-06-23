@@ -1007,7 +1007,7 @@ DECLARE
 	_tally	integer;
 BEGIN
 	IF shouldbesuper THEN
-		SELECT rolsuper INTO issuper FROM pg_role where rolname = current_user;
+		SELECT rolsuper INTO issuper FROM pg_roles where rolname = current_user;
 		IF issuper IS false THEN
 			PERFORM groname, rolname
 			FROM (
@@ -1050,11 +1050,11 @@ BEGIN
 		SELECT rolname, coalesce(numrels, 0) AS numrels,
 		coalesce(numprocs, 0) AS numprocs,
 		coalesce(numfks, 0) AS numfks
-		FROM pg_roles u
+		FROM pg_roles r
 			LEFT JOIN (
 		SELECT relowner, count(*) AS numrels
 				FROM pg_class
-				WHERE relkind IN ('r','v')
+				WHERE relkind IN ('r','v') AND relpersistence != 't'
 				GROUP BY 1
 				) c ON r.oid = c.relowner
 			LEFT JOIN (SELECT proowner, count(*) AS numprocs
@@ -1064,7 +1064,7 @@ BEGIN
 			LEFT JOIN (
 				SELECT relowner, count(*) AS numfks
 				FROM pg_class r JOIN pg_constraint fk ON fk.confrelid = r.oid
-				WHERE contype = 'f'
+				WHERE contype = 'f' AND relpersistence != 't'
 				GROUP BY 1
 			) fk ON r.oid = fk.relowner
 		WHERE r.oid > 16384
@@ -1131,7 +1131,7 @@ BEGIN
 			LEFT JOIN (
 		SELECT relowner, count(*) AS numrels
 				FROM pg_class
-				WHERE relkind IN ('r','v')
+				WHERE relkind IN ('r','v') AND relpersistence != 't'
 				GROUP BY 1
 				) c ON r.oid = c.relowner
 			LEFT JOIN (SELECT proowner, count(*) AS numprocs
@@ -1141,7 +1141,7 @@ BEGIN
 			LEFT JOIN (
 				SELECT relowner, count(*) AS numfks
 				FROM pg_class r JOIN pg_constraint fk ON fk.confrelid = r.oid
-				WHERE contype = 'f'
+				WHERE contype = 'f' AND relpersistence != 't'
 				GROUP BY 1
 			) fk ON r.oid = fk.relowner
 		WHERE r.oid > 16384
