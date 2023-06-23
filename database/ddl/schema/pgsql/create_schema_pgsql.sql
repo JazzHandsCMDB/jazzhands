@@ -8562,7 +8562,8 @@ CREATE TABLE val_dns_domain_collection_type
 	description          varchar(4000)  NULL ,
 	max_num_members      integer  NULL ,
 	max_num_collections  integer  NULL ,
-	can_have_hierarchy   boolean  NOT NULL 
+	can_have_hierarchy   boolean  NOT NULL ,
+	manage_child_domains_automatically boolean  NOT NULL 
 );
 
 ALTER TABLE val_dns_domain_collection_type
@@ -14389,6 +14390,10 @@ ALTER TABLE val_dns_domain_collection_type
 	ALTER COLUMN can_have_hierarchy
 		SET DEFAULT true;
 
+ALTER TABLE val_dns_domain_collection_type
+	ALTER COLUMN manage_child_domains_automatically
+		SET DEFAULT true;
+
 ALTER TABLE val_dns_domain_type
 	ALTER COLUMN can_generate
 		SET DEFAULT true;
@@ -15605,6 +15610,8 @@ COMMENT ON COLUMN val_dns_domain_collection_type.max_num_members IS 'Maximum INT
 COMMENT ON COLUMN val_dns_domain_collection_type.max_num_collections IS 'Maximum INTEGER of collections a given member can be a part of of this type.';
 
 COMMENT ON COLUMN val_dns_domain_collection_type.can_have_hierarchy IS 'Indicates if the collections can have other collections to make it hierarchical.';
+
+COMMENT ON COLUMN val_dns_domain_collection_type.manage_child_domains_automatically IS 'Automatically add/remove chldren from collections that their parent appears in on create/delete';
 
 COMMENT ON TABLE val_encryption_key_purpose IS 'Valid purpose of encryption used by the key_crypto package; Used to identify which functional application knows the app provided portion of the encryption key';
 
