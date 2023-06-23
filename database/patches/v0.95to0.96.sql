@@ -246,7 +246,7 @@ DECLARE
 	_tally	integer;
 BEGIN
 	IF shouldbesuper THEN
-		SELECT rolsuper INTO issuper FROM pg_role where rolname = current_user;
+		SELECT rolsuper INTO issuper FROM pg_roles where rolname = current_user;
 		IF issuper IS false THEN
 			PERFORM groname, rolname
 			FROM (
@@ -289,11 +289,11 @@ BEGIN
 		SELECT rolname, coalesce(numrels, 0) AS numrels,
 		coalesce(numprocs, 0) AS numprocs,
 		coalesce(numfks, 0) AS numfks
-		FROM pg_roles u
+		FROM pg_roles r
 			LEFT JOIN (
 		SELECT relowner, count(*) AS numrels
 				FROM pg_class
-				WHERE relkind IN ('r','v')
+				WHERE relkind IN ('r','v') AND relpersistence != 't'
 				GROUP BY 1
 				) c ON r.oid = c.relowner
 			LEFT JOIN (SELECT proowner, count(*) AS numprocs
@@ -303,7 +303,7 @@ BEGIN
 			LEFT JOIN (
 				SELECT relowner, count(*) AS numfks
 				FROM pg_class r JOIN pg_constraint fk ON fk.confrelid = r.oid
-				WHERE contype = 'f'
+				WHERE contype = 'f' AND relpersistence != 't'
 				GROUP BY 1
 			) fk ON r.oid = fk.relowner
 		WHERE r.oid > 16384
@@ -452,7 +452,7 @@ BEGIN
 			LEFT JOIN (
 		SELECT relowner, count(*) AS numrels
 				FROM pg_class
-				WHERE relkind IN ('r','v')
+				WHERE relkind IN ('r','v') AND relpersistence != 't'
 				GROUP BY 1
 				) c ON r.oid = c.relowner
 			LEFT JOIN (SELECT proowner, count(*) AS numprocs
@@ -462,7 +462,7 @@ BEGIN
 			LEFT JOIN (
 				SELECT relowner, count(*) AS numfks
 				FROM pg_class r JOIN pg_constraint fk ON fk.confrelid = r.oid
-				WHERE contype = 'f'
+				WHERE contype = 'f' AND relpersistence != 't'
 				GROUP BY 1
 			) fk ON r.oid = fk.relowner
 		WHERE r.oid > 16384
@@ -1856,6 +1856,22 @@ BEGIN
 	IF false OR _tal = 1 THEN
 		CREATE SCHEMA jazzhands_legacy_manip AUTHORIZATION jazzhands;
 		COMMENT ON SCHEMA jazzhands_legacy_manip IS 'part of jazzhands';
+	END IF;
+EXCEPTION WHEN duplicate_schema THEN
+	RAISE NOTICE 'Schema exists.  Skipping creation';
+END;
+			$$;DO $$
+DECLARE
+	_tal INTEGER;
+BEGIN
+	_tal := 0;
+	SELECT count(*) INTO _tal FROM pg_extension WHERE extname = 'plperl';
+
+	-- certain schemas are optional and the first conditional
+	-- is true if the schem is optional.
+	IF false OR _tal = 1 THEN
+		CREATE SCHEMA x509_manip AUTHORIZATION jazzhands;
+		COMMENT ON SCHEMA x509_manip IS 'part of jazzhands';
 	END IF;
 EXCEPTION WHEN duplicate_schema THEN
 	RAISE NOTICE 'Schema exists.  Skipping creation';
@@ -4312,6 +4328,38 @@ DROP TRIGGER IF EXISTS trigger_verify_physicalish_volume ON jazzhands.physicalis
 SELECT schema_support.save_dependent_objects_for_replay(schema := 'jazzhands'::text, object := 'verify_physicalish_volume (  )'::text, tags := ARRAY['process_all_procs_in_schema_jazzhands'::text]);
 DROP FUNCTION IF EXISTS jazzhands.verify_physicalish_volume (  );
 SELECT schema_support.replay_object_recreates(tags := ARRAY['process_all_procs_in_schema_jazzhands']);
+-- New function; dropping in case it returned because of type change
+SELECT schema_support.save_grants_for_replay('jazzhands', 'hex_to_numeric');
+DROP FUNCTION IF EXISTS jazzhands.hex_to_numeric ( text );
+CREATE OR REPLACE FUNCTION jazzhands.hex_to_numeric(hexval text)
+ RETURNS numeric
+ LANGUAGE plpgsql
+ IMMUTABLE STRICT
+AS $function$
+DECLARE
+    intVal		NUMERIC(1000) := 0;
+    hexLength	INTEGER;
+    i			iNTEGER;
+    hexDigit	TEXT;
+BEGIN
+	IF hexval IS NULL THEN
+		RETURN NULL;
+	END IF;
+
+    hexLength := length(hexval);
+    FOR i IN 1..hexLength LOOP
+        hexDigit := substr(hexVal, hexLength - i + 1, 1);
+        intVal := intVal + CASE WHEN hexDigit BETWEEN '0' AND '9' THEN
+            CAST(hexDigit AS numeric(1000))
+        WHEN upper(hexDigit) BETWEEN 'A' AND 'F' THEN
+            CAST(ascii(upper(hexDigit)) - 55 AS numeric(1000))
+        END * CAST(16 AS numeric(1000)) ^ CAST(i - 1 AS numeric(1000));
+    END LOOP;
+    RETURN intVal;
+END;
+$function$
+;
+
 --
 -- Process middle (non-trigger) schema layerx_network_manip
 --
@@ -6695,7 +6743,7 @@ DECLARE
 	_tally	integer;
 BEGIN
 	IF shouldbesuper THEN
-		SELECT rolsuper INTO issuper FROM pg_role where rolname = current_user;
+		SELECT rolsuper INTO issuper FROM pg_roles where rolname = current_user;
 		IF issuper IS false THEN
 			PERFORM groname, rolname
 			FROM (
@@ -6738,11 +6786,11 @@ BEGIN
 		SELECT rolname, coalesce(numrels, 0) AS numrels,
 		coalesce(numprocs, 0) AS numprocs,
 		coalesce(numfks, 0) AS numfks
-		FROM pg_roles u
+		FROM pg_roles r
 			LEFT JOIN (
 		SELECT relowner, count(*) AS numrels
 				FROM pg_class
-				WHERE relkind IN ('r','v')
+				WHERE relkind IN ('r','v') AND relpersistence != 't'
 				GROUP BY 1
 				) c ON r.oid = c.relowner
 			LEFT JOIN (SELECT proowner, count(*) AS numprocs
@@ -6752,7 +6800,7 @@ BEGIN
 			LEFT JOIN (
 				SELECT relowner, count(*) AS numfks
 				FROM pg_class r JOIN pg_constraint fk ON fk.confrelid = r.oid
-				WHERE contype = 'f'
+				WHERE contype = 'f' AND relpersistence != 't'
 				GROUP BY 1
 			) fk ON r.oid = fk.relowner
 		WHERE r.oid > 16384
@@ -6901,7 +6949,7 @@ BEGIN
 			LEFT JOIN (
 		SELECT relowner, count(*) AS numrels
 				FROM pg_class
-				WHERE relkind IN ('r','v')
+				WHERE relkind IN ('r','v') AND relpersistence != 't'
 				GROUP BY 1
 				) c ON r.oid = c.relowner
 			LEFT JOIN (SELECT proowner, count(*) AS numprocs
@@ -6911,7 +6959,7 @@ BEGIN
 			LEFT JOIN (
 				SELECT relowner, count(*) AS numfks
 				FROM pg_class r JOIN pg_constraint fk ON fk.confrelid = r.oid
-				WHERE contype = 'f'
+				WHERE contype = 'f' AND relpersistence != 't'
 				GROUP BY 1
 			) fk ON r.oid = fk.relowner
 		WHERE r.oid > 16384
@@ -8299,7 +8347,159 @@ SELECT schema_support.replay_object_recreates(tags := ARRAY['process_all_procs_i
 --
 -- Process middle (non-trigger) schema service_manip
 --
+SELECT schema_support.save_dependent_objects_for_replay(schema := 'service_manip'::text, object := 'direct_connect_endpoint_to_device ( integer,integer,integer,integer,integer,integer,integer )'::text, tags := ARRAY['process_all_procs_in_schema_service_manip'::text]);
+DROP FUNCTION IF EXISTS service_manip.direct_connect_endpoint_to_device ( integer,integer,integer,integer,integer,integer,integer );
 SELECT schema_support.replay_object_recreates(tags := ARRAY['process_all_procs_in_schema_service_manip']);
+-- New function; dropping in case it returned because of type change
+SELECT schema_support.save_grants_for_replay('service_manip', 'direct_connect_endpoint_to_device');
+DROP FUNCTION IF EXISTS service_manip.direct_connect_endpoint_to_device ( integer,integer,integer,integer,integer,integer,integer,boolean );
+CREATE OR REPLACE FUNCTION service_manip.direct_connect_endpoint_to_device(device_id integer, service_version_id integer, service_environment_id integer, service_endpoint_id integer DEFAULT NULL::integer, port_range_id integer DEFAULT NULL::integer, dns_record_id integer DEFAULT NULL::integer, service_sla_id integer DEFAULT NULL::integer, is_primary boolean DEFAULT true)
+ RETURNS integer
+ LANGUAGE plpgsql
+ SECURITY DEFINER
+ SET search_path TO 'jazzhands'
+AS $function$
+DECLARE
+	_in_device_id			ALIAS FOR device_id;
+	_in_service_endpoint_id	ALIAS FOR service_endpoint_id;
+	_in_service_version_id	ALIAS FOR service_version_id;
+	_in_port_range_id		ALIAS FOR port_range_id;
+	_in_dns_record_id		ALIAS FOR dns_record_id;
+	_s		service%ROWTYPE;
+	_sv		service_version%ROWTYPE;
+	_si		service_instance%ROWTYPE;
+	_send		service_endpoint%ROWTYPE;
+	_senv		service_endpoint%ROWTYPE;
+	_sep	service_endpoint_provider%ROWTYPE;
+	_sepc	service_endpoint_provider_collection%ROWTYPE;
+BEGIN
+	SELECT * INTO _sv
+	FROM service_version sv
+	WHERE sv.service_version_id = _in_service_version_id;
+
+	IF NOT FOUND THEN
+		RAISE EXCEPTION 'Did not find service_version'
+			USING ERRCODE = 'foreign_key_violation';
+	END IF;
+	SELECT * INTO _s
+	FROM service s
+	WHERE s.service_id = _sv.service_version_id;
+
+	IF _in_service_endpoint_id IS NOT NULL THEN
+		SELECT * INTO _send
+		FROM service_endpoint se
+		WHERE se.service_endpoint_id = _in_service_endpoint_id;
+
+
+		IF NOT FOUND THEN
+			RAISE EXCEPTION 'service_endpoint_id not found'
+			USING ERRCODE = 'foreign_key_violation';
+		END IF;
+
+		IF _send.service_id != _sv.service_id THEN
+			RAISE EXCEPTION 'service of service_endpoint and service_version do not match'
+			USING ERRCODE = 'foreign_key_violation',
+			HINT = format('%s v %s', _send.service_id, _sv.service_id);
+		END IF;
+	ELSE
+		--- XXX probably need to revisit.
+		IF _in_dns_record_id IS NULL THEN
+			RAISE EXCEPTION 'Need to set dns_record_id and port_range_id. This may be revisited'
+				USING ERRCODE = 'not_null_violation';
+		END IF;
+		IF _in_port_range_id IS NULL THEN
+			RAISE EXCEPTION 'Need to set port_range_id and dns_record_id. This may be revisited'
+				USING ERRCODE = 'not_null_violation';
+		END IF;
+
+		INSERT INTO service_endpoint (
+			service_id, dns_record_id, port_range_id
+		) SELECT
+			_sv.service_id, dr.dns_record_id, pr.port_range_id
+		FROM port_range pr, dns_record dr 
+		WHERE pr.port_range_id = _in_port_range_id
+		AND dr.dns_record_id = _in_dns_record_id
+		RETURNING * INTO _send;
+	END IF;
+
+	IF _send IS NULL THEN
+		RAISE EXCEPTION '_send is NULL.  This should not happen.';
+	END IF;
+
+	INSERT INTO service_endpoint_provider (
+		service_endpoint_provider_name, service_endpoint_provider_type,
+        dns_record_id
+	) SELECT concat(_s.service_name, concat_ws('.', dns_name, dns_domain_name), '-', port_range_name), 'direct',
+		dr.dns_record_id
+	FROM    dns_record dr JOIN dns_domain dd USING (dns_domain_id),
+		port_range pr
+	WHERE dr.dns_record_id = _send.dns_record_id
+	AND pr.port_range_id = _send.port_range_id
+	RETURNING * INTO _sep;
+
+	IF _sep IS NULL THEN
+		RAISE EXCEPTION 'Failed to insert into service_endpoint_provider.  This should not happen';
+	END IF;
+
+	INSERT INTO service_endpoint_provider_collection (
+		service_endpoint_provider_collection_name,
+		service_endpoint_provider_collection_type
+	) SELECT
+		_sep.service_endpoint_provider_name,
+		'per-service-endpoint-provider'
+	RETURNING * INTO _sepc;
+
+	INSERT INTO service_endpoint_service_endpoint_provider_collection (
+		service_endpoint_id, service_endpoint_provider_collection_id,
+		service_endpoint_relation_type
+	) VALUES (
+		_send.service_endpoint_id, _sepc.service_endpoint_provider_collection_id,
+		'direct'
+	);
+
+	INSERT INTO service_endpoint_provider_collection_service_endpoint_provider(
+		service_endpoint_provider_collection_id,
+		service_endpoint_provider_id
+	) VALUES (
+		_sepc.service_endpoint_provider_collection_id,
+		_sep.service_endpoint_provider_id
+	);
+
+	INSERT INTO service_instance (
+		device_id,
+		service_version_id, service_environment_id, is_primary
+	) VALUES (
+		_in_device_id,
+		_sv.service_version_id, service_environment_id, is_primary
+	) RETURNING * INTO _si;
+
+	INSERT INTO service_endpoint_provider_service_instance (
+		service_endpoint_provider_id,
+		service_instance_id,
+		port_range_id
+	) VALUES (
+		_sep.service_endpoint_provider_id,
+		_si.service_instance_id,
+		_send.port_range_id
+	);
+
+	-- XXX need to handle if one is set and the other is not
+	IF service_sla_id IS NOT NULL AND service_environment_id IS NOT NULL
+	THEN
+		INSERT INTO service_endpoint_service_sla (
+			service_endpoint_id, service_sla_id,
+			service_environment_id
+		) VALUES (
+			_send.service_endpoint_id, service_sla_id,
+			service_environment_id
+		);
+	END IF;
+
+	RETURN _si.service_instance_id;
+END;
+$function$
+;
+
 --
 -- Process middle (non-trigger) schema service_utils
 --
@@ -8441,6 +8641,177 @@ SELECT schema_support.replay_object_recreates(tags := ARRAY['process_all_procs_i
 -- Process middle (non-trigger) schema x509_plperl_cert_utils
 --
 SELECT schema_support.replay_object_recreates(tags := ARRAY['process_all_procs_in_schema_x509_plperl_cert_utils']);
+-- New function; dropping in case it returned because of type change
+SELECT schema_support.save_grants_for_replay('x509_plperl_cert_utils', 'parse_csr');
+DROP FUNCTION IF EXISTS x509_plperl_cert_utils.parse_csr ( text );
+DO $plperlthing$ BEGIN
+CREATE OR REPLACE FUNCTION x509_plperl_cert_utils.parse_csr(certificate_signing_request text)
+ RETURNS jsonb
+ LANGUAGE plperl
+AS $function$
+	my $csr_pem = shift || return undef;
+
+    my $tmp     = File::Temp->new();
+	    print $tmp $csr_pem;
+    $tmp->close;
+
+	my $req = Crypt::OpenSSL::PKCS10->new_from_file($tmp) || return undef;
+
+	my $friendly = $req->subject;
+	$friendly =~ s/^.*CN=(\s*[^,]*)(,.*)?$/$1/;
+
+	my $rv = {
+		friendly_name            => $friendly,
+		subject                  => $req->subject(),
+	};
+
+	# this is naaaasty but I did not want to require the JSON pp module
+	my $x = sprintf "{ %s }", join(
+		',',
+		map {
+			qq{"$_": }
+			  . (
+				( defined( $rv->{$_} ) )
+				? (
+					( ref( $rv->{$_} ) eq 'ARRAY' )
+					? '[ ' . join( ',', @{ $rv->{$_} } ) . ' ]'
+					: qq{"$rv->{$_}"}
+				  )
+				: 'null'
+			  )
+		} keys %$rv
+	);
+
+	$x;
+$function$
+;
+
+EXCEPTION WHEN invalid_schema_name THEN NULL; END; $plperlthing$
+;
+-- New function; dropping in case it returned because of type change
+SELECT schema_support.save_grants_for_replay('x509_plperl_cert_utils', 'parse_x509_certificate');
+DROP FUNCTION IF EXISTS x509_plperl_cert_utils.parse_x509_certificate ( text );
+DO $plperlthing$ BEGIN
+CREATE OR REPLACE FUNCTION x509_plperl_cert_utils.parse_x509_certificate(certificate text)
+ RETURNS jsonb
+ LANGUAGE plperl
+AS $function$
+	my $pem = shift || return undef;
+
+	my $x509 = Crypt::OpenSSL::X509->new_from_string($pem) || return undef;
+
+	my $friendly;
+	my $names = $x509->subject_name()->entries();
+	foreach my $e ( @{$names} ) {
+		next if $e->type() ne 'CN';
+		$friendly = $e->value();
+		last;
+	}
+
+	my @ku;
+	my @san;
+
+	my ( $ski, $aki, $ca );
+	my $exts = $x509->extensions_by_oid();
+	foreach my $oid ( keys %$exts ) {
+		my $ext = $$exts{$oid};
+		if ( $oid eq '2.5.29.14' ) {
+			$ski = $ext->as_string();
+			$ski =~ s/\s+$//;
+		} elsif ( $oid eq '2.5.29.35' ) {
+			$aki = $ext->as_string();
+			$aki =~ s/keyid://;
+			$aki =~ s/\s+$//;
+		} elsif ( $oid eq '2.5.29.19' ) {
+
+			# basic constraints;
+			my $x = $ext->as_string();
+			if ( $x && $x =~ /CA:TRUE/i ) {
+				$ca = 1;
+			}
+		} elsif ( $oid eq '2.5.29.15' ) {
+
+			# my $c = $ext->critical();
+			my $map = {
+				"Digital Signature" => "digitalSignature",
+				"Non Repudiation"   => "nonRepudiation",
+				"Key Encipherment"  => "keyEncipherment",
+				"Data Encipherment" => "dataEncipherment",
+				"Key Agreement"     => "keyAgreement",
+				"Certificate Sign"  => "keyCertSign",
+				"CRL Sign"          => "cRLSign",
+				"Encipher Only"     => "encipherOnly",
+				"Decipher Only"     => "decipherOnly",
+			};
+
+			# yes, I threw up a litle; these are from crypto/x509v3/v3_bitst.c
+			foreach my $ku ( split( /,\s*/, $ext->as_string() ) ) {
+				push( @ku, $map->{$ku} ) if ( $map->{$ku} );
+			}
+
+		} elsif ( $oid eq '2.5.29.37' ) {
+			my $map = {
+				"serverAuth"      => "TLS Web Server Authentication",
+				"clientAuth"      => "TLS Web Client Authentication",
+				"codeSigning"     => "Code Signing",
+				"emailProtection" => "E-mail Protection",
+				"timeStamping"    => "Time Stamping",
+				"OCSPSigning"     => "OCSP Signing"
+			};
+
+			# yes, I threw up a litle; these are from crypto/objects/obj_dat.h
+			foreach my $ku ( split( /,\s*/, $ext->as_string() ) ) {
+				push( @ku, $map->{$ku} ) if ( $map->{$ku} );
+			}
+
+		} elsif ($oid eq '2.5.29.17') {
+			push(@san, split(/,\s*/, $ext->as_string() ));
+		} else {
+			next;
+		}
+	}
+
+	@ku = map { qq{"$_"} } @ku;
+	@san = map { qq{"$_"} } @san;
+	my $rv = {
+		friendly_name            => $friendly,
+		subject                  => $x509->subject(),
+		issuer                   => $x509->issuer(),
+		serial                   => $x509->serial(),
+		signing_algorithm        => $x509->sig_alg_name(),
+		key_algorithm            => $x509->key_alg_name(),
+		is_ca                    => $ca,
+		valid_from               => $x509->notBefore,
+		valid_to                 => $x509->notAfter,
+		self_signed              => ( $x509->is_selfsigned() ) ? 1 : undef,
+		subject_key_identifier   => $ski,
+		authority_key_identifier => $aki,
+		keyUsage                 => \@ku,
+		subjectAlternateName     => \@san,
+	};
+
+	# this is naaaasty but I did not want to require the JSON pp module
+	my $x = sprintf "{ %s }", join(
+		',',
+		map {
+			qq{"$_": }
+			  . (
+				( defined( $rv->{$_} ) )
+				? (
+					( ref( $rv->{$_} ) eq 'ARRAY' )
+					? '[ ' . join( ',', @{ $rv->{$_} } ) . ' ]'
+					: qq{"$rv->{$_}"}
+				  )
+				: 'null'
+			  )
+		} keys %$rv
+	);
+	$x;
+$function$
+;
+
+EXCEPTION WHEN invalid_schema_name THEN NULL; END; $plperlthing$
+;
 --
 -- Process middle (non-trigger) schema audit
 --
@@ -8624,6 +8995,280 @@ END;
 $function$
 ;
 
+--
+-- Process middle (non-trigger) schema x509_manip
+--
+SELECT schema_support.replay_object_recreates(tags := ARRAY['process_all_procs_in_schema_x509_manip']);
+-- New function; dropping in case it returned because of type change
+SELECT schema_support.save_grants_for_replay('x509_manip', 'insert_csr');
+DROP FUNCTION IF EXISTS x509_manip.insert_csr ( text,jsonb,jsonb );
+CREATE OR REPLACE FUNCTION x509_manip.insert_csr(csr text, parsed jsonb DEFAULT NULL::jsonb, public_key_hashes jsonb DEFAULT NULL::jsonb)
+ RETURNS jazzhands.certificate_signing_request
+ LANGUAGE plpgsql
+ SECURITY DEFINER
+ SET search_path TO 'jazzhands'
+AS $function$
+DECLARE
+	_csr			certificate_signing_request;
+	_parsed			JSONB;
+	_pubkeyhashes	JSONB;
+	_pkid			private_key.private_key_id%TYPE;
+	_ca				x509_signed_certificate.x509_signed_certificate_id%TYPE;
+	_e				JSONB;
+	field			TEXT;
+BEGIN
+	BEGIN
+		_parsed := x509_plperl_cert_utils.parse_csr(
+			certificate_signing_request := insert_csr.csr
+		);
+
+		_pubkeyhashes := x509_plperl_cert_utils.get_csr_hashes(
+			insert_csr.csr
+		);
+
+		IF parsed IS NOT NULL OR public_key_hashes IS NOT NULL THEN
+			RAISE EXCEPTION 'Database is configured to parse the CSR, so the second option is not permitted'
+				USING ERRCODE = 'invalid_parameter_value';
+		END IF;
+		IF _parsed IS NULL OR _pubkeyhashes IS NULL THEN
+			RAISE EXCEPTION 'Certificate Signing Request is invalid or something fundemental was wrong with parsing' 
+				USING ERRCODE = 'data_exception';
+		END IF;
+	EXCEPTION WHEN invalid_schema_name OR undefined_function THEN
+		IF parsed IS NULL OR public_key_hashes IS NULL THEN
+			RAISE EXCEPTION 'Must pass summary/fingerprint json about CSR because pl/perl module not setup.'
+				USING ERRCODE = 'invalid_parameter_value',
+				HINT = format('%s %s', SQLSTATE, SQLERRM);
+		ELSE
+			_parsed := parsed;
+			_pubkeyhashes := public_key_hashes;
+		END IF;
+	END;
+
+	FOREACH field IN ARRAY ARRAY[
+		'subject',
+		'friendly_name']
+	LOOP
+		IF NOT _parsed ? field THEN
+			RAISE EXCEPTION 'Must include % parameter', field
+				USING ERRCODE = 'invalid_parameter_value';
+		END IF;
+	END LOOP;
+
+	RAISE NOTICE 'csr FOR % %', _parsed->>'friendly_name',_pubkeyhashes;
+	FOR _e IN SELECT jsonb_array_elements(_pubkeyhashes)
+	LOOP
+		SELECT pk.private_key_id
+		INTO _pkid
+		FROM	private_key pk
+			JOIN public_key_hash USING (public_key_hash_id)
+			JOIN public_key_hash_hash USING (public_key_hash_id)
+			LEFT JOIN x509_signed_certificate x509 USING (public_key_hash_id)
+		WHERE cryptographic_hash_algorithm = _e->>'algorithm'
+		AND calculated_hash = _e->>'hash'
+		ORDER BY 
+			CASE WHEN x509.is_active THEN 0 ELSE 1 END,
+			CASE WHEN x509.x509_signed_certificate_id IS NULL THEN 0 ELSE 1 END,
+			pk.data_upd_date desc, pk.data_ins_date desc;
+		IF FOUND THEN
+			EXIT;
+		END IF;
+	END LOOP;
+
+	RAISE NOTICE '%', jsonb_pretty(_parsed);
+
+	INSERT INTO certificate_signing_request (
+		friendly_name, subject, certificate_signing_request, private_key_id
+	) VALUES (
+		_parsed->>'friendly_name', _parsed->>'subject', csr, _pkid
+	) RETURNING * INTO _csr;
+
+	RETURN _csr;
+END;
+$function$
+;
+
+-- New function; dropping in case it returned because of type change
+SELECT schema_support.save_grants_for_replay('x509_manip', 'insert_x509_certificate');
+DROP FUNCTION IF EXISTS x509_manip.insert_x509_certificate ( text,jsonb,jsonb );
+CREATE OR REPLACE FUNCTION x509_manip.insert_x509_certificate(certificate text, parsed jsonb DEFAULT NULL::jsonb, public_key_hashes jsonb DEFAULT NULL::jsonb)
+ RETURNS jazzhands.x509_signed_certificate
+ LANGUAGE plpgsql
+ SECURITY DEFINER
+ SET search_path TO 'jazzhands'
+AS $function$
+DECLARE
+	_x509			x509_signed_certificate;
+	_parsed			JSONB;
+	_pubkeyhashes	JSONB;
+	_pkid			private_key.private_key_id%TYPE;
+	_csrid			private_key.private_key_id%TYPE;
+	_ca				x509_signed_certificate.x509_signed_certificate_id%TYPE;
+	_caserial		NUMERIC(1000);
+	_e				JSONB;
+	field			TEXT;
+BEGIN
+	BEGIN
+		_parsed := x509_plperl_cert_utils.parse_x509_certificate(
+			certificate := insert_x509_certificate.certificate
+		);
+
+		_pubkeyhashes := x509_plperl_cert_utils.get_public_key_hashes(
+			insert_x509_certificate.certificate
+		);
+
+		IF parsed IS NOT NULL OR public_key_hashes IS NOT NULL THEN
+			RAISE EXCEPTION 'Database is configured to parse the certificate, so the second option is not permitted'
+				USING ERRCODE = 'invalid_parameter_value';
+		END IF;
+		IF _parsed IS NULL OR _pubkeyhashes IS NULL THEN
+			RAISE EXCEPTION 'X509 Certificate is invalid or something fundemental was wrong with parsing' 
+				USING ERRCODE = 'data_exception';
+		END IF;
+	EXCEPTION WHEN invalid_schema_name OR undefined_function THEN
+		IF parsed IS NULL OR public_key_hashes IS NULL THEN
+			RAISE EXCEPTION 'Must pass summary/fingerprint json about certificate because pl/perl module not setup.'
+				USING ERRCODE = 'invalid_parameter_value',
+				HINT = format('%s %s', SQLSTATE, SQLERRM);
+		ELSE
+			_parsed := parsed;
+			_pubkeyhashes := public_key_hashes;
+		END IF;
+	END;
+
+	FOREACH field IN ARRAY ARRAY[
+		'self_signed',
+		'subject',
+		'friendly_name',
+		'subject_key_identifier',
+		'is_ca',
+		'valid_from', 
+		'valid_to']
+	LOOP
+		IF NOT _parsed ? field THEN
+			RAISE EXCEPTION 'Must include % parameter', field
+				USING ERRCODE = 'invalid_parameter_value';
+		END IF;
+	END LOOP;
+
+	---
+	--- arguably self signing certs should point to themselves...
+	---
+	IF _parsed->>'self_signed' IS NULL THEN
+		IF NOT _parsed ? 'issuer' OR _parsed->>'issuer' IS NULL THEN
+			RAISE EXCEPTION 'Must include issuer'
+				USING ERRCODE = 'invalid_parameter_value';
+		END IF;
+		IF NOT _parsed ? 'serial' OR _parsed->>'serial' IS NULL THEN
+			RAISE EXCEPTION 'Must serial number'
+				USING ERRCODE = 'invalid_parameter_value';
+		END IF;
+
+		SELECT x509_signed_certificate_id
+		INTO _ca
+		FROM x509_signed_certificate
+		WHERE subject = _parsed->>'issuer'
+		AND subject_key_identifier = _parsed->>'authority_key_identifier'
+		LIMIT 1;
+
+		_caserial := hex_to_numeric(_parsed->>'serial');
+	ELSE
+		_ca := NULL;
+		_caserial := NULL;
+	END IF;
+		
+
+	FOR _e IN SELECT jsonb_array_elements(_pubkeyhashes)
+	LOOP
+		SELECT pk.private_key_id
+		INTO _pkid
+		FROM	private_key pk
+			JOIN public_key_hash USING (public_key_hash_id)
+			JOIN public_key_hash_hash USING (public_key_hash_id)
+			LEFT JOIN x509_signed_certificate x509 USING (public_key_hash_id)
+		WHERE cryptographic_hash_algorithm = _e->>'algorithm'
+		AND calculated_hash = _e->>'hash'
+		ORDER BY 
+			CASE WHEN x509.is_active THEN 0 ELSE 1 END,
+			CASE WHEN x509.x509_signed_certificate_id IS NULL THEN 0 ELSE 1 END,
+			pk.data_upd_date desc, pk.data_ins_date desc;
+		IF FOUND THEN
+			EXIT;
+		END IF;
+	END LOOP;
+
+	--- This is kind of gross because it just finds the newest one and
+	---	associates it
+	RAISE NOTICE 'csr FOR % %', _parsed->>'friendly_name',_pubkeyhashes;
+	FOR _e IN SELECT jsonb_array_elements(_pubkeyhashes)
+	LOOP
+		RAISE NOTICE 'pubkeyhashes For % checking % %',
+			_parsed->>'friendly_name',
+			_e->>'algorithm',
+			_e->>'hash';
+			
+		SELECT csr.certificate_signing_request_id
+		INTO _csrid
+		FROM	certificate_signing_request csr
+			JOIN public_key_hash USING (public_key_hash_id)
+			JOIN public_key_hash_hash USING (public_key_hash_id)
+			LEFT JOIN x509_signed_certificate x509 USING (public_key_hash_id)
+		WHERE cryptographic_hash_algorithm = _e->>'algorithm'
+		AND calculated_hash = _e->>'hash'
+		ORDER BY 
+			CASE WHEN x509.is_active THEN 0 ELSE 1 END,
+			CASE WHEN x509.x509_signed_certificate_id IS NULL THEN 0 ELSE 1 END,
+			csr.data_upd_date desc, csr.data_ins_date desc;
+
+		IF FOUND THEN
+			EXIT;
+		END IF;
+	END LOOP;
+
+	INSERT INTO x509_signed_certificate (
+		x509_certificate_type, subject, friendly_name, 
+		subject_key_identifier,
+		is_certificate_authority,
+		signing_cert_id, x509_ca_cert_serial_number,
+		public_key, certificate_signing_request_id, private_key_id,
+		valid_from, valid_to
+	) VALUES (
+		'default', _parsed->>'subject', _parsed->>'friendly_name',
+		_parsed->>'subject_key_identifier',
+		CASE WHEN _parsed->>'is_ca' IS NULL THEN false ELSE true END,
+		_ca, _caserial,
+		insert_x509_certificate.certificate, _csrid, _pkid,
+		CAST(_parsed->>'valid_from' AS TIMESTAMP),
+		CAST(_parsed->>'valid_to' AS TIMESTAMP)
+	) RETURNING * INTO _x509;
+
+	FOR _e IN SELECT jsonb_array_elements(_parsed->'keyUsage')
+	LOOP
+			---
+			--- This is a little wonky.
+			---
+		    INSERT INTO x509_key_usage_attribute (
+			 	x509_signed_certificate_id, x509_key_usage, 
+				x509_key_usgage_category
+			) SELECT _x509.x509_signed_certificate_id, _e #>>'{}',
+				x509_key_usage_category
+			FROM x509_key_usage_categorization
+			WHERE x509_key_usage_category =  _e #>>'{}'
+			ORDER BY 
+				CASE WHEN x509_key_usage_category = 'ca' THEN 1
+					WHEN x509_key_usage_category = 'revocation' THEN 2
+					WHEN x509_key_usage_category = 'application' THEN 3
+					WHEN x509_key_usage_category = 'service' THEN 4
+					ELSE 5 END,
+				x509_key_usage_category
+			LIMIT 1;
+	END LOOP;
+
+	RETURN _x509;
+END;
+$function$
+;
+
 -- Processing tables in main schema...
 select clock_timestamp(), clock_timestamp() - now() AS len;
 --------------------------------------------------------------------
@@ -8706,6 +9351,9 @@ ALTER TABLE encryption_key
 	ALTER COLUMN encryption_key_id
 	ADD GENERATED BY DEFAULT AS IDENTITY;
 
+
+-- BEGIN Manually written insert function
+
 INSERT INTO encryption_key (
 	encryption_key_id,
 	encryption_key_purpose,
@@ -8765,10 +9413,13 @@ INSERT INTO jazzhands_audit.encryption_key (
 	"aud#realtime",
 	"aud#txid",
 	"aud#user",
-	NULL,		-- new column (aud#actor)
+	jsonb_build_object('user', regexp_replace("aud#user", '/.*$', '')) || CASE WHEN "aud#user" ~ '/' THEN jsonb_build_object('appuser', regexp_replace("aud#user", '^[^/]*', '')) ELSE '{}' END,		-- new column (aud#actor)
 	"aud#seq"
 FROM jazzhands_audit.encryption_key_v96;
 
+
+
+-- END Manually written insert function
 
 -- PRIMARY AND ALTERNATE KEYS
 ALTER TABLE jazzhands.encryption_key ADD CONSTRAINT pk_encryption_key PRIMARY KEY (encryption_key_id);
@@ -9068,6 +9719,9 @@ ALTER TABLE logical_volume
 	ALTER logical_volume_type
 	SET DEFAULT 'legacy'::character varying;
 
+
+-- BEGIN Manually written insert function
+
 INSERT INTO logical_volume (
 	logical_volume_id,
 	logical_volume_name,
@@ -9139,10 +9793,13 @@ INSERT INTO jazzhands_audit.logical_volume (
 	"aud#realtime",
 	"aud#txid",
 	"aud#user",
-	NULL,		-- new column (aud#actor)
+	jsonb_build_object('user', regexp_replace("aud#user", '/.*$', '')) || CASE WHEN "aud#user" ~ '/' THEN jsonb_build_object('appuser', regexp_replace("aud#user", '^[^/]*', '')) ELSE '{}' END,		-- new column (aud#actor)
 	"aud#seq"
 FROM jazzhands_audit.logical_volume_v96;
 
+
+
+-- END Manually written insert function
 ALTER TABLE jazzhands.logical_volume
 	ALTER logical_volume_type
 	SET DEFAULT 'legacy'::character varying;
@@ -9257,7 +9914,7 @@ ALTER TABLE jazzhands.volume_group DROP CONSTRAINT IF EXISTS fk_volgrp_rd_type;
 ALTER TABLE jazzhands.volume_group DROP CONSTRAINT IF EXISTS fk_volgrp_volgrp_type;
 
 -- EXTRA-SCHEMA constraints
-SELECT schema_support.save_constraint_for_replay(schema := 'jazzhands', object := 'volume_group', newobject := 'volume_group', newmap := '{"ak_volume_group_devid_vgid":{"columns":["device_id","volume_group_id"],"def":"UNIQUE (volume_group_id, device_id)","deferrable":false,"deferred":false,"name":"ak_volume_group_devid_vgid","type":"u"},"ak_volume_group_vg_devid":{"columns":["device_id","volume_group_id"],"def":"UNIQUE (volume_group_id, device_id)","deferrable":false,"deferred":false,"name":"ak_volume_group_vg_devid","type":"u"},"pk_volume_group":{"columns":["volume_group_id"],"def":"PRIMARY KEY (volume_group_id)","deferrable":false,"deferred":false,"name":"pk_volume_group","type":"p"},"uq_volgrp_devid_name_type":{"columns":["device_id","component_id","volume_group_name","volume_group_type"],"def":"UNIQUE (device_id, component_id, volume_group_name, volume_group_type)","deferrable":false,"deferred":false,"name":"uq_volgrp_devid_name_type","type":"u"}}');
+SELECT schema_support.save_constraint_for_replay(schema := 'jazzhands', object := 'volume_group', newobject := 'volume_group', newmap := '{"ak_volume_group_devid_vgid":{"columns":["device_id","volume_group_id"],"def":"UNIQUE (volume_group_id, device_id)","deferrable":false,"deferred":false,"name":"ak_volume_group_devid_vgid","type":"u"},"ak_volume_group_vg_devid":{"columns":["volume_group_id","device_id"],"def":"UNIQUE (volume_group_id, device_id)","deferrable":false,"deferred":false,"name":"ak_volume_group_vg_devid","type":"u"},"pk_volume_group":{"columns":["volume_group_id"],"def":"PRIMARY KEY (volume_group_id)","deferrable":false,"deferred":false,"name":"pk_volume_group","type":"p"},"uq_volgrp_devid_name_type":{"columns":["device_id","component_id","volume_group_name","volume_group_type"],"def":"UNIQUE (device_id, component_id, volume_group_name, volume_group_type)","deferrable":false,"deferred":false,"name":"uq_volgrp_devid_name_type","type":"u"}}');
 
 -- PRIMARY and ALTERNATE KEYS
 ALTER TABLE jazzhands.volume_group DROP CONSTRAINT IF EXISTS ak_volume_group_devid_vgid;
@@ -9332,6 +9989,8 @@ ALTER TABLE volume_group
 	ALTER COLUMN volume_group_id
 	ADD GENERATED BY DEFAULT AS IDENTITY;
 
+
+-- BEGIN Manually written insert function
 INSERT INTO volume_group (
 	volume_group_id,
 	device_id,
@@ -9399,10 +10058,13 @@ INSERT INTO jazzhands_audit.volume_group (
 	"aud#realtime",
 	"aud#txid",
 	"aud#user",
-	NULL,		-- new column (aud#actor)
+	jsonb_build_object('user', regexp_replace("aud#user", '/.*$', '')) || CASE WHEN "aud#user" ~ '/' THEN jsonb_build_object('appuser', regexp_replace("aud#user", '^[^/]*', '')) ELSE '{}' END,		-- new column (aud#actor)
 	"aud#seq"
 FROM jazzhands_audit.volume_group_v96;
 
+
+
+-- END Manually written insert function
 
 -- PRIMARY AND ALTERNATE KEYS
 ALTER TABLE jazzhands.volume_group ADD CONSTRAINT ak_volume_group_devid_vgid UNIQUE (volume_group_id, device_id);
@@ -10606,6 +11268,8 @@ ALTER TABLE val_filesystem_type
 	ALTER permit_filesystem_serial
 	SET DEFAULT 'PROHIBITED'::bpchar;
 
+
+-- BEGIN Manually written insert function
 INSERT INTO val_filesystem_type (
 	filesystem_type,
 	description,
@@ -10661,10 +11325,13 @@ INSERT INTO jazzhands_audit.val_filesystem_type (
 	"aud#realtime",
 	"aud#txid",
 	"aud#user",
-	NULL,		-- new column (aud#actor)
+	jsonb_build_object('user', regexp_replace("aud#user", '/.*$', '')) || CASE WHEN "aud#user" ~ '/' THEN jsonb_build_object('appuser', regexp_replace("aud#user", '^[^/]*', '')) ELSE '{}' END,		-- new column (aud#actor)
 	"aud#seq"
 FROM jazzhands_audit.val_filesystem_type_v96;
 
+
+
+-- END Manually written insert function
 ALTER TABLE jazzhands.val_filesystem_type
 	ALTER permit_mountpoint
 	SET DEFAULT 'PROHIBITED'::bpchar;
@@ -11821,6 +12488,305 @@ $$;
 
 select clock_timestamp(), clock_timestamp() - now() AS len;
 --------------------------------------------------------------------
+-- BEGIN: DEALING WITH TABLE val_dns_domain_collection_type
+-- Save grants for later reapplication
+SELECT schema_support.save_grants_for_replay('jazzhands', 'val_dns_domain_collection_type', 'val_dns_domain_collection_type');
+
+-- FOREIGN KEYS FROM
+ALTER TABLE dns_domain_collection DROP CONSTRAINT IF EXISTS fk_dns_dom_coll_typ_val;
+ALTER TABLE val_property DROP CONSTRAINT IF EXISTS fk_val_property_dnsdomcolltype;
+
+-- FOREIGN KEYS TO
+
+-- EXTRA-SCHEMA constraints
+SELECT schema_support.save_constraint_for_replay(schema := 'jazzhands', object := 'val_dns_domain_collection_type', newobject := 'val_dns_domain_collection_type', newmap := '{"pk_val_dns_domain_collection_type":{"columns":["dns_domain_collection_type"],"def":"PRIMARY KEY (dns_domain_collection_type)","deferrable":false,"deferred":false,"name":"pk_val_dns_domain_collection_type","type":"p"}}');
+
+-- PRIMARY and ALTERNATE KEYS
+ALTER TABLE jazzhands.val_dns_domain_collection_type DROP CONSTRAINT IF EXISTS pk_val_dns_domain_collection_type;
+-- INDEXES
+-- CHECK CONSTRAINTS, etc
+-- TRIGGERS, etc
+DROP TRIGGER IF EXISTS trig_userlog_val_dns_domain_collection_type ON jazzhands.val_dns_domain_collection_type;
+DROP TRIGGER IF EXISTS trigger_audit_val_dns_domain_collection_type ON jazzhands.val_dns_domain_collection_type;
+DROP FUNCTION IF EXISTS perform_audit_val_dns_domain_collection_type();
+DROP TRIGGER IF EXISTS trigger_manip_dns_domain_collection_type_bytype_del ON jazzhands.val_dns_domain_collection_type;
+DROP TRIGGER IF EXISTS trigger_manip_dns_domain_collection_type_bytype_insup ON jazzhands.val_dns_domain_collection_type;
+-- default sequences associations and sequences (values rebuilt at end, if needed)
+SELECT schema_support.save_dependent_objects_for_replay(schema := 'jazzhands', object := 'val_dns_domain_collection_type', tags := ARRAY['table_val_dns_domain_collection_type']);
+---- BEGIN jazzhands_audit.val_dns_domain_collection_type TEARDOWN
+SELECT schema_support.save_dependent_objects_for_replay(schema := 'jazzhands_audit', object := 'val_dns_domain_collection_type', tags := ARRAY['table_val_dns_domain_collection_type']);
+-- Save grants for later reapplication
+SELECT schema_support.save_grants_for_replay('jazzhands_audit', 'val_dns_domain_collection_type', 'val_dns_domain_collection_type');
+
+-- FOREIGN KEYS FROM
+
+-- FOREIGN KEYS TO
+
+-- EXTRA-SCHEMA constraints
+SELECT schema_support.save_constraint_for_replay(schema := 'jazzhands_audit',  object := 'val_dns_domain_collection_type');
+
+-- PRIMARY and ALTERNATE KEYS
+ALTER TABLE jazzhands_audit.val_dns_domain_collection_type DROP CONSTRAINT IF EXISTS val_dns_domain_collection_type_pkey;
+-- INDEXES
+DROP INDEX IF EXISTS "jazzhands_audit"."aud_0val_dns_domain_collection_type_pk_val_dns_domain_collectio";
+DROP INDEX IF EXISTS "jazzhands_audit"."val_dns_domain_collection_type_aud#realtime_idx";
+DROP INDEX IF EXISTS "jazzhands_audit"."val_dns_domain_collection_type_aud#timestamp_idx";
+DROP INDEX IF EXISTS "jazzhands_audit"."val_dns_domain_collection_type_aud#txid_idx";
+-- CHECK CONSTRAINTS, etc
+-- TRIGGERS, etc
+-- default sequences associations and sequences (values rebuilt at end, if needed)
+-- The value of this sequence is restored based on the column at migration end
+ALTER TABLE jazzhands_audit.val_dns_domain_collection_type ALTER COLUMN "aud#seq" DROP IDENTITY;
+---- DONE jazzhands_audit.val_dns_domain_collection_type TEARDOWN
+
+
+ALTER TABLE val_dns_domain_collection_type RENAME TO val_dns_domain_collection_type_v96;
+ALTER TABLE jazzhands_audit.val_dns_domain_collection_type RENAME TO val_dns_domain_collection_type_v96;
+
+CREATE TABLE jazzhands.val_dns_domain_collection_type
+(
+	dns_domain_collection_type	varchar(50) NOT NULL,
+	description	varchar(4000)  NULL,
+	max_num_members	integer  NULL,
+	max_num_collections	integer  NULL,
+	can_have_hierarchy	boolean NOT NULL,
+	manage_child_domains_automatically	boolean NOT NULL,
+	data_ins_user	varchar(255)  NULL,
+	data_ins_date	timestamp with time zone  NULL,
+	data_upd_user	varchar(255)  NULL,
+	data_upd_date	timestamp with time zone  NULL
+);
+SELECT schema_support.build_audit_table('jazzhands_audit', 'jazzhands', 'val_dns_domain_collection_type', false);
+ALTER TABLE val_dns_domain_collection_type
+	ALTER can_have_hierarchy
+	SET DEFAULT true;
+ALTER TABLE val_dns_domain_collection_type
+	ALTER manage_child_domains_automatically
+	SET DEFAULT true;
+
+
+-- BEGIN Manually written insert function
+
+INSERT INTO val_dns_domain_collection_type (
+	dns_domain_collection_type,
+	description,
+	max_num_members,
+	max_num_collections,
+	can_have_hierarchy,
+	manage_child_domains_automatically,		-- new column (manage_child_domains_automatically)
+	data_ins_user,
+	data_ins_date,
+	data_upd_user,
+	data_upd_date
+) SELECT
+	dns_domain_collection_type,
+	description,
+	max_num_members,
+	max_num_collections,
+	can_have_hierarchy,
+	true,		-- new column (manage_child_domains_automatically)
+	data_ins_user,
+	data_ins_date,
+	data_upd_user,
+	data_upd_date
+FROM val_dns_domain_collection_type_v96;
+
+
+INSERT INTO jazzhands_audit.val_dns_domain_collection_type (
+	dns_domain_collection_type,
+	description,
+	max_num_members,
+	max_num_collections,
+	can_have_hierarchy,
+	manage_child_domains_automatically,		-- new column (manage_child_domains_automatically)
+	data_ins_user,
+	data_ins_date,
+	data_upd_user,
+	data_upd_date,
+	"aud#action",
+	"aud#timestamp",
+	"aud#realtime",
+	"aud#txid",
+	"aud#user",
+	"aud#actor",		-- new column (aud#actor)
+	"aud#seq"
+) SELECT
+	dns_domain_collection_type,
+	description,
+	max_num_members,
+	max_num_collections,
+	can_have_hierarchy,
+	NULL,		-- new column (manage_child_domains_automatically)
+	data_ins_user,
+	data_ins_date,
+	data_upd_user,
+	data_upd_date,
+	"aud#action",
+	"aud#timestamp",
+	"aud#realtime",
+	"aud#txid",
+	"aud#user",
+	jsonb_build_object('user', regexp_replace("aud#user", '/.*$', '')) || CASE WHEN "aud#user" ~ '/' THEN jsonb_build_object('appuser', regexp_replace("aud#user", '^[^/]*', '')) ELSE '{}' END,		-- new column (aud#actor)
+	"aud#seq"
+FROM jazzhands_audit.val_dns_domain_collection_type_v96;
+
+
+
+-- END Manually written insert function
+ALTER TABLE jazzhands.val_dns_domain_collection_type
+	ALTER can_have_hierarchy
+	SET DEFAULT true;
+ALTER TABLE jazzhands.val_dns_domain_collection_type
+	ALTER manage_child_domains_automatically
+	SET DEFAULT true;
+
+-- PRIMARY AND ALTERNATE KEYS
+ALTER TABLE jazzhands.val_dns_domain_collection_type ADD CONSTRAINT pk_val_dns_domain_collection_type PRIMARY KEY (dns_domain_collection_type);
+
+-- Table/Column Comments
+COMMENT ON COLUMN jazzhands.val_dns_domain_collection_type.max_num_members IS 'Maximum INTEGER of members in a given collection of this type';
+COMMENT ON COLUMN jazzhands.val_dns_domain_collection_type.max_num_collections IS 'Maximum INTEGER of collections a given member can be a part of of this type.';
+COMMENT ON COLUMN jazzhands.val_dns_domain_collection_type.can_have_hierarchy IS 'Indicates if the collections can have other collections to make it hierarchical.';
+COMMENT ON COLUMN jazzhands.val_dns_domain_collection_type.manage_child_domains_automatically IS 'Automatically add/remove chldren from collections that their parent appears in on create/delete';
+-- INDEXES
+
+-- CHECK CONSTRAINTS
+
+-- FOREIGN KEYS FROM
+-- consider FK between val_dns_domain_collection_type and jazzhands.dns_domain_collection
+ALTER TABLE jazzhands.dns_domain_collection
+	ADD CONSTRAINT fk_dns_dom_coll_typ_val
+	FOREIGN KEY (dns_domain_collection_type) REFERENCES jazzhands.val_dns_domain_collection_type(dns_domain_collection_type);
+-- consider FK between val_dns_domain_collection_type and jazzhands.val_property
+ALTER TABLE jazzhands.val_property
+	ADD CONSTRAINT fk_val_property_dnsdomcolltype
+	FOREIGN KEY (dns_domain_collection_type) REFERENCES jazzhands.val_dns_domain_collection_type(dns_domain_collection_type);
+
+-- FOREIGN KEYS TO
+
+-- TRIGGERS
+-- considering NEW jazzhands.manip_dns_domain_collection_type_bytype
+CREATE OR REPLACE FUNCTION jazzhands.manip_dns_domain_collection_type_bytype()
+ RETURNS trigger
+ LANGUAGE plpgsql
+ SECURITY DEFINER
+ SET search_path TO 'jazzhands'
+AS $function$
+BEGIN
+	IF TG_OP = 'DELETE' THEN
+		IF OLD.dns_domain_collection_type NOT IN ('by-coll-type', 'per-dns_domain') THEN
+			DELETE FROM dns_domain_collection
+			WHERE dns_domain_collection_name = OLD.dns_domain_collection_type
+			AND dns_domain_collection_type = 'by-coll-type';
+		END IF;
+		RETURN OLD;
+	ELSIF TG_OP = 'UPDATE' THEN
+		IF NEW.dns_domain_collection_type IN ('by-coll-type', 'per-dns_domain') AND
+			OLD.dns_domain_collection_type NOT IN ('by-coll-type', 'per-dns_domain')
+		THEN
+			DELETE FROM dns_domain_collection
+			WHERE dns_domain_collection_id = OLD.dns_domain_collection_id;
+		ELSE
+			UPDATE dns_domain_collection
+			SET dns_domain_collection_name = NEW.dns_domain_collection_name
+			WHERE dns_domain_collection_name = OLD.dns_domain_collection_type
+			AND dns_domain_collection_type = 'by-coll-type';
+		END IF;
+	ELSIF TG_OP = 'INSERT' THEN
+		IF NEW.dns_domain_collection_type NOT IN ('by-coll-type', 'per-dns_domain') THEN
+			INSERT INTO dns_domain_collection (
+				dns_domain_collection_name, dns_domain_collection_type
+			) VALUES (
+				NEW.dns_domain_collection_type, 'by-coll-type'
+			);
+		END IF;
+	END IF;
+	RETURN NEW;
+END;
+$function$
+;
+REVOKE ALL ON FUNCTION jazzhands.manip_dns_domain_collection_type_bytype() FROM public;
+CREATE TRIGGER trigger_manip_dns_domain_collection_type_bytype_del BEFORE DELETE ON jazzhands.val_dns_domain_collection_type FOR EACH ROW EXECUTE FUNCTION jazzhands.manip_dns_domain_collection_type_bytype();
+
+-- considering NEW jazzhands.manip_dns_domain_collection_type_bytype
+CREATE OR REPLACE FUNCTION jazzhands.manip_dns_domain_collection_type_bytype()
+ RETURNS trigger
+ LANGUAGE plpgsql
+ SECURITY DEFINER
+ SET search_path TO 'jazzhands'
+AS $function$
+BEGIN
+	IF TG_OP = 'DELETE' THEN
+		IF OLD.dns_domain_collection_type NOT IN ('by-coll-type', 'per-dns_domain') THEN
+			DELETE FROM dns_domain_collection
+			WHERE dns_domain_collection_name = OLD.dns_domain_collection_type
+			AND dns_domain_collection_type = 'by-coll-type';
+		END IF;
+		RETURN OLD;
+	ELSIF TG_OP = 'UPDATE' THEN
+		IF NEW.dns_domain_collection_type IN ('by-coll-type', 'per-dns_domain') AND
+			OLD.dns_domain_collection_type NOT IN ('by-coll-type', 'per-dns_domain')
+		THEN
+			DELETE FROM dns_domain_collection
+			WHERE dns_domain_collection_id = OLD.dns_domain_collection_id;
+		ELSE
+			UPDATE dns_domain_collection
+			SET dns_domain_collection_name = NEW.dns_domain_collection_name
+			WHERE dns_domain_collection_name = OLD.dns_domain_collection_type
+			AND dns_domain_collection_type = 'by-coll-type';
+		END IF;
+	ELSIF TG_OP = 'INSERT' THEN
+		IF NEW.dns_domain_collection_type NOT IN ('by-coll-type', 'per-dns_domain') THEN
+			INSERT INTO dns_domain_collection (
+				dns_domain_collection_name, dns_domain_collection_type
+			) VALUES (
+				NEW.dns_domain_collection_type, 'by-coll-type'
+			);
+		END IF;
+	END IF;
+	RETURN NEW;
+END;
+$function$
+;
+REVOKE ALL ON FUNCTION jazzhands.manip_dns_domain_collection_type_bytype() FROM public;
+CREATE TRIGGER trigger_manip_dns_domain_collection_type_bytype_insup AFTER INSERT OR UPDATE OF dns_domain_collection_type ON jazzhands.val_dns_domain_collection_type FOR EACH ROW EXECUTE FUNCTION jazzhands.manip_dns_domain_collection_type_bytype();
+
+DO $$
+BEGIN
+		DELETE FROM __recreate WHERE schema = 'jazzhands' AND object IN ('val_dns_domain_collection_type');
+	EXCEPTION WHEN undefined_table THEN
+		RAISE NOTICE 'Drop of triggers for val_dns_domain_collection_type  failed but that is ok';
+		NULL;
+END;
+$$;
+
+SELECT schema_support.rebuild_stamp_trigger('jazzhands', 'val_dns_domain_collection_type');
+SELECT schema_support.build_audit_table_pkak_indexes('jazzhands_audit', 'jazzhands', 'val_dns_domain_collection_type');
+SELECT schema_support.rebuild_audit_trigger('jazzhands_audit', 'jazzhands', 'val_dns_domain_collection_type');
+DROP TABLE IF EXISTS val_dns_domain_collection_type_v96;
+DROP TABLE IF EXISTS jazzhands_audit.val_dns_domain_collection_type_v96;
+-- DONE DEALING WITH TABLE val_dns_domain_collection_type (jazzhands)
+--------------------------------------------------------------------
+DO $$
+BEGIN
+	DELETE FROM __recreate WHERE schema IN ('jazzhands', 'jazzhands_audit') AND object IN ('val_dns_domain_collection_type');
+EXCEPTION WHEN undefined_table THEN
+	RAISE NOTICE 'Removal of old val_dns_domain_collection_type failed but that is ok';
+	NULL;
+END;
+$$;
+
+DO $$
+BEGIN
+	DELETE FROM __recreate WHERE schema IN ('jazzhands', 'jazzhands_audit') AND object IN ('val_dns_domain_collection_type');
+EXCEPTION WHEN undefined_table THEN
+	RAISE NOTICE 'Removal of new val_dns_domain_collection_type failed but that is ok';
+	NULL;
+END;
+$$;
+
+select clock_timestamp(), clock_timestamp() - now() AS len;
+--------------------------------------------------------------------
 -- BEGIN: DEALING WITH TABLE val_encryption_key_purpose
 -- Save grants for later reapplication
 SELECT schema_support.save_grants_for_replay('jazzhands', 'val_encryption_key_purpose', 'val_encryption_key_purpose');
@@ -11895,6 +12861,8 @@ ALTER TABLE val_encryption_key_purpose
 	ALTER permit_encryption_key_db_value
 	SET DEFAULT 'PROHIBITED'::bpchar;
 
+
+-- BEGIN Manually written insert function
 INSERT INTO val_encryption_key_purpose (
 	encryption_key_purpose,
 	encryption_key_purpose_version,
@@ -11950,10 +12918,13 @@ INSERT INTO jazzhands_audit.val_encryption_key_purpose (
 	"aud#realtime",
 	"aud#txid",
 	"aud#user",
-	NULL,		-- new column (aud#actor)
+	jsonb_build_object('user', regexp_replace("aud#user", '/.*$', '')) || CASE WHEN "aud#user" ~ '/' THEN jsonb_build_object('appuser', regexp_replace("aud#user", '^[^/]*', '')) ELSE '{}' END,		-- new column (aud#actor)
 	"aud#seq"
 FROM jazzhands_audit.val_encryption_key_purpose_v96;
 
+
+
+-- END Manually written insert function
 ALTER TABLE jazzhands.val_encryption_key_purpose
 	ALTER permit_encryption_key_db_value
 	SET DEFAULT 'PROHIBITED'::bpchar;
@@ -12348,6 +13319,8 @@ ALTER TABLE val_volume_group_type
 	ALTER allow_mulitiple_block_storage_devices
 	SET DEFAULT true;
 
+
+-- BEGIN Manually written insert function
 INSERT INTO val_volume_group_type (
 	volume_group_type,
 	description,
@@ -12395,10 +13368,13 @@ INSERT INTO jazzhands_audit.val_volume_group_type (
 	"aud#realtime",
 	"aud#txid",
 	"aud#user",
-	NULL,		-- new column (aud#actor)
+	jsonb_build_object('user', regexp_replace("aud#user", '/.*$', '')) || CASE WHEN "aud#user" ~ '/' THEN jsonb_build_object('appuser', regexp_replace("aud#user", '^[^/]*', '')) ELSE '{}' END,		-- new column (aud#actor)
 	"aud#seq"
 FROM jazzhands_audit.val_volume_group_type_v96;
 
+
+
+-- END Manually written insert function
 ALTER TABLE jazzhands.val_volume_group_type
 	ALTER allow_mulitiple_block_storage_devices
 	SET DEFAULT true;
@@ -13218,6 +14194,8 @@ ALTER TABLE service_instance
 	ALTER is_primary
 	SET DEFAULT true;
 
+
+-- BEGIN Manually written insert function
 INSERT INTO service_instance (
 	service_instance_id,
 	device_id,
@@ -13234,13 +14212,16 @@ INSERT INTO service_instance (
 	device_id,
 	service_version_id,
 	service_environment_id,
-	true,		-- new column (is_primary)
+	CASE WHEN rnk = 1 THEN true ELSE false END,		-- new column (is_primary)
 	netblock_id,
 	data_ins_user,
 	data_ins_date,
 	data_upd_user,
 	data_upd_date
-FROM service_instance_v96;
+FROM (	SELECT *,
+	row_number() OVER ( PARTITION BY device_id ORDER BY data_ins_date, service_instance_id) as rnk
+	FROM service_instance_v96
+) oldsi;
 
 
 INSERT INTO jazzhands_audit.service_instance (
@@ -13262,25 +14243,28 @@ INSERT INTO jazzhands_audit.service_instance (
 	"aud#actor",		-- new column (aud#actor)
 	"aud#seq"
 ) SELECT
-	service_instance_id,
-	device_id,
-	service_version_id,
-	service_environment_id,
-	NULL,		-- new column (is_primary)
-	netblock_id,
-	data_ins_user,
-	data_ins_date,
-	data_upd_user,
-	data_upd_date,
-	"aud#action",
-	"aud#timestamp",
-	"aud#realtime",
-	"aud#txid",
-	"aud#user",
-	NULL,		-- new column (aud#actor)
-	"aud#seq"
-FROM jazzhands_audit.service_instance_v96;
+	a.service_instance_id,
+	a.device_id,
+	a.service_version_id,
+	a.service_environment_id,
+	coalesce(i.is_primary, false),		-- new column (is_primary)
+	a.netblock_id,
+	a.data_ins_user,
+	a.data_ins_date,
+	a.data_upd_user,
+	a.data_upd_date,
+	a."aud#action",
+	a."aud#timestamp",
+	a."aud#realtime",
+	a."aud#txid",
+	a."aud#user",
+	jsonb_build_object('user', regexp_replace("aud#user", '/.*$', '')) || CASE WHEN "aud#user" ~ '/' THEN jsonb_build_object('appuser', regexp_replace("aud#user", '^[^/]*', '')) ELSE '{}' END,		-- new column (aud#actor)
+	a."aud#seq"
+FROM jazzhands_audit.service_instance_v96 a
+	LEFT JOIN service_instance i USING (service_instance_id);
 
+
+-- END Manually written insert function
 ALTER TABLE jazzhands.service_instance
 	ALTER is_primary
 	SET DEFAULT true;
@@ -15629,6 +16613,8 @@ select clock_timestamp(), clock_timestamp() - now() AS len;
 select clock_timestamp(), clock_timestamp() - now() AS len;
 -- Main loop processing views in x509_hash_manip
 select clock_timestamp(), clock_timestamp() - now() AS len;
+-- Main loop processing views in x509_manip
+select clock_timestamp(), clock_timestamp() - now() AS len;
 -- Main loop processing views in x509_plperl_cert_utils
 select clock_timestamp(), clock_timestamp() - now() AS len;
 -- Main loop processing views in audit
@@ -16818,6 +17804,53 @@ $function$
 ;
 
 -- New function; dropping in case it returned because of type change
+CREATE OR REPLACE FUNCTION jazzhands.dns_domain_collection_child_automation()
+ RETURNS trigger
+ LANGUAGE plpgsql
+ SECURITY DEFINER
+ SET search_path TO 'jazzhands'
+AS $function$
+DECLARE
+	_r RECORD;
+BEGIN
+
+	IF TG_OP = 'INSERT' OR TG_OP = 'UPDATE' THEN
+		INSERT INTO dns_domain_collection_dns_domain (
+			dns_domain_collection_id, dns_domain_id
+		) SELECT dns_domain_collection_id, NEW.dns_domain_id
+		FROM dns_domain dd
+			JOIN dns_domain_collection_dns_domain ddcdd ON
+				ddcdd.dns_domain_id = dd.parent_dns_domain_id
+			JOIN dns_domain_collection USING (dns_domain_collection_id)
+			JOIN val_dns_domain_collection_type
+				USING (dns_domain_collection_type)
+		WHERE dd.dns_domain_id = NEW.dns_domain_id
+		AND manage_child_domains_automatically;
+
+		RETURN NEW;
+	ELSIF TG_OP = 'DELETE' THEN
+
+		DELETE FROM dns_domain_collection_dns_domain
+		WHERE (dns_domain_collection_id, dns_domain_id) IN
+		(	SELECT dns_domain_collection_id, dd.dns_domain_id
+			FROM dns_domain dd
+				JOIN dns_domain_collection_dns_domain ddcdd ON
+					ddcdd.dns_domain_id = dd.parent_dns_domain_id
+				JOIN dns_domain_collection USING (dns_domain_collection_id)
+				JOIN val_dns_domain_collection_type
+					USING (dns_domain_collection_type)
+			WHERE dd.dns_domain_id = OLD.dns_domain_id
+			AND manage_child_domains_automatically
+		) RETURNING * INTO _r;
+		raise notice '%', to_jsonb(_r);
+
+		RETURN OLD;
+	END IF;
+END;
+$function$
+;
+
+-- New function; dropping in case it returned because of type change
 CREATE OR REPLACE FUNCTION jazzhands.encryption_key_validation()
  RETURNS trigger
  LANGUAGE plpgsql
@@ -17931,6 +18964,8 @@ SELECT schema_support.replay_object_recreates(tags := ARRAY['process_all_procs_i
 -- Process all procs in service_manip
 --
 select clock_timestamp(), clock_timestamp() - now() AS len;
+SELECT schema_support.save_dependent_objects_for_replay(schema := 'service_manip'::text, object := 'direct_connect_endpoint_to_device ( integer,integer,integer,integer,integer,integer,integer )'::text, tags := ARRAY['process_all_procs_in_schema_service_manip'::text]);
+DROP FUNCTION IF EXISTS service_manip.direct_connect_endpoint_to_device ( integer,integer,integer,integer,integer,integer,integer );
 SELECT schema_support.replay_object_recreates(tags := ARRAY['process_all_procs_in_schema_service_manip']);
 --
 -- Process all procs in service_utils
@@ -17962,6 +18997,11 @@ SELECT schema_support.replay_object_recreates(tags := ARRAY['process_all_procs_i
 --
 select clock_timestamp(), clock_timestamp() - now() AS len;
 SELECT schema_support.replay_object_recreates(tags := ARRAY['process_all_procs_in_schema_x509_hash_manip']);
+--
+-- Process all procs in x509_manip
+--
+select clock_timestamp(), clock_timestamp() - now() AS len;
+SELECT schema_support.replay_object_recreates(tags := ARRAY['process_all_procs_in_schema_x509_manip']);
 --
 -- Process all procs in x509_plperl_cert_utils
 --
@@ -25001,6 +26041,10 @@ DROP TRIGGER IF EXISTS trig_userlog_dns_domain ON dns_domain;
 CREATE TRIGGER trig_userlog_dns_domain BEFORE INSERT OR UPDATE ON jazzhands.dns_domain FOR EACH ROW EXECUTE FUNCTION schema_support.trigger_ins_upd_generic_func();
 DROP TRIGGER IF EXISTS trigger_audit_dns_domain ON dns_domain;
 CREATE TRIGGER trigger_audit_dns_domain AFTER INSERT OR DELETE OR UPDATE ON jazzhands.dns_domain FOR EACH ROW EXECUTE FUNCTION jazzhands.perform_audit_dns_domain();
+DROP TRIGGER IF EXISTS trigger_dns_domain_collection_child_automation_del ON dns_domain;
+CREATE TRIGGER trigger_dns_domain_collection_child_automation_del BEFORE DELETE ON jazzhands.dns_domain FOR EACH ROW EXECUTE FUNCTION jazzhands.dns_domain_collection_child_automation();
+DROP TRIGGER IF EXISTS trigger_dns_domain_collection_child_automation_ins ON dns_domain;
+CREATE TRIGGER trigger_dns_domain_collection_child_automation_ins AFTER INSERT OR UPDATE OF parent_dns_domain_id ON jazzhands.dns_domain FOR EACH ROW EXECUTE FUNCTION jazzhands.dns_domain_collection_child_automation();
 DROP TRIGGER IF EXISTS trigger_dns_domain_trigger_change ON dns_domain;
 CREATE TRIGGER trigger_dns_domain_trigger_change AFTER INSERT OR UPDATE OF dns_domain_name ON jazzhands.dns_domain FOR EACH ROW EXECUTE FUNCTION jazzhands.dns_domain_trigger_change();
 DROP TRIGGER IF EXISTS trig_userlog_dns_domain_collection ON dns_domain_collection;
@@ -25901,14 +26945,6 @@ DROP TRIGGER IF EXISTS trig_userlog_val_dns_class ON val_dns_class;
 CREATE TRIGGER trig_userlog_val_dns_class BEFORE INSERT OR UPDATE ON jazzhands.val_dns_class FOR EACH ROW EXECUTE FUNCTION schema_support.trigger_ins_upd_generic_func();
 DROP TRIGGER IF EXISTS trigger_audit_val_dns_class ON val_dns_class;
 CREATE TRIGGER trigger_audit_val_dns_class AFTER INSERT OR DELETE OR UPDATE ON jazzhands.val_dns_class FOR EACH ROW EXECUTE FUNCTION jazzhands.perform_audit_val_dns_class();
-DROP TRIGGER IF EXISTS trig_userlog_val_dns_domain_collection_type ON val_dns_domain_collection_type;
-CREATE TRIGGER trig_userlog_val_dns_domain_collection_type BEFORE INSERT OR UPDATE ON jazzhands.val_dns_domain_collection_type FOR EACH ROW EXECUTE FUNCTION schema_support.trigger_ins_upd_generic_func();
-DROP TRIGGER IF EXISTS trigger_audit_val_dns_domain_collection_type ON val_dns_domain_collection_type;
-CREATE TRIGGER trigger_audit_val_dns_domain_collection_type AFTER INSERT OR DELETE OR UPDATE ON jazzhands.val_dns_domain_collection_type FOR EACH ROW EXECUTE FUNCTION jazzhands.perform_audit_val_dns_domain_collection_type();
-DROP TRIGGER IF EXISTS trigger_manip_dns_domain_collection_type_bytype_del ON val_dns_domain_collection_type;
-CREATE TRIGGER trigger_manip_dns_domain_collection_type_bytype_del BEFORE DELETE ON jazzhands.val_dns_domain_collection_type FOR EACH ROW EXECUTE FUNCTION jazzhands.manip_dns_domain_collection_type_bytype();
-DROP TRIGGER IF EXISTS trigger_manip_dns_domain_collection_type_bytype_insup ON val_dns_domain_collection_type;
-CREATE TRIGGER trigger_manip_dns_domain_collection_type_bytype_insup AFTER INSERT OR UPDATE OF dns_domain_collection_type ON jazzhands.val_dns_domain_collection_type FOR EACH ROW EXECUTE FUNCTION jazzhands.manip_dns_domain_collection_type_bytype();
 DROP TRIGGER IF EXISTS trig_userlog_val_dns_domain_type ON val_dns_domain_type;
 CREATE TRIGGER trig_userlog_val_dns_domain_type BEFORE INSERT OR UPDATE ON jazzhands.val_dns_domain_type FOR EACH ROW EXECUTE FUNCTION schema_support.trigger_ins_upd_generic_func();
 DROP TRIGGER IF EXISTS trigger_audit_val_dns_domain_type ON val_dns_domain_type;
