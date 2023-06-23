@@ -257,16 +257,16 @@ CREATE OR REPLACE FUNCTION x509_plperl_cert_utils.parse_x509_certificate(
 	foreach my $oid ( keys %$exts ) {
 		my $ext = $$exts{$oid};
 		if ( $oid eq '2.5.29.14' ) {
-			$ski = $ext->as_string();
+			$ski = $ext->to_string();
 			$ski =~ s/\s+$//;
 		} elsif ( $oid eq '2.5.29.35' ) {
-			$aki = $ext->as_string();
+			$aki = $ext->to_string();
 			$aki =~ s/keyid://;
 			$aki =~ s/\s+$//;
 		} elsif ( $oid eq '2.5.29.19' ) {
 
 			# basic constraints;
-			my $x = $ext->as_string();
+			my $x = $ext->to_string();
 			if ( $x && $x =~ /CA:TRUE/i ) {
 				$ca = 1;
 			}
@@ -286,7 +286,7 @@ CREATE OR REPLACE FUNCTION x509_plperl_cert_utils.parse_x509_certificate(
 			};
 
 			# yes, I threw up a litle; these are from crypto/x509v3/v3_bitst.c
-			foreach my $ku ( split( /,\s*/, $ext->as_string() ) ) {
+			foreach my $ku ( split( /,\s*/, $ext->to_string() ) ) {
 				push( @ku, $map->{$ku} ) if ( $map->{$ku} );
 			}
 
@@ -301,12 +301,12 @@ CREATE OR REPLACE FUNCTION x509_plperl_cert_utils.parse_x509_certificate(
 			};
 
 			# yes, I threw up a litle; these are from crypto/objects/obj_dat.h
-			foreach my $ku ( split( /,\s*/, $ext->as_string() ) ) {
+			foreach my $ku ( split( /,\s*/, $ext->to_string() ) ) {
 				push( @ku, $map->{$ku} ) if ( $map->{$ku} );
 			}
 
 		} elsif ($oid eq '2.5.29.17') {
-			push(@san, split(/,\s*/, $ext->as_string() ));
+			push(@san, split(/,\s*/, $ext->to_string() ));
 		} else {
 			next;
 		}
@@ -360,40 +360,41 @@ CREATE OR REPLACE FUNCTION x509_plperl_cert_utils.parse_csr(
 	certificate_signing_request
 		 jazzhands.certificate_signing_request.certificate_signing_request%TYPE
 ) RETURNS jsonb AS $pgsql$
-	my $csr_pem = shift || return undef;
+    my $csr_pem = shift || return undef;
 
-    my $tmp     = File::Temp->new();
-	    print $tmp $csr_pem;
+    my $tmp = File::Temp->new();
+    print $tmp $csr_pem;
+    my $fname = $tmp->filename();
+
+    my $req = Crypt::OpenSSL::PKCS10->new_from_file($fname) || return undef;
     $tmp->close;
 
-	my $req = Crypt::OpenSSL::PKCS10->new_from_file($tmp) || return undef;
+    my $friendly = $req->subject;
+    $friendly =~ s/^.*CN=(\s*[^,]*)(,.*)?$/$1/;
 
-	my $friendly = $req->subject;
-	$friendly =~ s/^.*CN=(\s*[^,]*)(,.*)?$/$1/;
+    my $rv = {
+        friendly_name => $friendly,
+        subject       => $req->subject(),
+    };
 
-	my $rv = {
-		friendly_name            => $friendly,
-		subject                  => $req->subject(),
-	};
+    # this is naaaasty but I did not want to require the JSON pp module
+    my $x = sprintf "{ %s }", join(
+        ',',
+        map {
+            qq{"$_": }
+              . (
+                ( defined( $rv->{$_} ) )
+                ? (
+                    ( ref( $rv->{$_} ) eq 'ARRAY' )
+                    ? '[ ' . join( ',', @{ $rv->{$_} } ) . ' ]'
+                    : qq{"$rv->{$_}"}
+                  )
+                : 'null'
+              )
+        } keys %$rv
+    );
 
-	# this is naaaasty but I did not want to require the JSON pp module
-	my $x = sprintf "{ %s }", join(
-		',',
-		map {
-			qq{"$_": }
-			  . (
-				( defined( $rv->{$_} ) )
-				? (
-					( ref( $rv->{$_} ) eq 'ARRAY' )
-					? '[ ' . join( ',', @{ $rv->{$_} } ) . ' ]'
-					: qq{"$rv->{$_}"}
-				  )
-				: 'null'
-			  )
-		} keys %$rv
-	);
-
-	$x;
+    $x;
 $pgsql$ LANGUAGE plperl;
 
 -------------------------------------------------------------------------------
