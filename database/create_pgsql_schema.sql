@@ -133,6 +133,7 @@ COMMENT ON SCHEMA jazzhands_cache IS 'cache tables for jazzhands views';
 \ir ddl/schema/pgsql/create_person_company_attr_triggers.sql
 \ir ddl/schema/pgsql/create_account_pgnotify_trigger.sql
 \ir ddl/schema/pgsql/create_encryption_key_triggers.sql
+\ir ddl/schema/pgsql/create_dns_domain_collection_auto_member_triggers.sql
 
 -- This could be done for backwards compatibility but is not.
 -- \ir compat/pgsql/create_location_compatibility_view.sql
