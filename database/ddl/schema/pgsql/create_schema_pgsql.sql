@@ -12565,10 +12565,6 @@ ALTER TABLE logical_port_slot
 		ON UPDATE NO ACTION
 		ON DELETE NO ACTION;
 
-ALTER TABLE logical_volume
-	ALTER COLUMN logical_volume_type
-		SET DEFAULT 'legacy';
-
 
 ALTER TABLE logical_volume
 	ADD CONSTRAINT fk_log_volume_log_vol_type FOREIGN KEY (logical_volume_type) REFERENCES val_logical_volume_type(logical_volume_type)

@@ -36,6 +36,11 @@ BEGIN
 			ORDER BY component_type_id lIMIT 1
 		RETURNING * INTO _c;
 
+		IF NOT FOUND THEN
+			RAISE EXCEPTION 'Virtual Disk Component Not Found'
+				USING ERRCODE = 'invalid_parameter_value';
+		END IF;
+
 		_cid := _c.component_id;
 
 		INSERT INTO virtual_component_logical_volume (
@@ -189,8 +194,8 @@ BEGIN
 	OLD.device_id				:= _o.device_id;
 	OLD.component_id				:= _o.component_id;
 
-	OLD.data_del_user 			:= _o.data_del_user;
-	OLD.data_del_date 			:= _o.data_del_date;
+	OLD.data_ins_user 			:= _o.data_ins_user;
+	OLD.data_ins_date 			:= _o.data_ins_date;
 	OLD.data_upd_user 			:= _o.data_upd_user;
 	OLD.data_upd_date 			:= _o.data_upd_date;
 
