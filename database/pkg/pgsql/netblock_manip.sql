@@ -1,5 +1,5 @@
 -- Copyright (c) 2014-2020 Matthew Ragan
--- Copyright (c) 2019-2020 Todd M. Kover
+-- Copyright (c) 2019-2023 Todd M. Kover
 -- All rights reserved.
 --
 -- Licensed under the Apache License, Version 2.0 (the "License");
@@ -620,7 +620,7 @@ BEGIN
 	new_stop_ip_address := COALESCE(stop_ip_address,
 		netrange.stop_ip_address);
 	new_parent_netblock_id := COALESCE(parent_netblock_id,
-		netrange.parent_netblock_id); 	
+		netrange.parent_netblock_id);
 
 	SELECT * INTO nbcheck FROM netblock_manip.validate_network_range(
 		network_range_id := nrid,
@@ -679,7 +679,7 @@ BEGIN
 			n.netblock_id = netrange.stop_netblock_id;
 	END IF;
 
-	IF 
+	IF
 		description IS NOT NULL OR
 		dns_prefix IS NOT NULL OR
 		dns_domain_id IS NOT NULL OR
@@ -782,6 +782,8 @@ CREATE OR REPLACE FUNCTION netblock_manip.set_layer3_interface_addresses(
 	ip_address_hash		jsonb DEFAULT NULL,
 	create_layer3_networks
 						boolean DEFAULT false,
+	layer2_network_id	jazzhands.layer2_network.layer2_network_id%TYPE
+						DEFAULT NULL,
 	move_addresses		text DEFAULT 'if_same_device',
 	address_errors		text DEFAULT 'error'
 ) RETURNS boolean AS $$
@@ -1025,9 +1027,9 @@ BEGIN
 					--
 					CONTINUE WHEN NOT create_layer3_networks;
 					INSERT INTO layer3_network(
-						netblock_id
+						netblock_id, layer2_network_id
 					) VALUES (
-						layer3_rec.netblock_id
+						layer3_rec.netblock_id, layer2_network_id
 					) RETURNING layer3_network_id INTO
 						layer3_rec.layer3_network_id;
 				END IF;
@@ -1099,15 +1101,16 @@ BEGIN
 
 					WITH l3_ins AS (
 						INSERT INTO layer3_network(
-							netblock_id
+							netblock_id, layer2_network_id
 						) VALUES (
-							pnb_rec.netblock_id
+							pnb_rec.netblock_id, layer2_network_id
 						) RETURNING *
 					)
 					SELECT
 						pnb_rec.netblock_id,
 						pnb_rec.ip_address,
 						l3_ins.layer3_network_id,
+						l3_ins.layer2_network_Id,
 						NULL::inet
 					INTO layer3_rec
 					FROM
@@ -1125,9 +1128,9 @@ BEGIN
 						universe;
 					CONTINUE WHEN NOT create_layer3_networks;
 					INSERT INTO layer3_network(
-						netblock_id
+						netblock_id, layer2_network_id
 					) VALUES (
-						layer3_rec.netblock_id
+						layer3_rec.netblock_id, layer2_network_id
 					) RETURNING layer3_network_id INTO
 						layer3_rec.layer3_network_id;
 				END IF;
@@ -1283,6 +1286,12 @@ BEGIN
 			WHERE
 				l3in.layer3_interface_id = l3i_id
 			RETURNING * INTO l3in_rec;
+
+			PERFORM dns_manip.set_dns_for_interface(
+				netblock_id := nb_rec.netblock_id,
+				layer3_interface_name := l3in_rec.layer3_interface_name,
+				device_id := l3in_rec.device_id
+			);
 
 			RAISE DEBUG E'Inserted into:\n%',
 				jsonb_pretty(to_jsonb(l3in_rec));
@@ -1492,9 +1501,9 @@ BEGIN
 					--
 					CONTINUE WHEN NOT create_layer3_networks;
 					INSERT INTO layer3_network(
-						netblock_id
+						netblock_id, layer2_network_id
 					) VALUES (
-						layer3_rec.netblock_id
+						layer3_rec.netblock_id, layer2_network_id
 					) RETURNING layer3_network_id INTO
 						layer3_rec.layer3_network_id;
 				END IF;
@@ -1543,10 +1552,10 @@ BEGIN
 						) RETURNING *
 					), l3_ins AS (
 						INSERT INTO layer3_network(
-							netblock_id
+							netblock_id, layer2_network_id
 						)
 						SELECT
-							netblock_id
+							netblock_id, layer2_network_id
 						FROM
 							nb_ins
 						RETURNING *
@@ -1573,9 +1582,9 @@ BEGIN
 						universe;
 					CONTINUE WHEN NOT create_layer3_networks;
 					INSERT INTO layer3_network(
-						netblock_id
+						netblock_id, layer2_network_id
 					) VALUES (
-						layer3_rec.netblock_id
+						layer3_rec.netblock_id, layer2_network_id
 					) RETURNING layer3_network_id INTO
 						layer3_rec.layer3_network_id;
 				END IF;
@@ -1714,6 +1723,19 @@ BEGIN
 
 			RAISE DEBUG E'Inserted shared_netblock % onto interfaces:\n%',
 				sn_rec.shared_netblock_id, jsonb_pretty(to_jsonb(l3i_id_ary));
+
+			--
+			-- If this shared netblock is VARP or VRRP, and we are to assume default gateway,
+			-- update accordingly.
+			--
+			IF protocol IN ('VARP', 'VRRP') THEN
+				UPDATE layer3_network
+				SET default_gateway_netblock_id = sn_rec.netblock_id
+				WHERE layer3_network_id = layer3_rec.layer3_network_id
+				AND default_gateway_netblock_id IS DISTINCT FROM sn_rec.netblock_id;
+
+				PERFORM dns_manip.set_dns_for_shared_routing_addresses(sn_rec.netblock_id);
+			END IF;
 		END LOOP;
 		--
 		-- Remove any shared_netblocks that are on the interface that are not

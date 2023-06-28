@@ -201,7 +201,7 @@ BEGIN
 
 	IF OLD.logical_volume_id IS NOT NULL AND _o.component_id IS NOT NULL THEN
 		DELETE FROM virtual_component_logical_volume
-		WHERE component_id = _o.compnent_id
+		WHERE component_id = _o.component_id
 		RETURNING logical_volume_id INTO OLD.logical_volume_id;
 
 		OLD.component_id := NULL;

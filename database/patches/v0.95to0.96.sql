@@ -603,7 +603,7 @@ BEGIN
 	IF NOT 'aud#actor' = ANY(cols) THEN
 		cols := array_append(cols, '"aud#actor"');
 		vals := array_append(vals,
-			'jsonb_build_object(''user'', regexp_replace("aud#user", ''/.*$'', '''')) || CASE WHEN "aud#user" ~ ''/'' THEN jsonb_build_object(''appuser'', regexp_replace("aud#user", ''^[^/]*'', '''')) ELSE ''{}'' END'
+			'jsonb_build_object(''user'', regexp_replace("aud#user", ''/.*$'', '''')) || CASE WHEN "aud#user" ~ ''/'' THEN jsonb_build_object(''appuser'', regexp_replace("aud#user", ''^[^/]*/?'', '''')) ELSE ''{}'' END'
 		);
 	END IF;
 
@@ -7100,7 +7100,7 @@ BEGIN
 	IF NOT 'aud#actor' = ANY(cols) THEN
 		cols := array_append(cols, '"aud#actor"');
 		vals := array_append(vals,
-			'jsonb_build_object(''user'', regexp_replace("aud#user", ''/.*$'', '''')) || CASE WHEN "aud#user" ~ ''/'' THEN jsonb_build_object(''appuser'', regexp_replace("aud#user", ''^[^/]*'', '''')) ELSE ''{}'' END'
+			'jsonb_build_object(''user'', regexp_replace("aud#user", ''/.*$'', '''')) || CASE WHEN "aud#user" ~ ''/'' THEN jsonb_build_object(''appuser'', regexp_replace("aud#user", ''^[^/]*/?'', '''')) ELSE ''{}'' END'
 		);
 	END IF;
 
@@ -9413,7 +9413,7 @@ INSERT INTO jazzhands_audit.encryption_key (
 	"aud#realtime",
 	"aud#txid",
 	"aud#user",
-	jsonb_build_object('user', regexp_replace("aud#user", '/.*$', '')) || CASE WHEN "aud#user" ~ '/' THEN jsonb_build_object('appuser', regexp_replace("aud#user", '^[^/]*', '')) ELSE '{}' END,		-- new column (aud#actor)
+	jsonb_build_object('user', regexp_replace("aud#user", '/.*$', '')) || CASE WHEN "aud#user" ~ '/' THEN jsonb_build_object('appuser', regexp_replace("aud#user", '^[^/]*/?', '')) ELSE '{}' END AS "aud#actor",
 	"aud#seq"
 FROM jazzhands_audit.encryption_key_v96;
 
@@ -9641,7 +9641,7 @@ ALTER TABLE jazzhands.logical_volume DROP CONSTRAINT IF EXISTS fk_logvol_fstype;
 ALTER TABLE jazzhands.logical_volume DROP CONSTRAINT IF EXISTS fk_logvol_vgid;
 
 -- EXTRA-SCHEMA constraints
-SELECT schema_support.save_constraint_for_replay(schema := 'jazzhands', object := 'logical_volume', newobject := 'logical_volume', newmap := '{"ak_logical_volume_filesystem":{"columns":["logical_volume_id","filesystem_type"],"def":"UNIQUE (logical_volume_id, filesystem_type)","deferrable":false,"deferred":false,"name":"ak_logical_volume_filesystem","type":"u"},"ak_logvol_devid_lvname":{"columns":["device_id","logical_volume_name","logical_volume_type","volume_group_id"],"def":"UNIQUE (device_id, logical_volume_name, logical_volume_type, volume_group_id)","deferrable":false,"deferred":false,"name":"ak_logvol_devid_lvname","type":"u"},"ak_logvol_lv_devid":{"columns":["logical_volume_id"],"def":"UNIQUE (logical_volume_id)","deferrable":false,"deferred":false,"name":"ak_logvol_lv_devid","type":"u"},"pk_logical_volume":{"columns":["logical_volume_id"],"def":"PRIMARY KEY (logical_volume_id)","deferrable":false,"deferred":false,"name":"pk_logical_volume","type":"p"}}');
+SELECT schema_support.save_constraint_for_replay(schema := 'jazzhands', object := 'logical_volume', newobject := 'logical_volume', newmap := '{"ak_logical_volume_filesystem":{"columns":["filesystem_type","logical_volume_id"],"def":"UNIQUE (logical_volume_id, filesystem_type)","deferrable":false,"deferred":false,"name":"ak_logical_volume_filesystem","type":"u"},"ak_logvol_devid_lvname":{"columns":["device_id","logical_volume_type","logical_volume_name","volume_group_id"],"def":"UNIQUE (device_id, logical_volume_name, logical_volume_type, volume_group_id)","deferrable":false,"deferred":false,"name":"ak_logvol_devid_lvname","type":"u"},"ak_logvol_lv_devid":{"columns":["logical_volume_id"],"def":"UNIQUE (logical_volume_id)","deferrable":false,"deferred":false,"name":"ak_logvol_lv_devid","type":"u"},"pk_logical_volume":{"columns":["logical_volume_id"],"def":"PRIMARY KEY (logical_volume_id)","deferrable":false,"deferred":false,"name":"pk_logical_volume","type":"p"}}');
 
 -- PRIMARY and ALTERNATE KEYS
 ALTER TABLE jazzhands.logical_volume DROP CONSTRAINT IF EXISTS ak_logical_volume_filesystem;
@@ -9793,7 +9793,7 @@ INSERT INTO jazzhands_audit.logical_volume (
 	"aud#realtime",
 	"aud#txid",
 	"aud#user",
-	jsonb_build_object('user', regexp_replace("aud#user", '/.*$', '')) || CASE WHEN "aud#user" ~ '/' THEN jsonb_build_object('appuser', regexp_replace("aud#user", '^[^/]*', '')) ELSE '{}' END,		-- new column (aud#actor)
+	jsonb_build_object('user', regexp_replace("aud#user", '/.*$', '')) || CASE WHEN "aud#user" ~ '/' THEN jsonb_build_object('appuser', regexp_replace("aud#user", '^[^/]*/?', '')) ELSE '{}' END AS "aud#actor",	-- new column (aud#actor)
 	"aud#seq"
 FROM jazzhands_audit.logical_volume_v96;
 
@@ -10058,7 +10058,7 @@ INSERT INTO jazzhands_audit.volume_group (
 	"aud#realtime",
 	"aud#txid",
 	"aud#user",
-	jsonb_build_object('user', regexp_replace("aud#user", '/.*$', '')) || CASE WHEN "aud#user" ~ '/' THEN jsonb_build_object('appuser', regexp_replace("aud#user", '^[^/]*', '')) ELSE '{}' END,		-- new column (aud#actor)
+	jsonb_build_object('user', regexp_replace("aud#user", '/.*$', '')) || CASE WHEN "aud#user" ~ '/' THEN jsonb_build_object('appuser', regexp_replace("aud#user", '^[^/]*/?', '')) ELSE '{}' END AS "aud#actor",
 	"aud#seq"
 FROM jazzhands_audit.volume_group_v96;
 
@@ -10306,7 +10306,7 @@ INSERT INTO jazzhands_audit.volume_group_block_storage_device (
 	"aud#realtime",
 	"aud#txid",
 	"aud#user",
-	jsonb_build_object('user', regexp_replace("aud#user", '/.*$', '')) || CASE WHEN "aud#user" ~ '/' THEN jsonb_build_object('appuser', regexp_replace("aud#user", '^[^/]*', '')) ELSE '{}' END,
+	jsonb_build_object('user', regexp_replace("aud#user", '/.*$', '')) || CASE WHEN "aud#user" ~ '/' THEN jsonb_build_object('appuser', regexp_replace("aud#user", '^[^/]*/?', '')) ELSE '{}' END AS "aud#actor",
 	"aud#seq"
 FROM jazzhands_audit.volume_group_physicalish_volume_v96
 ;
@@ -10570,7 +10570,7 @@ INSERT INTO jazzhands_audit.val_block_storage_device_type (
 	"aud#realtime",
 	"aud#txid",
 	"aud#user",
-	jsonb_build_object('user', regexp_replace("aud#user", '/.*$', '')) || CASE WHEN "aud#user" ~ '/' THEN jsonb_build_object('appuser', regexp_replace("aud#user", '^[^/]*', '')) ELSE '{}' END,
+	jsonb_build_object('user', regexp_replace("aud#user", '/.*$', '')) || CASE WHEN "aud#user" ~ '/' THEN jsonb_build_object('appuser', regexp_replace("aud#user", '^[^/]*/?', '')) ELSE '{}' END AS "aud#actor",
 	"aud#seq"
 FROM jazzhands_audit.val_physicalish_volume_type_v96;
 
@@ -11000,7 +11000,7 @@ INSERT INTO jazzhands_audit.block_storage_device (
 	"aud#realtime",
 	"aud#txid",
 	"aud#user",
-	jsonb_build_object('user', regexp_replace("aud#user", '/.*$', '')) || CASE WHEN "aud#user" ~ '/' THEN jsonb_build_object('appuser', regexp_replace("aud#user", '^[^/]*', '')) ELSE '{}' END,
+	jsonb_build_object('user', regexp_replace("aud#user", '/.*$', '')) || CASE WHEN "aud#user" ~ '/' THEN jsonb_build_object('appuser', regexp_replace("aud#user", '^[^/]*/?', '')) ELSE '{}' END AS "aud#actor",
 	"aud#seq"
 FROM jazzhands_audit.physicalish_volume_v96 o
 	LEFT JOIN virtual_component_logical_volume vclv USING (logical_volume_id)
@@ -11325,7 +11325,7 @@ INSERT INTO jazzhands_audit.val_filesystem_type (
 	"aud#realtime",
 	"aud#txid",
 	"aud#user",
-	jsonb_build_object('user', regexp_replace("aud#user", '/.*$', '')) || CASE WHEN "aud#user" ~ '/' THEN jsonb_build_object('appuser', regexp_replace("aud#user", '^[^/]*', '')) ELSE '{}' END,		-- new column (aud#actor)
+	jsonb_build_object('user', regexp_replace("aud#user", '/.*$', '')) || CASE WHEN "aud#user" ~ '/' THEN jsonb_build_object('appuser', regexp_replace("aud#user", '^[^/]*/?', '')) ELSE '{}' END AS "aud#actor",
 	"aud#seq"
 FROM jazzhands_audit.val_filesystem_type_v96;
 
@@ -11516,7 +11516,101 @@ WHERE logical_volume_property_name IN ('MountPoint', 'Label', 'Serial')
 GROUP BY block_storage_device_id, device_id, filesystem_type
 ;
 
---- XXX synthesize audit data!!
+
+savepoint prefilesystemaudit;
+
+---
+--- this looks weird of a row was deleted and readded, but whatever
+--- aud#seq is new
+---
+WITH base AS (
+SELECT bsd.block_storage_device_id, bsd.device_id, lv.filesystem_type,
+	CASE WHEN a.logical_volume_property_name = 'MountPoint' THEN
+		a.logical_volume_property_value ELSE NULL END AS mountpoint,
+	CASE WHEN logical_volume_property_name = 'Label' THEN
+		a.logical_volume_property_value ELSE NULL END AS label,
+	CASE WHEN logical_volume_property_name = 'Serial' THEN
+		a.logical_volume_property_value ELSE NULL END AS serial,
+	"aud#action",
+	"aud#timestamp",
+	"aud#realtime",
+	"aud#txid",
+	"aud#seq",
+	"aud#user",
+	jsonb_build_object('user', regexp_replace("aud#user", '/.*$', '')) || CASE WHEN "aud#user" ~ '/' THEN jsonb_build_object('appuser', regexp_replace("aud#user", '^[^/]*/?', '')) ELSE '{}' END AS "aud#actor"
+FROM block_storage_device bsd
+JOIN filesystem USING (block_storage_device_id)
+JOIN logical_volume lv USING (logical_volume_id)
+JOIN jazzhands_audit.logical_volume_property a USING (logical_volume_id)
+ORDER BY "aud#realtime", "aud#timestamp", "aud#seq"
+), base_proc AS (
+	SELECT *,
+	row_number() OVER (PARTITION BY block_storage_device_id
+		ORDER BY "aud#realtime", "aud#timestamp", "aud#seq") AS rnk
+	FROM base
+), cooked_action_update AS (
+	SELECT b.block_storage_device_id, b.device_id, b.filesystem_type,
+		b.mountpoint, b.label, b.serial,
+		fs.data_ins_date,
+		fs.data_ins_user,
+		CASE WHEN rnk = 1 THEN NULL
+			ELSE "aud#timestamp" END AS data_upd_date,
+		CASE WHEN rnk = 1 THEN NULL
+			ELSE "aud#user" END AS data_upd_user,
+		CASE WHEN "aud#action" = 'DEL' THEN 'DEL'
+			WHEN rnk = 1 THEN 'INS'
+			ELSE 'UPD' END AS "aud#action",
+		"aud#timestamp",
+		"aud#realtime", "aud#txid", "aud#seq", "aud#user", "aud#actor"
+	FROM base_proc b
+		JOIN filesystem fs USING (block_storage_device_id)
+) INSERT INTO jazzhands_audit.filesystem (
+		block_storage_device_id,
+		device_id,
+		filesystem_type,
+		mountpoint,
+		filesystem_label,
+		filesystem_serial,
+		data_ins_user,
+		data_ins_date,
+		data_upd_user,
+		data_upd_date,
+		"aud#action",
+		"aud#timestamp",
+		"aud#realtime",
+		"aud#txid",
+		"aud#user",
+		"aud#actor"
+) SELECT block_storage_device_id,
+		device_id,
+		filesystem_type,
+		coalesce(mountpoint, max(mountpoint) 
+			FILTER (WHERE mountpoint IS NOT NULL)
+			OVER (
+			PARTITION BY block_storage_device_id
+			ORDER BY "aud#realtime", "aud#timestamp", "aud#seq")) AS mountpoint,
+		coalesce(label, max(label) 
+			FILTER (WHERE label IS NOT NULL)
+			OVER (
+			PARTITION BY block_storage_device_id
+			ORDER BY "aud#realtime", "aud#timestamp", "aud#seq")) AS label,
+		coalesce(serial, max(serial) 
+			FILTER (WHERE serial IS NOT NULL)
+			OVER (
+			PARTITION BY block_storage_device_id
+			ORDER BY "aud#realtime", "aud#timestamp", "aud#seq")) AS serial,
+		data_ins_user,
+		data_ins_date,
+		data_upd_user,
+		data_upd_date,
+		"aud#action",
+		"aud#timestamp",
+		"aud#realtime",
+		"aud#txid",
+		"aud#user",
+		"aud#actor"
+	FROM cooked_action_update
+;
 
 
 -- END Manually written insert function
@@ -12626,7 +12720,7 @@ INSERT INTO jazzhands_audit.val_dns_domain_collection_type (
 	"aud#realtime",
 	"aud#txid",
 	"aud#user",
-	jsonb_build_object('user', regexp_replace("aud#user", '/.*$', '')) || CASE WHEN "aud#user" ~ '/' THEN jsonb_build_object('appuser', regexp_replace("aud#user", '^[^/]*', '')) ELSE '{}' END,		-- new column (aud#actor)
+	jsonb_build_object('user', regexp_replace("aud#user", '/.*$', '')) || CASE WHEN "aud#user" ~ '/' THEN jsonb_build_object('appuser', regexp_replace("aud#user", '^[^/]*/?', '')) ELSE '{}' END AS "aud#actor",
 	"aud#seq"
 FROM jazzhands_audit.val_dns_domain_collection_type_v96;
 
@@ -12918,7 +13012,7 @@ INSERT INTO jazzhands_audit.val_encryption_key_purpose (
 	"aud#realtime",
 	"aud#txid",
 	"aud#user",
-	jsonb_build_object('user', regexp_replace("aud#user", '/.*$', '')) || CASE WHEN "aud#user" ~ '/' THEN jsonb_build_object('appuser', regexp_replace("aud#user", '^[^/]*', '')) ELSE '{}' END,		-- new column (aud#actor)
+	jsonb_build_object('user', regexp_replace("aud#user", '/.*$', '')) || CASE WHEN "aud#user" ~ '/' THEN jsonb_build_object('appuser', regexp_replace("aud#user", '^[^/]*/?', '')) ELSE '{}' END AS "aud#actor",
 	"aud#seq"
 FROM jazzhands_audit.val_encryption_key_purpose_v96;
 
@@ -13158,7 +13252,7 @@ INSERT INTO jazzhands_audit.val_encryption_method (
 	"aud#realtime",
 	"aud#txid",
 	"aud#user",
-	jsonb_build_object('user', regexp_replace("aud#user", '/.*$', '')) || CASE WHEN "aud#user" ~ '/' THEN jsonb_build_object('appuser', regexp_replace("aud#user", '^[^/]*', '')) ELSE '{}' END,
+	jsonb_build_object('user', regexp_replace("aud#user", '/.*$', '')) || CASE WHEN "aud#user" ~ '/' THEN jsonb_build_object('appuser', regexp_replace("aud#user", '^[^/]*/?', '')) ELSE '{}' END AS "aud#actor",
 	"aud#seq"
 FROM jazzhands_audit.val_encryption_method_v96;
 
@@ -13368,7 +13462,7 @@ INSERT INTO jazzhands_audit.val_volume_group_type (
 	"aud#realtime",
 	"aud#txid",
 	"aud#user",
-	jsonb_build_object('user', regexp_replace("aud#user", '/.*$', '')) || CASE WHEN "aud#user" ~ '/' THEN jsonb_build_object('appuser', regexp_replace("aud#user", '^[^/]*', '')) ELSE '{}' END,		-- new column (aud#actor)
+	jsonb_build_object('user', regexp_replace("aud#user", '/.*$', '')) || CASE WHEN "aud#user" ~ '/' THEN jsonb_build_object('appuser', regexp_replace("aud#user", '^[^/]*/?', '')) ELSE '{}' END AS "aud#actor",
 	"aud#seq"
 FROM jazzhands_audit.val_volume_group_type_v96;
 
@@ -13581,7 +13675,7 @@ INSERT INTO jazzhands_audit.val_x509_fingerprint_hash_algorithm (
 	"aud#realtime",
 	"aud#txid",
 	"aud#user",
-	jsonb_build_object('user', regexp_replace("aud#user", '/.*$', '')) || CASE WHEN "aud#user" ~ '/' THEN jsonb_build_object('appuser', regexp_replace("aud#user", '^[^/]*', '')) ELSE '{}' END,
+	jsonb_build_object('user', regexp_replace("aud#user", '/.*$', '')) || CASE WHEN "aud#user" ~ '/' THEN jsonb_build_object('appuser', regexp_replace("aud#user", '^[^/]*/?', '')) ELSE '{}' END AS "aud#actor",
 	"aud#seq"
 FROM jazzhands_audit.val_x509_fingerprint_hash_algorithm_v96;
 
@@ -13996,7 +14090,7 @@ INSERT INTO jazzhands_audit.public_key_hash_hash (
 	"aud#realtime",
 	"aud#txid",
 	"aud#user",
-	jsonb_build_object('user', regexp_replace("aud#user", '/.*$', '')) || CASE WHEN "aud#user" ~ '/' THEN jsonb_build_object('appuser', regexp_replace("aud#user", '^[^/]*', '')) ELSE '{}' END,
+	jsonb_build_object('user', regexp_replace("aud#user", '/.*$', '')) || CASE WHEN "aud#user" ~ '/' THEN jsonb_build_object('appuser', regexp_replace("aud#user", '^[^/]*/?', '')) ELSE '{}' END AS "aud#actor",
 	"aud#seq"
 FROM jazzhands_audit.public_key_hash_hash_v96;
 
@@ -14258,7 +14352,7 @@ INSERT INTO jazzhands_audit.service_instance (
 	a."aud#realtime",
 	a."aud#txid",
 	a."aud#user",
-	jsonb_build_object('user', regexp_replace("aud#user", '/.*$', '')) || CASE WHEN "aud#user" ~ '/' THEN jsonb_build_object('appuser', regexp_replace("aud#user", '^[^/]*', '')) ELSE '{}' END,		-- new column (aud#actor)
+	jsonb_build_object('user', regexp_replace("aud#user", '/.*$', '')) || CASE WHEN "aud#user" ~ '/' THEN jsonb_build_object('appuser', regexp_replace("aud#user", '^[^/]*/?', '')) ELSE '{}' END AS "aud#actor",
 	a."aud#seq"
 FROM jazzhands_audit.service_instance_v96 a
 	LEFT JOIN service_instance i USING (service_instance_id);
@@ -14547,7 +14641,7 @@ INSERT INTO jazzhands_audit.x509_signed_certificate_fingerprint (
 	"aud#realtime",
 	"aud#txid",
 	"aud#user",
-	jsonb_build_object('user', regexp_replace("aud#user", '/.*$', '')) || CASE WHEN "aud#user" ~ '/' THEN jsonb_build_object('appuser', regexp_replace("aud#user", '^[^/]*', '')) ELSE '{}' END,
+	jsonb_build_object('user', regexp_replace("aud#user", '/.*$', '')) || CASE WHEN "aud#user" ~ '/' THEN jsonb_build_object('appuser', regexp_replace("aud#user", '^[^/]*/?', '')) ELSE '{}' END AS "aud#actor",
 	"aud#seq"
 FROM jazzhands_audit.x509_signed_certificate_fingerprint_v96;
 

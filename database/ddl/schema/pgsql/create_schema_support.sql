@@ -338,10 +338,10 @@ BEGIN
 	;
 
 	-- initial population of aud#actor.  This is digusting.
-	IF NOT 'aud#actor' = ANY(cols) THEN
+	IF NOT quote_ident('aud#actor') = ANY(cols) THEN
 		cols := array_append(cols, '"aud#actor"');
 		vals := array_append(vals,
-			'jsonb_build_object(''user'', regexp_replace("aud#user", ''/.*$'', '''')) || CASE WHEN "aud#user" ~ ''/'' THEN jsonb_build_object(''appuser'', regexp_replace("aud#user", ''^[^/]*'', '''')) ELSE ''{}'' END'
+			'jsonb_build_object(''user'', regexp_replace("aud#user", ''/.*$'', '''')) || CASE WHEN "aud#user" ~ ''/'' THEN jsonb_build_object(''appuser'', regexp_replace("aud#user", ''^[^/]*/?'', '''')) ELSE ''{}'' END'
 		);
 	END IF;
 
@@ -2667,6 +2667,9 @@ BEGIN
 			key_relation := old_rel;
 		END IF;
 		prikeys := schema_support.get_pk_columns(_oldschema, key_relation);
+		IF prikeys IS NULL THEN
+			RAISE EXCEPTION 'Could not determine primary keys';
+		END IF;
 	END IF;
 
 	-- read into _cols the column list in common between old_rel and new_rel
