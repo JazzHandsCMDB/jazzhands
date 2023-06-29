@@ -196,19 +196,11 @@ WHERE is_virtual_device = true AND rack_location_id IS NOT NULL;
 --
 -- required by new disk handling stuff
 --
-DO $$
-BEGIN
-	PERFORM *  FROM component_type
-	WHERE model = 'Virtual Disk'
-	AND is_virtual_component;
-
-	INSERT INTO component_type (
-		model, is_virtual_component
-	) VALUES (
-		'Virtual Disk', true
-	);
-END;
-$$;
+INSERT INTO component_type (
+	model, is_virtual_component
+) VALUES (
+	'Virtual Disk', true
+) ON CONFLICT DO NOTHING;
 
 -- not doing this  now because it gets done later.
 -- SELECT schema_support.synchronize_cache_tables();
@@ -600,7 +592,7 @@ BEGIN
 	;
 
 	-- initial population of aud#actor.  This is digusting.
-	IF NOT 'aud#actor' = ANY(cols) THEN
+	IF NOT quote_ident('aud#actor') = ANY(cols) THEN
 		cols := array_append(cols, '"aud#actor"');
 		vals := array_append(vals,
 			'jsonb_build_object(''user'', regexp_replace("aud#user", ''/.*$'', '''')) || CASE WHEN "aud#user" ~ ''/'' THEN jsonb_build_object(''appuser'', regexp_replace("aud#user", ''^[^/]*/?'', '''')) ELSE ''{}'' END'
@@ -903,6 +895,9 @@ BEGIN
 			key_relation := old_rel;
 		END IF;
 		prikeys := schema_support.get_pk_columns(_oldschema, key_relation);
+		IF prikeys IS NULL THEN
+			RAISE EXCEPTION 'Could not determine primary keys';
+		END IF;
 	END IF;
 
 	-- read into _cols the column list in common between old_rel and new_rel
@@ -4314,6 +4309,190 @@ END;
 $$;
 
 SELECT schema_support.replay_object_recreates(tags := ARRAY['process_all_procs_in_schema_dns_manip']);
+-- New function; dropping in case it returned because of type change
+SELECT schema_support.save_grants_for_replay('dns_manip', 'set_dns_for_interface');
+DROP FUNCTION IF EXISTS dns_manip.set_dns_for_interface ( integer,text,integer,boolean );
+CREATE OR REPLACE FUNCTION dns_manip.set_dns_for_interface(netblock_id integer, layer3_interface_name text, device_id integer, force boolean DEFAULT true)
+ RETURNS jsonb
+ LANGUAGE plpgsql
+ SECURITY DEFINER
+ SET search_path TO 'jazzhands'
+AS $function$
+-- This tells it to favor columns over parameter when ambiguous
+-- see https://www.postgresql.org/message-id/CAE3TBxyCn9dOF2273ki%3D4NFwsaJdYXiMQ6x2rydsWY_6p8z_zg%40mail.gmail.com
+#variable_conflict use_column
+DECLARE
+	nid	ALIAS FOR netblock_id;
+	l3n	ALIAS FOR layer3_interface_name;
+	_devid	ALIAS FOR device_id;
+	_devn	TEXT;
+	_dns	JSONB;
+	_dnsified	TEXT;
+	_newr	dns_record.dns_record_id%TYPE;
+	_newn	TEXT;
+	_t	TEXT;
+	_nb	netblock%ROWTYPE;
+BEGIN
+	SELECT device_name, dns_utils.find_dns_domain_from_fqdn(device_name)
+	INTO _devn, _dns
+	FROM device d
+	WHERE d.device_id = _devid;
+
+	IF _dns IS NULL OR _dns->>'dns_domain_id' IS NULL THEN
+		RETURN '{}';
+	END IF;
+
+	SELECT * INTO _nb FROM netblock n WHERE n.netblock_id = nid;
+
+	IF family(_nb.ip_address) = 6 THEN
+		_t = 'AAAA';
+	ELSIF family(_nb.ip_address) = 4 THEN
+		_t = 'A';
+	ELSE
+		RAISE EXCEPTION 'Unkown family for %: %', nid, family(_nb.ip_address)
+			USING ERRCODE = 'invalid_parameter_value';
+	END IF;
+
+	IF NOT FOUND THEN
+		RAISE EXCEPTION 'Unknown device_id %', devid;
+	END IF;
+
+	SELECT string_agg(elem, '.')
+	INTO _dnsified
+	FROM (select regexp_replace(x, '[^a-z0-9]', '-', 'ig') AS elem,
+		row_number() OVER()
+		FROM unnest(regexp_split_to_array(layer3_interface_name, '\.')) AS x
+			ORDER BY 2 DESC
+		) z;
+
+	_newn := concat_ws('.', _dnsified,_dns->>'dns_name');
+
+
+	IF force THEN
+		INSERT INTO dns_record AS d (
+			dns_name, dns_type, dns_domain_id, netblock_id, should_generate_ptr
+		) VALUES (
+			_newn, _t, CAST(_dns->>'dns_domain_id' AS INTEGER), nid, true
+		) ON CONFLICT (netblock_id, should_generate_ptr)
+			WHERE should_generate_ptr AND dns_type IN ('A','AAAA')
+				AND netblock_id IS NOT NULL
+        DO UPDATE SET
+			dns_name = _newn,  dns_domain_id =
+				CAST(_dns->>'dns_domain_id' AS integer)
+		RETURNING dns_record_id INTO _newr;
+
+		RETURN jsonb_build_object(
+			'dns_record_id', _newr,
+			'dns_name',  _newn,
+			'dns_domain_id', _dns->>'dns_domain_id'
+		);
+
+	ELSE
+		INSERT INTO dns_record (
+			dns_name, _t, dns_type, dns_domain_id, netblock_id
+		) VALUES (
+			_newn, CAST(_dns->>'dns_domain_id' AS INTEGER), nid
+		) ON CONFLICT (netblock_id, should_generate_ptr)
+        WHERE should_generate_ptr AND dns_type IN ('A','AAAA')
+               AND netblock_id IS NOT NULL
+        DO NOTHING;
+	END IF;
+
+	RETURN '{}';
+END;
+$function$
+;
+
+-- New function; dropping in case it returned because of type change
+SELECT schema_support.save_grants_for_replay('dns_manip', 'set_dns_for_shared_routing_addresses');
+DROP FUNCTION IF EXISTS dns_manip.set_dns_for_shared_routing_addresses ( integer,boolean );
+CREATE OR REPLACE FUNCTION dns_manip.set_dns_for_shared_routing_addresses(netblock_id integer, force boolean DEFAULT true)
+ RETURNS jsonb
+ LANGUAGE plpgsql
+ SECURITY DEFINER
+ SET search_path TO 'jazzhands'
+AS $function$
+-- This tells it to favor columns over parameter when ambiguous
+-- see https://www.postgresql.org/message-id/CAE3TBxyCn9dOF2273ki%3D4NFwsaJdYXiMQ6x2rydsWY_6p8z_zg%40mail.gmail.com
+#variable_conflict use_column
+DECLARE
+	nid	ALIAS FOR netblock_id;
+	_r		RECORD;
+	_dns	JSONB;
+	_newr	dns_record.dns_record_id%TYPE;
+	_t		TEXT;
+BEGIN
+	SELECT layer3_network_id, sn.netblock_id, default_gateway_ip_address,
+		shared_netblock_protocol, encapsulation_tag,
+		encapsulation_domain,
+		dns_utils.find_dns_domain_from_fqdn(
+			lower(concat_ws('.', shared_netblock_protocol, encapsulation_tag,
+				encapsulation_domain, device_name))::text
+		) AS dns
+	INTO _r
+	FROM v_layerx_network_expanded lx
+		JOIN shared_netblock sn ON
+				sn.netblock_id = lx.default_gateway_netblock_id
+		JOIN shared_netblock_layer3_interface USING (shared_netblock_id)
+		JOIN layer3_interface USING (layer3_interface_id)
+		JOIN device USING (device_id)
+	WHERE sn.netblock_id = nid
+	AND encapsulation_domain IS NOT NULL
+	ORDER BY sn.netblock_id, layer3_interface_id
+	LIMIT 1;
+
+	IF _r IS NULL OR _r.dns IS NULL THEN
+		RETURN NULL;
+	END IF;
+
+	_dns := _r.dns;
+
+	IF family(_r.default_gateway_ip_address) = 6 THEN
+		_t = 'AAAA';
+	ELSIF family(_r.default_gateway_ip_address) = 4 THEN
+		_t = 'A';
+	ELSE
+		RAISE EXCEPTION 'Unkown family for %: %', nid, family(_nb.ip_address)
+			USING ERRCODE = 'invalid_parameter_value';
+	END IF;
+
+	IF force THEN
+		INSERT INTO dns_record AS d (
+			dns_name, dns_type, dns_domain_id, netblock_id, should_generate_ptr
+		) VALUES (
+			_dns->>'dns_name', _t, CAST(_dns->>'dns_domain_id' AS INTEGER),
+			nid, true
+		) ON CONFLICT (netblock_id, should_generate_ptr)
+			WHERE should_generate_ptr AND dns_type IN ('A','AAAA')
+				AND netblock_id IS NOT NULL
+        DO UPDATE SET
+			dns_name = _dns->>'dns_name',  dns_domain_id =
+				CAST(_dns->>'dns_domain_id' AS integer)
+		RETURNING dns_record_id INTO _newr;
+
+		RETURN jsonb_build_object(
+			'dns_record_id', _newr,
+			'dns_name',  _dns->>'dns_name',
+			'dns_domain_id', _dns->>'dns_domain_id'
+		);
+
+	ELSE
+		INSERT INTO dns_record (
+			dns_name, _t, dns_type, dns_domain_id, netblock_id
+		) VALUES (
+			_dns->>'dns_name', _t, CAST(_dns->>'dns_domain_id' AS INTEGER),
+				nid
+		) ON CONFLICT (netblock_id, should_generate_ptr)
+        WHERE should_generate_ptr AND dns_type IN ('A','AAAA')
+               AND netblock_id IS NOT NULL
+        DO NOTHING;
+	END IF;
+
+	RETURN '{}';
+END;
+$function$
+;
+
 --
 -- Process middle (non-trigger) schema dns_utils
 --
@@ -5659,6 +5838,1190 @@ BEGIN
 	END IF;
 
 	DELETE FROM network_range nr WHERE nr.network_range_id = nr_id;
+
+	RETURN true;
+END;
+$function$
+;
+
+-- New function; dropping in case it returned because of type change
+SELECT schema_support.save_grants_for_replay('netblock_manip', 'set_layer3_interface_addresses');
+DROP FUNCTION IF EXISTS netblock_manip.set_layer3_interface_addresses ( integer,integer,text,text,jsonb,boolean,integer,text,text );
+CREATE OR REPLACE FUNCTION netblock_manip.set_layer3_interface_addresses(layer3_interface_id integer DEFAULT NULL::integer, device_id integer DEFAULT NULL::integer, layer3_interface_name text DEFAULT NULL::text, layer3_interface_type text DEFAULT 'broadcast'::text, ip_address_hash jsonb DEFAULT NULL::jsonb, create_layer3_networks boolean DEFAULT false, layer2_network_id integer DEFAULT NULL::integer, move_addresses text DEFAULT 'if_same_device'::text, address_errors text DEFAULT 'error'::text)
+ RETURNS boolean
+ LANGUAGE plpgsql
+ SECURITY DEFINER
+ SET search_path TO 'jazzhands'
+AS $function$
+--
+-- ip_address_hash consists of the following elements
+--
+--		"ip_addresses" : [ (inet | netblock) ... ]
+--		"shared_ip_addresses" : [ (inet | netblock) ... ]
+--
+-- where inet is a text string that can be legally converted to type inet
+-- and netblock is a JSON object with fields:
+--		"ip_address" : inet
+--		"ip_universe_id" : integer (default 0)
+--		"netblock_type" : text (default 'default')
+--		"protocol" : text (default 'VRRP')
+--
+-- If either "ip_addresses" or "shared_ip_addresses" does not exist, it
+-- will not be processed.  If the key is present and is an empty array or
+-- null, then all IP addresses of those types will be removed from the
+-- interface
+--
+-- 'protocol' is only valid for shared addresses, which is how the address
+-- is shared.  Valid values can be found in the val_shared_netblock_protocol
+-- table
+--
+DECLARE
+	l3i_id			ALIAS FOR layer3_interface_id;
+	dev_id			ALIAS FOR device_id;
+	l3i_name		ALIAS FOR layer3_interface_name;
+	l3i_type		ALIAS FOR layer3_interface_type;
+
+	addrs_ary		jsonb;
+	ipaddr			inet;
+	universe		integer;
+	nb_type			text;
+	protocol		text;
+
+	c				integer;
+	i				integer;
+
+	error_rec		RECORD;
+	nb_rec			RECORD;
+	pnb_rec			RECORD;
+	layer3_rec		RECORD;
+	sn_rec			RECORD;
+	l3i_rec			RECORD;
+	l3in_rec		RECORD;
+	nb_id			jazzhands.netblock.netblock_id%TYPE;
+	nb_id_ary		integer[];
+	l3i_id_ary		integer[];
+	del_list		integer[];
+BEGIN
+	--
+	-- Validate that we got enough information passed to do things
+	--
+
+	IF ip_address_hash IS NULL OR NOT
+		(jsonb_typeof(ip_address_hash) = 'object')
+	THEN
+		RAISE 'Must pass ip_addresses to netblock_manip.set_interface_addresses';
+	END IF;
+
+	IF layer3_interface_id IS NULL THEN
+		IF device_id IS NULL OR layer3_interface_name IS NULL THEN
+			RAISE 'netblock_manip.assign_shared_netblock: must pass either layer3_interface_id or device_id and layer3_interface_name'
+			USING ERRCODE = 'invalid_parameter_value';
+		END IF;
+
+		SELECT
+			l3i.layer3_interface_id INTO l3i_id
+		FROM
+			layer3_interface l3i
+		WHERE
+			l3i.device_id = dev_id AND
+			l3i.layer3_interface_name = l3i_name;
+
+		IF NOT FOUND THEN
+			INSERT INTO layer3_interface(
+				device_id,
+				layer3_interface_name,
+				layer3_interface_type,
+				should_monitor
+			) VALUES (
+				dev_id,
+				l3i_name,
+				l3i_type,
+				false
+			) RETURNING layer3_interface.layer3_interface_id INTO l3i_id;
+		END IF;
+	END IF;
+
+	SELECT * INTO l3i_rec FROM layer3_interface l3i WHERE
+		l3i.layer3_interface_id = l3i_id;
+
+	--
+	-- First, loop through ip_addresses passed and process those
+	--
+
+	IF ip_address_hash ? 'ip_addresses' AND
+		jsonb_typeof(ip_address_hash->'ip_addresses') = 'array'
+	THEN
+		RAISE DEBUG 'Processing ip_addresses...';
+		--
+		-- Loop through each member of the ip_addresses array
+		-- and process each address
+		--
+		addrs_ary := ip_address_hash->'ip_addresses';
+		c := jsonb_array_length(addrs_ary);
+		i := 0;
+		nb_id_ary := NULL;
+		WHILE (i < c) LOOP
+			IF jsonb_typeof(addrs_ary->i) = 'string' THEN
+				--
+				-- If this is a string, use it as an inet with default
+				-- universe and netblock_type
+				--
+				ipaddr := addrs_ary->>i;
+				universe := netblock_utils.find_best_ip_universe(ipaddr);
+				nb_type := 'default';
+			ELSIF jsonb_typeof(addrs_ary->i) = 'object' THEN
+				--
+				-- If this is an object, require 'ip_address' key
+				-- optionally use 'ip_universe_id' and 'netblock_type' keys
+				-- to override the defaults
+				--
+				IF NOT addrs_ary->i ? 'ip_address' THEN
+					RAISE E'Object in array element % of ip_addresses in ip_address_hash in netblock_manip.set_interface_addresses does not contain ip_address key:\n%',
+						i, jsonb_pretty(addrs_ary->i);
+				END IF;
+				ipaddr := addrs_ary->i->>'ip_address';
+
+				IF addrs_ary->i ? 'ip_universe_id' THEN
+					universe := addrs_ary->i->'ip_universe_id';
+				ELSE
+					universe := netblock_utils.find_best_ip_universe(ipaddr);
+				END IF;
+
+				IF addrs_ary->i ? 'netblock_type' THEN
+					nb_type := addrs_ary->i->>'netblock_type';
+				ELSE
+					nb_type := 'default';
+				END IF;
+			ELSE
+				RAISE 'Invalid type in array element % of ip_addresses in ip_address_hash in netblock_manip.set_interface_addresses (%)',
+					i, jsonb_typeof(addrs_ary->i);
+			END IF;
+			--
+			-- We're done with the array, so increment the counter so
+			-- we don't have to deal with it later
+			--
+			i := i + 1;
+
+			RAISE DEBUG 'Address is %, universe is %, nb type is %',
+				ipaddr, universe, nb_type;
+
+			--
+			-- This is a hack, because Juniper is really annoying about this.
+			-- If masklen < 8, then ignore this netblock (we specifically
+			-- want /8, because of 127/8 and 10/8, which someone could
+			-- maybe want to not subnet.
+			--
+			-- This should probably be a configuration parameter, but it's not.
+			--
+			CONTINUE WHEN masklen(ipaddr) < 8;
+
+			--
+			-- Check to see if this is a netblock that we have been
+			-- told to explicitly ignore
+			--
+			PERFORM
+				ip_address
+			FROM
+				netblock n JOIN
+				netblock_collection_netblock ncn USING (netblock_id) JOIN
+				v_netblock_collection_expanded nce USING (netblock_collection_id)
+					JOIN
+				property p ON (
+					property_name = 'IgnoreProbedNetblocks' AND
+					property_type = 'DeviceInventory' AND
+					property_value_netblock_collection_id =
+						nce.root_netblock_collection_id
+				)
+			WHERE
+				ipaddr <<= n.ip_address AND
+				n.ip_universe_id = universe
+			;
+
+			--
+			-- If we found this netblock in the ignore list, then just
+			-- skip it
+			--
+			IF FOUND THEN
+				RAISE DEBUG 'Skipping ignored address %', ipaddr;
+				CONTINUE;
+			END IF;
+
+			--
+			-- Look for an is_single_address=true, can_subnet=false netblock
+			-- with the given ip_address
+			--
+			SELECT
+				* INTO nb_rec
+			FROM
+				netblock n
+			WHERE
+				is_single_address = true AND
+				can_subnet = false AND
+				netblock_type = nb_type AND
+				ip_universe_id = universe AND
+				host(ip_address) = host(ipaddr);
+
+			IF FOUND THEN
+				RAISE DEBUG E'Located netblock:\n%',
+					jsonb_pretty(to_jsonb(nb_rec));
+
+				nb_id_ary := array_append(nb_id_ary, nb_rec.netblock_id);
+
+				--
+				-- Look to see if there's a layer3_network for the
+				-- parent netblock
+				--
+				SELECT
+					n.netblock_id,
+					n.ip_address,
+					layer3_network_id,
+					default_gateway_netblock_id
+				INTO layer3_rec
+				FROM
+					netblock n LEFT JOIN
+					layer3_network l3 USING (netblock_id)
+				WHERE
+					n.netblock_id = nb_rec.parent_netblock_id;
+
+				IF FOUND THEN
+					RAISE DEBUG E'Located layer3_network:\n%',
+						jsonb_pretty(to_jsonb(layer3_rec));
+				ELSE
+					--
+					-- If we're told to create the layer3_network,
+					-- then do that, otherwise go to the next address
+					--
+					CONTINUE WHEN NOT create_layer3_networks;
+					INSERT INTO layer3_network(
+						netblock_id, layer2_network_id
+					) VALUES (
+						layer3_rec.netblock_id, layer2_network_id
+					) RETURNING layer3_network_id INTO
+						layer3_rec.layer3_network_id;
+				END IF;
+			ELSE
+				--
+				-- If the parent netblock does not exist, then create it
+				-- if we were passed the option to
+				--
+				SELECT
+					n.netblock_id,
+					n.ip_address,
+					layer3_network_id,
+					default_gateway_netblock_id
+				INTO layer3_rec
+				FROM
+					netblock n LEFT JOIN
+					layer3_network l3 USING (netblock_id)
+				WHERE
+					n.ip_universe_id = universe AND
+					n.netblock_type = nb_type AND
+					is_single_address = false AND
+					can_subnet = false AND
+					n.ip_address >>= ipaddr;
+
+				IF NOT FOUND THEN
+					RAISE DEBUG 'Parent netblock with ip_address %, netblock_type %, ip_universe_id % not found',
+						network(ipaddr),
+						nb_type,
+						universe;
+					CONTINUE WHEN NOT create_layer3_networks;
+					--
+					-- Check to see if the netblock exists, but is
+					-- marked can_subnet=true.  If so, fix it
+					--
+					SELECT
+						* INTO pnb_rec
+					FROM
+						netblock n
+					WHERE
+						n.ip_universe_id = universe AND
+						n.netblock_type = nb_type AND
+						n.is_single_address = false AND
+						n.can_subnet = true AND
+						n.ip_address = network(ipaddr);
+
+					IF FOUND THEN
+						UPDATE netblock n SET
+							can_subnet = false
+						WHERE
+							n.netblock_id = pnb_rec.netblock_id;
+						pnb_rec.can_subnet = false;
+					ELSE
+						INSERT INTO netblock (
+							ip_address,
+							netblock_type,
+							is_single_address,
+							can_subnet,
+							ip_universe_id,
+							netblock_status
+						) VALUES (
+							network(ipaddr),
+							nb_type,
+							false,
+							false,
+							universe,
+							'Allocated'
+						) RETURNING * INTO pnb_rec;
+					END IF;
+
+					WITH l3_ins AS (
+						INSERT INTO layer3_network(
+							netblock_id, layer2_network_id
+						) VALUES (
+							pnb_rec.netblock_id, layer2_network_id
+						) RETURNING *
+					)
+					SELECT
+						pnb_rec.netblock_id,
+						pnb_rec.ip_address,
+						l3_ins.layer3_network_id,
+						l3_ins.layer2_network_Id,
+						NULL::inet
+					INTO layer3_rec
+					FROM
+						l3_ins;
+				ELSIF layer3_rec.layer3_network_id IS NULL THEN
+					--
+					-- If we're told to create the layer3_network,
+					-- then do that, otherwise go to the next address
+					--
+
+					RAISE DEBUG 'layer3_network for parent netblock % not found (ip_address %, netblock_type %, ip_universe_id %)',
+						layer3_rec.netblock_id,
+						network(ipaddr),
+						nb_type,
+						universe;
+					CONTINUE WHEN NOT create_layer3_networks;
+					INSERT INTO layer3_network(
+						netblock_id, layer2_network_id
+					) VALUES (
+						layer3_rec.netblock_id, layer2_network_id
+					) RETURNING layer3_network_id INTO
+						layer3_rec.layer3_network_id;
+				END IF;
+				RAISE DEBUG E'Located layer3_network:\n%',
+					jsonb_pretty(to_jsonb(layer3_rec));
+				--
+				-- Parents should be all set up now.  Insert the netblock
+				--
+				INSERT INTO netblock (
+					ip_address,
+					netblock_type,
+					ip_universe_id,
+					is_single_address,
+					can_subnet,
+					netblock_status
+				) VALUES (
+					ipaddr,
+					nb_type,
+					universe,
+					true,
+					false,
+					'Allocated'
+				) RETURNING * INTO nb_rec;
+				nb_id_ary := array_append(nb_id_ary, nb_rec.netblock_id);
+			END IF;
+			--
+			-- Now that we have the netblock and everything, check to see
+			-- if this netblock is already assigned to this layer3_interface
+			--
+			PERFORM * FROM
+				layer3_interface_netblock l3in
+			WHERE
+				l3in.netblock_id = nb_rec.netblock_id AND
+				l3in.layer3_interface_id = l3i_id;
+
+			IF FOUND THEN
+				RAISE DEBUG 'Netblock % already found on layer3_interface',
+					nb_rec.netblock_id;
+				CONTINUE;
+			END IF;
+
+			--
+			-- See if this netblock is on something else, and delete it
+			-- if move_addresses is set, otherwise skip it
+			--
+			SELECT
+				l3i.layer3_interface_id,
+				l3i.layer3_interface_name,
+				l3in.netblock_id,
+				d.device_id,
+				COALESCE(d.device_name, d.physical_label) AS device_name
+			INTO l3in_rec
+			FROM
+				layer3_interface_netblock l3in JOIN
+				layer3_interface l3i USING (layer3_interface_id) JOIN
+				device d ON (l3in.device_id = d.device_id)
+			WHERE
+				l3in.netblock_id = nb_rec.netblock_id AND
+				l3in.layer3_interface_id != l3i_id;
+
+			IF FOUND THEN
+				IF move_addresses = 'always' OR (
+					move_addresses = 'if_same_device' AND
+					l3in_rec.device_id = l3i_rec.device_id
+				)
+				THEN
+					DELETE FROM
+						layer3_interface_netblock
+					WHERE
+						netblock_id = nb_rec.netblock_id;
+				ELSE
+					IF address_errors = 'ignore' THEN
+						RAISE DEBUG 'Netblock % is assigned to layer3_interface %',
+							nb_rec.netblock_id, l3in_rec.layer3_interface_id;
+
+						CONTINUE;
+					ELSIF address_errors = 'warn' THEN
+						RAISE NOTICE 'Netblock % (%) is assigned to layer3_interface % (%) on device % (%)',
+							nb_rec.netblock_id,
+							nb_rec.ip_address,
+							l3in_rec.layer3_interface_id,
+							l3in_rec.layer3_interface_name,
+							l3in_rec.device_id,
+							l3in_rec.device_name;
+
+						CONTINUE;
+					ELSE
+						RAISE 'Netblock % (%) is assigned to layer3_interface %(%) on device % (%)',
+							nb_rec.netblock_id,
+							nb_rec.ip_address,
+							l3in_rec.layer3_interface_id,
+							l3in_rec.layer3_interface_name,
+							l3in_rec.device_id,
+							l3in_rec.device_name;
+					END IF;
+				END IF;
+			END IF;
+
+			--
+			-- See if this netblock is on a shared_address somewhere, and
+			-- move it only if move_addresses is 'always'
+			--
+			SELECT * FROM
+				shared_netblock sn
+			INTO sn_rec
+			WHERE
+				sn.netblock_id = nb_rec.netblock_id;
+
+			IF FOUND THEN
+				IF move_addresses IS NULL OR move_addresses != 'always' THEN
+					IF address_errors = 'ignore' THEN
+						RAISE DEBUG 'Netblock % is assigned to a shared_network %, but not forcing, so skipping',
+							nb_rec.netblock_id, sn.shared_netblock_id;
+						CONTINUE;
+					ELSIF address_errors = 'warn' THEN
+						RAISE NOTICE 'Netblock % (%) is assigned to a shared_network %, but not forcing, so skipping',
+							nb_rec.netblock_id, nb_rec.ip_address,
+							sn.shared_netblock_id;
+						CONTINUE;
+					ELSE
+						RAISE 'Netblock % (%) is assigned to a shared_network %, but not forcing, so skipping',
+							nb_rec.netblock_id, nb_rec.ip_address,
+							sn.shared_netblock_id;
+						CONTINUE;
+					END IF;
+				END IF;
+
+				DELETE FROM
+					shared_netblock_layer3_interface snl3i
+				WHERE
+					snl3i.shared_netblock_id = sn_rec.shared_netblock_id;
+
+				DELETE FROM
+					shared_network sn
+				WHERE
+					sn.netblock_id = sn_rec.shared_netblock_id;
+			END IF;
+
+			--
+			-- Insert the netblock onto the interface using the next
+			-- rank
+			--
+			INSERT INTO layer3_interface_netblock (
+				layer3_interface_id,
+				netblock_id,
+				layer3_interface_rank
+			) SELECT
+				l3i_id,
+				nb_rec.netblock_id,
+				COALESCE(MAX(layer3_interface_rank) + 1, 0)
+			FROM
+				layer3_interface_netblock l3in
+			WHERE
+				l3in.layer3_interface_id = l3i_id
+			RETURNING * INTO l3in_rec;
+
+			PERFORM dns_manip.set_dns_for_interface(
+				netblock_id := nb_rec.netblock_id,
+				layer3_interface_name := l3in_rec.layer3_interface_name,
+				device_id := l3in_rec.device_id
+			);
+
+			RAISE DEBUG E'Inserted into:\n%',
+				jsonb_pretty(to_jsonb(l3in_rec));
+		END LOOP;
+		--
+		-- Remove any netblocks that are on the interface that are not
+		-- supposed to be (and that aren't ignored).
+		--
+
+		FOR l3in_rec IN
+			DELETE FROM
+				layer3_interface_netblock l3in
+			WHERE
+				(l3in.layer3_interface_id, l3in.netblock_id) IN (
+				SELECT
+					l3in2.layer3_interface_id,
+					l3in2.netblock_id
+				FROM
+					layer3_interface_netblock l3in2 JOIN
+					netblock n USING (netblock_id)
+				WHERE
+					l3in2.layer3_interface_id = l3i_id AND NOT (
+						l3in.netblock_id = ANY(nb_id_ary) OR
+						n.ip_address <<= ANY ( ARRAY (
+							SELECT
+								n2.ip_address
+							FROM
+								netblock n2 JOIN
+								netblock_collection_netblock ncn USING
+									(netblock_id) JOIN
+								v_netblock_collection_expanded nce USING
+									(netblock_collection_id) JOIN
+								property p ON (
+									property_name = 'IgnoreProbedNetblocks' AND
+									property_type = 'DeviceInventory' AND
+									property_value_netblock_collection_id =
+										nce.root_netblock_collection_id
+								)
+						))
+					)
+			)
+			RETURNING *
+		LOOP
+			RAISE DEBUG 'Removed netblock % from layer3_interface %',
+				l3in_rec.netblock_id,
+				l3in_rec.layer3_interface_id;
+			--
+			-- Remove any DNS records and/or netblocks that aren't used
+			--
+			BEGIN
+				DELETE FROM dns_record WHERE netblock_id = l3in_rec.netblock_id;
+				DELETE FROM netblock_collection_netblock WHERE
+					netblock_id = l3in_rec.netblock_id;
+				DELETE FROM netblock WHERE netblock_id =
+					l3in_rec.netblock_id;
+			EXCEPTION
+				WHEN foreign_key_violation THEN NULL;
+			END;
+		END LOOP;
+	END IF;
+
+	--
+	-- Loop through shared_ip_addresses passed and process those
+	--
+
+	IF ip_address_hash ? 'shared_ip_addresses' AND
+		jsonb_typeof(ip_address_hash->'shared_ip_addresses') = 'array'
+	THEN
+		RAISE DEBUG 'Processing shared_ip_addresses...';
+		--
+		-- Loop through each member of the shared_ip_addresses array
+		-- and process each address
+		--
+		addrs_ary := ip_address_hash->'shared_ip_addresses';
+		c := jsonb_array_length(addrs_ary);
+		i := 0;
+		nb_id_ary := NULL;
+		WHILE (i < c) LOOP
+			IF jsonb_typeof(addrs_ary->i) = 'string' THEN
+				--
+				-- If this is a string, use it as an inet with default
+				-- universe and netblock_type
+				--
+				ipaddr := addrs_ary->>i;
+				universe := netblock_utils.find_best_ip_universe(ipaddr);
+				nb_type := 'default';
+				protocol := 'VRRP';
+			ELSIF jsonb_typeof(addrs_ary->i) = 'object' THEN
+				--
+				-- If this is an object, require 'ip_address' key
+				-- optionally use 'ip_universe_id' and 'netblock_type' keys
+				-- to override the defaults
+				--
+				IF NOT addrs_ary->i ? 'ip_address' THEN
+					RAISE E'Object in array element % of shared_ip_addresses in ip_address_hash in netblock_manip.set_interface_addresses does not contain ip_address key:\n%',
+						i, jsonb_pretty(addrs_ary->i);
+				END IF;
+				ipaddr := addrs_ary->i->>'ip_address';
+
+				IF addrs_ary->i ? 'ip_universe_id' THEN
+					universe := addrs_ary->i->'ip_universe_id';
+				ELSE
+					universe := netblock_utils.find_best_ip_universe(ipaddr);
+				END IF;
+
+				IF addrs_ary->i ? 'netblock_type' THEN
+					nb_type := addrs_ary->i->>'netblock_type';
+				ELSE
+					nb_type := 'default';
+				END IF;
+
+				IF addrs_ary->i ? 'shared_netblock_protocol' THEN
+					protocol := addrs_ary->i->>'shared_netblock_protocol';
+				ELSIF addrs_ary->i ? 'protocol' THEN
+					protocol := addrs_ary->i->>'protocol';
+				ELSE
+					protocol := 'VRRP';
+				END IF;
+			ELSE
+				RAISE 'Invalid type in array element % of shared_ip_addresses in ip_address_hash in netblock_manip.set_interface_addresses (%)',
+					i, jsonb_typeof(addrs_ary->i);
+			END IF;
+			--
+			-- We're done with the array, so increment the counter so
+			-- we don't have to deal with it later
+			--
+			i := i + 1;
+
+			RAISE DEBUG 'Address is %, universe is %, nb type is %',
+				ipaddr, universe, nb_type;
+
+			--
+			-- Check to see if this is a netblock that we have been
+			-- told to explicitly ignore
+			--
+			PERFORM
+				ip_address
+			FROM
+				netblock n JOIN
+				netblock_collection_netblock ncn USING (netblock_id) JOIN
+				v_netblock_collection_expanded nce USING (netblock_collection_id)
+					JOIN
+				property p ON (
+					property_name = 'IgnoreProbedNetblocks' AND
+					property_type = 'DeviceInventory' AND
+					property_value_netblock_collection_id =
+						nce.root_netblock_collection_id
+				)
+			WHERE
+				ipaddr <<= n.ip_address AND
+				n.ip_universe_id = universe AND
+				n.netblock_type = nb_type;
+
+			--
+			-- If we found this netblock in the ignore list, then just
+			-- skip it
+			--
+			IF FOUND THEN
+				RAISE DEBUG 'Skipping ignored address %', ipaddr;
+				CONTINUE;
+			END IF;
+
+			--
+			-- Look for an is_single_address=true, can_subnet=false netblock
+			-- with the given ip_address
+			--
+			SELECT
+				* INTO nb_rec
+			FROM
+				netblock n
+			WHERE
+				is_single_address = true AND
+				can_subnet = false AND
+				netblock_type = nb_type AND
+				ip_universe_id = universe AND
+				host(ip_address) = host(ipaddr);
+
+			IF FOUND THEN
+				RAISE DEBUG E'Located netblock:\n%',
+					jsonb_pretty(to_jsonb(nb_rec));
+
+				nb_id_ary := array_append(nb_id_ary, nb_rec.netblock_id);
+
+				--
+				-- Look to see if there's a layer3_network for the
+				-- parent netblock
+				--
+				SELECT
+					n.netblock_id,
+					n.ip_address,
+					layer3_network_id,
+					default_gateway_netblock_id
+				INTO layer3_rec
+				FROM
+					netblock n LEFT JOIN
+					layer3_network l3 USING (netblock_id)
+				WHERE
+					n.netblock_id = nb_rec.parent_netblock_id;
+
+				IF FOUND THEN
+					RAISE DEBUG E'Located layer3_network:\n%',
+						jsonb_pretty(to_jsonb(layer3_rec));
+				ELSE
+					--
+					-- If we're told to create the layer3_network,
+					-- then do that, otherwise go to the next address
+					--
+					CONTINUE WHEN NOT create_layer3_networks;
+					INSERT INTO layer3_network(
+						netblock_id, layer2_network_id
+					) VALUES (
+						layer3_rec.netblock_id, layer2_network_id
+					) RETURNING layer3_network_id INTO
+						layer3_rec.layer3_network_id;
+				END IF;
+			ELSE
+				--
+				-- If the parent netblock does not exist, then create it
+				-- if we were passed the option to
+				--
+				SELECT
+					n.netblock_id,
+					n.ip_address,
+					layer3_network_id,
+					default_gateway_netblock_id
+				INTO layer3_rec
+				FROM
+					netblock n LEFT JOIN
+					layer3_network l3 USING (netblock_id)
+				WHERE
+					n.ip_universe_id = universe AND
+					n.netblock_type = nb_type AND
+					is_single_address = false AND
+					can_subnet = false AND
+					n.ip_address >>= ipaddr;
+
+				IF NOT FOUND THEN
+					RAISE DEBUG 'Parent netblock with ip_address %, netblock_type %, ip_universe_id % not found',
+						network(ipaddr),
+						nb_type,
+						universe;
+					CONTINUE WHEN NOT create_layer3_networks;
+					WITH nb_ins AS (
+						INSERT INTO netblock (
+							ip_address,
+							netblock_type,
+							is_single_address,
+							can_subnet,
+							ip_universe_id,
+							netblock_status
+						) VALUES (
+							network(ipaddr),
+							nb_type,
+							false,
+							false,
+							universe,
+							'Allocated'
+						) RETURNING *
+					), l3_ins AS (
+						INSERT INTO layer3_network(
+							netblock_id, layer2_network_id
+						)
+						SELECT
+							netblock_id, layer2_network_id
+						FROM
+							nb_ins
+						RETURNING *
+					)
+					SELECT
+						nb_ins.netblock_id,
+						nb_ins.ip_address,
+						l3_ins.layer3_network_id,
+						NULL
+					INTO layer3_rec
+					FROM
+						nb_ins,
+						l3_ins;
+				ELSIF layer3_rec.layer3_network_id IS NULL THEN
+					--
+					-- If we're told to create the layer3_network,
+					-- then do that, otherwise go to the next address
+					--
+
+					RAISE DEBUG 'layer3_network for parent netblock % not found (ip_address %, netblock_type %, ip_universe_id %)',
+						layer3_rec.netblock_id,
+						network(ipaddr),
+						nb_type,
+						universe;
+					CONTINUE WHEN NOT create_layer3_networks;
+					INSERT INTO layer3_network(
+						netblock_id, layer2_network_id
+					) VALUES (
+						layer3_rec.netblock_id, layer2_network_id
+					) RETURNING layer3_network_id INTO
+						layer3_rec.layer3_network_id;
+				END IF;
+				RAISE DEBUG E'Located layer3_network:\n%',
+					jsonb_pretty(to_jsonb(layer3_rec));
+				--
+				-- Parents should be all set up now.  Insert the netblock
+				--
+				INSERT INTO netblock (
+					ip_address,
+					netblock_type,
+					ip_universe_id,
+					is_single_address,
+					can_subnet,
+					netblock_status
+				) VALUES (
+					ipaddr,
+					nb_type,
+					universe,
+					true,
+					false,
+					'Allocated'
+				) RETURNING * INTO nb_rec;
+				nb_id_ary := array_append(nb_id_ary, nb_rec.netblock_id);
+			END IF;
+
+			--
+			-- See if this netblock is directly on any layer3_interface, and
+			-- delete it if force is set, otherwise skip it
+			--
+			l3i_id_ary := ARRAY[]::integer[];
+
+			SELECT
+				l3in.netblock_id,
+				l3i.device_id
+			INTO l3in_rec
+			FROM
+				layer3_interface_netblock l3in JOIN
+				layer3_interface l3i USING (layer3_interface_id)
+			WHERE
+				l3in.netblock_id = nb_rec.netblock_id AND
+				l3in.layer3_interface_id != l3i_id;
+
+			IF FOUND THEN
+				IF move_addresses = 'always' OR (
+					move_addresses = 'if_same_device' AND
+					l3in_rec.device_id = l3i_rec.device_id
+				)
+				THEN
+					--
+					-- Remove the netblocks from the layer3_interfaces,
+					-- but save them for later so that we can migrate them
+					-- after we make sure the shared_netblock exists.
+					--
+					-- Also, append the network_inteface_id that we
+					-- specifically care about, and we'll add them all
+					-- below
+					--
+					WITH z AS (
+						DELETE FROM
+							layer3_interface_netblock
+						WHERE
+							netblock_id = nb_rec.netblock_id
+						RETURNING layer3_interface_id
+					)
+					SELECT array_agg(layer3_interface_id) FROM
+						(SELECT layer3_interface_id FROM z) v
+					INTO l3i_id_ary;
+				ELSE
+					IF address_errors = 'ignore' THEN
+						RAISE DEBUG 'Netblock % is assigned to layer3_interface %',
+							nb_rec.netblock_id, l3in_rec.layer3_interface_id;
+
+						CONTINUE;
+					ELSIF address_errors = 'warn' THEN
+						RAISE NOTICE 'Netblock % is assigned to layer3_interface %',
+							nb_rec.netblock_id, l3in_rec.layer3_interface_id;
+
+						CONTINUE;
+					ELSE
+						RAISE 'Netblock % is assigned to layer3_interface %',
+							nb_rec.netblock_id, l3in_rec.layer3_interface_id;
+					END IF;
+				END IF;
+
+			END IF;
+
+			IF NOT(l3i_id = ANY(l3i_id_ary)) THEN
+				l3i_id_ary := array_append(l3i_id_ary, l3i_id);
+			END IF;
+
+			--
+			-- See if this netblock already belongs to a shared_network
+			--
+			SELECT * FROM
+				shared_netblock sn
+			INTO sn_rec
+			WHERE
+				sn.netblock_id = nb_rec.netblock_id;
+
+			IF FOUND THEN
+				IF sn_rec.shared_netblock_protocol != protocol THEN
+					RAISE 'Netblock % (%) is assigned to shared_network %, but the shared_network_protocol does not match (% vs. %)',
+						nb_rec.netblock_id,
+						nb_rec.ip_address,
+						sn_rec.shared_netblock_id,
+						sn_rec.shared_netblock_protocol,
+						protocol;
+				END IF;
+			ELSE
+				INSERT INTO shared_netblock (
+					shared_netblock_protocol,
+					netblock_id
+				) VALUES (
+					protocol,
+					nb_rec.netblock_id
+				) RETURNING * INTO sn_rec;
+			END IF;
+
+			--
+			-- Add this to any interfaces that we found above that
+			-- need this
+			--
+
+			INSERT INTO shared_netblock_layer3_interface (
+				shared_netblock_id,
+				layer3_interface_id,
+				priority
+			) SELECT
+				sn_rec.shared_netblock_id,
+				x.layer3_interface_id,
+				0
+			FROM
+				unnest(l3i_id_ary) x(layer3_interface_id)
+			ON CONFLICT ON CONSTRAINT pk_ip_group_network_interface DO NOTHING;
+
+			RAISE DEBUG E'Inserted shared_netblock % onto interfaces:\n%',
+				sn_rec.shared_netblock_id, jsonb_pretty(to_jsonb(l3i_id_ary));
+
+			--
+			-- If this shared netblock is VARP or VRRP, and we are to assume default gateway,
+			-- update accordingly.
+			--
+			IF protocol IN ('VARP', 'VRRP') THEN
+				UPDATE layer3_network
+				SET default_gateway_netblock_id = sn_rec.netblock_id
+				WHERE layer3_network_id = layer3_rec.layer3_network_id
+				AND default_gateway_netblock_id IS DISTINCT FROM sn_rec.netblock_id;
+
+				PERFORM dns_manip.set_dns_for_shared_routing_addresses(sn_rec.netblock_id);
+			END IF;
+		END LOOP;
+		--
+		-- Remove any shared_netblocks that are on the interface that are not
+		-- supposed to be (and that aren't ignored).
+		--
+
+		FOR l3in_rec IN
+			DELETE FROM
+				shared_netblock_layer3_interface snl3i
+			WHERE
+				(snl3i.layer3_interface_id, snl3i.shared_netblock_id) IN (
+				SELECT
+					snl3i2.layer3_interface_id,
+					snl3i2.shared_netblock_id
+				FROM
+					shared_netblock_layer3_interface snl3i2 JOIN
+					shared_netblock sn USING (shared_netblock_id) JOIN
+					netblock n USING (netblock_id)
+				WHERE
+					snl3i2.layer3_interface_id = l3i_id AND NOT (
+						sn.netblock_id = ANY(nb_id_ary) OR
+						n.ip_address <<= ANY ( ARRAY (
+							SELECT
+								n2.ip_address
+							FROM
+								netblock n2 JOIN
+								netblock_collection_netblock ncn USING
+									(netblock_id) JOIN
+								v_netblock_collection_expanded nce USING
+									(netblock_collection_id) JOIN
+								property p ON (
+									property_name = 'IgnoreProbedNetblocks' AND
+									property_type = 'DeviceInventory' AND
+									property_value_netblock_collection_id =
+										nce.root_netblock_collection_id
+								)
+						))
+					)
+			)
+			RETURNING *
+		LOOP
+			RAISE DEBUG 'Removed shared_netblock % from layer3_interface %',
+				l3in_rec.shared_netblock_id,
+				l3in_rec.layer3_interface_id;
+
+			--
+			-- Remove any DNS records, netblocks and shared_netblocks
+			-- that aren't used
+			--
+			SELECT netblock_id INTO nb_id FROM shared_netblock sn WHERE
+				sn.shared_netblock_id = l3in_rec.shared_netblock_id;
+			BEGIN
+				DELETE FROM dns_record WHERE netblock_id = nb_id;
+				DELETE FROM netblock_collection_netblock ncn WHERE
+					ncn.netblock_id = nb_id;
+				DELETE FROM shared_netblock WHERE netblock_id = nb_id;
+				DELETE FROM netblock WHERE netblock_id = nb_id;
+			EXCEPTION
+				WHEN foreign_key_violation THEN NULL;
+			END;
+		END LOOP;
+	END IF;
+	RETURN true;
+END;
+$function$
+;
+
+-- New function; dropping in case it returned because of type change
+SELECT schema_support.save_grants_for_replay('netblock_manip', 'update_network_range');
+DROP FUNCTION IF EXISTS netblock_manip.update_network_range ( integer,inet,inet,integer,boolean,character varying,text,integer,integer );
+CREATE OR REPLACE FUNCTION netblock_manip.update_network_range(network_range_id integer, start_ip_address inet DEFAULT NULL::inet, stop_ip_address inet DEFAULT NULL::inet, parent_netblock_id integer DEFAULT NULL::integer, allow_assigned boolean DEFAULT false, description character varying DEFAULT NULL::character varying, dns_prefix text DEFAULT NULL::text, dns_domain_id integer DEFAULT NULL::integer, lease_time integer DEFAULT NULL::integer)
+ RETURNS boolean
+ LANGUAGE plpgsql
+ SECURITY DEFINER
+ SET search_path TO 'jazzhands'
+AS $function$
+DECLARE
+	nbcheck					RECORD;
+	start_netblock			RECORD;
+	stop_netblock			RECORD;
+	new_start_ip_address	inet;
+	new_stop_ip_address		inet;
+	new_parent_netblock_id	jazzhands.netblock.netblock_id%TYPE;
+	netrange				RECORD;
+	nrid					ALIAS FOR network_range_id;
+	pnbid					ALIAS FOR parent_netblock_id;
+BEGIN
+	--
+	-- Pull things about the network_range.  Fetch things out of the
+	-- v_network_range_expanded view because it has everything we want in it.
+	--
+	SELECT
+		nr.* INTO netrange
+	FROM
+		jazzhands.v_network_range_expanded nr
+	WHERE
+		nr.network_range_id = nrid;
+
+	IF NOT FOUND THEN
+		RAISE EXCEPTION
+			'update_network_range: network_range %d does not exist',
+			nrid
+		USING ERRCODE = 'foreign_key_violation';
+	END IF;
+
+	--
+	-- Validate things passed.  This will throw an exception if things aren't
+	-- valid
+	--
+
+	--
+	-- Check that the netblock_type for the {start,stop} netblock are
+	-- valid if they are trying to be set.  If things are NULL, it's skipped.
+	--
+	IF
+		host(start_ip_address) != host(netrange.start_ip_address) AND
+		netrange.start_netblock_type != 'network_range'
+	THEN
+		RAISE EXCEPTION
+			'Address changes of start_ip_address are only allowed if the netblock_type is "network_range"'
+		USING ERRCODE = 'check_violation';
+	END IF;
+
+	IF
+		host(stop_ip_address) != host(netrange.stop_ip_address) AND
+		netrange.stop_netblock_type != 'network_range'
+	THEN
+		RAISE EXCEPTION
+			'Address changes of stop_ip_address are only allowed if the netblock_type is "network_range"'
+		USING ERRCODE = 'check_violation';
+	END IF;
+
+	new_start_ip_address := COALESCE(start_ip_address,
+		netrange.start_ip_address);
+	new_stop_ip_address := COALESCE(stop_ip_address,
+		netrange.stop_ip_address);
+	new_parent_netblock_id := COALESCE(parent_netblock_id,
+		netrange.parent_netblock_id);
+
+	SELECT * INTO nbcheck FROM netblock_manip.validate_network_range(
+		network_range_id := nrid,
+		network_range_type := netrange.network_range_type,
+		start_ip_address := new_start_ip_address,
+		stop_ip_address := new_stop_ip_address,
+		parent_netblock_id := new_parent_netblock_id
+	);
+
+	--
+	-- Validate that there are not currently any addresses assigned in the
+	-- updated range, unless allow_assigned is set
+	--
+	IF NOT allow_assigned THEN
+		PERFORM
+			*
+		FROM
+			jazzhands.netblock n
+		WHERE
+			n.parent_netblock_id = nbcheck.parent_netblock_id AND
+			host(n.ip_address)::inet > host(new_start_ip_address)::inet AND
+			host(n.ip_address)::inet < host(new_stop_ip_address)::inet;
+
+		IF FOUND THEN
+			RAISE 'create_network_range: netblocks are already present for parent netblock % betweeen % and %',
+				nbcheck.parent_netblock_id,
+				new_start_ip_address,
+				new_stop_ip_address
+			USING ERRCODE = 'check_violation';
+		END IF;
+	END IF;
+
+	--
+	-- We should be able to update things now
+	--
+
+	IF
+		host(start_ip_address) != host(netrange.start_ip_address)
+	THEN
+		UPDATE
+			netblock n
+		SET
+			ip_address = (host(start_ip_address))::inet
+		WHERE
+			n.netblock_id = netrange.start_netblock_id;
+	END IF;
+
+	IF
+		host(stop_ip_address) != host(netrange.stop_ip_address)
+	THEN
+		UPDATE
+			netblock n
+		SET
+			ip_address = (host(stop_ip_address))::inet
+		WHERE
+			n.netblock_id = netrange.stop_netblock_id;
+	END IF;
+
+	IF
+		description IS NOT NULL OR
+		dns_prefix IS NOT NULL OR
+		dns_domain_id IS NOT NULL OR
+		lease_time IS NOT NULL
+	THEN
+		--
+		-- This is a hack, but we shouldn't have empty descriptions anyways.
+		-- Meh.
+		--
+		IF description = '' THEN
+			description = NULL;
+		END IF;
+
+		UPDATE
+			network_range nr
+		SET
+			description = update_network_range.description,
+			dns_prefix = update_network_range.dns_prefix,
+			dns_domain_id = update_network_range.dns_domain_id,
+			lease_time = update_network_range.lease_time
+		WHERE
+			nr.network_range_id = nrid;
+	END IF;
 
 	RETURN true;
 END;
@@ -7097,7 +8460,7 @@ BEGIN
 	;
 
 	-- initial population of aud#actor.  This is digusting.
-	IF NOT 'aud#actor' = ANY(cols) THEN
+	IF NOT quote_ident('aud#actor') = ANY(cols) THEN
 		cols := array_append(cols, '"aud#actor"');
 		vals := array_append(vals,
 			'jsonb_build_object(''user'', regexp_replace("aud#user", ''/.*$'', '''')) || CASE WHEN "aud#user" ~ ''/'' THEN jsonb_build_object(''appuser'', regexp_replace("aud#user", ''^[^/]*/?'', '''')) ELSE ''{}'' END'
@@ -7400,6 +8763,9 @@ BEGIN
 			key_relation := old_rel;
 		END IF;
 		prikeys := schema_support.get_pk_columns(_oldschema, key_relation);
+		IF prikeys IS NULL THEN
+			RAISE EXCEPTION 'Could not determine primary keys';
+		END IF;
 	END IF;
 
 	-- read into _cols the column list in common between old_rel and new_rel
@@ -8649,40 +10015,41 @@ CREATE OR REPLACE FUNCTION x509_plperl_cert_utils.parse_csr(certificate_signing_
  RETURNS jsonb
  LANGUAGE plperl
 AS $function$
-	my $csr_pem = shift || return undef;
+    my $csr_pem = shift || return undef;
 
-    my $tmp     = File::Temp->new();
-	    print $tmp $csr_pem;
+    my $tmp = File::Temp->new();
+    print $tmp $csr_pem;
+    my $fname = $tmp->filename();
+
+    my $req = Crypt::OpenSSL::PKCS10->new_from_file($fname) || return undef;
     $tmp->close;
 
-	my $req = Crypt::OpenSSL::PKCS10->new_from_file($tmp) || return undef;
+    my $friendly = $req->subject;
+    $friendly =~ s/^.*CN=(\s*[^,]*)(,.*)?$/$1/;
 
-	my $friendly = $req->subject;
-	$friendly =~ s/^.*CN=(\s*[^,]*)(,.*)?$/$1/;
+    my $rv = {
+        friendly_name => $friendly,
+        subject       => $req->subject(),
+    };
 
-	my $rv = {
-		friendly_name            => $friendly,
-		subject                  => $req->subject(),
-	};
+    # this is naaaasty but I did not want to require the JSON pp module
+    my $x = sprintf "{ %s }", join(
+        ',',
+        map {
+            qq{"$_": }
+              . (
+                ( defined( $rv->{$_} ) )
+                ? (
+                    ( ref( $rv->{$_} ) eq 'ARRAY' )
+                    ? '[ ' . join( ',', @{ $rv->{$_} } ) . ' ]'
+                    : qq{"$rv->{$_}"}
+                  )
+                : 'null'
+              )
+        } keys %$rv
+    );
 
-	# this is naaaasty but I did not want to require the JSON pp module
-	my $x = sprintf "{ %s }", join(
-		',',
-		map {
-			qq{"$_": }
-			  . (
-				( defined( $rv->{$_} ) )
-				? (
-					( ref( $rv->{$_} ) eq 'ARRAY' )
-					? '[ ' . join( ',', @{ $rv->{$_} } ) . ' ]'
-					: qq{"$rv->{$_}"}
-				  )
-				: 'null'
-			  )
-		} keys %$rv
-	);
-
-	$x;
+    $x;
 $function$
 ;
 
@@ -8716,16 +10083,16 @@ AS $function$
 	foreach my $oid ( keys %$exts ) {
 		my $ext = $$exts{$oid};
 		if ( $oid eq '2.5.29.14' ) {
-			$ski = $ext->as_string();
+			$ski = $ext->to_string();
 			$ski =~ s/\s+$//;
 		} elsif ( $oid eq '2.5.29.35' ) {
-			$aki = $ext->as_string();
+			$aki = $ext->to_string();
 			$aki =~ s/keyid://;
 			$aki =~ s/\s+$//;
 		} elsif ( $oid eq '2.5.29.19' ) {
 
 			# basic constraints;
-			my $x = $ext->as_string();
+			my $x = $ext->to_string();
 			if ( $x && $x =~ /CA:TRUE/i ) {
 				$ca = 1;
 			}
@@ -8745,7 +10112,7 @@ AS $function$
 			};
 
 			# yes, I threw up a litle; these are from crypto/x509v3/v3_bitst.c
-			foreach my $ku ( split( /,\s*/, $ext->as_string() ) ) {
+			foreach my $ku ( split( /,\s*/, $ext->to_string() ) ) {
 				push( @ku, $map->{$ku} ) if ( $map->{$ku} );
 			}
 
@@ -8760,12 +10127,12 @@ AS $function$
 			};
 
 			# yes, I threw up a litle; these are from crypto/objects/obj_dat.h
-			foreach my $ku ( split( /,\s*/, $ext->as_string() ) ) {
+			foreach my $ku ( split( /,\s*/, $ext->to_string() ) ) {
 				push( @ku, $map->{$ku} ) if ( $map->{$ku} );
 			}
 
 		} elsif ($oid eq '2.5.29.17') {
-			push(@san, split(/,\s*/, $ext->as_string() ));
+			push(@san, split(/,\s*/, $ext->to_string() ));
 		} else {
 			next;
 		}
@@ -9641,7 +11008,7 @@ ALTER TABLE jazzhands.logical_volume DROP CONSTRAINT IF EXISTS fk_logvol_fstype;
 ALTER TABLE jazzhands.logical_volume DROP CONSTRAINT IF EXISTS fk_logvol_vgid;
 
 -- EXTRA-SCHEMA constraints
-SELECT schema_support.save_constraint_for_replay(schema := 'jazzhands', object := 'logical_volume', newobject := 'logical_volume', newmap := '{"ak_logical_volume_filesystem":{"columns":["filesystem_type","logical_volume_id"],"def":"UNIQUE (logical_volume_id, filesystem_type)","deferrable":false,"deferred":false,"name":"ak_logical_volume_filesystem","type":"u"},"ak_logvol_devid_lvname":{"columns":["device_id","logical_volume_type","logical_volume_name","volume_group_id"],"def":"UNIQUE (device_id, logical_volume_name, logical_volume_type, volume_group_id)","deferrable":false,"deferred":false,"name":"ak_logvol_devid_lvname","type":"u"},"ak_logvol_lv_devid":{"columns":["logical_volume_id"],"def":"UNIQUE (logical_volume_id)","deferrable":false,"deferred":false,"name":"ak_logvol_lv_devid","type":"u"},"pk_logical_volume":{"columns":["logical_volume_id"],"def":"PRIMARY KEY (logical_volume_id)","deferrable":false,"deferred":false,"name":"pk_logical_volume","type":"p"}}');
+SELECT schema_support.save_constraint_for_replay(schema := 'jazzhands', object := 'logical_volume', newobject := 'logical_volume', newmap := '{"ak_logical_volume_filesystem":{"columns":["logical_volume_id","filesystem_type"],"def":"UNIQUE (logical_volume_id, filesystem_type)","deferrable":false,"deferred":false,"name":"ak_logical_volume_filesystem","type":"u"},"ak_logvol_devid_lvname":{"columns":["logical_volume_name","logical_volume_type","volume_group_id","device_id"],"def":"UNIQUE (device_id, logical_volume_name, logical_volume_type, volume_group_id)","deferrable":false,"deferred":false,"name":"ak_logvol_devid_lvname","type":"u"},"ak_logvol_lv_devid":{"columns":["logical_volume_id"],"def":"UNIQUE (logical_volume_id)","deferrable":false,"deferred":false,"name":"ak_logvol_lv_devid","type":"u"},"pk_logical_volume":{"columns":["logical_volume_id"],"def":"PRIMARY KEY (logical_volume_id)","deferrable":false,"deferred":false,"name":"pk_logical_volume","type":"p"}}');
 
 -- PRIMARY and ALTERNATE KEYS
 ALTER TABLE jazzhands.logical_volume DROP CONSTRAINT IF EXISTS ak_logical_volume_filesystem;
@@ -9715,9 +11082,6 @@ SELECT schema_support.build_audit_table('jazzhands_audit', 'jazzhands', 'logical
 ALTER TABLE logical_volume
 	ALTER COLUMN logical_volume_id
 	ADD GENERATED BY DEFAULT AS IDENTITY;
-ALTER TABLE logical_volume
-	ALTER logical_volume_type
-	SET DEFAULT 'legacy'::character varying;
 
 
 -- BEGIN Manually written insert function
@@ -9800,9 +11164,6 @@ FROM jazzhands_audit.logical_volume_v96;
 
 
 -- END Manually written insert function
-ALTER TABLE jazzhands.logical_volume
-	ALTER logical_volume_type
-	SET DEFAULT 'legacy'::character varying;
 
 -- PRIMARY AND ALTERNATE KEYS
 ALTER TABLE jazzhands.logical_volume ADD CONSTRAINT ak_logical_volume_filesystem UNIQUE (logical_volume_id, filesystem_type);
@@ -14983,7 +16344,7 @@ CREATE VIEW jazzhands.physicalish_volume AS
     bsd.data_upd_date
    FROM jazzhands.block_storage_device bsd
      LEFT JOIN jazzhands.virtual_component_logical_volume vclv USING (component_id)
-  WHERE bsd.logical_volume_id IS NULL;
+  WHERE bsd.logical_volume_id IS NULL AND (bsd.block_storage_device_type::text <> ALL (ARRAY['disk partition'::character varying, 'ZFS filesystem'::character varying, 'ZFS volume'::character varying, 'LVM volume'::character varying, 'encrypted_block_storage_device'::character varying]::text[]));
 
 DO $$
 BEGIN
@@ -15029,14 +16390,14 @@ BEGIN
 	OLD.device_id				:= _o.device_id;
 	OLD.component_id				:= _o.component_id;
 
-	OLD.data_del_user 			:= _o.data_del_user;
-	OLD.data_del_date 			:= _o.data_del_date;
+	OLD.data_ins_user 			:= _o.data_ins_user;
+	OLD.data_ins_date 			:= _o.data_ins_date;
 	OLD.data_upd_user 			:= _o.data_upd_user;
 	OLD.data_upd_date 			:= _o.data_upd_date;
 
 	IF OLD.logical_volume_id IS NOT NULL AND _o.component_id IS NOT NULL THEN
 		DELETE FROM virtual_component_logical_volume
-		WHERE component_id = _o.compnent_id
+		WHERE component_id = _o.component_id
 		RETURNING logical_volume_id INTO OLD.logical_volume_id;
 
 		OLD.component_id := NULL;
@@ -15074,6 +16435,11 @@ BEGIN
 			AND is_virtual_component
 			ORDER BY component_type_id lIMIT 1
 		RETURNING * INTO _c;
+
+		IF NOT FOUND THEN
+			RAISE EXCEPTION 'Virtual Disk Component Not Found'
+				USING ERRCODE = 'invalid_parameter_value';
+		END IF;
 
 		_cid := _c.component_id;
 
@@ -16119,6 +17485,101 @@ EXCEPTION WHEN undefined_table THEN
 END;
 $$;
 
+--- about to process v_device_component_summary in set 1
+--------------------------------------------------------------------
+-- BEGIN: DEALING WITH TABLE v_device_component_summary
+-- Save grants for later reapplication
+SELECT schema_support.save_grants_for_replay('jazzhands', 'v_device_component_summary', 'v_device_component_summary');
+SELECT schema_support.save_dependent_objects_for_replay(schema := 'jazzhands', object := 'v_device_component_summary', tags := ARRAY['view_v_device_component_summary']);
+-- restore any missing random views that may be cached that this one needs.
+SELECT schema_support.replay_object_recreates(schema := 'jazzhands', object := 'v_device_components', type := 'view');
+DROP VIEW IF EXISTS jazzhands.v_device_component_summary;
+CREATE VIEW jazzhands.v_device_component_summary AS
+ WITH cs AS (
+         SELECT dc.device_id,
+            count(*) FILTER (WHERE cp.component_property_type::text = 'CPU'::text AND cp.component_property_name::text = 'ProcessorCores'::text) AS cpu_count,
+            sum(cp.property_value::bigint) FILTER (WHERE cp.component_property_type::text = 'CPU'::text AND cp.component_property_name::text = 'ProcessorCores'::text) AS core_count,
+            count(*) FILTER (WHERE cp.component_property_type::text = 'memory'::text AND cp.component_property_name::text = 'MemorySize'::text) AS memory_count,
+            sum(cp.property_value::bigint) FILTER (WHERE cp.component_property_type::text = 'memory'::text AND cp.component_property_name::text = 'MemorySize'::text) AS total_memory,
+            count(*) FILTER (WHERE cp.component_property_type::text = 'disk'::text AND cp.component_property_name::text = 'DiskSize'::text) AS disk_count,
+            ceil(sum(cp.property_value::bigint) FILTER (WHERE cp.component_property_type::text = 'disk'::text AND cp.component_property_name::text = 'DiskSize'::text) / 1073741824::numeric) AS total_disk
+           FROM jazzhands.v_device_components dc
+             JOIN jazzhands.component c USING (component_id)
+             JOIN jazzhands.component_property cp USING (component_type_id)
+          GROUP BY dc.device_id
+        ), cm AS (
+         SELECT DISTINCT dc.device_id,
+            ct.model AS cpu_model
+           FROM jazzhands.v_device_components dc
+             JOIN jazzhands.component c USING (component_id)
+             JOIN jazzhands.component_type ct USING (component_type_id)
+             JOIN jazzhands.component_type_component_function ctcf USING (component_type_id)
+          WHERE ctcf.component_function::text = 'CPU'::text
+        )
+ SELECT cs.device_id,
+    cm.cpu_model,
+    cs.cpu_count,
+    cs.core_count,
+    cs.memory_count,
+    cs.total_memory,
+    cs.disk_count,
+    cs.total_disk
+   FROM cm
+     JOIN cs USING (device_id);
+
+DO $$
+BEGIN
+	DELETE FROM __recreate WHERE schema = 'jazzhands' AND type = 'view' AND object IN ('v_device_component_summary','v_device_component_summary');
+EXCEPTION WHEN undefined_table THEN
+	RAISE NOTICE 'Drop of v_device_component_summary failed but that is ok';
+	NULL;
+END;
+$$;
+
+-- just in case
+SELECT schema_support.prepare_for_object_replay();
+
+-- PRIMARY AND ALTERNATE KEYS
+
+-- Table/Column Comments
+-- INDEXES
+
+-- CHECK CONSTRAINTS
+
+-- FOREIGN KEYS FROM
+
+-- FOREIGN KEYS TO
+
+-- TRIGGERS
+DO $$
+BEGIN
+		DELETE FROM __recreate WHERE schema = 'jazzhands' AND object IN ('v_device_component_summary');
+	EXCEPTION WHEN undefined_table THEN
+		RAISE NOTICE 'Drop of triggers for v_device_component_summary  failed but that is ok';
+		NULL;
+END;
+$$;
+
+-- DONE DEALING WITH TABLE v_device_component_summary (jazzhands)
+--------------------------------------------------------------------
+DO $$
+BEGIN
+	DELETE FROM __recreate WHERE schema IN ('jazzhands', 'jazzhands_audit') AND object IN ('v_device_component_summary');
+EXCEPTION WHEN undefined_table THEN
+	RAISE NOTICE 'Removal of old v_device_component_summary failed but that is ok';
+	NULL;
+END;
+$$;
+
+DO $$
+BEGIN
+	DELETE FROM __recreate WHERE schema IN ('jazzhands', 'jazzhands_audit') AND object IN ('v_device_component_summary');
+EXCEPTION WHEN undefined_table THEN
+	RAISE NOTICE 'Removal of new v_device_component_summary failed but that is ok';
+	NULL;
+END;
+$$;
+
 --- about to process v_hotpants_device_collection in set 1
 --------------------------------------------------------------------
 -- BEGIN: DEALING WITH TABLE v_hotpants_device_collection
@@ -16608,7 +18069,8 @@ CREATE VIEW jazzhands.val_physicalish_volume_type AS
     val_block_storage_device_type.data_ins_date,
     val_block_storage_device_type.data_upd_user,
     val_block_storage_device_type.data_upd_date
-   FROM jazzhands.val_block_storage_device_type;
+   FROM jazzhands.val_block_storage_device_type
+  WHERE val_block_storage_device_type.block_storage_device_type::text <> ALL (ARRAY['disk partition'::character varying, 'ZFS filesystem'::character varying, 'ZFS volume'::character varying, 'LVM volume'::character varying, 'encrypted_block_storage_device'::character varying]::text[]);
 
 DO $$
 BEGIN
@@ -18445,14 +19907,14 @@ BEGIN
 	OLD.device_id				:= _o.device_id;
 	OLD.component_id				:= _o.component_id;
 
-	OLD.data_del_user 			:= _o.data_del_user;
-	OLD.data_del_date 			:= _o.data_del_date;
+	OLD.data_ins_user 			:= _o.data_ins_user;
+	OLD.data_ins_date 			:= _o.data_ins_date;
 	OLD.data_upd_user 			:= _o.data_upd_user;
 	OLD.data_upd_date 			:= _o.data_upd_date;
 
 	IF OLD.logical_volume_id IS NOT NULL AND _o.component_id IS NOT NULL THEN
 		DELETE FROM virtual_component_logical_volume
-		WHERE component_id = _o.compnent_id
+		WHERE component_id = _o.component_id
 		RETURNING logical_volume_id INTO OLD.logical_volume_id;
 
 		OLD.component_id := NULL;
@@ -18488,6 +19950,11 @@ BEGIN
 			AND is_virtual_component
 			ORDER BY component_type_id lIMIT 1
 		RETURNING * INTO _c;
+
+		IF NOT FOUND THEN
+			RAISE EXCEPTION 'Virtual Disk Component Not Found'
+				USING ERRCODE = 'invalid_parameter_value';
+		END IF;
 
 		_cid := _c.component_id;
 
@@ -19178,7 +20645,7 @@ CREATE INDEX aud_device_ak_device_id_site_virtual_name
 	ON jazzhands_audit.device USING btree (device_id, device_name, site_code, is_virtual_device);
 
 DROP INDEX IF EXISTS xifservice_instance_device_device_id;
-CREATE INDEX xifservice_instance_device_device_id 
+CREATE INDEX xifservice_instance_device_device_id
 	ON jazzhands.service_instance USING btree (device_id);
 
 COMMENT ON COLUMN jazzhands.logical_volume_property.filesystem_type IS NULL;
@@ -19286,6 +20753,86 @@ BEGIN
 	DELETE FROM __recreate WHERE schema IN ('jazzhands_legacy', 'jazzhands_audit') AND object IN ('component');
 EXCEPTION WHEN undefined_table THEN
 	RAISE NOTICE 'Removal of new component failed but that is ok';
+	NULL;
+END;
+$$;
+
+--- processing view component_property in ancilary schema
+--------------------------------------------------------------------
+-- BEGIN: DEALING WITH TABLE component_property
+-- Save grants for later reapplication
+SELECT schema_support.save_grants_for_replay('jazzhands_legacy', 'component_property', 'component_property');
+SELECT schema_support.save_dependent_objects_for_replay(schema := 'jazzhands_legacy', object := 'component_property', tags := ARRAY['view_component_property']);
+-- restore any missing random views that may be cached that this one needs.
+DROP VIEW IF EXISTS jazzhands_legacy.component_property;
+CREATE VIEW jazzhands_legacy.component_property AS
+ SELECT component_property.component_property_id,
+    component_property.component_function,
+    component_property.component_type_id,
+    component_property.component_id,
+    component_property.inter_component_connection_id,
+    component_property.slot_function,
+    component_property.slot_type_id,
+    component_property.slot_id,
+    component_property.component_property_name,
+    component_property.component_property_type,
+    component_property.property_value,
+    component_property.data_ins_user,
+    component_property.data_ins_date,
+    component_property.data_upd_user,
+    component_property.data_upd_date
+   FROM jazzhands.component_property
+  WHERE component_property.component_property_type::text <> 'storage'::text AND component_property.component_property_name::text <> 'SCSI_Id'::text;
+
+DO $$
+BEGIN
+	DELETE FROM __recreate WHERE schema = 'jazzhands_legacy' AND type = 'view' AND object IN ('component_property','component_property');
+EXCEPTION WHEN undefined_table THEN
+	RAISE NOTICE 'Drop of component_property failed but that is ok';
+	NULL;
+END;
+$$;
+
+-- just in case
+SELECT schema_support.prepare_for_object_replay();
+
+-- PRIMARY AND ALTERNATE KEYS
+
+-- Table/Column Comments
+-- INDEXES
+
+-- CHECK CONSTRAINTS
+
+-- FOREIGN KEYS FROM
+
+-- FOREIGN KEYS TO
+
+-- TRIGGERS
+DO $$
+BEGIN
+		DELETE FROM __recreate WHERE schema = 'jazzhands_legacy' AND object IN ('component_property');
+	EXCEPTION WHEN undefined_table THEN
+		RAISE NOTICE 'Drop of triggers for component_property  failed but that is ok';
+		NULL;
+END;
+$$;
+
+-- DONE DEALING WITH TABLE component_property (jazzhands_legacy)
+--------------------------------------------------------------------
+DO $$
+BEGIN
+	DELETE FROM __recreate WHERE schema IN ('jazzhands_legacy', 'jazzhands_audit') AND object IN ('component_property');
+EXCEPTION WHEN undefined_table THEN
+	RAISE NOTICE 'Removal of old component_property failed but that is ok';
+	NULL;
+END;
+$$;
+
+DO $$
+BEGIN
+	DELETE FROM __recreate WHERE schema IN ('jazzhands_legacy', 'jazzhands_audit') AND object IN ('component_property');
+EXCEPTION WHEN undefined_table THEN
+	RAISE NOTICE 'Removal of new component_property failed but that is ok';
 	NULL;
 END;
 $$;
@@ -20207,6 +21754,200 @@ EXCEPTION WHEN undefined_table THEN
 END;
 $$;
 
+--- processing view v_device_component_summary in ancilary schema
+--------------------------------------------------------------------
+-- BEGIN: DEALING WITH TABLE v_device_component_summary
+-- Save grants for later reapplication
+SELECT schema_support.save_grants_for_replay('jazzhands_legacy', 'v_device_component_summary', 'v_device_component_summary');
+SELECT schema_support.save_dependent_objects_for_replay(schema := 'jazzhands_legacy', object := 'v_device_component_summary', tags := ARRAY['view_v_device_component_summary']);
+-- restore any missing random views that may be cached that this one needs.
+SELECT schema_support.replay_object_recreates(schema := 'jazzhands', object := 'v_device_component_summary', type := 'view');
+SELECT schema_support.replay_object_recreates(schema := 'jazzhands', object := 'v_device_components', type := 'view');
+DROP VIEW IF EXISTS jazzhands_legacy.v_device_component_summary;
+CREATE VIEW jazzhands_legacy.v_device_component_summary AS
+ SELECT v_device_component_summary.device_id,
+    v_device_component_summary.cpu_model,
+    v_device_component_summary.cpu_count,
+    v_device_component_summary.core_count,
+    v_device_component_summary.memory_count,
+    v_device_component_summary.total_memory,
+    v_device_component_summary.disk_count,
+    v_device_component_summary.total_disk || 'G'::text AS total_disk
+   FROM jazzhands.v_device_component_summary;
+
+DO $$
+BEGIN
+	DELETE FROM __recreate WHERE schema = 'jazzhands_legacy' AND type = 'view' AND object IN ('v_device_component_summary','v_device_component_summary');
+EXCEPTION WHEN undefined_table THEN
+	RAISE NOTICE 'Drop of v_device_component_summary failed but that is ok';
+	NULL;
+END;
+$$;
+
+-- just in case
+SELECT schema_support.prepare_for_object_replay();
+
+-- PRIMARY AND ALTERNATE KEYS
+
+-- Table/Column Comments
+-- INDEXES
+
+-- CHECK CONSTRAINTS
+
+-- FOREIGN KEYS FROM
+
+-- FOREIGN KEYS TO
+
+-- TRIGGERS
+DO $$
+BEGIN
+		DELETE FROM __recreate WHERE schema = 'jazzhands_legacy' AND object IN ('v_device_component_summary');
+	EXCEPTION WHEN undefined_table THEN
+		RAISE NOTICE 'Drop of triggers for v_device_component_summary  failed but that is ok';
+		NULL;
+END;
+$$;
+
+-- DONE DEALING WITH TABLE v_device_component_summary (jazzhands_legacy)
+--------------------------------------------------------------------
+DO $$
+BEGIN
+	DELETE FROM __recreate WHERE schema IN ('jazzhands_legacy', 'jazzhands_audit') AND object IN ('v_device_component_summary');
+EXCEPTION WHEN undefined_table THEN
+	RAISE NOTICE 'Removal of old v_device_component_summary failed but that is ok';
+	NULL;
+END;
+$$;
+
+DO $$
+BEGIN
+	DELETE FROM __recreate WHERE schema IN ('jazzhands_legacy', 'jazzhands_audit') AND object IN ('v_device_component_summary');
+EXCEPTION WHEN undefined_table THEN
+	RAISE NOTICE 'Removal of new v_device_component_summary failed but that is ok';
+	NULL;
+END;
+$$;
+
+--- processing view v_device_components_json in ancilary schema
+--------------------------------------------------------------------
+-- BEGIN: DEALING WITH TABLE v_device_components_json
+-- Save grants for later reapplication
+SELECT schema_support.save_grants_for_replay('jazzhands_legacy', 'v_device_components_json', 'v_device_components_json');
+SELECT schema_support.save_dependent_objects_for_replay(schema := 'jazzhands_legacy', object := 'v_device_components_json', tags := ARRAY['view_v_device_components_json']);
+-- restore any missing random views that may be cached that this one needs.
+SELECT schema_support.replay_object_recreates(schema := 'jazzhands_legacy', object := 'component_type_component_func', type := 'view');
+SELECT schema_support.replay_object_recreates(schema := 'jazzhands', object := 'v_device_components', type := 'view');
+SELECT schema_support.replay_object_recreates(schema := 'jazzhands_legacy', object := 'v_device_components', type := 'view');
+DROP VIEW IF EXISTS jazzhands_legacy.v_device_components_json;
+CREATE VIEW jazzhands_legacy.v_device_components_json AS
+ WITH ctf AS (
+         SELECT ctcf.component_type_id,
+            array_agg(ctcf.component_function ORDER BY ctcf.component_function) AS functions
+           FROM jazzhands_legacy.component_type_component_func ctcf
+          GROUP BY ctcf.component_type_id
+        ), cpu_info AS (
+         SELECT c.component_id,
+            jsonb_build_object('component_id', c.component_id, 'component_type_id', c.component_type_id, 'company_name', comp.company_name, 'model', ct.model, 'core_count', pc.property_value::bigint, 'processor_speed', ps.property_value, 'component_function', 'CPU') AS component_json
+           FROM jazzhands.component c
+             JOIN jazzhands.component_type ct USING (component_type_id)
+             JOIN jazzhands.component_type_component_function ctcf USING (component_type_id)
+             JOIN jazzhands.component_property pc ON ct.component_type_id = pc.component_type_id AND pc.component_property_name::text = 'ProcessorCores'::text AND pc.component_property_type::text = 'CPU'::text
+             JOIN jazzhands.component_property ps ON ct.component_type_id = ps.component_type_id AND ps.component_property_name::text = 'ProcessorSpeed'::text AND ps.component_property_type::text = 'CPU'::text
+             LEFT JOIN jazzhands.company comp USING (company_id)
+          WHERE ctcf.component_function::text = 'CPU'::text
+        ), disk_info AS (
+         SELECT c.component_id,
+            jsonb_build_object('component_id', c.component_id, 'component_type_id', c.component_type_id, 'company_name', comp.company_name, 'model', ct.model, 'serial_number', a.serial_number, 'size_bytes', ds.property_value::bigint, 'size', ceil(ds.property_value::bigint::numeric / 1073741824::numeric) || 'G'::text, 'protocol', dp.property_value, 'media_type', mt.property_value, 'component_function', 'disk') AS component_json
+           FROM jazzhands.component c
+             JOIN jazzhands.component_type ct USING (component_type_id)
+             JOIN jazzhands.component_type_component_function ctcf USING (component_type_id)
+             LEFT JOIN jazzhands.asset a USING (component_id)
+             JOIN jazzhands.component_property ds ON ct.component_type_id = ds.component_type_id AND ds.component_property_name::text = 'DiskSize'::text AND ds.component_property_type::text = 'disk'::text
+             JOIN jazzhands.component_property dp ON ct.component_type_id = dp.component_type_id AND dp.component_property_name::text = 'DiskProtocol'::text AND dp.component_property_type::text = 'disk'::text
+             JOIN jazzhands.component_property mt ON ct.component_type_id = mt.component_type_id AND mt.component_property_name::text = 'MediaType'::text AND mt.component_property_type::text = 'disk'::text
+             LEFT JOIN jazzhands.company comp USING (company_id)
+          WHERE ctcf.component_function::text = 'disk'::text
+        ), memory_info AS (
+         SELECT c.component_id,
+            jsonb_build_object('component_id', c.component_id, 'component_type_id', c.component_type_id, 'company_name', comp.company_name, 'model', ct.model, 'serial_number', a.serial_number, 'size', msize.property_value::bigint, 'speed', mspeed.property_value, 'component_function', 'memory') AS component_json
+           FROM jazzhands.component c
+             JOIN jazzhands.component_type ct USING (component_type_id)
+             JOIN jazzhands.component_type_component_function ctcf USING (component_type_id)
+             LEFT JOIN jazzhands.asset a USING (component_id)
+             JOIN jazzhands.component_property msize ON ct.component_type_id = msize.component_type_id AND msize.component_property_name::text = 'MemorySize'::text AND msize.component_property_type::text = 'memory'::text
+             JOIN jazzhands.component_property mspeed ON ct.component_type_id = mspeed.component_type_id AND mspeed.component_property_name::text = 'MemorySpeed'::text AND mspeed.component_property_type::text = 'memory'::text
+             LEFT JOIN jazzhands.company comp USING (company_id)
+          WHERE ctcf.component_function::text = 'memory'::text
+        )
+ SELECT dc.device_id,
+    jsonb_agg(x.component_json) AS components
+   FROM jazzhands_legacy.v_device_components dc
+     JOIN ( SELECT cpu_info.component_id,
+            cpu_info.component_json
+           FROM cpu_info
+        UNION
+         SELECT disk_info.component_id,
+            disk_info.component_json
+           FROM disk_info
+        UNION
+         SELECT memory_info.component_id,
+            memory_info.component_json
+           FROM memory_info) x USING (component_id)
+  GROUP BY dc.device_id;
+
+DO $$
+BEGIN
+	DELETE FROM __recreate WHERE schema = 'jazzhands_legacy' AND type = 'view' AND object IN ('v_device_components_json','v_device_components_json');
+EXCEPTION WHEN undefined_table THEN
+	RAISE NOTICE 'Drop of v_device_components_json failed but that is ok';
+	NULL;
+END;
+$$;
+
+-- just in case
+SELECT schema_support.prepare_for_object_replay();
+
+-- PRIMARY AND ALTERNATE KEYS
+
+-- Table/Column Comments
+-- INDEXES
+
+-- CHECK CONSTRAINTS
+
+-- FOREIGN KEYS FROM
+
+-- FOREIGN KEYS TO
+
+-- TRIGGERS
+DO $$
+BEGIN
+		DELETE FROM __recreate WHERE schema = 'jazzhands_legacy' AND object IN ('v_device_components_json');
+	EXCEPTION WHEN undefined_table THEN
+		RAISE NOTICE 'Drop of triggers for v_device_components_json  failed but that is ok';
+		NULL;
+END;
+$$;
+
+-- DONE DEALING WITH TABLE v_device_components_json (jazzhands_legacy)
+--------------------------------------------------------------------
+DO $$
+BEGIN
+	DELETE FROM __recreate WHERE schema IN ('jazzhands_legacy', 'jazzhands_audit') AND object IN ('v_device_components_json');
+EXCEPTION WHEN undefined_table THEN
+	RAISE NOTICE 'Removal of old v_device_components_json failed but that is ok';
+	NULL;
+END;
+$$;
+
+DO $$
+BEGIN
+	DELETE FROM __recreate WHERE schema IN ('jazzhands_legacy', 'jazzhands_audit') AND object IN ('v_device_components_json');
+EXCEPTION WHEN undefined_table THEN
+	RAISE NOTICE 'Removal of new v_device_components_json failed but that is ok';
+	NULL;
+END;
+$$;
+
 --- processing view v_dns_changes_pending in ancilary schema
 --------------------------------------------------------------------
 -- BEGIN: DEALING WITH TABLE v_dns_changes_pending
@@ -20557,6 +22298,400 @@ EXCEPTION WHEN undefined_table THEN
 END;
 $$;
 
+--- processing view val_component_property in ancilary schema
+--------------------------------------------------------------------
+-- BEGIN: DEALING WITH TABLE val_component_property
+-- Save grants for later reapplication
+SELECT schema_support.save_grants_for_replay('jazzhands_legacy', 'val_component_property', 'val_component_property');
+SELECT schema_support.save_dependent_objects_for_replay(schema := 'jazzhands_legacy', object := 'val_component_property', tags := ARRAY['view_val_component_property']);
+-- restore any missing random views that may be cached that this one needs.
+DROP VIEW IF EXISTS jazzhands_legacy.val_component_property;
+CREATE VIEW jazzhands_legacy.val_component_property AS
+ SELECT val_component_property.component_property_name,
+    val_component_property.component_property_type,
+    val_component_property.description,
+        CASE
+            WHEN val_component_property.is_multivalue IS NULL THEN NULL::text
+            WHEN val_component_property.is_multivalue = true THEN 'Y'::text
+            WHEN val_component_property.is_multivalue = false THEN 'N'::text
+            ELSE NULL::text
+        END AS is_multivalue,
+    val_component_property.property_data_type,
+    val_component_property.permit_component_type_id,
+    val_component_property.required_component_type_id,
+    val_component_property.permit_component_function,
+    val_component_property.required_component_function,
+    val_component_property.permit_component_id,
+    val_component_property.permit_inter_component_connection_id AS permit_intcomp_conn_id,
+    val_component_property.permit_slot_type_id,
+    val_component_property.required_slot_type_id,
+    val_component_property.permit_slot_function,
+    val_component_property.required_slot_function,
+    val_component_property.permit_slot_id,
+    val_component_property.data_ins_user,
+    val_component_property.data_ins_date,
+    val_component_property.data_upd_user,
+    val_component_property.data_upd_date
+   FROM jazzhands.val_component_property
+  WHERE val_component_property.component_property_type::text <> 'storage'::text AND val_component_property.component_property_name::text <> 'SCSI_Id'::text;
+
+DO $$
+BEGIN
+	DELETE FROM __recreate WHERE schema = 'jazzhands_legacy' AND type = 'view' AND object IN ('val_component_property','val_component_property');
+EXCEPTION WHEN undefined_table THEN
+	RAISE NOTICE 'Drop of val_component_property failed but that is ok';
+	NULL;
+END;
+$$;
+
+-- just in case
+SELECT schema_support.prepare_for_object_replay();
+ALTER TABLE jazzhands_legacy.val_component_property
+	ALTER permit_component_type_id
+	SET DEFAULT 'PROHIBITED'::bpchar;
+ALTER TABLE jazzhands_legacy.val_component_property
+	ALTER permit_component_function
+	SET DEFAULT 'PROHIBITED'::bpchar;
+ALTER TABLE jazzhands_legacy.val_component_property
+	ALTER permit_component_id
+	SET DEFAULT 'PROHIBITED'::bpchar;
+ALTER TABLE jazzhands_legacy.val_component_property
+	ALTER permit_intcomp_conn_id
+	SET DEFAULT 'PROHIBITED'::bpchar;
+ALTER TABLE jazzhands_legacy.val_component_property
+	ALTER permit_slot_type_id
+	SET DEFAULT 'PROHIBITED'::bpchar;
+ALTER TABLE jazzhands_legacy.val_component_property
+	ALTER permit_slot_function
+	SET DEFAULT 'PROHIBITED'::bpchar;
+ALTER TABLE jazzhands_legacy.val_component_property
+	ALTER permit_slot_id
+	SET DEFAULT 'PROHIBITED'::bpchar;
+
+-- PRIMARY AND ALTERNATE KEYS
+
+-- Table/Column Comments
+-- INDEXES
+
+-- CHECK CONSTRAINTS
+
+-- FOREIGN KEYS FROM
+
+-- FOREIGN KEYS TO
+
+-- TRIGGERS
+-- considering NEW jazzhands_legacy.val_component_property_del
+CREATE OR REPLACE FUNCTION jazzhands_legacy.val_component_property_del()
+ RETURNS trigger
+ LANGUAGE plpgsql
+ SECURITY DEFINER
+ SET search_path TO 'jazzhands'
+AS $function$
+DECLARE
+	_or	jazzhands.val_component_property%rowtype;
+BEGIN
+	DELETE FROM jazzhands.val_component_property
+	WHERE  component_property_name = OLD.component_property_name  AND  component_property_type = OLD.component_property_type  RETURNING *
+	INTO _or;
+	OLD.component_property_name = _or.component_property_name;
+	OLD.component_property_type = _or.component_property_type;
+	OLD.description = _or.description;
+	OLD.is_multivalue = CASE WHEN _or.is_multivalue = true THEN 'Y' WHEN _or.is_multivalue = false THEN 'N' ELSE NULL END;
+	OLD.property_data_type = _or.property_data_type;
+	OLD.permit_component_type_id = _or.permit_component_type_id;
+	OLD.required_component_type_id = _or.required_component_type_id;
+	OLD.permit_component_function = _or.permit_component_function;
+	OLD.required_component_function = _or.required_component_function;
+	OLD.permit_component_id = _or.permit_component_id;
+	OLD.permit_intcomp_conn_id = _or.permit_inter_component_connection_id;
+	OLD.permit_slot_type_id = _or.permit_slot_type_id;
+	OLD.required_slot_type_id = _or.required_slot_type_id;
+	OLD.permit_slot_function = _or.permit_slot_function;
+	OLD.required_slot_function = _or.required_slot_function;
+	OLD.permit_slot_id = _or.permit_slot_id;
+	OLD.data_ins_user = _or.data_ins_user;
+	OLD.data_ins_date = _or.data_ins_date;
+	OLD.data_upd_user = _or.data_upd_user;
+	OLD.data_upd_date = _or.data_upd_date;
+	RETURN OLD;
+END;
+$function$
+;
+REVOKE ALL ON FUNCTION jazzhands_legacy.val_component_property_del() FROM public;
+CREATE TRIGGER trigger_val_component_property_del INSTEAD OF DELETE ON jazzhands_legacy.val_component_property FOR EACH ROW EXECUTE FUNCTION jazzhands_legacy.val_component_property_del();
+
+-- considering NEW jazzhands_legacy.val_component_property_ins
+CREATE OR REPLACE FUNCTION jazzhands_legacy.val_component_property_ins()
+ RETURNS trigger
+ LANGUAGE plpgsql
+ SECURITY DEFINER
+ SET search_path TO 'jazzhands'
+AS $function$
+DECLARE
+	_cq	text[];
+	_vq	text[];
+	_nr	jazzhands.val_component_property%rowtype;
+BEGIN
+
+	IF NEW.component_property_name IS NOT NULL THEN
+		_cq := array_append(_cq, quote_ident('component_property_name'));
+		_vq := array_append(_vq, quote_nullable(NEW.component_property_name));
+	END IF;
+
+	IF NEW.component_property_type IS NOT NULL THEN
+		_cq := array_append(_cq, quote_ident('component_property_type'));
+		_vq := array_append(_vq, quote_nullable(NEW.component_property_type));
+	END IF;
+
+	IF NEW.description IS NOT NULL THEN
+		_cq := array_append(_cq, quote_ident('description'));
+		_vq := array_append(_vq, quote_nullable(NEW.description));
+	END IF;
+
+	IF NEW.is_multivalue IS NOT NULL THEN
+		_cq := array_append(_cq, quote_ident('is_multivalue'));
+		_vq := array_append(_vq, quote_nullable(CASE WHEN NEW.is_multivalue = 'Y' THEN true WHEN NEW.is_multivalue = 'N' THEN false ELSE NULL END));
+	END IF;
+
+	IF NEW.property_data_type IS NOT NULL THEN
+		_cq := array_append(_cq, quote_ident('property_data_type'));
+		_vq := array_append(_vq, quote_nullable(NEW.property_data_type));
+	END IF;
+
+	IF NEW.permit_component_type_id IS NOT NULL THEN
+		_cq := array_append(_cq, quote_ident('permit_component_type_id'));
+		_vq := array_append(_vq, quote_nullable(NEW.permit_component_type_id));
+	END IF;
+
+	IF NEW.required_component_type_id IS NOT NULL THEN
+		_cq := array_append(_cq, quote_ident('required_component_type_id'));
+		_vq := array_append(_vq, quote_nullable(NEW.required_component_type_id));
+	END IF;
+
+	IF NEW.permit_component_function IS NOT NULL THEN
+		_cq := array_append(_cq, quote_ident('permit_component_function'));
+		_vq := array_append(_vq, quote_nullable(NEW.permit_component_function));
+	END IF;
+
+	IF NEW.required_component_function IS NOT NULL THEN
+		_cq := array_append(_cq, quote_ident('required_component_function'));
+		_vq := array_append(_vq, quote_nullable(NEW.required_component_function));
+	END IF;
+
+	IF NEW.permit_component_id IS NOT NULL THEN
+		_cq := array_append(_cq, quote_ident('permit_component_id'));
+		_vq := array_append(_vq, quote_nullable(NEW.permit_component_id));
+	END IF;
+
+	IF NEW.permit_intcomp_conn_id IS NOT NULL THEN
+		_cq := array_append(_cq, quote_ident('permit_inter_component_connection_id'));
+		_vq := array_append(_vq, quote_nullable(NEW.permit_intcomp_conn_id));
+	END IF;
+
+	IF NEW.permit_slot_type_id IS NOT NULL THEN
+		_cq := array_append(_cq, quote_ident('permit_slot_type_id'));
+		_vq := array_append(_vq, quote_nullable(NEW.permit_slot_type_id));
+	END IF;
+
+	IF NEW.required_slot_type_id IS NOT NULL THEN
+		_cq := array_append(_cq, quote_ident('required_slot_type_id'));
+		_vq := array_append(_vq, quote_nullable(NEW.required_slot_type_id));
+	END IF;
+
+	IF NEW.permit_slot_function IS NOT NULL THEN
+		_cq := array_append(_cq, quote_ident('permit_slot_function'));
+		_vq := array_append(_vq, quote_nullable(NEW.permit_slot_function));
+	END IF;
+
+	IF NEW.required_slot_function IS NOT NULL THEN
+		_cq := array_append(_cq, quote_ident('required_slot_function'));
+		_vq := array_append(_vq, quote_nullable(NEW.required_slot_function));
+	END IF;
+
+	IF NEW.permit_slot_id IS NOT NULL THEN
+		_cq := array_append(_cq, quote_ident('permit_slot_id'));
+		_vq := array_append(_vq, quote_nullable(NEW.permit_slot_id));
+	END IF;
+
+	EXECUTE 'INSERT INTO jazzhands.val_component_property (' ||
+		array_to_string(_cq, ', ') ||
+		') VALUES ( ' ||
+		array_to_string(_vq, ', ') ||
+		') RETURNING *' INTO _nr;
+
+	NEW.component_property_name = _nr.component_property_name;
+	NEW.component_property_type = _nr.component_property_type;
+	NEW.description = _nr.description;
+	NEW.is_multivalue = CASE WHEN _nr.is_multivalue = true THEN 'Y' WHEN _nr.is_multivalue = false THEN 'N' ELSE NULL END;
+	NEW.property_data_type = _nr.property_data_type;
+	NEW.permit_component_type_id = _nr.permit_component_type_id;
+	NEW.required_component_type_id = _nr.required_component_type_id;
+	NEW.permit_component_function = _nr.permit_component_function;
+	NEW.required_component_function = _nr.required_component_function;
+	NEW.permit_component_id = _nr.permit_component_id;
+	NEW.permit_intcomp_conn_id = _nr.permit_inter_component_connection_id;
+	NEW.permit_slot_type_id = _nr.permit_slot_type_id;
+	NEW.required_slot_type_id = _nr.required_slot_type_id;
+	NEW.permit_slot_function = _nr.permit_slot_function;
+	NEW.required_slot_function = _nr.required_slot_function;
+	NEW.permit_slot_id = _nr.permit_slot_id;
+	NEW.data_ins_user = _nr.data_ins_user;
+	NEW.data_ins_date = _nr.data_ins_date;
+	NEW.data_upd_user = _nr.data_upd_user;
+	NEW.data_upd_date = _nr.data_upd_date;
+	RETURN NEW;
+END;
+$function$
+;
+REVOKE ALL ON FUNCTION jazzhands_legacy.val_component_property_ins() FROM public;
+CREATE TRIGGER trigger_val_component_property_ins INSTEAD OF INSERT ON jazzhands_legacy.val_component_property FOR EACH ROW EXECUTE FUNCTION jazzhands_legacy.val_component_property_ins();
+
+-- considering NEW jazzhands_legacy.val_component_property_upd
+CREATE OR REPLACE FUNCTION jazzhands_legacy.val_component_property_upd()
+ RETURNS trigger
+ LANGUAGE plpgsql
+ SECURITY DEFINER
+ SET search_path TO 'jazzhands'
+AS $function$
+DECLARE
+	_r	jazzhands_legacy.val_component_property%rowtype;
+	_nr	jazzhands.val_component_property%rowtype;
+	_uq	text[];
+BEGIN
+
+	IF OLD.component_property_name IS DISTINCT FROM NEW.component_property_name THEN
+_uq := array_append(_uq, 'component_property_name = ' || quote_nullable(NEW.component_property_name));
+	END IF;
+
+	IF OLD.component_property_type IS DISTINCT FROM NEW.component_property_type THEN
+_uq := array_append(_uq, 'component_property_type = ' || quote_nullable(NEW.component_property_type));
+	END IF;
+
+	IF OLD.description IS DISTINCT FROM NEW.description THEN
+_uq := array_append(_uq, 'description = ' || quote_nullable(NEW.description));
+	END IF;
+
+	IF OLD.is_multivalue IS DISTINCT FROM NEW.is_multivalue THEN
+IF NEW.is_multivalue = 'Y' THEN
+	_uq := array_append(_uq, 'is_multivalue = true');
+ELSIF NEW.is_multivalue = 'N' THEN
+	_uq := array_append(_uq, 'is_multivalue = false');
+ELSE
+	_uq := array_append(_uq, 'is_multivalue = NULL');
+END IF;
+	END IF;
+
+	IF OLD.property_data_type IS DISTINCT FROM NEW.property_data_type THEN
+_uq := array_append(_uq, 'property_data_type = ' || quote_nullable(NEW.property_data_type));
+	END IF;
+
+	IF OLD.permit_component_type_id IS DISTINCT FROM NEW.permit_component_type_id THEN
+_uq := array_append(_uq, 'permit_component_type_id = ' || quote_nullable(NEW.permit_component_type_id));
+	END IF;
+
+	IF OLD.required_component_type_id IS DISTINCT FROM NEW.required_component_type_id THEN
+_uq := array_append(_uq, 'required_component_type_id = ' || quote_nullable(NEW.required_component_type_id));
+	END IF;
+
+	IF OLD.permit_component_function IS DISTINCT FROM NEW.permit_component_function THEN
+_uq := array_append(_uq, 'permit_component_function = ' || quote_nullable(NEW.permit_component_function));
+	END IF;
+
+	IF OLD.required_component_function IS DISTINCT FROM NEW.required_component_function THEN
+_uq := array_append(_uq, 'required_component_function = ' || quote_nullable(NEW.required_component_function));
+	END IF;
+
+	IF OLD.permit_component_id IS DISTINCT FROM NEW.permit_component_id THEN
+_uq := array_append(_uq, 'permit_component_id = ' || quote_nullable(NEW.permit_component_id));
+	END IF;
+
+	IF OLD.permit_intcomp_conn_id IS DISTINCT FROM NEW.permit_intcomp_conn_id THEN
+_uq := array_append(_uq, 'permit_inter_component_connection_id = ' || quote_nullable(NEW.permit_intcomp_conn_id));
+	END IF;
+
+	IF OLD.permit_slot_type_id IS DISTINCT FROM NEW.permit_slot_type_id THEN
+_uq := array_append(_uq, 'permit_slot_type_id = ' || quote_nullable(NEW.permit_slot_type_id));
+	END IF;
+
+	IF OLD.required_slot_type_id IS DISTINCT FROM NEW.required_slot_type_id THEN
+_uq := array_append(_uq, 'required_slot_type_id = ' || quote_nullable(NEW.required_slot_type_id));
+	END IF;
+
+	IF OLD.permit_slot_function IS DISTINCT FROM NEW.permit_slot_function THEN
+_uq := array_append(_uq, 'permit_slot_function = ' || quote_nullable(NEW.permit_slot_function));
+	END IF;
+
+	IF OLD.required_slot_function IS DISTINCT FROM NEW.required_slot_function THEN
+_uq := array_append(_uq, 'required_slot_function = ' || quote_nullable(NEW.required_slot_function));
+	END IF;
+
+	IF OLD.permit_slot_id IS DISTINCT FROM NEW.permit_slot_id THEN
+_uq := array_append(_uq, 'permit_slot_id = ' || quote_nullable(NEW.permit_slot_id));
+	END IF;
+
+	IF _uq IS NOT NULL THEN
+		EXECUTE 'UPDATE jazzhands.val_component_property SET ' ||
+			array_to_string(_uq, ', ') ||
+			' WHERE  component_property_name = $1 AND  component_property_type = $2 RETURNING *'  USING OLD.component_property_name, OLD.component_property_type
+			INTO _nr;
+
+		NEW.component_property_name = _nr.component_property_name;
+		NEW.component_property_type = _nr.component_property_type;
+		NEW.description = _nr.description;
+		NEW.is_multivalue = CASE WHEN _nr.is_multivalue = true THEN 'Y' WHEN _nr.is_multivalue = false THEN 'N' ELSE NULL END;
+		NEW.property_data_type = _nr.property_data_type;
+		NEW.permit_component_type_id = _nr.permit_component_type_id;
+		NEW.required_component_type_id = _nr.required_component_type_id;
+		NEW.permit_component_function = _nr.permit_component_function;
+		NEW.required_component_function = _nr.required_component_function;
+		NEW.permit_component_id = _nr.permit_component_id;
+		NEW.permit_intcomp_conn_id = _nr.permit_inter_component_connection_id;
+		NEW.permit_slot_type_id = _nr.permit_slot_type_id;
+		NEW.required_slot_type_id = _nr.required_slot_type_id;
+		NEW.permit_slot_function = _nr.permit_slot_function;
+		NEW.required_slot_function = _nr.required_slot_function;
+		NEW.permit_slot_id = _nr.permit_slot_id;
+		NEW.data_ins_user = _nr.data_ins_user;
+		NEW.data_ins_date = _nr.data_ins_date;
+		NEW.data_upd_user = _nr.data_upd_user;
+		NEW.data_upd_date = _nr.data_upd_date;
+	END IF;
+	RETURN NEW;
+END;
+$function$
+;
+REVOKE ALL ON FUNCTION jazzhands_legacy.val_component_property_upd() FROM public;
+CREATE TRIGGER trigger_val_component_property_upd INSTEAD OF UPDATE ON jazzhands_legacy.val_component_property FOR EACH ROW EXECUTE FUNCTION jazzhands_legacy.val_component_property_upd();
+
+DO $$
+BEGIN
+		DELETE FROM __recreate WHERE schema = 'jazzhands_legacy' AND object IN ('val_component_property');
+	EXCEPTION WHEN undefined_table THEN
+		RAISE NOTICE 'Drop of triggers for val_component_property  failed but that is ok';
+		NULL;
+END;
+$$;
+
+-- DONE DEALING WITH TABLE val_component_property (jazzhands_legacy)
+--------------------------------------------------------------------
+DO $$
+BEGIN
+	DELETE FROM __recreate WHERE schema IN ('jazzhands_legacy', 'jazzhands_audit') AND object IN ('val_component_property');
+EXCEPTION WHEN undefined_table THEN
+	RAISE NOTICE 'Removal of old val_component_property failed but that is ok';
+	NULL;
+END;
+$$;
+
+DO $$
+BEGIN
+	DELETE FROM __recreate WHERE schema IN ('jazzhands_legacy', 'jazzhands_audit') AND object IN ('val_component_property');
+EXCEPTION WHEN undefined_table THEN
+	RAISE NOTICE 'Removal of new val_component_property failed but that is ok';
+	NULL;
+END;
+$$;
+
 --- processing view val_physicalish_volume_type in ancilary schema
 --------------------------------------------------------------------
 -- BEGIN: DEALING WITH TABLE val_physicalish_volume_type
@@ -20572,7 +22707,8 @@ CREATE VIEW jazzhands_legacy.val_physicalish_volume_type AS
     val_block_storage_device_type.data_ins_date,
     val_block_storage_device_type.data_upd_user,
     val_block_storage_device_type.data_upd_date
-   FROM jazzhands.val_block_storage_device_type;
+   FROM jazzhands.val_block_storage_device_type
+  WHERE val_block_storage_device_type.block_storage_device_type::text <> ALL (ARRAY['disk partition'::character varying, 'ZFS filesystem'::character varying, 'ZFS volume'::character varying, 'LVM volume'::character varying, 'encrypted_block_storage_device'::character varying]::text[]);
 
 DO $$
 BEGIN
@@ -21958,8 +24094,8 @@ SELECT schema_support.replay_object_recreates(schema := 'jazzhands_legacy', obje
 SELECT schema_support.replay_object_recreates(schema := 'jazzhands_legacy', object := 'v_acct_coll_prop_expanded', type := 'view');
 SELECT schema_support.replay_object_recreates(schema := 'jazzhands_legacy', object := 'v_device_coll_hier_detail', type := 'view');
 SELECT schema_support.replay_object_recreates(schema := 'jazzhands', object := 'v_property', type := 'view');
-SELECT schema_support.replay_object_recreates(schema := 'jazzhands', object := 'v_property', type := 'view');
 SELECT schema_support.replay_object_recreates(schema := 'jazzhands_legacy', object := 'v_property', type := 'view');
+SELECT schema_support.replay_object_recreates(schema := 'jazzhands', object := 'v_property', type := 'view');
 SELECT schema_support.replay_object_recreates(schema := 'jazzhands_legacy', object := 'v_property', type := 'view');
 SELECT schema_support.replay_object_recreates(schema := 'jazzhands_legacy', object := 'val_property', type := 'view');
 DROP VIEW IF EXISTS jazzhands_legacy.v_unix_account_overrides;
@@ -22443,8 +24579,8 @@ SELECT schema_support.replay_object_recreates(schema := 'jazzhands_legacy', obje
 SELECT schema_support.replay_object_recreates(schema := 'jazzhands_legacy', object := 'v_device_col_acct_col_unixlogin', type := 'view');
 SELECT schema_support.replay_object_recreates(schema := 'jazzhands_legacy', object := 'v_device_coll_hier_detail', type := 'view');
 SELECT schema_support.replay_object_recreates(schema := 'jazzhands', object := 'v_property', type := 'view');
-SELECT schema_support.replay_object_recreates(schema := 'jazzhands', object := 'v_property', type := 'view');
 SELECT schema_support.replay_object_recreates(schema := 'jazzhands_legacy', object := 'v_property', type := 'view');
+SELECT schema_support.replay_object_recreates(schema := 'jazzhands', object := 'v_property', type := 'view');
 SELECT schema_support.replay_object_recreates(schema := 'jazzhands_legacy', object := 'v_property', type := 'view');
 SELECT schema_support.replay_object_recreates(schema := 'jazzhands_legacy', object := 'v_unix_account_overrides', type := 'view');
 SELECT schema_support.replay_object_recreates(schema := 'jazzhands_legacy', object := 'val_property', type := 'view');
@@ -22545,8 +24681,8 @@ SELECT schema_support.replay_object_recreates(schema := 'jazzhands_legacy', obje
 SELECT schema_support.replay_object_recreates(schema := 'jazzhands_legacy', object := 'v_device_col_acct_col_unixgroup', type := 'view');
 SELECT schema_support.replay_object_recreates(schema := 'jazzhands_legacy', object := 'v_device_coll_hier_detail', type := 'view');
 SELECT schema_support.replay_object_recreates(schema := 'jazzhands', object := 'v_property', type := 'view');
-SELECT schema_support.replay_object_recreates(schema := 'jazzhands', object := 'v_property', type := 'view');
 SELECT schema_support.replay_object_recreates(schema := 'jazzhands_legacy', object := 'v_property', type := 'view');
+SELECT schema_support.replay_object_recreates(schema := 'jazzhands', object := 'v_property', type := 'view');
 SELECT schema_support.replay_object_recreates(schema := 'jazzhands_legacy', object := 'v_property', type := 'view');
 SELECT schema_support.replay_object_recreates(schema := 'jazzhands_legacy', object := 'v_unix_group_overrides', type := 'view');
 SELECT schema_support.replay_object_recreates(schema := 'jazzhands_legacy', object := 'val_property', type := 'view');
@@ -22755,12 +24891,12 @@ SELECT schema_support.replay_object_recreates(schema := 'jazzhands_legacy', obje
 SELECT schema_support.replay_object_recreates(schema := 'jazzhands', object := 'v_property', type := 'view');
 SELECT schema_support.replay_object_recreates(schema := 'jazzhands_legacy', object := 'v_property', type := 'view');
 SELECT schema_support.replay_object_recreates(schema := 'jazzhands', object := 'v_property', type := 'view');
-SELECT schema_support.replay_object_recreates(schema := 'jazzhands', object := 'v_property', type := 'view');
-SELECT schema_support.replay_object_recreates(schema := 'jazzhands_legacy', object := 'v_property', type := 'view');
 SELECT schema_support.replay_object_recreates(schema := 'jazzhands_legacy', object := 'v_property', type := 'view');
 SELECT schema_support.replay_object_recreates(schema := 'jazzhands', object := 'v_property', type := 'view');
+SELECT schema_support.replay_object_recreates(schema := 'jazzhands_legacy', object := 'v_property', type := 'view');
 SELECT schema_support.replay_object_recreates(schema := 'jazzhands', object := 'v_property', type := 'view');
 SELECT schema_support.replay_object_recreates(schema := 'jazzhands_legacy', object := 'v_property', type := 'view');
+SELECT schema_support.replay_object_recreates(schema := 'jazzhands', object := 'v_property', type := 'view');
 SELECT schema_support.replay_object_recreates(schema := 'jazzhands_legacy', object := 'v_unix_account_overrides', type := 'view');
 SELECT schema_support.replay_object_recreates(schema := 'jazzhands_legacy', object := 'v_unix_mclass_settings', type := 'view');
 SELECT schema_support.replay_object_recreates(schema := 'jazzhands_legacy', object := 'val_property', type := 'view');
@@ -23012,10 +25148,10 @@ SELECT schema_support.replay_object_recreates(schema := 'jazzhands_legacy', obje
 SELECT schema_support.replay_object_recreates(schema := 'jazzhands', object := 'v_property', type := 'view');
 SELECT schema_support.replay_object_recreates(schema := 'jazzhands_legacy', object := 'v_property', type := 'view');
 SELECT schema_support.replay_object_recreates(schema := 'jazzhands', object := 'v_property', type := 'view');
-SELECT schema_support.replay_object_recreates(schema := 'jazzhands', object := 'v_property', type := 'view');
 SELECT schema_support.replay_object_recreates(schema := 'jazzhands_legacy', object := 'v_property', type := 'view');
 SELECT schema_support.replay_object_recreates(schema := 'jazzhands', object := 'v_property', type := 'view');
 SELECT schema_support.replay_object_recreates(schema := 'jazzhands_legacy', object := 'v_property', type := 'view');
+SELECT schema_support.replay_object_recreates(schema := 'jazzhands', object := 'v_property', type := 'view');
 SELECT schema_support.replay_object_recreates(schema := 'jazzhands_legacy', object := 'v_unix_account_overrides', type := 'view');
 SELECT schema_support.replay_object_recreates(schema := 'jazzhands_legacy', object := 'v_unix_group_overrides', type := 'view');
 SELECT schema_support.replay_object_recreates(schema := 'jazzhands_legacy', object := 'v_unix_mclass_settings', type := 'view');
@@ -23578,8 +25714,8 @@ SELECT schema_support.save_dependent_objects_for_replay(schema := 'jazzhands_leg
 -- restore any missing random views that may be cached that this one needs.
 SELECT schema_support.replay_object_recreates(schema := 'jazzhands_legacy', object := 'logical_volume', type := 'view');
 SELECT schema_support.replay_object_recreates(schema := 'jazzhands', object := 'physicalish_volume', type := 'view');
-SELECT schema_support.replay_object_recreates(schema := 'jazzhands', object := 'physicalish_volume', type := 'view');
 SELECT schema_support.replay_object_recreates(schema := 'jazzhands_legacy', object := 'physicalish_volume', type := 'view');
+SELECT schema_support.replay_object_recreates(schema := 'jazzhands', object := 'physicalish_volume', type := 'view');
 SELECT schema_support.replay_object_recreates(schema := 'jazzhands_legacy', object := 'volume_group', type := 'view');
 SELECT schema_support.replay_object_recreates(schema := 'jazzhands_legacy', object := 'volume_group_physicalish_vol', type := 'view');
 DROP VIEW IF EXISTS jazzhands_legacy.v_lv_hier;
@@ -27469,6 +29605,18 @@ AND property_type = 'JazzHandsLegacySupport';
 
 SELECT property_utils.validate_val_property(v)
 FROM val_property v;
+
+/*
+
+ALTER TABLE logical_volume
+	ALTER COLUMN logical_volume_type
+		DROP DEFAULT;
+
+ */
+
+ALTER VIEW jazzhands_legacy.logical_volume
+	ALTER COLUMN logical_volume_type
+		SET DEFAULT 'legacy';
 
 /* remove me
 SELECT schema_support.rebuild_audit_indexes(
