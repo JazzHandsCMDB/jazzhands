@@ -1,4 +1,4 @@
--- Copyright (c) 2021 Todd M. Kover
+-- Copyright (c) 2021-2023 Todd M. Kover
 -- All rights reserved.
 --
 -- Licensed under the Apache License, Version 2.0 (the "License");
@@ -87,7 +87,8 @@ CREATE OR REPLACE FUNCTION service_manip.direct_connect_endpoint_to_device(
 	port_range_id			integer DEFAULT NULL,
 	dns_record_id			integer DEFAULT NULL,
 --
-	service_sla_id			integer DEFAULT NULL
+	service_sla_id			integer DEFAULT NULL,
+	is_primary			boolean DEFAULT true
 )
 RETURNS service_instance.service_instance_id%TYPE
 AS $$
@@ -199,10 +200,10 @@ BEGIN
 
 	INSERT INTO service_instance (
 		device_id,
-		service_version_id, service_environment_id
+		service_version_id, service_environment_id, is_primary
 	) VALUES (
 		_in_device_id,
-		_sv.service_version_id, service_environment_id
+		_sv.service_version_id, service_environment_id, is_primary
 	) RETURNING * INTO _si;
 
 	INSERT INTO service_endpoint_provider_service_instance (

@@ -1144,6 +1144,8 @@ CREATE OR REPLACE VIEW jazzhands_legacy.logical_volume AS
 SELECT logical_volume_id,logical_volume_name,logical_volume_type,volume_group_id,device_id,logical_volume_size_in_bytes,logical_volume_offset_in_bytes,filesystem_type,data_ins_user,data_ins_date,data_upd_user,data_upd_date
 FROM jazzhands.logical_volume;
 
+ALTER TABLE jazzhands_legacy.logical_volume ALTER logical_volume_type SET DEFAULT 'legacy';
+
 CREATE OR REPLACE VIEW jazzhands_legacy.logical_volume_property AS
 SELECT logical_volume_property_id,logical_volume_id,logical_volume_type,logical_volume_purpose,filesystem_type,logical_volume_property_name,logical_volume_property_value,data_ins_user,data_ins_date,data_upd_user,data_upd_date
 FROM jazzhands.logical_volume_property;

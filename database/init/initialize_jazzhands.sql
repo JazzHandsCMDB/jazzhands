@@ -2068,11 +2068,29 @@ values
 -------------------------------------------------------------------------
 -- logical volumes / disks
 
-INSERT INTO val_logical_volume_type (
-	logical_volume_type, description
-) VALUES (
-	'legacy', 'data that predates existance of this table'
-);
+INSERT INTO val_block_storage_device_encryption_system (
+	block_storage_device_encryption_system
+) VALUES
+	('LUKS'),
+	('VeraCrypt'),
+	('ZFS')
+;
+
+INSERT INTO val_block_storage_device_type (
+	block_storage_device_type, permit_logical_volume_id
+) VALUES
+	('disk partition', 'REQUIRED'),
+	('ZFS filesystem', 'REQUIRED'),
+	('ZFS volume', 'REQUIRED'),
+	('LVM volume', 'REQUIRED')
+;
+
+INSERT INTO val_block_storage_device_type (
+	block_storage_device_type, permit_encrypted_block_storage_device_id,
+	is_encrypted
+) VALUES
+	('encrypted_block_storage_device', 'REQUIRED', true)
+;
 
 INSERT INTO val_block_storage_device_encryption_system (
 	block_storage_device_encryption_system

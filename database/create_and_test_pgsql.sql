@@ -40,7 +40,7 @@ select timeofday(), now();
 -- only using if it if's there.  This being set to true will cause the
 -- process to die if the pl/perl bits are not configured right, any other
 -- setting will cause it to silently not do pl/perl things.
---
+-- 
 -- It is set here so that all the tests run with and without pl/perl.
 --
 \set global_failonnoplperl true
@@ -110,7 +110,10 @@ begin;
 \ir tests/pgsql/source_repository_triggers.sql
 \ir tests/pgsql/service_relationship_triggers.sql
 \ir tests/pgsql/service_manip_tests.sql
+\ir tests/pgsql/filesystem_logical_volume_tests.sql
 \ir tests/pgsql/storage_tests.sql
+\ir tests/pgsql/dns_child_zone_checks.sql
+\ir tests/pgsql/encryption_key_tests.sql
 
 \ir tests/pgsql/dns_domain_regression_test.sql
 -- \ir tests/pgsql/v_corp_family_account_trigger.sql
@@ -182,9 +185,5 @@ set search_path=jazzhands;
 rollback to preplperl;
 
 rollback;
-
--- rollback all sequence changes resulting from tests
-SELECT schema_support.reset_all_schema_table_sequences(schema := 'jazzhands_audit');
-SELECT schema_support.reset_all_schema_table_sequences(schema := 'jazzhands');
 
 select timeofday(), now();
