@@ -1815,12 +1815,10 @@ ALTER TABLE device
 	ADD CONSTRAINT ak_device_rack_location_id UNIQUE (rack_location_id);
 
 ALTER TABLE device
-	ADD CONSTRAINT ak_device_id_site UNIQUE (device_id,site_code)
-	DEFERRABLE  ;
+	ADD CONSTRAINT ak_device_id_site UNIQUE (device_id,site_code);
 
 ALTER TABLE device
-	ADD CONSTRAINT ak_device_id_site_virtual_name UNIQUE (device_id,device_name,site_code,is_virtual_device)
-	DEFERRABLE  ;
+	ADD CONSTRAINT ak_device_id_site_virtual_name UNIQUE (device_id,device_name,site_code,is_virtual_device);
 
 CREATE INDEX idx_device_type_location ON device
 ( 
@@ -2741,10 +2739,10 @@ ALTER TABLE encrypted_block_storage_device ALTER COLUMN encrypted_block_storage_
 CREATE TABLE encryption_key
 ( 
 	encryption_key_id    integer  NOT NULL ,
-	encryption_key_db_value varchar(255)  NOT NULL ,
 	encryption_key_purpose varchar(50)  NOT NULL ,
 	encryption_key_purpose_version integer  NOT NULL ,
 	encryption_method    character varying(50)  NOT NULL ,
+	encryption_key_db_value varchar(255)  NULL ,
 	external_id          varchar(255)  NULL 
 );
 
@@ -5457,12 +5455,10 @@ ALTER TABLE service
 	ADD CONSTRAINT pk_service PRIMARY KEY (service_id);
 
 ALTER TABLE service
-	ADD CONSTRAINT ak_service_id_active UNIQUE (service_id,is_active)
-	DEFERRABLE  ;
+	ADD CONSTRAINT ak_service_id_active UNIQUE (service_id,is_active);
 
 ALTER TABLE service
-	ADD CONSTRAINT ak_service_name_type UNIQUE (service_id,service_type)
-	DEFERRABLE  ;
+	ADD CONSTRAINT ak_service_name_type UNIQUE (service_id,service_type);
 
 CREATE INDEX xifservice_service_type ON service
 ( 
@@ -6040,6 +6036,7 @@ CREATE TABLE service_instance
 	device_id            integer  NOT NULL ,
 	service_version_id   integer  NOT NULL ,
 	service_environment_id integer  NOT NULL ,
+	is_primary           boolean  NOT NULL ,
 	netblock_id          integer  NULL 
 );
 
@@ -6364,8 +6361,7 @@ ALTER TABLE service_version
 	ADD CONSTRAINT ak_service_version_service_id_version_name UNIQUE (service_id,service_version_name);
 
 ALTER TABLE service_version
-	ADD CONSTRAINT ak_service_version_service_name_enabled UNIQUE (service_id,service_version_id,service_version_name,is_enabled)
-	DEFERRABLE  ;
+	ADD CONSTRAINT ak_service_version_service_name_enabled UNIQUE (service_id,service_version_id,service_version_name,is_enabled);
 
 CREATE INDEX xifservice_version_service_id ON service_version
 ( 
@@ -8711,6 +8707,7 @@ CREATE TABLE val_encryption_key_purpose
 ( 
 	encryption_key_purpose varchar(50)  NOT NULL ,
 	encryption_key_purpose_version integer  NOT NULL ,
+	permit_encryption_key_db_value char(10)  NOT NULL ,
 	external_id          varchar(255)  NULL ,
 	description          varchar(255)  NULL 
 );
@@ -10460,7 +10457,8 @@ ALTER TABLE val_volume_group_relation ADD COLUMN data_upd_date TIMESTAMP WITH TI
 CREATE TABLE val_volume_group_type
 ( 
 	volume_group_type    varchar(50)  NOT NULL ,
-	description          varchar(4000)  NULL 
+	description          varchar(4000)  NULL ,
+	allow_mulitiple_block_storage_devices boolean  NOT NULL 
 );
 
 ALTER TABLE val_volume_group_type
@@ -10716,10 +10714,10 @@ CREATE TABLE volume_group_block_storage_device
 ( 
 	volume_group_id      integer  NOT NULL ,
 	block_storage_device_id integer  NOT NULL ,
+	volume_group_relation varchar(50)  NOT NULL ,
 	device_id            integer  NULL ,
 	volume_group_primary_position integer  NULL ,
-	volume_group_secondary_position integer  NULL ,
-	volume_group_relation varchar(50)  NOT NULL 
+	volume_group_secondary_position integer  NULL 
 );
 
 ALTER TABLE volume_group_block_storage_device
@@ -12647,7 +12645,7 @@ ALTER TABLE mlag_peering
 
 ALTER TABLE netblock
 	ALTER COLUMN netblock_status
-		SET DEFAULT 'Alloocated';
+		SET DEFAULT 'Allocated';
 
 ALTER TABLE netblock
 	ALTER COLUMN netblock_type
@@ -13547,6 +13545,10 @@ ALTER TABLE service_environment_collection_service_environment
 		ON UPDATE NO ACTION
 		ON DELETE NO ACTION;
 
+ALTER TABLE service_instance
+	ALTER COLUMN is_primary
+		SET DEFAULT true;
+
 
 ALTER TABLE service_instance
 	ADD CONSTRAINT fk_service_instance_dev_nblk FOREIGN KEY (device_id,netblock_id) REFERENCES layer3_interface_netblock(device_id,netblock_id)
@@ -14401,6 +14403,10 @@ ALTER TABLE val_encapsulation_mode
 		ON UPDATE NO ACTION
 		ON DELETE NO ACTION;
 
+ALTER TABLE val_encryption_key_purpose
+	ALTER COLUMN permit_encryption_key_db_value
+		SET DEFAULT 'PROHIBITED';
+
 
 ALTER TABLE val_encryption_method
 	ADD CONSTRAINT fk_enc_method_cipher_chain_mode FOREIGN KEY (cipher,cipher_chain_mode) REFERENCES val_cipher_permitted_cipher_chain_mode(cipher,cipher_chain_mode)
@@ -14821,6 +14827,10 @@ ALTER TABLE val_slot_physical_interface
 
 ALTER TABLE val_token_collection_type
 	ALTER COLUMN can_have_hierarchy
+		SET DEFAULT true;
+
+ALTER TABLE val_volume_group_type
+	ALTER COLUMN allow_mulitiple_block_storage_devices
 		SET DEFAULT true;
 
 

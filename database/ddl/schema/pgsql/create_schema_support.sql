@@ -3523,6 +3523,38 @@ LANGUAGE plpgsql
 -- setting a search_path messes with the function, so do not.
 SECURITY DEFINER;
 
+---
+--- Shows difference between JSONB hashes
+--- currently only one level but patches welcome
+CREATE OR REPLACE FUNCTION schema_support.jsonb_diff(one JSONB, other JSONB)
+RETURNS JSONB
+AS
+$$
+DECLARE
+	key	TEXT;
+	rv	JSONB;
+BEGIN
+	rv := '{}';
+	FOR key IN SELECT * FROM jsonb_object_keys(one)
+	LOOP
+		IF NOT other ? key THEN
+			rv := rv || jsonb_build_object(
+					key, jsonb_build_array(one->key, NULL));
+		ELSIF other->>key IS DISTINCT FROM one->>key THEN
+			rv := rv || jsonb_build_object(
+					key, jsonb_build_array(one->key, other->key));
+		END IF;
+	END LOOP;
+	FOR key IN SELECT * FROM jsonb_object_keys(other)
+	LOOP
+		IF NOT one ? key THEN
+			rv := rv || jsonb_build_object(
+					key, jsonb_build_array(NULL, other->key));
+		END IF;
+	END LOOP;
+	RETURN rv;
+END;
+$$ LANGUAGE plpgsql;
 
 --
 -- This migrates grants from one schema to another for setting up a shadow

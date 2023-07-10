@@ -110,8 +110,10 @@ begin;
 \ir tests/pgsql/source_repository_triggers.sql
 \ir tests/pgsql/service_relationship_triggers.sql
 \ir tests/pgsql/service_manip_tests.sql
+\ir tests/pgsql/filesystem_logical_volume_tests.sql
 \ir tests/pgsql/storage_tests.sql
-\ir tests/pgsql/storage_tests.sql
+\ir tests/pgsql/dns_child_zone_checks.sql
+\ir tests/pgsql/encryption_key_tests.sql
 
 \ir tests/pgsql/dns_domain_regression_test.sql
 -- \ir tests/pgsql/v_corp_family_account_trigger.sql
