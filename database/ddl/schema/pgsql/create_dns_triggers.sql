@@ -446,25 +446,6 @@ BEGIN
 			NEW USING ERRCODE = 'unique_violation';
 	END IF;
 
-	IF NEW.DNS_TYPE = 'A' OR NEW.DNS_TYPE = 'AAAA' THEN
-		IF NEW.SHOULD_GENERATE_PTR = true THEN
-			SELECT	count(*)
-			 INTO	_tally
-			 FROM	dns_record
-			WHERE dns_class = 'IN'
-			AND dns_type = 'A'
-			AND should_generate_ptr = true
-			AND is_enabled = true
-			AND netblock_id = NEW.NETBLOCK_ID
-			AND dns_record_id != NEW.DNS_RECORD_ID;
-
-			IF _tally != 0 THEN
-				RAISE EXCEPTION 'May not have more than one SHOULD_GENERATE_PTR record on the same IP on netblock_id %', NEW.netblock_id
-					USING ERRCODE = 'JH201';
-			END IF;
-		END IF;
-	END IF;
-
 	RETURN NEW;
 END;
 $$
@@ -513,7 +494,6 @@ CREATE TRIGGER trigger_dns_record_check_name
 
 ---------------------------------------------------------------------------
 --
---
 -- Checks for CNAMEs and other records
 --
 ---------------------------------------------------------------------------
@@ -547,8 +527,14 @@ BEGIN
 	) smash
 	WHERE lower(dns_name) IS NOT DISTINCT FROM lower(NEW.dns_name)
 	AND dns_domain_id = NEW.dns_domain_id
-	-- AND ip_universe_id = NEW.ip_universe_id
-	-- AND dns_class = NEW.dns_class
+	AND ip_universe_id IN (
+			SELECT NEW.ip_universe_id
+		UNION
+			SELECT visible_ip_universe_id
+			FROM ip_universe_visibility
+			WHERE ip_universe_id = NEW.ip_universe_id
+	)
+	AND dns_class = NEW.dns_class
 	GROUP BY 1, 2, 3;
 
 	IF ( _r.num_cnames > 0 AND _r.num_not_cnames > 0 ) OR _r.num_cnames > 1 THEN

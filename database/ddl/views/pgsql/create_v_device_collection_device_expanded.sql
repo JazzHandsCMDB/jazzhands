@@ -32,7 +32,7 @@ WITH RECURSIVE var_recurse (
 		device_collection_id	as parent_device_collection_id,
 		0			as device_collection_level,
 		ARRAY[device_collection_id],
-		false
+		false			as cycle
 	FROM	device_collection
 UNION  ALL
 	SELECT	x.root_device_collection_id	as root_device_collection_id,

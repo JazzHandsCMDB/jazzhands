@@ -118,7 +118,11 @@ DECLARE
 	_parts	TEXT[];
 	_len	INTEGER;
 BEGIN
+	IF type = 'none' THEN
+		RETURN encoded;
+	END iF;
 	_key := obfuscation_utils.get_session_secret(label)::text;
+
 	IF type = 'base64' THEN
 		RETURN decode(encoded, 'base64');
 	ELSIF type ~ '^pgp' THEN
@@ -134,8 +138,6 @@ BEGIN
 		END IF;
 		_de := pgcrypto.pgp_sym_decrypt_bytea(encoded::bytea, _key::text);
 		RETURN encode(_de, 'escape');
-	ELSIF type = 'none' THEN
-		RETURN encoded;
 	ELSIF type ~ 'cbc/pad:pkcs' THEN
 		_parts := regexp_matches(encoded, '^([^-]+)-(.+)$');
 		_iv := decode(_parts[1], 'base64');

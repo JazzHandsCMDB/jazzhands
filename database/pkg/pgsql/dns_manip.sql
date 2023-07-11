@@ -1,4 +1,4 @@
--- Copyright (c) 2021, Todd M. Kover
+-- Copyright (c) 2021-2023, Todd M. Kover
 -- All rights reserved.
 --
 -- Licensed under the Apache License, Version 2.0 (the "License");
@@ -245,20 +245,23 @@ BEGIN
 	FROM val_dns_domain_type dt
 	WHERE dt.dns_domain_type = add_dns_domain.dns_domain_type;
 
-	EXECUTE '
+	BEGIN
 		INSERT INTO dns_domain (
 			dns_domain_name,
 			parent_dns_domain_id,
 			dns_domain_type
 		) VALUES (
-			$1,
-			$2,
-			$3
-		) RETURNING dns_domain_id' INTO domain_id
-		USING dns_domain_name,
+			add_dns_domain.dns_domain_name,
 			parent_id,
-			dns_domain_type
-	;
+			add_dns_domain.dns_domain_type
+		) RETURNING dns_domain_id INTO domain_id;
+	EXCEPTION WHEN unique_violation THEN
+		SELECT dns_domain_id
+		INTO domain_id
+		FROM dns_domain d
+		WHERE d.dns_domain_name = add_dns_domain.dns_domain_name;
+		RETURN domain_id;
+	END;
 
 	FOREACH univ IN ARRAY ip_universes
 	LOOP
@@ -461,6 +464,207 @@ END;
 $$
 SET search_path=jazzhands
 LANGUAGE plpgsql SECURITY definer;
+
+------------------------------------------------------------------------------
+--
+-- Set DNS for a Network Interface
+--
+------------------------------------------------------------------------------
+DROP FUNCTION IF EXISTS dns_manip.set_dns_for_interface ( integer, text, integer, boolean );
+CREATE OR REPLACE FUNCTION dns_manip.set_dns_for_interface(
+	netblock_id		netblock.netblock_id%TYPE,
+	layer3_interface_name	TEXT,
+	device_id		device.device_id%TYPE,
+	force			boolean DEFAULT TRUE
+) RETURNS jsonb
+AS
+$$
+-- This tells it to favor columns over parameter when ambiguous
+-- see https://www.postgresql.org/message-id/CAE3TBxyCn9dOF2273ki%3D4NFwsaJdYXiMQ6x2rydsWY_6p8z_zg%40mail.gmail.com
+#variable_conflict use_column
+DECLARE
+	nid	ALIAS FOR netblock_id;
+	l3n	ALIAS FOR layer3_interface_name;
+	_devid	ALIAS FOR device_id;
+	_devn	TEXT;
+	_dns	JSONB;
+	_dnsified	TEXT;
+	_newr	dns_record.dns_record_id%TYPE;
+	_newn	TEXT;
+	_t	TEXT;
+	_nb	netblock%ROWTYPE;
+BEGIN
+	SELECT device_name, dns_utils.find_dns_domain_from_fqdn(device_name)
+	INTO _devn, _dns
+	FROM device d
+	WHERE d.device_id = _devid;
+
+	IF _dns IS NULL OR _dns->>'dns_domain_id' IS NULL THEN
+		RETURN '{}';
+	END IF;
+
+	SELECT * INTO _nb FROM netblock n WHERE n.netblock_id = nid;
+
+	IF family(_nb.ip_address) = 6 THEN
+		_t = 'AAAA';
+	ELSIF family(_nb.ip_address) = 4 THEN
+		_t = 'A';
+	ELSE
+		RAISE EXCEPTION 'Unkown family for %: %', nid, family(_nb.ip_address)
+			USING ERRCODE = 'invalid_parameter_value';
+	END IF;
+
+	IF NOT FOUND THEN
+		RAISE EXCEPTION 'Unknown device_id %', devid;
+	END IF;
+
+	SELECT string_agg(elem, '.')
+	INTO _dnsified
+	FROM (select regexp_replace(x, '[^a-z0-9]', '-', 'ig') AS elem,
+		row_number() OVER()
+		FROM unnest(regexp_split_to_array(layer3_interface_name, '\.')) AS x
+			ORDER BY 2 DESC
+		) z;
+
+	_newn := concat_ws('.', _dnsified,_dns->>'dns_name');
+
+
+	IF force THEN
+		INSERT INTO dns_record AS d (
+			dns_name, dns_type, dns_domain_id, netblock_id, should_generate_ptr
+		) VALUES (
+			_newn, _t, CAST(_dns->>'dns_domain_id' AS INTEGER), nid, true
+		) ON CONFLICT (netblock_id, should_generate_ptr)
+			WHERE should_generate_ptr AND dns_type IN ('A','AAAA')
+				AND netblock_id IS NOT NULL
+        DO UPDATE SET
+			dns_name = _newn,  dns_domain_id =
+				CAST(_dns->>'dns_domain_id' AS integer)
+		RETURNING dns_record_id INTO _newr;
+
+		RETURN jsonb_build_object(
+			'dns_record_id', _newr,
+			'dns_name',  _newn,
+			'dns_domain_id', _dns->>'dns_domain_id'
+		);
+
+	ELSE
+		INSERT INTO dns_record (
+			dns_name, _t, dns_type, dns_domain_id, netblock_id
+		) VALUES (
+			_newn, CAST(_dns->>'dns_domain_id' AS INTEGER), nid
+		) ON CONFLICT (netblock_id, should_generate_ptr)
+        WHERE should_generate_ptr AND dns_type IN ('A','AAAA')
+               AND netblock_id IS NOT NULL
+        DO NOTHING;
+	END IF;
+
+	RETURN '{}';
+END;
+$$
+SET search_path=jazzhands
+LANGUAGE plpgsql SECURITY definer;
+
+------------------------------------------------------------------------------
+--
+-- Set DNS for a Shared Address on a Network Device
+--
+-- {protocol}.{encapsulation_tag}.{encapsulation_domain}.{site}.
+--
+-- The netblock_id must be the default gateway of a layer3 network that is part
+-- of a layer2 network that has an encapsulation domain
+--
+------------------------------------------------------------------------------
+DROP FUNCTION IF EXISTS dns_manip.set_dns_for_shared_routing_addresses ( integer, text, integer, boolean );
+CREATE OR REPLACE FUNCTION dns_manip.set_dns_for_shared_routing_addresses (
+	netblock_id		netblock.netblock_id%TYPE,
+	force			boolean DEFAULT TRUE
+) RETURNS jsonb
+AS
+$$
+-- This tells it to favor columns over parameter when ambiguous
+-- see https://www.postgresql.org/message-id/CAE3TBxyCn9dOF2273ki%3D4NFwsaJdYXiMQ6x2rydsWY_6p8z_zg%40mail.gmail.com
+#variable_conflict use_column
+DECLARE
+	nid	ALIAS FOR netblock_id;
+	_r		RECORD;
+	_dns	JSONB;
+	_newr	dns_record.dns_record_id%TYPE;
+	_t		TEXT;
+BEGIN
+	SELECT layer3_network_id, sn.netblock_id, default_gateway_ip_address,
+		shared_netblock_protocol, encapsulation_tag,
+		encapsulation_domain,
+		dns_utils.find_dns_domain_from_fqdn(
+			lower(concat_ws('.', shared_netblock_protocol, encapsulation_tag,
+				encapsulation_domain, device_name))::text
+		) AS dns
+	INTO _r
+	FROM v_layerx_network_expanded lx
+		JOIN shared_netblock sn ON
+				sn.netblock_id = lx.default_gateway_netblock_id
+		JOIN shared_netblock_layer3_interface USING (shared_netblock_id)
+		JOIN layer3_interface USING (layer3_interface_id)
+		JOIN device USING (device_id)
+	WHERE sn.netblock_id = nid
+	AND encapsulation_domain IS NOT NULL
+	ORDER BY sn.netblock_id, layer3_interface_id
+	LIMIT 1;
+
+	IF _r IS NULL OR _r.dns IS NULL THEN
+		RETURN NULL;
+	END IF;
+
+	_dns := _r.dns;
+
+	IF family(_r.default_gateway_ip_address) = 6 THEN
+		_t = 'AAAA';
+	ELSIF family(_r.default_gateway_ip_address) = 4 THEN
+		_t = 'A';
+	ELSE
+		RAISE EXCEPTION 'Unkown family for %: %', nid, family(_nb.ip_address)
+			USING ERRCODE = 'invalid_parameter_value';
+	END IF;
+
+	IF force THEN
+		INSERT INTO dns_record AS d (
+			dns_name, dns_type, dns_domain_id, netblock_id, should_generate_ptr
+		) VALUES (
+			_dns->>'dns_name', _t, CAST(_dns->>'dns_domain_id' AS INTEGER),
+			nid, true
+		) ON CONFLICT (netblock_id, should_generate_ptr)
+			WHERE should_generate_ptr AND dns_type IN ('A','AAAA')
+				AND netblock_id IS NOT NULL
+        DO UPDATE SET
+			dns_name = _dns->>'dns_name',  dns_domain_id =
+				CAST(_dns->>'dns_domain_id' AS integer)
+		RETURNING dns_record_id INTO _newr;
+
+		RETURN jsonb_build_object(
+			'dns_record_id', _newr,
+			'dns_name',  _dns->>'dns_name',
+			'dns_domain_id', _dns->>'dns_domain_id'
+		);
+
+	ELSE
+		INSERT INTO dns_record (
+			dns_name, _t, dns_type, dns_domain_id, netblock_id
+		) VALUES (
+			_dns->>'dns_name', _t, CAST(_dns->>'dns_domain_id' AS INTEGER),
+				nid
+		) ON CONFLICT (netblock_id, should_generate_ptr)
+        WHERE should_generate_ptr AND dns_type IN ('A','AAAA')
+               AND netblock_id IS NOT NULL
+        DO NOTHING;
+	END IF;
+
+	RETURN '{}';
+END;
+$$
+SET search_path=jazzhands
+LANGUAGE plpgsql SECURITY definer;
+
+------------------------------------------------------------------------------
 
 REVOKE ALL ON SCHEMA dns_manip FROM public;
 REVOKE ALL ON ALL FUNCTIONS IN SCHEMA dns_manip FROM public;
