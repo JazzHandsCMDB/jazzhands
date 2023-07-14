@@ -17,8 +17,8 @@
 
 \set ON_ERROR_STOP
 
-\ir ../../../database/ddl/schema/pgsql/create_physicalish_volume_triggers.sql
-\ir ../../../database/ddl/schema/pgsql/logical_volume_property_deprecation_triggers.sql
+\ir ../../ddl/schema/pgsql/create_physicalish_volume_triggers.sql
+\ir ../../ddl/schema/pgsql/logical_volume_property_deprecation_triggers.sql
 
 \t on
 
