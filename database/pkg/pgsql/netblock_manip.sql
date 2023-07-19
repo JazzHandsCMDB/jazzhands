@@ -1289,7 +1289,7 @@ BEGIN
 
 			PERFORM dns_manip.set_dns_for_interface(
 				netblock_id := nb_rec.netblock_id,
-				layer3_interface_name := l3in_rec.layer3_interface_name,
+				layer3_interface_name := l3i_name,
 				device_id := l3in_rec.device_id
 			);
 
