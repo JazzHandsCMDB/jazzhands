@@ -1149,8 +1149,7 @@ sub GetIPAddressInformation {
 		commands => [
 			'show ipv6 interface'
 		],
-		timeout => $opt->{timeout},
-		errors => $err
+		timeout => $opt->{timeout}
 	);
 
 	my $ipv6ifaces;
