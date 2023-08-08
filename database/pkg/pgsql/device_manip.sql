@@ -359,6 +359,8 @@ BEGIN
 		vgpv.device_id = ANY (device_id_list);
 	DELETE FROM block_storage_device pv WHERE
 		pv.device_id = ANY (device_id_list);
+	DELETE FROM filesystem f WHERE
+		f.device_id = ANY (device_id_list);
 	--- XXXX check this
 	DELETE FROM virtual_component_logical_volume uclv WHERE
 		uclv.logical_volume_id IN (
