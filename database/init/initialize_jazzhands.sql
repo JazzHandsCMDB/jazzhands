@@ -1062,6 +1062,22 @@ INSERT INTO val_property(
 	company_collection_type
 	)
 VALUES (
+	'DiskVendorProbeString',
+	'DeviceProvisioning',
+	'Vendor string that may be found during a disk probe',
+	true,
+	'string',
+	'REQUIRED',
+	'per-company'
+);
+
+INSERT INTO val_property(
+	property_name, property_type, description, is_multivalue,
+	property_data_type,
+	permit_company_collection_id,
+	company_collection_type
+	)
+VALUES (
 	'CPUVendorProbeString',
 	'DeviceProvisioning',
 	'Vendor string that may be found during a CPU probe',

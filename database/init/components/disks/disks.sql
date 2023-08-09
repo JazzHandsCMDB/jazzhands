@@ -53,6 +53,9 @@ BEGIN
 			permit_component_type_id
 		) VALUES
 			('DiskSize', 'disk', 'Disk Size (sectors)', false, 'number',
+				'disk', 'REQUIRED'),
+			('RotationalRate', 'disk',
+				'Disk Rotational Rate (for rotational media)', false, 'number',
 				'disk', 'REQUIRED');
 
 		INSERT INTO val_component_property (
@@ -95,7 +98,10 @@ BEGIN
 			description
 		) VALUES
 			('DiskProtocol', 'disk', 'SATA', 'Serial ATA'),
-			('DiskProtocol', 'disk', 'SAS', 'Serial Attached SCSI');
+			('DiskProtocol', 'disk', 'SAS', 'Serial Attached SCSI'),
+			('DiskProtocol', 'disk', 'SAS (SPL-3)', 'Serial Attached SCSI Protocol Layer 3'),
+			('DiskProtocol', 'disk', 'SCSI', 'SCSI'),
+			('DiskProtocol', 'disk', 'NVMe', 'NEMe');
 
 		--
 		-- Slot functions are also somewhat arbitrary, and exist for associating

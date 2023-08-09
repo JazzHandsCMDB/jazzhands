@@ -480,9 +480,9 @@ BEGIN
 
 			IF NOT FOUND THEN
 				SELECT company_manip.add_company(
-					_company_name := pci_vendor_name,
-					_company_types := ARRAY['hardware provider'],
-					 _description := 'PCI vendor auto-insert'
+					company_name := pci_vendor_name,
+					company_types := ARRAY['hardware provider'],
+					description := 'PCI vendor auto-insert'
 				) INTO comp_id;
 			END IF;
 
@@ -829,11 +829,12 @@ LANGUAGE plpgsql;
 
 CREATE OR REPLACE FUNCTION component_manip.insert_disk_component(
 	model				text,
-	bytes				bigint,
+	bytes				bigint DEFAULT NULL,
 	vendor_name			text DEFAULT NULL,
-	protocol			text DEFAULT 'SATA',
-	media_type			text DEFAULT 'Rotational',
-	serial_number		text DEFAULT NULL
+	protocol			text DEFAULT NULL,
+	media_type			text DEFAULT NULL,
+	serial_number		text DEFAULT NULL,
+	rotational_rate		integer DEFAULT NULL
 ) RETURNS jazzhands.component
 AS $$
 DECLARE
@@ -846,16 +847,103 @@ DECLARE
 BEGIN
 	cid := NULL;
 
+	IF model IS NULL OR model ~ '^\s*$' THEN
+		RAISE EXCEPTION 'model must be given to insert component'
+			USING ERRCODE = 'JH501';
+	END IF;
+
 	IF vendor_name IS NOT NULL THEN
+		--
+		-- Try to find a vendor that matches.  Look up various properties
+		-- for a probe string match, and then see if it matches the
+		-- company name.
+		--
 		SELECT
-			company_id INTO cid
+			comp.company_id INTO cid
 		FROM
-			company c LEFT JOIN
-			property p USING (company_id)
+			company comp JOIN
+			company_collection_company ccc USING (company_id) JOIN
+			property p USING (company_collection_id)
 		WHERE
-			property_type = 'DeviceProvisioning' AND
-			property_name = 'VendorDiskProbeString' AND
-			property_value = vendor_name;
+			p.property_type = 'DeviceProvisioning' AND
+			p.property_name = 'DiskVendorProbeString' AND
+			p.property_value = vendor_name
+		ORDER BY
+			p.property_id
+		LIMIT 1;
+
+		IF cid IS NULL THEN
+			SELECT
+				comp.company_id INTO cid
+			FROM
+				company comp JOIN
+				company_collection_company ccc USING (company_id) JOIN
+				property p USING (company_collection_id)
+			WHERE
+				p.property_type = 'DeviceProvisioning' AND
+				p.property_name = 'DeviceVendorProbeString' AND
+				p.property_value = vendor_name
+			ORDER BY
+				p.property_id
+			LIMIT 1;
+		END IF;
+
+		--
+		-- This is being deprecated in favor of the company_collection
+		-- above
+		--
+		IF cid IS NULL THEN
+			SELECT
+				company_id INTO cid
+			FROM
+				property p
+			WHERE
+				p.property_type = 'DeviceProvisioning' AND
+				p.property_name = 'DeviceVendorProbeString' AND
+				p.property_value = vendor_name;
+		END IF;
+
+		IF cid IS NULL THEN
+			SELECT
+				company_id INTO cid
+			FROM
+				company comp
+			WHERE
+				comp.company_name = vendor_name;
+		END IF;
+
+		--
+		-- Company was not found, so insert one
+		--
+		IF cid IS NULL THEN
+			SELECT company_manip.add_company(
+				company_name := vendor_name,
+				company_types := ARRAY['hardware provider'],
+				description := 'disk vendor auto-insert'
+			) INTO cid;
+
+			INSERT INTO property (
+				property_name,
+				property_type,
+				property_value,
+				company_collection_id
+			) VALUES (
+				'DiskVendorProbeString',
+				'DeviceProvisioning',
+				vendor_name,
+				(
+					SELECT
+						cc.company_collection_id
+					FROM
+						company_collection cc JOIN
+						company_collection_company ccc USING (company_collection_id) JOIN
+						company comp USING (company_id)
+					WHERE
+						cc.company_collection_type = 'per-device' AND
+						comp.company_id = cid
+				)
+			);
+		END IF;
 	END IF;
 
 	--
@@ -880,6 +968,26 @@ BEGIN
 	--
 	IF NOT FOUND THEN
 		--
+		-- Validate that we have all the parameters that we need to insert
+		-- this component_type.
+		--
+
+		IF
+			bytes IS NULL OR
+			cid IS NULL OR
+			protocol IS NULL OR
+			media_type IS NULL
+		THEN
+			RAISE EXCEPTION 'component_type for %model % not found so vendor_name, bytes, protocol, and media_type must be given',
+				CASE WHEN cid IS NOT NULL THEN 
+					('vendor ' || vendor_name)
+				ELSE
+					''
+				END,
+				model;
+		END IF;
+
+		--
 		-- Fetch the slot type
 		--
 		SELECT
@@ -897,19 +1005,8 @@ BEGIN
 		END IF;
 
 		IF cid IS NULL THEN
-			SELECT
-				company_id INTO cid
-			FROM
-				company
-			WHERE
-				company_name = 'unknown';
-
-			IF NOT FOUND THEN
-				IF NOT FOUND THEN
-					RAISE EXCEPTION 'company_id for unknown company not found adding component_type'
-						USING ERRCODE = 'JH501';
-				END IF;
-			END IF;
+			RAISE EXCEPTION 'unknown vendor adding disk component_type'
+				USING ERRCODE = 'JH501';
 		END IF;
 
 		INSERT INTO component_type (
@@ -939,10 +1036,19 @@ BEGIN
 			('DiskProtocol', 'disk', ctid, protocol),
 			('MediaType', 'disk', ctid, media_type);
 
+		IF rotational_rate IS NOT NULL THEN
+			INSERT INTO component_property (
+				component_property_name,
+				component_property_type,
+				component_type_id,
+				property_value
+			) VALUES
+				('RotationalRate', 'disk', ctid, rotational_rate);
+		END IF;
+
 		--
 		-- Insert the component functions
 		--
-
 		INSERT INTO component_type_component_function (
 			component_type_id,
 			component_function
@@ -991,7 +1097,6 @@ BEGIN
 	END IF;
 
 	RETURN c;
-
 END;
 $$
 SET search_path=jazzhands
