@@ -491,6 +491,10 @@ sub start_html {
 				},
 				{
 					-language => 'javascript',
+					-src      => "$stabroot/javascript/form-tracking.js"
+				},
+				{
+					-language => 'javascript',
 					-src      => "$stabroot/javascript/racks.js"
 				},
 				{
@@ -542,6 +546,37 @@ sub start_html {
 				{
 					-language => 'javascript',
 					-src      => "$stabroot/javascript/netblock.js"
+				},
+				{
+					-language => 'javascript',
+					-src      => "$stabroot/javascript/ajax-utils.js"
+				}
+			);
+		}
+		if (   $opts->{javascript} eq 'network_range'
+			|| $opts->{javascript} eq 'site_netblock' )
+		{
+			push(
+				@{ $args{-script} },
+				{
+					-language => 'javascript',
+					-src => "$root/javascript-common/external/jQuery/jquery.js",
+				},
+				{
+					-language => 'javascript',
+					-src      => "$root/javascript-common/common.js",
+				},
+				{
+					-language => 'javascript',
+					-src      => "$stabroot/javascript/tickets.js"
+				},
+				{
+					-language => 'javascript',
+					-src      => "$stabroot/javascript/stab-common.js"
+				},
+				{
+					-language => 'javascript',
+					-src      => "$stabroot/javascript/form-tracking.js"
 				},
 				{
 					-language => 'javascript',
@@ -876,27 +911,31 @@ sub build_passback_url {
 		$refurl = $self->guess_stab_root;
 	}
 
-	my $uri = new URI($refurl);
-	my $theq = $uri->query    || "";
+	my $uri  = new URI($refurl);
+	my $theq = $uri->query || "";
 
 	# Loop on parameters that are in the reference url
 	# and eliminate those missing from the $cgi-param array
 	# because those are unchecked checkboxes
 	foreach my $keypair ( split( ';', $theq ) ) {
-		my $key = (split( '=', $keypair ))[0];
+		my $key = ( split( '=', $keypair ) )[0];
+
 		# If the parameter doesn't start with 'chk_', it's not a checkbox, skip it
 		if ( $key !~ /^chk/ ) { next; }
+
 		# Does the checkbox parameter exist in the cgi parameters?
 		if ( !defined( $cgi->param($key) ) ) {
+
 			# No, let's remove it from the referer url
 			$theq =~ s/(^|;)$key=[^;]*(;|$)/;/;
+
 			# Just make sure we didn't add an extra semicolon
 			$theq =~ s/^;//;
 			$theq =~ s/;$//;
 		}
 	}
 
-	my $ref  = new CGI($theq) || "";
+	my $ref = new CGI($theq) || "";
 
 	if ( !defined($nopreserveargs) ) {
 		foreach my $p ( $cgi->param ) {
@@ -1402,8 +1441,9 @@ sub b_nondbdropdown {
 		}
 	} elsif ( !defined($default) ) {
 		$default = "__unknown__";
+
 		# Don't add duplicated options
-		if( !exists( $list{$default} ) ) {
+		if ( !exists( $list{$default} ) ) {
 			unshift( @list, $default );
 			$list{$default} = "--Unset--";
 		}
@@ -1580,8 +1620,12 @@ sub b_dropdown {
 			$limitverbiage = "where SHOULD_GENERATE = 'N'";
 		}
 		if ( defined( $params->{'-dnsdomaintype'} ) ) {
-			$limitverbiage .= " AND " if ( length($limitverbiage) );
-			$limitverbiage = "dns_domain_type = :dnsdomaintype";
+			if ( length($limitverbiage) ) {
+				$limitverbiage .= " AND ";
+			} else {
+				$limitverbiage .= " WHERE ";
+			}
+			$limitverbiage .= "dns_domain_type = :dnsdomaintype";
 			$dnsdomaintype = $params->{'-dnsdomaintype'};
 		}
 		$q = qq{
@@ -1920,6 +1964,14 @@ sub b_dropdown {
 			from approval_instance
 			order by approval_start desc
 		};
+	} elsif ( $selectfield eq 'NETWORK_RANGE_TYPE' ) {
+		$q = qq{
+			select
+				network_range_type
+			from
+				val_network_range_type;
+		};
+		$default = 'none' if ( !defined($default) );
 	} else {
 		return "-XX-";
 	}
@@ -2283,9 +2335,10 @@ sub b_textfield {
 			my $buttonid = "editbut_$id";
 			$button = $cgi->a(
 				{
-					-id    => $buttonid,
-					-class => 'stabeditbutton',
-					-href  => '#',
+					-id      => $buttonid,
+					-class   => 'stabeditbutton',
+					-href    => '#',
+					-onclick => 'event.preventDefault();',
 				},
 				$cgi->img(
 					{
@@ -2645,7 +2698,7 @@ sub parse_netblock_search {
 	$sth->finish;
 
 	if ( !$blk ) {
-		return $self->error_return("Network not found");
+		return $self->error_return("Network $bycidr not found");
 	}
 	$blk;
 }
@@ -3247,6 +3300,11 @@ sub process_and_update_dns_record {
 					"DNS_RECORD_ID", $recid, { should_generate_ptr => 'N' } );
 			}
 		}
+	}
+
+	# Wildcard dns records must not have the PTR set
+	if ( $opts->{dns_name} =~ /\*/ ) {
+		$newrecord->{'should_generate_ptr'} = 'N';
 	}
 
 	my $nblkid;

@@ -222,6 +222,23 @@ function mouseout_Search() {
 }
 
 //
+// A function to display a temporary message at the pointer location
+//
+function blink_message( strMessage, x, y, duration ) {
+	let elementMsg = document.createElement( 'div' );
+	elementMsg.innerHTML = strMessage;
+	elementMsg.style.position = 'absolute';
+	elementMsg.style.backgroundColor = 'black';
+	elementMsg.style.color = 'white';
+	elementMsg.style.border = '1px';
+	document.body.appendChild( elementMsg );
+	// Position the message just above the mouse cursor
+	elementMsg.style.top = ( y - elementMsg.offsetHeight * 2 )  + 'px';
+	elementMsg.style.left = ( x - elementMsg.offsetWidth / 2 ) + 'px';
+	setTimeout( function() { elementMsg.remove(); }, duration );
+}
+
+//
 // Show the device search popup for an Other End input field, creating it if necessary
 //
 //var listener;
@@ -234,11 +251,22 @@ function showOtherEndDeviceSearchPopup( elementDeviceName, strElementDeviceId, p
 
 	// Hide all similar popups, we don't want more than one open
 	Array.from( document.querySelectorAll( '.searchPopup' ) ).forEach(( otherPopup ) => {
+		if( otherPopup.id === strPopupId ) return;
 		otherPopup.style.visibility = 'hidden';
+		// We also want to make it clear that the entry has not been validated
+		// Get the input element for this popup
+		let oInputElement = document.getElementById( otherPopup.id.replace( '_popup', '' ) );
+		// Revert the displayed value to the last selected and validated value, or to the original value if nothing was selected
+		if( oInputElement.hasAttribute( 'lastselected' ) ) {
+		  oInputElement.value = oInputElement.getAttribute( 'lastselected' );
+		} else {
+		  oInputElement.value = oInputElement.getAttribute( 'original' );
+		}
+		updateChangeTrackingStatus( oInputElement );
 	});
 
 	// First build ids for the related fields
-	const strPopupSearchId = elementDeviceName.id + '_popup_search';
+	//const strPopupSearchId = elementDeviceName.id + '_popup_search';
 	const strPopupSelectId = elementDeviceName.id + '_popup_select';
 	const strPopupSelectButtonId = elementDeviceName.id + '_popup_button';
 	const strPopupDisconnectButtonId = elementDeviceName.id + '_popup_disconnect_button';
@@ -247,7 +275,7 @@ function showOtherEndDeviceSearchPopup( elementDeviceName, strElementDeviceId, p
 	// Popup exists already, make it visible and set focus to search field again
 	if( elementPopup ) {
 		elementPopup.style.visibility = 'visible';
-		document.getElementById( strPopupSearchId ).focus();
+		//document.getElementById( strPopupSearchId ).focus();
 		return;
 	}
 
@@ -257,18 +285,26 @@ function showOtherEndDeviceSearchPopup( elementDeviceName, strElementDeviceId, p
 	elementPopup.id = strPopupId;
 	elementPopup.style.position = 'absolute';
 	elementPopup.className = 'searchPopup';
+
+	elementDeviceName.setAttribute('lastsearch', '' );
+	elementDeviceName.setAttribute('myselect', strPopupSelectId );
+	elementDeviceName.setAttribute('myajax', strPopupAjaxId );
+	elementDeviceName.setAttribute('mybutton', strPopupSelectButtonId );
+	//elementDeviceName.addEventListener( 'blur', function() { hidePopup( strPopupId ); } );
+	elementDeviceName.onkeydown = function( event ) { if( event.keyCode === 27 ) { hidePopup( strPopupId ); } };
+
 	// We could hide the popup when the mouse leaves, but it doesn't feel nice
 	//elementPopup.onmouseleave = function() { hidePopup( strPopupId ); }
 	// Escape key closes the popup
 	elementPopup.onkeydown = function( event ) { if( event.keyCode === 27 ) { hidePopup( strPopupId ); } };
 
 	// Popup title
-	let strPopupHTML = '<div>Other End Device Selection</div>';
+	//let strPopupHTML = '<div>Other End Device Selection</div>';
 	// Search field
-	strPopupHTML += '<div><input id=' + strPopupSearchId + ' type=text value="" original=\'' + elementDeviceName.getAttribute('original') + '\' placeholder="Search for device name..." onInput="delayedGetMatchingDevices( this );" lastsearch="" myselect="' + strPopupSelectId + '" mybutton="' + strPopupSelectButtonId + '" myajax="' + strPopupAjaxId + '"/></div>';
+	//strPopupHTML += '<div><input id=' + strPopupSearchId + ' type=text value="" original=\'' + elementDeviceName.getAttribute('original') + '\' placeholder="Search for device name..." onInput="delayedGetMatchingDevices( this );" lastsearch="" myselect="' + strPopupSelectId + '" mybutton="' + strPopupSelectButtonId + '" myajax="' + strPopupAjaxId + '"/></div>';
 
 	// Selection list
-	strPopupHTML += '<div><select id=' + strPopupSelectId + ' size=10 style="width:100%" onKeyDown="if( event.keyCode === 13 ) { event.preventDefault(); updateOtherEnd( document.getElementById(\'' + strPopupSelectButtonId + '\') ); }" onChange="document.getElementById(\''+strPopupSelectButtonId+'\').removeAttribute(\'disabled\');">';
+	strPopupHTML = '<div><select id=' + strPopupSelectId + ' size=10 style="width:100%" onDblclick="updateOtherEnd( document.getElementById(\'' + strPopupSelectButtonId + '\') );" onKeyDown="if( event.keyCode === 13 ) { event.preventDefault(); updateOtherEnd( document.getElementById(\'' + strPopupSelectButtonId + '\') ); }" onChange="document.getElementById(\''+strPopupSelectButtonId+'\').removeAttribute(\'disabled\');">';
 	//strPopupHTML += '<option value=\'delete\'>Disconnect ' + elementDeviceName.getAttribute( 'original' ) + '</option>';
 	strPopupHTML += '</select></div>';
 
@@ -293,19 +329,33 @@ function showOtherEndDeviceSearchPopup( elementDeviceName, strElementDeviceId, p
 	const inputRect = elementDeviceName.getBoundingClientRect();
 	elementPopup.style.top = inputRect.bottom + window.scrollY;
 	elementPopup.style.left = inputRect.left + window.scrollX;
-	elementPopup.style.minWidth = inputRect.width;
+	elementPopup.style.minWidth = inputRect.width - 30;
+	elementPopup.style.boxShadow = '2px 2px 3px 2px gray';
 
-	// Show the popup and set focus to the search field
+	// Show the popup and trigger a first device search from the orgiinal device name
 	document.body.appendChild( elementPopup );
-	document.getElementById( strPopupSearchId ).focus();
+	//document.getElementById( strPopupSearchId ).focus();
+	elementDeviceName.setAttribute( 'lastsearch', elementDeviceName.value );
+	delayedGetMatchingDevices( elementDeviceName );
 }
 
 //
 // Hide the popup and set focus back to the Other End field
 //
 function hidePopup( strPopupId ) {
-	document.getElementById( strPopupId ).style.visibility='hidden';
-	document.getElementById( strPopupId.replace( /_popup$/, '' ) ).focus();
+	const elementDeviceName =  document.getElementById( strPopupId.replace( /_popup$/, '' ) );
+	const elementPopup = document.getElementById( strPopupId );
+	document.getElementById( elementDeviceName.getAttribute( 'myajax' ) ).innerHTML = '';
+	//elementDeviceName.value = elementPopup.getAttribute( 'lastselected' );
+	if( elementDeviceName.hasAttribute( 'lastselected' ) ) {
+		elementDeviceName.value = elementDeviceName.getAttribute( 'lastselected' );
+	} else {
+		elementDeviceName.value = elementDeviceName.getAttribute( 'original' );
+	}
+	delayedGetMatchingDevices( elementDeviceName );
+	updateChangeTrackingStatus( elementDeviceName );
+	elementPopup.style.visibility='hidden';
+	elementDeviceName.focus();
 }
 
 //
@@ -328,7 +378,7 @@ function delayedGetMatchingDevices( elementSearch ) {
 function getMatchingDevices( elementSearch ) {
 	//console.log( 'Searching for: ' + elementSearch.value );
 	// If the search pattern matches the last one used, ignore the new request
-	if( elementSearch.getAttribute( 'lastsearch' ) === elementSearch.value ) {
+	if( elementSearch.getAttribute( 'lastrequestedsearch' ) === elementSearch.value ) {
 		//console.log( 'Search pattern equals last search pattern' );
 		return;
 	}
@@ -342,6 +392,7 @@ function getMatchingDevices( elementSearch ) {
 		return;
 	}
 
+	elementSearch.setAttribute( 'lastrequestedsearch', elementSearch.value );
 	const url = 'ajax-devsearch.pl?pattern=' + elementSearch.value;
         const requestDevicesSearch = createRequest();
         requestDevicesSearch.open("GET", url, true);
@@ -357,7 +408,8 @@ function updateOtherEndDeviceSearchPopup( requestDevicesSearch, elementSearch ) 
 	if( requestDevicesSearch.readyState !== 4 ) return;
 
         // Since concurrent ajax requests are possible, ignore results not matching the current search pattern
-	if( requestDevicesSearch.responseURL.replace(/^.*pattern=/,'') !== elementSearch.value ) {
+	let strSearchPattern = requestDevicesSearch.responseURL.replace(/^.*pattern=/,'');
+	if( strSearchPattern !== elementSearch.getAttribute( 'lastrequestedsearch' ) ) {
 		//console.log( 'Result for old pattern, ignoring' );
 		return;
 	}
@@ -389,14 +441,14 @@ function updateOtherEndDeviceSearchPopup( requestDevicesSearch, elementSearch ) 
 	}
 
 	// Remember this search pattern
-	elementSearch.setAttribute( 'lastsearch', elementSearch.value );
+	elementSearch.setAttribute( 'lastsearch', strSearchPattern );
 
 	// Remove the loading message
 	document.getElementById( elementSearch.getAttribute( 'myajax' ) ).innerHTML = '';
 }
 
 //
-// Function triggered by a new Other End device selection
+// Function triggered by a the Other End popup Select button
 //
 function updateOtherEnd( buttonSelect, bDisconnect ) {
 	const strElementDeviceId = buttonSelect.getAttribute( 'mydeviceid' );
@@ -419,10 +471,14 @@ function updateOtherEnd( buttonSelect, bDisconnect ) {
 		elementDeviceId.value = '';
 		elementOtherEnd.value = '';
 		buttonSelect.setAttribute( 'disabled', 'disabled' );
+		elementOtherEnd.setAttribute( 'lastselected', '' );
+		elementOtherEnd.setAttribute( 'lastsearch', '' );
 	} else {
                 let selectedOption = elementSelect.options[elementSelect.selectedIndex];
+		if( ! selectedOption ) return;
 		elementDeviceId.value = selectedOption.value;
 		elementOtherEnd.value = selectedOption.text;
+		elementOtherEnd.setAttribute( 'lastselected', elementOtherEnd.value );
 		let strSelectButtonId = buttonSelect.getAttribute( 'mydisconnectbutton' );
 		document.getElementById( strSelectButtonId ).removeAttribute( 'disabled' );
 	}

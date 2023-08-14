@@ -250,6 +250,12 @@ sub do_show_serial {
 		my $j = JSON::PP->new->utf8;
 		print $j->encode($rv);
 
+	} elsif ( $what eq 'Components' ) {
+		print $stab->dump_components_tab($devid);
+
+	} elsif ( $what eq 'Functions' ) {
+		print $stab->dump_functions_tab($devid);
+
 	} else {
 
 		# catch-all error condition

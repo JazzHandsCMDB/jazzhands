@@ -2092,14 +2092,6 @@ INSERT INTO val_block_storage_device_type (
 	('encrypted_block_storage_device', 'REQUIRED', true)
 ;
 
-INSERT INTO val_block_storage_device_encryption_system (
-	block_storage_device_encryption_system
-) VALUES
-	('LUKS'),
-	('VeraCrypt'),
-	('ZFS')
-;
-
 -- END logical volumes
 -------------------------------------------------------------------------
 

@@ -26,7 +26,11 @@ SELECT	block_storage_device_type AS physicalish_volume_type,
 	data_ins_date,
 	data_upd_user,
 	data_upd_date
-FROM val_block_storage_device_type;
+FROM val_block_storage_device_type
+WHERE block_storage_device_type NOT IN
+	('disk partition', 'ZFS filesystem', 'ZFS volume',
+	'LVM volume', 'encrypted_block_storage_device')
+;
 
 CREATE OR REPLACE VIEW physicalish_volume AS
 SELECT	bsd.block_storage_device_id	AS physicalish_volume_id,
@@ -45,6 +49,9 @@ FROM block_storage_device bsd
 	LEFT JOIN virtual_component_logical_volume vclv
 		USING (component_id)
 WHERE bsd.logical_volume_id IS NULL
+AND block_storage_device_type NOT IN
+	('disk partition', 'ZFS filesystem', 'ZFS volume',
+	'LVM volume', 'encrypted_block_storage_device')
 ;
 
 ---

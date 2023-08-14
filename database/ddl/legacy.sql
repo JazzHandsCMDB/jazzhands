@@ -442,7 +442,9 @@ WHERE component_id NOT IN (
 
 CREATE OR REPLACE VIEW jazzhands_legacy.component_property AS
 SELECT component_property_id,component_function,component_type_id,component_id,inter_component_connection_id,slot_function,slot_type_id,slot_id,component_property_name,component_property_type,property_value,data_ins_user,data_ins_date,data_upd_user,data_upd_date
-FROM jazzhands.component_property;
+FROM jazzhands.component_property
+WHERE component_property_type != 'storage'
+AND component_property_name != 'SCSI_Id';
 
 
 
@@ -2626,7 +2628,14 @@ FROM jazzhands.v_device_collection_hier_from_ancestor;
 
 
 CREATE OR REPLACE VIEW jazzhands_legacy.v_device_component_summary AS
-SELECT device_id,cpu_model,cpu_count,core_count,memory_count,total_memory,disk_count,total_disk
+SELECT device_id,
+	cpu_model,
+	cpu_count,
+	core_count,
+	memory_count,
+	total_memory,
+	disk_count,
+	total_disk || 'G'::text AS total_disk
 FROM jazzhands.v_device_component_summary;
 
 
@@ -2642,12 +2651,129 @@ SELECT device_id,component_id,slot_id,vendor,model,serial_number,functions,slot_
 FROM jazzhands.v_device_components_expanded;
 
 
-
+-- Copyright (c) 2018, Matthew Ragan
 CREATE OR REPLACE VIEW jazzhands_legacy.v_device_components_json AS
-SELECT device_id,components
-FROM jazzhands.v_device_components_json;
-
-
+WITH ctf AS (
+	SELECT
+		ctcf.component_type_id,
+		array_agg(ctcf.component_function ORDER BY ctcf.component_function)
+			AS functions
+	FROM
+		jazzhands_legacy.component_type_component_func ctcf
+	GROUP BY
+		ctcf.component_type_id
+), cpu_info AS (
+	SELECT
+		c.component_id,
+		jsonb_build_object(
+			'component_id', c.component_id,
+			'component_type_id', c.component_type_id,
+			'company_name', comp.company_name,
+			'model', ct.model,
+			'core_count', pc.property_value::bigint,
+			'processor_speed', ps.property_value,
+			'component_function', 'CPU'
+		) as component_json
+	FROM
+		component c
+		JOIN component_type ct USING (component_type_id)
+		JOIN component_type_component_function ctcf USING (component_type_id)
+		JOIN component_property pc ON (
+			ct.component_type_id = pc.component_type_id
+			AND (pc.component_property_name, pc.component_property_type) =
+				('ProcessorCores', 'CPU')
+		)
+		JOIN component_property ps ON (
+			ct.component_type_id = ps.component_type_id
+			AND (ps.component_property_name, ps.component_property_type) =
+				('ProcessorSpeed', 'CPU')
+		)
+		LEFT JOIN company comp USING (company_id)
+	WHERE
+		ctcf.component_function = 'CPU'
+), disk_info AS (
+	SELECT
+		c.component_id,
+		jsonb_build_object(
+			'component_id', c.component_id,
+			'component_type_id', c.component_type_id,
+			'company_name', comp.company_name,
+			'model', ct.model,
+			'serial_number', a.serial_number,
+			'size_bytes', ds.property_value::bigint,
+			'size', CEIL(ds.property_value::bigint / 1073741824::numeric) ||
+				'G'::text,
+			'protocol', dp.property_value,
+			'media_type', mt.property_value,
+			'component_function', 'disk'
+		) as component_json
+	FROM
+		component c
+		JOIN component_type ct USING (component_type_id)
+		JOIN component_type_component_function ctcf USING (component_type_id)
+		LEFT JOIN asset a USING (component_id)
+		JOIN component_property ds ON (
+			ct.component_type_id = ds.component_type_id
+			AND (ds.component_property_name, ds.component_property_type) =
+				('DiskSize', 'disk')
+		)
+		JOIN component_property dp ON (
+			ct.component_type_id = dp.component_type_id
+			AND (dp.component_property_name, dp.component_property_type) =
+				('DiskProtocol', 'disk')
+		)
+		JOIN component_property mt ON (
+			ct.component_type_id = mt.component_type_id
+			AND (mt.component_property_name, mt.component_property_type) =
+				('MediaType', 'disk')
+		)
+		LEFT JOIN company comp USING (company_id)
+	WHERE
+		ctcf.component_function = 'disk'
+), memory_info AS (
+	SELECT
+		c.component_id,
+		jsonb_build_object(
+			'component_id', c.component_id,
+			'component_type_id', c.component_type_id,
+			'company_name', comp.company_name,
+			'model', ct.model,
+			'serial_number', a.serial_number,
+			'size', msize.property_value::bigint,
+			'speed', mspeed.property_value,
+			'component_function', 'memory'
+		) as component_json
+	FROM
+		component c
+		JOIN component_type ct USING (component_type_id)
+		JOIN component_type_component_function ctcf USING (component_type_id)
+		LEFT JOIN asset a USING (component_id)
+		JOIN component_property msize ON (
+			ct.component_type_id = msize.component_type_id
+			AND (msize.component_property_name, msize.component_property_type) =
+				('MemorySize', 'memory')
+		)
+		JOIN component_property mspeed ON (
+			ct.component_type_id = mspeed.component_type_id
+			AND (mspeed.component_property_name, mspeed.component_property_type) =
+				('MemorySpeed', 'memory')
+		)
+		LEFT JOIN company comp USING (company_id)
+	WHERE
+		ctcf.component_function = 'memory'
+)
+SELECT
+	dc.device_id,
+	jsonb_agg(x.component_json) AS components
+FROM
+	jazzhands_legacy.v_device_components dc JOIN
+	(
+		SELECT * FROM cpu_info UNION
+		SELECT * FROM disk_info UNION
+		SELECT * FROM memory_info
+	) x USING (component_id)
+GROUP BY
+	dc.device_id;
 
 CREATE OR REPLACE VIEW jazzhands_legacy.v_device_slot_connections AS
 SELECT inter_component_connection_id,device_id,slot_id,slot_name,slot_index,mac_address,slot_type_id,slot_type,slot_function,remote_device_id,remote_slot_id,remote_slot_name,remote_slot_index,remote_mac_address,remote_slot_type_id,remote_slot_type,remote_slot_function
@@ -4633,7 +4759,10 @@ SELECT
 	data_ins_date,
 	data_upd_user,
 	data_upd_date
-FROM jazzhands.val_component_property;
+FROM jazzhands.val_component_property
+WHERE component_property_type != 'storage'
+AND component_property_name != 'SCSI_Id'
+;
 
 ALTER TABLE jazzhands_legacy.val_component_property ALTER permit_component_type_id SET DEFAULT 'PROHIBITED'::bpchar;
 ALTER TABLE jazzhands_legacy.val_component_property ALTER permit_component_function SET DEFAULT 'PROHIBITED'::bpchar;
@@ -5159,8 +5288,11 @@ SELECT	block_storage_device_type AS physicalish_volume_type,
 	data_ins_date,
 	data_upd_user,
 	data_upd_date
-FROM jazzhands.val_block_storage_device_type;
-
+FROM jazzhands.val_block_storage_device_type
+WHERE block_storage_device_type NOT IN
+        ('disk partition', 'ZFS filesystem', 'ZFS volume',
+        'LVM volume', 'encrypted_block_storage_device')
+;
 
 
 CREATE OR REPLACE VIEW jazzhands_legacy.val_processor_architecture AS

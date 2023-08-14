@@ -36,29 +36,35 @@ exit do_netblock_collection_update();
 
 sub do_netblock_collection_update {
 	my $stab = new JazzHands::STAB || die "Could not create STAB";
-	my $cgi = $stab->cgi || die "Could not create cgi";
+	my $cgi  = $stab->cgi          || die "Could not create cgi";
 
 	# print $cgi->header, $cgi->start_html, $cgi->Dump, $cgi->end_html; exit;
 
-	my(@errs);
+	my (@errs);
 
 	my $numchanges = 0;
 
 	my $ncid = $stab->cgi_parse_param('NETBLOCK_COLLECTION_ID');
-	my $add_nb = $stab->cgi_parse_param('add_NETBLOCK');
 
 	#
 	# deal with netblock removals
 	#
-	foreach my $id ( $stab->cgi_get_ids('rm_NETBLOCK_ID')) {
+	foreach my $id ( $stab->cgi_get_ids('rm_NETBLOCK_ID') ) {
 		my $x;
-		if(!($x = ($stab->DBDelete(
-					table	=> 'netblock_collection_netblock',
-					dbkey => ['netblock_collection_id', 'netblock_id'],
-					keyval => [ $ncid, $id ],
-					errors => \@errs,
-				)))) {
-			$stab->error_return(join(" ", @errs));
+		if (
+			!(
+				$x = (
+					$stab->DBDelete(
+						table  => 'netblock_collection_netblock',
+						dbkey  => [ 'netblock_collection_id', 'netblock_id' ],
+						keyval => [ $ncid, $id ],
+						errors => \@errs,
+					)
+				)
+			)
+		  )
+		{
+			$stab->error_return( join( " ", @errs ) );
 		}
 		$numchanges += $x;
 	}
@@ -66,17 +72,25 @@ sub do_netblock_collection_update {
 	#
 	# deal with netblock collection removals
 	#
-	foreach my $id ( $stab->cgi_get_ids('rm_NETBLOCK_COLLECTION_ID')) {
+	foreach my $id ( $stab->cgi_get_ids('rm_NETBLOCK_COLLECTION_ID') ) {
 		my $x;
-		if(!($x = ($stab->DBDelete(
-					table	=> 'netblock_collection_hier',
-					dbkey => ['netblock_collection_id', 
-						'child_netblock_collection_id'
-					],
-					keyval => [ $ncid, $id ],
-					errors => \@errs,
-				)))) {
-			$stab->error_return(join(" ", @errs));
+		if (
+			!(
+				$x = (
+					$stab->DBDelete(
+						table => 'netblock_collection_hier',
+						dbkey => [
+							'netblock_collection_id',
+							'child_netblock_collection_id'
+						],
+						keyval => [ $ncid, $id ],
+						errors => \@errs,
+					)
+				)
+			)
+		  )
+		{
+			$stab->error_return( join( " ", @errs ) );
 		}
 		$numchanges += $x;
 	}
@@ -84,50 +98,75 @@ sub do_netblock_collection_update {
 	#
 	# deal with netblock additions
 	#
-	if($add_nb) {
-		my $nb = $stab->get_netblock_from_ip(ip_address=>$add_nb);
+	foreach my $p ( $cgi->param ) {
+		if ( $p !~ /^add_NETBLOCK[0-9]+$/i ) { next; }
 
-		if(!$nb) {
+		# Get the next new netblock to add
+		my $add_nb = $stab->cgi_parse_param($p);
+
+		# Ignore the parameter if it has no value
+		if ( !$add_nb ) { next; }
+
+		my $nb = $stab->get_netblock_from_ip( ip_address => $add_nb );
+		if ( !$nb ) {
 			return $stab->error_return("Unable to find netblock $add_nb");
 		}
 
 		my $new = {
 			netblock_collection_id => $ncid,
-			netblock_id => $nb->{ _dbx('NETBLOCK_ID') },
+			netblock_id            => $nb->{ _dbx('NETBLOCK_ID') },
 		};
 
-		if(!($numchanges += $stab->DBInsert(
-				table => 'netblock_collection_netblock',
-				hash => $new,
-				errors => \@errs))) {
-			$stab->error_return(join(" ", @errs));
+		if (
+			!(
+				$numchanges += $stab->DBInsert(
+					table  => 'netblock_collection_netblock',
+					hash   => $new,
+					errors => \@errs
+				)
+			)
+		  )
+		{
+			$stab->error_return( join( " ", @errs ) );
 		}
 	}
 
 	#
-	# deal with child netblock additions
+	# deal with child netblock collection additions
 	#
-	my $newncid = $stab->cgi_parse_param('pick_NETBLOCK_COLLECTION_ID');
-	if($newncid) {
+	foreach my $p ( $cgi->param ) {
+		if ( $p !~ /^pick_NETBLOCK_COLLECTION_ID[0-9]+$/i ) { next; }
+
+		my $newncid = $stab->cgi_parse_param($p);
+
+		# Ignore the parameter if it has no value
+		if ( !$newncid ) { next; }
+
 		my $new = {
-			netblock_collection_id => $ncid,
+			netblock_collection_id       => $ncid,
 			child_netblock_collection_id => $newncid
 		};
 
-		if(!($numchanges += $stab->DBInsert(
-				table => 'netblock_collection_hier',
-				hash => $new,
-				errors => \@errs))) {
-			$stab->error_return(join(" ", @errs));
+		if (
+			!(
+				$numchanges += $stab->DBInsert(
+					table  => 'netblock_collection_hier',
+					hash   => $new,
+					errors => \@errs
+				)
+			)
+		  )
+		{
+			$stab->error_return( join( " ", @errs ) );
 		}
 	}
 
-	if($numchanges) {
+	if ($numchanges) {
 		my $url = "./?NETBLOCK_COLLECTION_ID=$ncid";
 		$stab->commit;
-		return $stab->msg_return("Collection Updated", $url, 1);
+		return $stab->msg_return( "Collection Updated", $url, 1 );
 	}
 	$stab->rollback;
 	$stab->msg_return("Nothing changed.  No changes submittted.");
 	0;
-};
+}

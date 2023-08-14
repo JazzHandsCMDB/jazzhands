@@ -35,10 +35,12 @@ sub do_site_page {
 
 	my $sitecode = $stab->cgi_parse_param('sitecode');
 
+	# If the site code is not specificed, display a summary page
+	# Otherwise display the site page with netblocks
 	if ( !defined($sitecode) ) {
 		dump_all_sites($stab);
 	} else {
-		dump_site( $stab, $sitecode );
+		dump_site_netblocks( $stab, $sitecode );
 	}
 
 	$dbh->rollback;
@@ -62,7 +64,7 @@ sub dump_all_sites {
 	my $cgi = $stab->cgi || die "Could not create cgi";
 	my $dbh = $stab->dbh || die "Could not create dbh";
 
-	print $cgi->header( { -type => 'text/html' } );
+	print $cgi->header(      { -type  => 'text/html' } );
 	print $stab->start_html( { -title => 'Site Code List' } );
 
 	my $q = qq{
@@ -86,111 +88,37 @@ sub dump_all_sites {
 
 	print $cgi->Tr(
 		$cgi->th('Site Code'), $cgi->th('Colo Provider'),
-		$cgi->th('Address'),   
-		$cgi->th('Status'),    $cgi->th('Description'),
+		$cgi->th('Address'),   $cgi->th('Status'),
+		$cgi->th('Description'),
 	);
 
 	while ( my ( $sitecode, $name, $addr, $status, $desc ) =
 		$sth->fetchrow_array )
 	{
-		print $cgi->Tr(
-			$cgi->td( make_url( $stab, $sitecode ) ),
-			$cgi->td($name),
-			$cgi->td($addr),
-			$cgi->td($status),
-			$cgi->td($desc)
-		);
+		print $cgi->Tr( $cgi->td( make_url( $stab, $sitecode ) ),
+			$cgi->td($name), $cgi->td($addr), $cgi->td($status),
+			$cgi->td($desc) );
 	}
 	print $cgi->end_table;
 	print $cgi->end_html;
 }
 
-sub dump_site {
+sub dump_site_netblocks {
 	my ( $stab, $sitecode ) = @_;
 	my $cgi = $stab->cgi || die "Could not create cgi";
 	my $dbh = $stab->dbh || die "Could not create dbh";
 
 	print $cgi->header( { -type => 'text/html' } );
 	print $stab->start_html(
-		{ -title => "Site Code Breakdown for $sitecode" } );
-
-	my $netblocks = build_site_netblocks( $stab, $sitecode );
-	my $racks = "";    # build_site_racks($stab, $sitecode);
-
-	print $cgi->table(
-		{ -border => 1 },
-		$cgi->Tr( $cgi->th( ["Netblocks"] ) ),
-		$cgi->Tr( $cgi->td( [$netblocks] ) )
+		{
+			-title      => "Site Netblocks for $sitecode",
+			-javascript => 'site_netblock'
+		}
 	);
 
-	print $cgi->end_html;
-}
-
-sub build_site_racks {
-	my ( $stab, $sitecode ) = @_;
-	my $cgi = $stab->cgi || die "Could not create cgi";
-	my $dbh = $stab->dbh || die "Could not create dbh";
-
-	my $roomlist = get_room_list( $stab, $sitecode );
-
-	my $q = qq{
-		select	rack_row, rack
-		  from	rack_location
-		 where	site_code = ?
-		   AND	room = ?
-		   AND	sub_room = ?
-	};
-	my $sth = $stab->prepare($q) || $stab->return_db_err($stab);
-
-	my $t = "";
-	foreach my $space (@$roomlist) {
-		my $room    = $space->{'ROOM'}     || "";
-		my $subroom = $space->{'SUB_ROOM'} || "";
-		$sth->execute( $sitecode, $room, $subroom )
-		  || $stab->return_db_err($stab);
-		my $tt = "";
-		while ( my ( $row, $rack ) = $sth->fetchrow_array ) {
-			my $ps = ($subroom) ? "($subroom)" : "";
-			my $link = $cgi->a(
-				{
-					-href =>
-"sites/racks?SITE=$sitecode;ROOM=$room;SUB_ROOM=$subroom;ROW=$row;RACK=$rack"
-				},
-				"$room$ps: $row-$rack"
-			);
-			$tt .= $cgi->Tr( $cgi->td($link) );
-		}
-		$sth->finish;
-		$t .= $cgi->table($tt) if ( length($tt) );
-	}
-	$cgi->table($t);
-}
-
-sub get_room_list {
-	my ( $stab, $sitecode ) = @_;
-	my $cgi = $stab->cgi || die "Could not create cgi";
-	my $dbh = $stab->dbh || die "Could not create dbh";
-
-	my $q = qq{
-		select	room, sub_room
-		  from	rack_location
-		 where	site_code = ?
-		 order by room, sub_room
-	};
-	my $sth = $stab->prepare($q) || $stab->return_db_err($stab);
-	$sth->execute($sitecode) || $stab->return_db_err($stab);
-	my (@rv);
-	while ( my $h = $sth->fetchrow_hashref ) {
-		push( @rv, $h );
-	}
-	$sth->finish;
-	\@rv;
-}
-
-sub build_site_netblocks {
-	my ( $stab, $sitecode ) = @_;
-	my $cgi = $stab->cgi || die "Could not create cgi";
-	my $dbh = $stab->dbh || die "Could not create dbh";
+	#my $netblocks = build_site_netblocks( $stab, $sitecode );
+	#my $racks = "";    # build_site_racks($stab, $sitecode);
+	#print $netblocks;
 
 	my $q = qq{
 		select	nb.netblock_id,
@@ -206,16 +134,141 @@ sub build_site_netblocks {
 	my $sth = $stab->prepare($q) || die $dbh->errstr;
 	$sth->execute($sitecode) || die $sth->errstr;
 
-	my $x = $cgi->start_table( { -border => 1 } );
-	$x .= $cgi->th( [ "Block", "Description" ] );
+	print $cgi->start_form(
+		-method => 'POST',
+		-action => 'write/edit_site_netblocks.pl'
+	);
+	print $cgi->hidden( 'sitecode', $sitecode );
+	print '<br/>'
+	  . $cgi->start_table(
+		{ -class => 'networkrange', -border => 1, -align => 'center' } );
+	print $cgi->th( { -class => 'networkrange' },
+		[ 'RM', 'Netblock', 'Description' ] );
+	print $cgi->Tr(
+		$cgi->td(
+			{
+				-class   => 'networkrange',
+				-colspan => '3'
+			},
+			$cgi->a(
+				{
+					-href  => '#',
+					-class => 'adddnsrec',
+					-onclick =>
+					  "this.style.display = 'none'; document.getElementById('SITE_NETBLOCK_NEW').style.display = '';"
+				},
+				$cgi->img(
+					{
+						-src   => '../stabcons/plus.png',
+						-alt   => 'Add',
+						-title => 'Add',
+						-class => 'plusbutton'
+					}
+				)
+			)
+		)
+	);
+	print $cgi->Tr(
+		{
+			-id    => 'SITE_NETBLOCK_NEW',
+			-style => 'display: none;',
+		},
+		$cgi->td(
+			{ -class => 'networkrange' },
+			[
+				$cgi->hidden( 'SITE_NETBLOCK_ID', 'NEW' ),
+				$cgi->textfield(
+					{
+						-size     => 10,
+						-name     => 'SITE_NETBLOCK_IP_NEW',
+						-value    => '',
+						-class    => 'tracked',
+						-original => '',
+					}
+				),
+
+				#$cgi->textfield({
+				#	-size => 50,
+				#	-name => 'SITE_NETBLOCK_DESCRIPTION_NEW',
+				#	-value => '',
+				#	-class => 'tracked',
+				#	-original => '',
+				#})
+			]
+		)
+	);
+
+	# Loop on netblocks for this site
 	while ( my ( $id, $ip, $bits, $desc ) = $sth->fetchrow_array ) {
 		my $link = "../netblock/?nblkid=$id";
 		$link .= "&expand=yes" if ( $bits >= 24 );
-		$x .= $cgi->Tr(
-			$cgi->td( $cgi->a( { -href => $link }, "$ip/$bits" ) ),
-			$cgi->td( ( ( defined($desc) ) ? $desc : "" ) ),
+		print $cgi->Tr(
+			{
+				-class => (
+					(
+						$stab->cgi_parse_param( 'SITE_NETBLOCK_DELETE_' . $id )
+						  eq 'delete'
+					) ? 'rowrm' : ''
+				)
+			},
+			$cgi->td(
+				{ -class => 'networkrange' },
+				$cgi->hidden(
+					{
+						-value => $stab->cgi_parse_param(
+							'SITE_NETBLOCK_DELETE_' . $id
+						),
+						-id       => 'SITE_NETBLOCK_DELETE_' . $id,
+						-name     => 'SITE_NETBLOCK_DELETE_' . $id,
+						-class    => 'tracked',
+						-original => '',
+					}
+				  )
+				  . $cgi->a(
+					{
+						-class => 'rmrow',
+						-onclick =>
+						  "let trcl=this.parentElement.parentElement.classList; trcl.toggle('rowrm'); document.getElementById('SITE_NETBLOCK_DELETE_$id').value = trcl.contains('rowrm') ? 'delete' : '';"
+					},
+					$cgi->img(
+						{
+							-src => "../stabcons/redx.jpg",
+							-alt => "Disassociate this Netblock from the Site",
+							-title =>
+							  'Disassociate this Netblock from the Site',
+							-class => 'rmdnsrow button',
+						}
+					)
+				  )
+			),
+			$cgi->td(
+				{ -class => 'networkrange' },
+				$cgi->a( { -href => $link }, "$ip/$bits" )
+			),
+			$cgi->td(
+				{ -class => 'networkrange' },
+				( ( defined($desc) ) ? $desc : "" )
+
+				  #$cgi->textfield({
+				  #	-size => 50,
+				  #	-name => 'SITE_NETBLOCK_DESCRIPTION_'.$id,
+				  #	-value => defined($desc) ? $desc : "",
+				  #	-class => 'tracked',
+				  #	-original => defined($desc) ? $desc : "",
+				  #}),
+			),
 		);
 	}
-	$x .= $cgi->end_table;
-	$x;
+	print $cgi->end_table;
+	print $cgi->submit(
+		{
+			-class => 'dnssubmit',
+			-name  => "NetblockSites",
+			-value => "Submit Site Netblock Changes",
+		}
+	);
+	print $cgi->end_form, "\n";
+
+	print $cgi->end_html;
 }
+

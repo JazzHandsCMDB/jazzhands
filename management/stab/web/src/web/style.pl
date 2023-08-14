@@ -151,12 +151,6 @@ div.dnsvalueref {
 	border: 1px solid;
 }
 
-/* Tabs */
-
-div.tabgroup_pending {
-	padding-top: 10px;
-}
-
 div#verifybox {
 	border: 2px solid black;
 	padding: 5px;
@@ -171,35 +165,17 @@ div.maindiv {
 	padding: 3px;
 }
 
-/* #tabthis is the "please select a tab" content */
-div#tabthis {
-	border: 1px solid black;
+/* Tabs */
+
+div.tabgroup {
 	padding-top: 10px;
-	margin-top: 3px;
-	background: #DDE;
 }
 
-div.tabthis {
-	background: #DDE;
-}
-
-tabgroup_pending {
+tabgroup {
 	color: lightgrey
 }
 
 tabgrouptab { padding: 5px 0; }
-
-a.tabgroupactive {
-	margin-top: 10px;
-	padding: 3px 0.5em;
-	padding-bottom: 4px;
-	margin-left: 3px;
-	border: 1px solid black;
-	border-bottom-width: 0px;
-	background: #DDE;
-	text-decoration: none;
-	border-radius: 20px 20px 0px 0px;
-}
 
 a.tabgrouptab {
 	margin-top: 10px;
@@ -212,10 +188,28 @@ a.tabgrouptab {
 	border-radius: 20px 20px 0px 0px;
 }
 
+a.tabgrouptab.active {
+	padding-bottom: 4px;
+	border-bottom-width: 0px;
+	background: #DDE;
+}
+
 a:hover.tabgrouptab {
 	background: lightblue;
 	color: black;
 	border-bottom: 5px;
+}
+
+div.tabcontent {
+	display: none;
+	border: 1px solid black;
+	padding-top: 10px;
+	margin-top: 3px;
+	background: #DDE;
+}
+
+div.tabcontent.active {
+	display: block;
 }
 
 input#submitdevice { font-size: 60%;}
@@ -276,6 +270,56 @@ div.stabtab_on {
 
 /******************************* END OF NEW TABS **************************/
 
+
+/* 	Device search display */
+table.devicesearch {
+	border-collapse: collapse;
+	margin: auto;
+	border: 1px solid black;
+}
+tr.devicesearch:nth-child( even ) {
+	border: 0px solid black;
+	background: white;
+}
+tr.devicesearch:nth-child( odd ) {
+	border: 0px solid black;
+	background: #DDDDDD;
+}
+td.devicesearch {
+	border: 0px solid black;
+	padding-left: 5px;
+	padding-right: 5px;
+}
+
+/* 	Network ranges display */
+table.networkrange {
+	border-collapse: collapse;
+	margin: auto;
+	border: 1px solid gray;
+}
+th.networkrange,td.networkrange {
+	border: 1px solid gray;
+	padding-left: 5px;
+	padding-right: 5px;
+}
+
+/* 	Components display */
+table.components {
+	border-collapse: collapse;
+	margin: auto;
+	border: 1px solid gray;
+}
+th.components,td.components {
+	border: 1px solid gray;
+	padding-left: 5px;
+	padding-right: 5px;
+}
+tr.components:nth-child( odd ) {
+	background: #eee;
+}
+tr.components:nth-child( even ) {
+	background: white;
+}
 
 /* 	Rack display */
 
