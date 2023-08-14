@@ -795,7 +795,7 @@ BEGIN
 		model_name = pci_device_name;
 		descrip = concat_ws(
 			' ',
-			vendor_name,
+			pci_vendor_name,
 			'(' || pci_sub_vendor_name || ')',
 			pci_device_name
 		);

@@ -365,9 +365,9 @@ CREATE OR REPLACE FUNCTION x509_plperl_cert_utils.parse_csr(
     my $tmp = File::Temp->new();
     print $tmp $csr_pem;
     my $fname = $tmp->filename();
+    $tmp->close;
 
     my $req = Crypt::OpenSSL::PKCS10->new_from_file($fname) || return undef;
-    $tmp->close;
 
     my $friendly = $req->subject;
     $friendly =~ s/^.*CN=(\s*[^,]*)(,.*)?$/$1/;

@@ -550,9 +550,9 @@ BEGIN
 
 	ELSE
 		INSERT INTO dns_record (
-			dns_name, _t, dns_type, dns_domain_id, netblock_id
+			dns_name, dns_type, dns_domain_id, netblock_id
 		) VALUES (
-			_newn, CAST(_dns->>'dns_domain_id' AS INTEGER), nid
+			_newn, _t, CAST(_dns->>'dns_domain_id' AS INTEGER), nid
 		) ON CONFLICT (netblock_id, should_generate_ptr)
         WHERE should_generate_ptr AND dns_type IN ('A','AAAA')
                AND netblock_id IS NOT NULL
@@ -575,7 +575,7 @@ LANGUAGE plpgsql SECURITY definer;
 -- of a layer2 network that has an encapsulation domain
 --
 ------------------------------------------------------------------------------
-DROP FUNCTION IF EXISTS dns_manip.set_dns_for_shared_routing_addresses ( integer, text, integer, boolean );
+DROP FUNCTION IF EXISTS dns_manip.set_dns_for_shared_routing_addresses ( integer, boolean );
 CREATE OR REPLACE FUNCTION dns_manip.set_dns_for_shared_routing_addresses (
 	netblock_id		netblock.netblock_id%TYPE,
 	force			boolean DEFAULT TRUE
@@ -648,7 +648,7 @@ BEGIN
 
 	ELSE
 		INSERT INTO dns_record (
-			dns_name, _t, dns_type, dns_domain_id, netblock_id
+			dns_name, dns_type, dns_domain_id, netblock_id
 		) VALUES (
 			_dns->>'dns_name', _t, CAST(_dns->>'dns_domain_id' AS INTEGER),
 				nid

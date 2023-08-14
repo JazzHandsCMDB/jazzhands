@@ -174,14 +174,8 @@ BEGIN
 
 	--- This is kind of gross because it just finds the newest one and
 	---	associates it
-	RAISE NOTICE 'csr FOR % %', _parsed->>'friendly_name',_pubkeyhashes;
 	FOR _e IN SELECT jsonb_array_elements(_pubkeyhashes)
 	LOOP
-		RAISE NOTICE 'pubkeyhashes For % checking % %',
-			_parsed->>'friendly_name',
-			_e->>'algorithm',
-			_e->>'hash';
-			
 		SELECT csr.certificate_signing_request_id
 		INTO _csrid
 		FROM	certificate_signing_request csr
@@ -310,7 +304,6 @@ BEGIN
 		END IF;
 	END LOOP;
 
-	RAISE NOTICE 'csr FOR % %', _parsed->>'friendly_name',_pubkeyhashes;
 	FOR _e IN SELECT jsonb_array_elements(_pubkeyhashes)
 	LOOP
 		SELECT pk.private_key_id
@@ -329,8 +322,6 @@ BEGIN
 			EXIT;
 		END IF;
 	END LOOP;
-
-	RAISE NOTICE '%', jsonb_pretty(_parsed);
 
 	INSERT INTO certificate_signing_request (
 		friendly_name, subject, certificate_signing_request, private_key_id

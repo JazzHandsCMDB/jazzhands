@@ -17,7 +17,7 @@
 
 \set ON_ERROR_STOP
 
-\ir ../../../database/ddl/schema/pgsql/create_rack_compat_trigger.sql
+\ir ../../ddl/schema/pgsql/create_rack_compat_trigger.sql
 
 \t on
 
