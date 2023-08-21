@@ -1,9 +1,3 @@
-jazzhands-perl-netdev-mgmt (0.96.1) unstable; urgency=low
-
-  * Fix issue with an error being reported that should be ignored
-
- -- Matthew Ragan <mdr@sucksless.net>  Wed, 19 Jul 2023 22:56:10 +0000
-
 jazzhands-perl-netdev-mgmt (0.95.5) unstable; urgency=low
 
   * fix parenthetical issue with subinterface in address polling
