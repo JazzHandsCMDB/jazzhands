@@ -33,7 +33,7 @@ INSTALLDIR=/prod/zonegen
 all:
 	cd ${SRCDIR} && ${MAKE}
 
-install: 
+install:
 	rm -rf fakeroot
 	mkdir fakeroot
 	cd ${SRCDIR} && ${MAKE} DESTDIR=$(PWD)/fakeroot/ install

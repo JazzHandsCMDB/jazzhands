@@ -2,14 +2,14 @@ Source: jazzhands-zonegen-server
 Section: unknown
 Priority: extra
 Maintainer: JazzHands Project <release@jazzhands.net>
-Build-Depends: debhelper (>= 8.0.0), perl-modules,
-Depends: perl, jazzhands-perl-common >= 0.94.0, perl-JazzHands-DBI, perl-Net-IP, bind, jq, libnjson-perl
+Build-Depends: debhelper (>= 9.0.0), perl-modules,
+Depends: perl, jazzhands-perl-common >= 0.96.0, perl-JazzHands-DBI, perl-Net-IP, bind, jq, libnjson-perl
 Recommends: libjson-xs-perl | libjson-pp-perl
-Standards-Version: 3.9.4
+Standards-Version: 4.6.2
 Homepage: http://www.jazzhands.net/
 
 Package: jazzhands-zonegen-server
-Architecture: any
+Architecture: all
 Description:
  Generates zone and configuration from JazzHands database
 
