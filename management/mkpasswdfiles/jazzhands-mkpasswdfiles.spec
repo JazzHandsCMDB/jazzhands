@@ -12,7 +12,8 @@ Url:        http://www.jazzhands.net/
 Source0:    %{name}-%{version}.tar.gz
 BuildRoot:  %{_tmppath}/%{name}-%{version}-%{release}-buildroot
 BuildArch:  noarch
-Requires:   jazzhands-perl-common, perl-JazzHands-DBI, 
+BuildRequires: make
+Requires:   jazzhands-perl-common, perl-JazzHands-DBI,
 
 
 %description
@@ -20,13 +21,13 @@ Generates unix credentials
 
 %prep
 %setup -q -n %{name}-%{version}
-make -f Makefile.jazzhands
+make
 
 %install
-make -f Makefile.jazzhands DESTDIR=%{buildroot} PREFIX=%{prefix} install
+make  DESTDIR=%{buildroot} PREFIX=%{prefix} install
 
 %clean
-make -f Makefile.jazzhands clean
+make  clean
 
 %files
 %defattr(755,root,root,-)

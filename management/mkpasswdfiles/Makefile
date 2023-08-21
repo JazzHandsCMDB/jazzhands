@@ -15,6 +15,8 @@
 # limitations under the License.
 #
 
+PREFIX ?= /usr
+
 all:
 
 install:
@@ -23,7 +25,7 @@ install:
 	for file in mkpasswdfiles.pl ; do \
 		newfn=`echo $$file | sed 's/\..*$$//'` ;\
 		install -m 555  $$file $(DESTDIR)/$(PREFIX)/libexec/jazzhands/mkpasswdfiles/$$newfn ;\
-	done 
+	done
 
 clean:
 	[ -z "$(DESTDIR)" ] || rm -rf $(DESTDIR)

@@ -531,6 +531,7 @@ sub generate_group_files($$) {
 				FROM	device_collection_device
 						INNER JOIN device_collection USING (device_collection_id)
 				WHERE   device_collection_id IN $q_mclass_ids
+				AND		device_name IS NOT NULL
 				)
 			};
 		}
@@ -543,6 +544,7 @@ sub generate_group_files($$) {
 							USING (device_collection_id)
 					INNER JOIN device d USING (device_id)
 			WHERE   device_collection_type = 'per-device'
+			AND		device_name IS NOT NULL
 					$and
 			ORDER BY device_name, unix_gid
 		};
