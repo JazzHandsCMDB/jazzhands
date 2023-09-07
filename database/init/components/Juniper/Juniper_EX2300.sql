@@ -32,8 +32,8 @@ BEGIN
 
 	IF NOT FOUND THEN
 		SELECT company_manip.add_company(
-			_company_name := 'Juniper Networks',
-			_company_types := ARRAY['hardware provider']
+			company_name := 'Juniper Networks',
+			company_types := ARRAY['hardware provider']
 		) INTO cid;
 	END IF;
 

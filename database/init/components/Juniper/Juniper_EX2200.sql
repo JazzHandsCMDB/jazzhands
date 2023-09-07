@@ -28,12 +28,12 @@ DECLARE
 BEGIN
 
 	SELECT company_id INTO cid FROM jazzhands.company WHERE
-		company_name = 'Juniper';
+		company_name = 'Juniper Networks';
 
 	IF NOT FOUND THEN
 		SELECT company_manip.add_company(
-			_company_name := 'Juniper',
-			_company_types := ARRAY['hardware provider']
+			company_name := 'Juniper Networks',
+			company_types := ARRAY['hardware provider']
 		) INTO cid;
 	END IF;
 

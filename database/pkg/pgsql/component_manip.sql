@@ -1599,13 +1599,21 @@ SET search_path=jazzhands
 SECURITY DEFINER
 LANGUAGE plpgsql;
 
+DROP FUNCTION IF EXISTS component_manip.fetch_component(
+	jazzhands.component_type.component_type_id%TYPE,
+	text,
+	boolean,
+	text,
+	jazzhands.slot.slot_id%TYPE
+);
 
 CREATE OR REPLACE FUNCTION component_manip.fetch_component(
 	component_type_id	jazzhands.component_type.component_type_id%TYPE,
 	serial_number		text,
 	no_create			boolean DEFAULT false,
 	ownership_status	text DEFAULT 'unknown',
-	parent_slot_id		jazzhands.slot.slot_id%TYPE DEFAULT NULL
+	parent_slot_id		jazzhands.slot.slot_id%TYPE DEFAULT NULL,
+	force_parent		boolean DEFAULT false
 ) RETURNS jazzhands.component
 AS $$
 DECLARE
@@ -1632,7 +1640,9 @@ BEGIN
 			--
 			-- Only update the parent slot if it isn't set already
 			--
-			IF c.parent_slot_id IS NULL THEN
+			IF psid IS NOT NULL AND
+				(c.parent_slot_id IS NULL OR force_parent)
+			THEN
 				UPDATE
 					component comp
 				SET
@@ -1669,6 +1679,67 @@ BEGIN
 	END IF;
 
 	RETURN c;
+END;
+$$
+SET search_path=jazzhands
+SECURITY DEFINER
+LANGUAGE plpgsql;
+
+CREATE OR REPLACE FUNCTION component_manip.set_component_firmware_version(
+	component_id		jazzhands.component.component_id%TYPE,
+	firmware_version	text
+) RETURNS boolean
+AS $$
+DECLARE
+	cid			ALIAS FOR component_id;
+	cp			RECORD;
+BEGIN
+	IF component_id IS NULL THEN
+		RAISE EXCEPTION
+			'component_id must be passed to set_component_firmware_version';
+		RETURN NULL;
+	END IF;
+
+	IF firmware_version IS NULL THEN
+		DELETE FROM
+			component_property p
+		WHERE
+			p.component_id = cid AND
+			p.component_property_name = 'FirmwareVersion' AND
+			p.component_property_type = 'device';
+		RETURN true;
+	END IF;
+
+	SELECT * FROM component_property p INTO cp WHERE
+		p.component_id = cid AND
+		p.component_property_name = 'FirmwareVersion' AND
+		p.component_property_type = 'device';
+
+	IF NOT FOUND THEN
+		INSERT INTO component_property (
+			component_id,
+			component_property_name,
+			component_property_type,
+			property_value
+		) VALUES (
+			cid,
+			'FirmwareVersion',
+			'device',
+			firmware_version
+		);
+		RETURN true;
+	END IF;
+
+	UPDATE
+		component_property p
+	SET
+		property_value = firmware_version
+	WHERE
+		p.component_id = cid AND
+		p.component_property_name = 'FirmwareVersion' AND
+		p.component_property_type = 'device';
+
+	RETURN true;
 END;
 $$
 SET search_path=jazzhands
