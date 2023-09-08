@@ -1,18 +1,11 @@
 #!/usr/bin/make -f
+# -*- makefile -*-
+# Uncomment this to turn on verbose mode.
+# export DH_VERBOSE=1
 
-export DH_VERBOSE=1
 
 %:
 	dh $@
 
-override_dh_auto_configure:
-	$(MAKE) BUILDPERL=perl -f Makefile.jazzhands configure
-
-override_dh_auto_build:
-	$(MAKE) BUILDPERL=perl -f Makefile.jazzhands all
-
-override_dh_auto_clean:
-	$(MAKE) BUILDPERL=perl -f Makefile.jazzhands clean
-
 override_dh_auto_install:
-	$(MAKE) -f Makefile.jazzhands DESTDIR=$$(pwd)/debian/jazzhands-approval PREFIX=/usr/libexec/jazzhands/approval install
+	dh_auto_install -- prefix=/usr/libexec/jazzhands/approval

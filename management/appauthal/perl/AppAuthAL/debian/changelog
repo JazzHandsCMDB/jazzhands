@@ -1,3 +1,9 @@
+perl-jazzhands-appauthal (0.96.0) xenial; urgency=medium
+
+  * bump debian versions to more modern
+
+ -- Todd Kover <kovert@omniscient.com>  Mon, 21 Aug 2023 15:36:00 -0400
+
 perl-jazzhands-appauthal (0.94.0) trusty; urgency=medium
 
   * fix bug in caching system

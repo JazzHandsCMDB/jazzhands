@@ -15,6 +15,8 @@
 # limitations under the License.
 #
 
+PREFIX	?= /usr/share/php
+
 all:
 
 install:

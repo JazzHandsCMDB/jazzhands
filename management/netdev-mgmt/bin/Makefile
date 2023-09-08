@@ -1,8 +1,10 @@
+PREFIX ?= /usr
+
 SOURCES= \
 	poll-netdev-chassis-info.pl \
 	poll-netdev-addr-info.pl \
 	load-arista-config.pl \
-	load-junos-config.pl 
+	load-junos-config.pl
 
 all:
 	@echo Nothing to build

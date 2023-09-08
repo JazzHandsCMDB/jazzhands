@@ -1,5 +1,5 @@
 SOURCES= \
-	redfish-bmc-reset.pl
+	redfish_bmc_reset.pl
 
 all:
 	@echo Nothing to build

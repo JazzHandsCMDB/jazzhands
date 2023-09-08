@@ -4,15 +4,15 @@ all:
 	$(BUILDPERL) Makefile.PL INSTALLDIRS=vendor  && $(MAKE)
 
 install:
-	@ if [ -z "$(INSTALLROOT)" ] ; then echo 1>&2 Must set INSTALLROOT;exit 1;fi
+	@ if [ -z "$(DESTDIR)" ] ; then echo 1>&2 Must set INSTALLROOT;exit 1;fi
 	echo Doing install
-	rm -rf $(INSTALLROOT)
-	mkdir -p $(INSTALLROOT)/${prefix}
-	make pure_install PERL_INSTALL_ROOT=$(INSTALLROOT)
+	rm -rf $(DESTDIR)
+	mkdir -p $(DESTDIR)/${prefix}
+	make pure_install PERL_INSTALL_ROOT=$(DESTDIR)
 
-	find $(INSTALLROOT) -type f -name .packlist -exec rm -f {} \;
-	find $(INSTALLROOT) -depth -type d -exec rmdir {} 2>/dev/null \;
-	find $(INSTALLROOT) -name Makefile -print |xargs rm -f 
+	find $(DESTDIR) -type f -name .packlist -exec rm -f {} \;
+	find $(DESTDIR) -depth -type d -exec rmdir {} 2>/dev/null \;
+	find $(DESTDIR) -name Makefile -print |xargs rm -f
 	echo Done install
 
 clean:

@@ -26,7 +26,7 @@
 
 STAB_DIR=/prod/www/stab/docs/device/certs
 
-SUBDIRS= write 
+SUBDIRS= write
 
 SCRIPTS= index.pl
 

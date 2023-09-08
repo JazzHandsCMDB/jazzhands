@@ -12,9 +12,9 @@ Url:        http://www.jazzhands.net/
 BuildArch:  noarch
 Source0:    %{name}-%{version}.tar.gz
 BuildRoot:  %{_tmppath}/%{name}-%{version}-%{release}-buildroot
-BuildArch:  noarch
 Requires:   jazzhands-perl-common, perl-JazzHands-DBI, perl-Net-IP, bind
 # bind is there for named-checkzone
+BuildRequires: make
 
 
 %description
@@ -23,13 +23,13 @@ Deals with zonegen on nameservers that receive zones
 
 %prep
 %setup -q -n %{name}-%{version}
-make -f Makefile.jazzhands
+make
 
 %install
-make -f Makefile.jazzhands DESTDIR=%{buildroot} PREFIX=%{prefix}/%{zgroot} install
+make  DESTDIR=%{buildroot} PREFIX=%{prefix}/%{zgroot} install
 
 %clean
-make -f Makefile.jazzhands DESTDIR=%{buildroot} clean
+make  DESTDIR=%{buildroot} clean
 
 
 %files

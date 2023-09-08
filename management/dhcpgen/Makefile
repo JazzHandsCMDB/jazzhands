@@ -1,7 +1,6 @@
+PREFIX ?= /usr/libexec/jazzhands/dhcpgen
 SOURCES= \
-	JazzHands/Apache/API/Device.pm \
-	JazzHands/Apache/API/Common.pm \
-	JazzHands/Apache/API/Container.pm
+	dhcpgen.pl
 
 all:
 	@echo Nothing to build
@@ -10,7 +9,7 @@ install:
 	mkdir -p $(DESTDIR)/$(PREFIX)
 	for f in $(SOURCES); do \
 		install -m 0755 -d $(DESTDIR)/$(PREFIX)/`dirname $$f` ; \
-		install -m 0755 -c lib/$$f $(DESTDIR)/$(PREFIX)/`dirname $$f` ; \
+		install -m 0755 -c $$f $(DESTDIR)/$(PREFIX)/`basename $$f .pl` ; \
 	done
 
 clean:

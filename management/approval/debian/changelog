@@ -1,3 +1,9 @@
+jazzhands-approval (0.96.0) bionic; urgency=medium
+
+  * bump up various debian versions of things to be currentish
+
+ -- Todd M. Kover <kovert@omniscient.com>  Mon, 21 Aug 2023 15:30:00 -0400
+
 jazzhands-approval (0.90) bionic; urgency=medium
 
   * add ability to delegate attestation to another account

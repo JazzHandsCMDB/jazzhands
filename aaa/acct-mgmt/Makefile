@@ -33,7 +33,7 @@ INSTALLDIR=/usr/local
 all:
 	cd ${SRCDIR} && ${MAKE}
 
-install: 
+install:
 	rm -rf fakeroot fakeroot.lib
 	mkdir fakeroot fakeroot.lib
 	cd ${SRCDIR} && ${MAKE} DESTDIR=$(PWD)/fakeroot/ install

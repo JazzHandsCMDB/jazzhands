@@ -3,7 +3,7 @@ Section: unknown
 Priority: extra
 Maintainer: JazzHands Project <release@jazzhands.net>
 Build-Depends: debhelper (>= 9.0.0), python-all, python-setuptools, python3-all, python3-setuptools, dh-python
-Standards-Version: 3.9.5
+Standards-Version: 4.6.2
 X-Python-Version: >= 2.7
 X-Python3-Version: >= 3.4
 XS-Python-Version: >= 2.7
@@ -11,11 +11,11 @@ XS-Python3-Version: >= 3.4
 Homepage: http://www.jazzhands.net/
 
 Package: python-jazzhands-vault
-Architecture: any
+Architecture: all
 Depends: python-requests
 Description: Python Vault interface
 
 Package: python3-jazzhands-vault
-Architecture: any
+Architecture: all
 Depends: python3-requests
 Description: Python3 Vault interface

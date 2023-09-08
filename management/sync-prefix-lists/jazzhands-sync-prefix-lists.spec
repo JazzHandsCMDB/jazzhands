@@ -11,6 +11,7 @@ Url:        http://www.jazzhands.net/
 Source0:    %{pkgname}-%{version}.tar.gz
 BuildRoot:  %{_tmppath}/%{name}-%{version}-%{release}-buildroot
 BuildArch:  noarch
+BuildRequires: make
 Requires:	jazzhands-perl-netdev-mgmt >= 0.70.0
 
 %description
@@ -18,13 +19,13 @@ JazzHands management of network device prefix-lists
 
 %prep
 %setup -q -n %{pkgname}-%{version}
-make -f Makefile.jazzhands
+make
 
 %install
-make -f Makefile.jazzhands DESTDIR=%{buildroot} PREFIX=%{prefix} install
+make  DESTDIR=%{buildroot} PREFIX=%{prefix} install
 
 %clean
-make -f Makefile.jazzhands clean
+make  clean
 
 
 %files

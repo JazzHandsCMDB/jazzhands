@@ -1,3 +1,9 @@
+jazzhands-hotpants (0.96.0) xenial; urgency=medium
+
+  * bump up various debian versions of things to be currentish
+
+ -- Todd M. Kover <kovert@omniscient.com>  Mon, 21 Aug 2023 15:30:00 -0400
+
 jazzhands-hotpants (0.71.4) unstable; urgency=medium
 
   * add concept of authorize-only radius clients
@@ -10,14 +16,12 @@ jazzhands-hotpants (0.71.3) unstable; urgency=medium
 
  -- Todd M. Kover <kovert@omniscient.com>  Fri, 13 May 2016 10:35:00 -0500
 
-
 jazzhands-hotpants (0.69.7) unstable; urgency=medium
 
   * change skew to 6 sequences in either direction
   * escape characters in comments when building otp URL
 
  -- Todd M. Kover <kovert@omniscient.com>  Wed,  2 Mar 2016 09:27:00 -0500
-
 
 jazzhands-hotpants (0.69.6) unstable; urgency=medium
 
@@ -35,13 +39,11 @@ jazzhands-hotpants (0.69.5) unstable; urgency=medium
 
  -- Todd M. Kover <kovert@omniscient.com>  Mon, 22 Feb 2016 12:36:00 -0500
 
-
 jazzhands-hotpants (0.69.3) unstable; urgency=medium
 
   * make password optional on creation of tokens
 
  -- Todd M. Kover <kovert@omniscient.com>  Fri, 12 Feb 2016 18:55:00 -0500
-
 
 jazzhands-hotpants (0.69.0) unstable; urgency=medium
 
@@ -53,13 +55,11 @@ jazzhands-hotpants (0.69.0) unstable; urgency=medium
 
  -- Todd M. Kover <kovert@omniscient.com>  Mon,  8 Feb 2016 18:55:00 -0500
 
-
 jazzhands-hotpants (0.68.1) unstable; urgency=medium
 
   * make login lookups case insensitive
 
  -- Todd M. Kover <kovert@omniscient.com>  Thu,  4 Feb 2016 09:20:00 -0500
-
 
 jazzhands-hotpants (0.68.0) unstable; urgency=medium
 
@@ -67,13 +67,11 @@ jazzhands-hotpants (0.68.0) unstable; urgency=medium
 
  -- Todd M. Kover <kovert@omniscient.com>  Wed,  3 Feb 2016 14:49:00 -0500
 
-
 jazzhands-hotpants (0.67.7) unstable; urgency=medium
 
   * allow dbuser to be changed in new calls
 
  -- Todd M. Kover <kovert@omniscient.com>  Mon,  1 Feb 2016 12:13:00 -0500
-
 
 jazzhands-hotpants (0.67.6) unstable; urgency=medium
 
@@ -81,20 +79,17 @@ jazzhands-hotpants (0.67.6) unstable; urgency=medium
 
  -- Todd M. Kover <kovert@omniscient.com>  Fri, 29 Jan 2016 20:28:00 -0500
 
-
 jazzhands-hotpants (0.67.5) unstable; urgency=medium
 
   * fix error message that was confusing
 
  -- Todd M. Kover <kovert@omniscient.com>  Fri, 29 Jan 2016 17:26:00 -0500
 
-
 jazzhands-hotpants (0.67.4) unstable; urgency=medium
 
   * back out NAS-Identifier support; this causes problems
 
  -- Todd M. Kover <kovert@omniscient.com>  Fri, 29 Jan 2016 10:36:00 -0500
-
 
 jazzhands-hotpants (0.67.3) unstable; urgency=medium
 
@@ -109,7 +104,6 @@ jazzhands-hotpants (0.67.2) unstable; urgency=medium
   * print calling station id when bad requests come in
 
  -- Todd M. Kover <kovert@omniscient.com>  Wed, 27 Jan 2016 14:47:00 -0500
-
 
 jazzhands-hotpants (0.67.1) unstable; urgency=medium
 

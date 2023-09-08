@@ -8,7 +8,7 @@ install:
 	echo Doing install
 	rm -rf $(DESTDIR)
 	mkdir -p $(DESTDIR)/${prefix}
-	make pure_install DESTDIR=$(DESTDIR)
+	make pure_install
 
 	find $(DESTDIR) -type f -name .packlist -exec rm -f {} \;
 	find $(DESTDIR) -depth -type d -exec rmdir {} 2>/dev/null \;

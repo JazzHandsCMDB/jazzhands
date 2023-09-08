@@ -11,9 +11,13 @@ license:   Artistic
 group:     Applications
 url:       http://www.jazzhands.net/
 Source:	   %{pkgname}-%{version}.tar.gz
+BuildRequires: make
 %if 0%{?suse_version}
 BuildRequires: perl(JazzHands::Common)
+BuildRequires: perl(ExtUtils::MakeMaker)
 %else
+BuildRequires: perl-generators
+BuildRequires: perl-interpreter
 %if 0%{?rhel} < 6
 BuildRequires: perl(ExtUtils::MakeMaker)
 %else

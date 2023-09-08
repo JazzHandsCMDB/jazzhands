@@ -2,10 +2,10 @@ Source: jazzhands-account-directory
 Section: System/Management
 Priority: optional
 Maintainer: Todd Kover <kovert@omniscient.com>
-Build-Depends: debhelper (>= 8.0.0)
-Standards-Version: 3.9.4
+Build-Depends: debhelper (>= 9.0.0)
+Standards-Version: 4.6.2
 
 Package: jazzhands-account-directory
 Architecture: all
-Depends: ${misc:Depends}, ${perl:Depends}, perl-jazzhands-dbi, libdbd-pg-perl, perl-jazzhands-appauthal, php-pgsql, netpbm, libjpeg8, libdigest-sha-perl, jazzhands-javascript-common, libcgi-pm-perl
+Depends: ${misc:Depends}, ${perl:Depends}, perl-jazzhands-dbi (>= 0.96.0), libdbd-pg-perl, perl-jazzhands-appauthal (>= 0.96.0), php-pgsql, netpbm, libjpeg8, libdigest-sha-perl, jazzhands-javascript-common (>= 0.96.0), libcgi-pm-perl
 Description: Rudimentary Web site for Acccount Directory

@@ -2,12 +2,12 @@ Source: jazzhands-approval
 Section: unknown
 Priority: extra
 Maintainer: JazzHands Project <release@jazzhands.net>
-Build-Depends: debhelper (>= 8.0.0), perl-modules
-Standards-Version: 3.9.4
+Build-Depends: debhelper (>= 9.0.0), perl-modules
+Standards-Version: 4.6.2
 Homepage: http://www.jazzhands.net/
 
 Package: jazzhands-approval
-Architecture: any
-Pre-Depends: perl-jazzhands-dbi, jazzhands-perl-tickets (>= 0.70.5), libjson-perl, libwww-perl, libdatetime-format-strptime-perl, libemail-date-format-perl
+Architecture: all
+Depends: libdbd-pg-perl, postgresql-client (>= 12), perl-jazzhands-dbi (>= 0.96.0), jazzhands-perl-tickets (>= 0.96.0), libjson-perl, libwww-perl, libdatetime-format-strptime-perl, libemail-date-format-perl
 Description: 
  JazzHands Front Ends for Interaction with Approval System

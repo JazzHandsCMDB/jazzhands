@@ -15,6 +15,8 @@
 # limitations under the License.
 #
 
+prefix		?= /var/www/stab
+BUILDPERL	?= perl
 
 all:
 	echo Nothing to do for web site
@@ -23,23 +25,22 @@ all:
 	echo Done with all
 
 install:
-	@ if [ -z "$(INSTALLROOT)" ] ; then echo 1>&2 Must set INSTALLROOT;exit 1;fi
+	@ if [ -z "$(DESTDIR)" ] ; then echo 1>&2 Must set DESTDIR;exit 1;fi
 	echo Doing install
-	rm -rf $(INSTALLROOT)
-	mkdir -p $(INSTALLROOT)/${prefix}
+	rm -rf $(DESTDIR)
+	mkdir -p $(DESTDIR)/${prefix}
 
-	(cd web/src/web ; tar cf - . ) | (cd $(INSTALLROOT)/${prefix} ; tar xpvf - )
-	cd perl/src && make pure_install PERL_INSTALL_ROOT=$(INSTALLROOT)
+	(cd web/src/web && tar cf - . ) | (cd $(DESTDIR)/${prefix} ; tar xpvf - )
+	cd perl/src && make pure_install
 
 
-	find $(INSTALLROOT) -type f -name .packlist -exec rm -f {} \;
-	find $(INSTALLROOT) -depth -type d -exec rmdir {} 2>/dev/null \;
-	find $(INSTALLROOT) -name Makefile -print |xargs rm -f 
+	find $(DESTDIR) -type f -name .packlist -exec rm -f {} \;
+	find $(DESTDIR) -depth -type d -exec rmdir {} 2>/dev/null \;
+	find $(DESTDIR) -name Makefile -print |xargs rm -f
 	echo Done install
 
 clean:
-	(cd perl/src/ ; make distclean)
-	[ -z "$(INSTALLROOT)" ] || rm -rf $(INSTALLROOT)
+	(cd perl/src && [ -r Makefile ] && make distclean || true )
 
 
 distclean: clean

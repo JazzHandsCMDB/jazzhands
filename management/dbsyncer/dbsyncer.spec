@@ -8,6 +8,7 @@ URL:    	http://www.jazzhands.net/
 Source0:        %{name}-%{version}.tar.gz
 BuildRoot:      %{_tmppath}/%{name}-%{version}-%{release}-buildroot
 BuildArch:	noarch
+BuildRequires:	make
 %if 0%{?suse_version}
 %else
 %if 0%{?rhel} < 6
@@ -27,13 +28,13 @@ JazzHands Database Sync Software
 %prep
 rm -rf %{buildroot}
 %setup -q -n %{name}-%{version}
-make -f Makefile.jazzhands 
+make
 
 %install
-make -f Makefile.jazzhands INSTALLROOT=%{buildroot} install
+make  DESTDIR=%{buildroot} install
 
 %clean
-make -f Makefile.jazzhands clean
+make  clean
 rm -rf %{buildroot}
 
 

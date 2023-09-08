@@ -1,5 +1,5 @@
 #
-# Copyright (c) 2016, Todd M. Kover
+# Copyright (c) 2016-2023, Todd M. Kover
 # All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
@@ -15,34 +15,33 @@
 # limitations under the License.
 #
 
-PREFIX ?= /usr
+PREFIX		?= /usr
+BUILDPERL	?= perl
 
 all:
-	echo Nothing to do for web site
-	echo Building perl modules
 	cd src/bin && $(MAKE)
 	cd src/perl && $(BUILDPERL) Makefile.PL INSTALLDIRS=vendor --default
 	echo Done with all
 
 install:
-	@ if [ -z "$(INSTALLROOT)" ] ; then echo 1>&2 Must set INSTALLROOT;exit 1;fi
+	@ if [ -z "$(DESTDIR)" ] ; then echo 1>&2 Must set DESTDIR;exit 1;fi
 	echo Doing install
-	rm -rf $(INSTALLROOT)
-	mkdir -p $(INSTALLROOT)/${prefix}
+	rm -rf $(DESTDIR)
+	mkdir -p $(DESTDIR)/${prefix}
 
-	cd src/bin && $(MAKE) DESTDIR=$(INSTALLROOT) PREFIX=$(PREFIX) install
-	cd src/libexec && $(MAKE) DESTDIR=$(INSTALLROOT) PREFIX=$(PREFIX) install
+	cd src/bin && $(MAKE) DESTDIR=$(DESTDIR) PREFIX=$(PREFIX) install
+	cd src/libexec && $(MAKE) DESTDIR=$(DESTDIR) PREFIX=$(PREFIX) install
 
-	cd src/perl && make pure_install PERL_INSTALL_ROOT=$(INSTALLROOT)
+	cd src/perl && make pure_install
 
-	find $(INSTALLROOT) -type f -name .packlist -exec rm -f {} \;
-	find $(INSTALLROOT) -depth -type d -exec rmdir {} 2>/dev/null \;
-	find $(INSTALLROOT) -name Makefile -print |xargs rm -f 
+	find $(DESTDIR) -type f -name .packlist -exec rm -f {} \;
+	find $(DESTDIR) -depth -type d -exec rmdir {} 2>/dev/null \;
+	find $(DESTDIR) -name Makefile -print |xargs rm -f
 	echo Done install
 
 clean:
 	(cd src/perl ; [ ! -f Makefile ] || make distclean)
-	[ -z "$(INSTALLROOT)" ] || rm -rf $(INSTALLROOT)
+	[ -z "$(DESTDIR)" ] || rm -rf $(DESTDIR)
 
 
 distclean: clean

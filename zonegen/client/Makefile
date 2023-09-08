@@ -15,13 +15,19 @@
 # limitations under the License.
 #
 
+PREFIX ?= /usr/libexec/jazzhands/zonegen/
+
 all:
 
 install:
 	rm -rf $(DESTDIR)
 	mkdir -p $(DESTDIR)/$(PREFIX)
-	tar cf - `find . -name \*.js -o -name \*.css ` external/chosen/* external/jquery-Autocomplete/* | (cd $(DESTDIR)/$(PREFIX) ; tar xpf -)
-	find $(DESTDIR)
+	for file in ingest-zonegen-changes.sh ; do \
+		newfn=`echo $$file | sed 's/\..*$$//'` ;\
+		install -m 555  $$file $(DESTDIR)/$(PREFIX)/$$newfn ;\
+	done
 
 clean:
 	[ -z "$(DESTDIR)" ] || rm -rf $(DESTDIR)
+
+distclean: clean

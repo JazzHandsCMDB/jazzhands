@@ -9,6 +9,7 @@ License:    Unknown
 Group:      System/Management
 Url:        http://www.jazzhands.net/
 Source0:    %{pkgname}-%{version}.tar.gz
+BuildRequires: make
 %if 0%{?suse_version}
 %else
 %if 0%{?rhel} < 6
@@ -25,15 +26,16 @@ Apache-based JazzHands API service
 
 %prep
 %setup -q -n %{pkgname}-%{version}
-make -f Makefile.jazzhands
+make
 
 %install
-make -f Makefile.jazzhands INSTALLROOT=%{buildroot} PREFIX=%{prefix} install
+make  DESTDIR=%{buildroot} PREFIX=%{prefix} install
 
 %clean
-make -f Makefile.jazzhands clean
+make  clean
 
 
 %files
 %attr (-, root, bin) /usr/libexec/jazzhands/api/JazzHands/Apache/API/Common.pm
 %attr (-, root, bin) /usr/libexec/jazzhands/api/JazzHands/Apache/API/Container.pm
+%attr (-, root, bin) /usr/libexec/jazzhands/api/JazzHands/Apache/API/Device.pm

@@ -15,17 +15,14 @@
 # limitations under the License.
 #
 
+PREFIX ?= /var/www/jazzhands-javascript-common
+
 all:
 
 install:
 	rm -rf $(DESTDIR)
 	mkdir -p $(DESTDIR)/$(PREFIX)
-	for file in ingest-zonegen-changes.sh ; do \
-		newfn=`echo $$file | sed 's/\..*$$//'` ;\
-		install -m 555  $$file $(DESTDIR)/$(PREFIX)/$$newfn ;\
-	done
+	tar cf - `find . -name \*.js -o -name \*.css ` external/chosen/* external/jquery-Autocomplete/* | (cd $(DESTDIR)/$(PREFIX) ; tar xpf -)
 
 clean:
 	[ -z "$(DESTDIR)" ] || rm -rf $(DESTDIR)
-
-distclean: clean
