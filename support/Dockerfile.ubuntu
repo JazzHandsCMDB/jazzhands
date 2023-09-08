@@ -1,0 +1,9 @@
+ARG ubuntuv=22.04
+FROM ubuntu:$ubuntuv
+
+RUN apt-get update
+RUN apt-get install -y devscripts debhelper equivs
+
+COPY build-one-deb.sh /build-one-deb
+RUN chmod +x /build-one-deb
+ENTRYPOINT /build-one-deb

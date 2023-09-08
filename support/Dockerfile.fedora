@@ -1,0 +1,7 @@
+# 39 noworkee
+FROM fedora:latest
+
+RUN yum install -y rpm-build yum-utils
+COPY build-one-rpm.sh /build-one-rpm
+RUN chmod +x /build-one-rpm
+ENTRYPOINT /build-one-rpm

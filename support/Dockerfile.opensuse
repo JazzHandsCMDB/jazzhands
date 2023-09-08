@@ -1,0 +1,6 @@
+FROM opensuse/leap:15
+
+RUN zypper install -y rpm-build
+COPY build-one-rpm.sh /build-one-rpm
+RUN chmod +x /build-one-rpm
+ENTRYPOINT /build-one-rpm

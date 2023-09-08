@@ -27,7 +27,7 @@ for i in *.gz ; do
 	pkg=`basename $i | sed -e 's/.tar.gz$//'`
 	tmpdir=$RELEASEDIR/`echo $pkg | sed -e 's,/,_,'`
 	echo $i
-	(cd $RELEASEDIR && tar zxpf $fqtar && cd $pkg && dpkg-buildpackage -tc)
+	(cd $RELEASEDIR && tar zxpf $fqtar && cd $pkg && dpkg-buildpackage --no-sign -tc)
 	echo Packages in $tmpdir
 done
 

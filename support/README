@@ -6,14 +6,8 @@ tags, but its a step in the right direction
 
 NOTES:
 
-- release contains information on releases
+- release contains information on what to release
 - build-release spits out .tar.gzs in the current directory that are release
   ready (well, for some definition).  More work needs to be done.
-
-testing was done with:
-
-rm -f *.tgz
-./build-release
-fail=''
-for i in *.gz ; do rpmbuild -tb $i || fail="$file $i"; done
-echo $fail
+- The dockerfiles build rpms and debs appropriately and make sure they
+  build, then put the output in ./deb or ./rpm
