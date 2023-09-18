@@ -1685,59 +1685,76 @@ SET search_path=jazzhands
 SECURITY DEFINER
 LANGUAGE plpgsql;
 
-CREATE OR REPLACE FUNCTION component_manip.set_component_firmware_version(
-	component_id		jazzhands.component.component_id%TYPE,
-	firmware_version	text
+CREATE OR REPLACE FUNCTION component_manip.set_component_property(
+	component_property_name	jazzhands.component_property.component_property_name%TYPE,
+	component_property_type	jazzhands.component_property.component_property_type%TYPE,
+	property_value			jazzhands.component_property.property_value%TYPE,
+	component_id			jazzhands.component.component_id%TYPE DEFAULT NULL,
+	component_type_id		jazzhands.component.component_type_id%TYPE DEFAULT NULL
 ) RETURNS boolean
 AS $$
 DECLARE
-	cid			ALIAS FOR component_id;
-	cp			RECORD;
+	cpn		ALIAS FOR component_property_name;
+	cpt		ALIAS FOR component_property_type;
+	pv		ALIAS FOR property_value;
+	cid		ALIAS FOR component_id;
+	ct_id	ALIAS FOR component_type_id;
+	cp		RECORD;
 BEGIN
-	IF component_id IS NULL THEN
+	IF cid IS NULL AND ct_id IS NULL THEN
 		RAISE EXCEPTION
-			'component_id must be passed to set_component_firmware_version';
+			'component_id or component_type_id must be passed to set_component_property';
 		RETURN NULL;
 	END IF;
 
-	IF firmware_version IS NULL THEN
+	IF cpn IS NULL OR cpt IS NULL THEN
+		RAISE EXCEPTION
+			'component_property_name and component_property_type must be passed to set_component_property';
+		RETURN NULL;
+	END IF;
+
+	IF property_value IS NULL THEN
 		DELETE FROM
 			component_property p
 		WHERE
-			p.component_id = cid AND
-			p.component_property_name = 'FirmwareVersion' AND
-			p.component_property_type = 'device';
+			p.component_property_name = cpn AND
+			p.component_property_type = cpt AND
+			( cid IS NULL OR p.component_id = cid ) AND
+			( ct_id IS NULL OR p.component_type_id = ct_id );
 		RETURN true;
 	END IF;
 
 	SELECT * FROM component_property p INTO cp WHERE
-		p.component_id = cid AND
-		p.component_property_name = 'FirmwareVersion' AND
-		p.component_property_type = 'device';
+		p.component_property_name = cpn AND
+		p.component_property_type = cpt AND
+		( cid IS NULL OR p.component_id = cid ) AND
+		( ct_id IS NULL OR p.component_type_id = ct_id );
 
 	IF NOT FOUND THEN
 		INSERT INTO component_property (
 			component_id,
+			component_type_id,
 			component_property_name,
 			component_property_type,
 			property_value
 		) VALUES (
 			cid,
-			'FirmwareVersion',
-			'device',
-			firmware_version
+			ct_id,
+			cpn,
+			cpt,
+			pv
 		);
 		RETURN true;
 	END IF;
 
-	UPDATE
-		component_property p
-	SET
-		property_value = firmware_version
-	WHERE
-		p.component_id = cid AND
-		p.component_property_name = 'FirmwareVersion' AND
-		p.component_property_type = 'device';
+	IF cp.property_value IS DISTINCT FROM pv THEN
+		UPDATE
+			component_property p
+		SET
+			property_value = pv
+		WHERE
+			p.component_property_id = cp.component_property_id;
+	END IF;
 
 	RETURN true;
 END;
@@ -1745,7 +1762,6 @@ $$
 SET search_path=jazzhands
 SECURITY DEFINER
 LANGUAGE plpgsql;
-
 
 CREATE OR REPLACE FUNCTION component_manip.set_component_network_interface(
 	component_id        jazzhands.component.component_id%TYPE,
