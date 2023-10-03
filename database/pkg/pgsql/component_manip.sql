@@ -377,6 +377,11 @@ BEGIN
 		s.component_id = ANY(delete_list);
 
 	DELETE FROM
+		asset a
+	WHERE
+		a.component_id = ANY (delete_list);
+
+	DELETE FROM
 		component c
 	WHERE
 		c.component_id = ANY (delete_list);
@@ -823,8 +828,9 @@ SECURITY DEFINER
 LANGUAGE plpgsql;
 
 --
--- These need to all call a generic component/component_type insertion
--- function, rather than all of the specific types, but that's thinking
+-- These should call a generic component/component_type insertion
+-- function, rather than all of the specific types, but there are
+-- stupid complications, because vendors suck.
 --
 
 CREATE OR REPLACE FUNCTION component_manip.insert_disk_component(
