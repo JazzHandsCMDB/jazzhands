@@ -112,7 +112,7 @@ BEGIN
 		SELECT	account_id
 		INTO	_aid
 		FROM	account
-		WHERE	login IS NOT DISTINCT FROM parameters?'login'
+		WHERE	login IS NOT DISTINCT FROM parameters->>'login'
 		AND		account_realm_id = _arid;
 	ELSE
 		RAISE EXCEPTION 'must specify a user to check for'
