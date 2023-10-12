@@ -338,6 +338,71 @@ $$
 SET search_path=jazzhands
 LANGUAGE plpgsql SECURITY DEFINER;
 
+---
+--- delete service instances and if they're directly connected to an
+--- endpoint, also purge that
+---
+CREATE OR REPLACE FUNCTION service_manip.remove_service_instance(
+	service_instance_id				INTEGER
+) RETURNS boolean AS $$
+DECLARE
+	_in_si_id	ALIAS FOR service_instance_id;
+	_r			RECORD;
+	_sep		service_endpoint_provider;
+	_sepcsep	service_endpoint_provider_collection_service_endpoint_provider;
+	_sesepc		service_endpoint_service_endpoint_provider_collection;
+BEGIN
+	FOR _r IN SELECT * FROM service_endpoint_provider_service_instance sepsi
+		WHERE sepsi.service_instance_id = _in_si_id
+	LOOP
+		SELECT * INTO _sep FROM service_endpoint_provider sep WHERE
+			sep.service_endpoint_provider_id = _r.service_endpoint_provider_id;
+		DELETE FROM service_endpoint_provider_service_instance
+		WHERE service_endpoint_provider_service_instance_id =
+			_r.service_endpoint_provider_service_instance_id;
+
+		DELETE FROM service_endpoint_provider_collection_service_endpoint_provider sepcsep
+		WHERE sepcsep.service_endpoint_provider_id =
+			_r.service_endpoint_provider_id
+			RETURNING * INTO _sepcsep;
+
+		IF _sep.service_endpoint_provider_type = 'direct' THEN
+
+			DELETE FROM service_endpoint_service_endpoint_provider_collection sesepc
+			WHERE sesepc.service_endpoint_provider_collection_id =
+				_sepcsep.service_endpoint_provider_collection_id
+				RETURNING * INTO _sesepc;
+
+			DELETE FROM service_endpoint_provider_collection
+			WHERE service_endpoint_provider_collection_id =
+				_sepcsep.service_endpoint_provider_collection_id;
+
+
+			DELETE FROM service_endpoint_provider WHERE
+				service_endpoint_provider_id = _sep.service_endpoint_provider_id;
+
+			DELETE FROM service_endpoint_service_sla
+			WHERE service_endpoint_id = _sesepc.service_endpoint_id;
+
+			DELETE FROM service_endpoint
+			WHERE service_endpoint_id = _sesepc.service_endpoint_id;
+
+		ELSE
+			DELETE FROM service_endpoint_provider_service_instance WHERE
+				service_endpoint_provider_id = _sep.service_endpoint_provider_id;
+			DELETE FROM service_endpoint_provider WHERE
+				service_endpoint_provider_id = _sep.service_endpoint_provider_id;
+		END IF;
+
+	END LOOP;
+
+	DELETE FROM service_instance si WHERE si.service_instance_id = _in_si_id;
+	RETURN true;
+END;
+$$
+SET search_path=jazzhands
+LANGUAGE plpgsql SECURITY DEFINER;
+
 REVOKE ALL ON SCHEMA service_manip FROM public;
 REVOKE ALL ON ALL FUNCTIONS IN SCHEMA service_manip FROM public;
 GRANT EXECUTE ON ALL FUNCTIONS IN SCHEMA service_manip TO iud_role
