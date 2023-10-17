@@ -579,7 +579,7 @@ BEGIN
 		INSERT INTO val_block_storage_device_type (
 			block_storage_device_type, permit_component_id
 		) VALUES (
-			'JHTESTBSD', 'REQIURED'
+			'JHTESTBSD', 'REQUIRED'
 		);
 
 		WITH c AS (
@@ -639,7 +639,7 @@ BEGIN
 		INSERT INTO val_block_storage_device_type (
 			block_storage_device_type, permit_component_id
 		) VALUES (
-			'JHTESTBSD', 'REQIURED'
+			'JHTESTBSD', 'REQUIRED'
 		);
 
 		WITH c AS (
@@ -701,7 +701,7 @@ BEGIN
 		INSERT INTO val_block_storage_device_type (
 			block_storage_device_type, permit_component_id
 		) VALUES (
-			'JHTESTBSD', 'REQIURED'
+			'JHTESTBSD', 'REQUIRED'
 		);
 
 		WITH c AS (

@@ -96,4 +96,4 @@
 
 \ir jazzhands_legacy_manip.sql
 
-\ir authorization_schema.sql
+\ir authorization_utils.sql
