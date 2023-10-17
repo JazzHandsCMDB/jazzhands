@@ -110,7 +110,7 @@ BEGIN
 			encryption_key_purpose, encryption_key_purpose_version,
 			permit_encryption_key_db_value
 		) VALUES (
-			'jhpurpose', 2, 'REQURIED'
+			'jhpurpose', 2, 'REQUIRED'
 		);
 
 		INSERT INTO encryption_key (

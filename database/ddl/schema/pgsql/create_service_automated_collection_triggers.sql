@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2021 Todd Kover
+ * Copyright (c) 2021-2023 Todd Kover
  * All rights reserved.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
@@ -20,18 +20,44 @@ CREATE OR REPLACE FUNCTION create_all_services_collection()
 RETURNS TRIGGER AS $$
 BEGIN
 	IF TG_OP = 'INSERT' THEN
-		INSERT INTO service_version_collection (
-			service_version_collection_name, service_version_collection_type
-		) VALUES
-			( NEW.service_name, 'all-services' ),
-			( NEW.service_name, 'current-services' );
+		WITH svc AS (
+			INSERT INTO service_version_collection (
+				service_version_collection_name, service_version_collection_type
+			) VALUES
+				(concat_ws(':', NEW.service_type,NEW.service_name),
+					'all-services' )
+			RETURNING *
+		) INSERT INTO service_version_collection_purpose (
+			service_version_collection_id, service_version_collection_purpose,
+			service_id
+		) SELECT service_version_collection_id, 'all', NEW.service_id
+		FROM svc;
+
+		WITH svc AS (
+			INSERT INTO service_version_collection (
+				service_version_collection_name, service_version_collection_type
+			) VALUES
+				(concat_ws(':', NEW.service_type,NEW.service_name),
+					'current-services' )
+			RETURNING *
+		) INSERT INTO service_version_collection_purpose (
+			service_version_collection_id, service_version_collection_purpose,
+			service_id
+		) SELECT service_version_collection_id, 'current', NEW.service_id
+		FROM svc;
 	ELSIF TG_OP = 'UPDATE' THEN
-		UPDATE service_version_collection
-		SET service_version_collection_name = NEW.service_name
-		WHERE service_version_collection_type
-			IN ( 'all-services', 'current-services')
-		AND service_version_collection_name = OLD.service_name;
+		UPDATE service_version_collection svc
+			SET service_version_collection_name =
+				concat_ws(':', NEW.service_type,NEW.service_name)
+			FROM service_version_collection_purpose svcp
+			WHERE svc.service_version_collection_id
+					= svcp.service_version_collection_id
+			AND service_collection_purpose IN ('all', 'current');
 	ELSIF TG_OP = 'DELETE' THEN
+		DELETE FROM service_version_collection_purpose
+		WHERE service_version_collection_purpose IN ('current', 'all')
+		AND service_id = OLD.service_id;
+
 		RETURN OLD;
 	END IF;
 	RETURN NEW;
@@ -43,7 +69,7 @@ LANGUAGE plpgsql SECURITY DEFINER;
 DROP TRIGGER IF EXISTS trigger_create_all_services_collection
 	ON service;
 CREATE TRIGGER trigger_create_all_services_collection
-	AFTER INSERT OR UPDATE OF service_name
+	AFTER INSERT OR UPDATE OF service_name, service_type
 	ON service
 	FOR EACH ROW
 	EXECUTE PROCEDURE create_all_services_collection();

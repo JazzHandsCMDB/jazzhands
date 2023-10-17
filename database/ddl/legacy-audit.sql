@@ -662,10 +662,6 @@ FROM jazzhands_audit.device_encapsulation_domain;
 
 
 
-CREATE OR REPLACE VIEW audit.device_layer2_network AS
-SELECT "device_id","layer2_network_id","data_ins_user","data_ins_date","data_upd_user","data_upd_date","aud#action","aud#timestamp","aud#realtime","aud#txid","aud#user","aud#seq"
-FROM jazzhands_audit.device_layer2_network;
-
 
 
 CREATE OR REPLACE VIEW audit.device_management_controller AS

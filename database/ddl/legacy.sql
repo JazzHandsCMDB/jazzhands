@@ -637,12 +637,6 @@ SELECT device_id,encapsulation_type,encapsulation_domain,data_ins_user,data_ins_
 FROM jazzhands.device_encapsulation_domain;
 
 
-
-CREATE OR REPLACE VIEW jazzhands_legacy.device_layer2_network AS
-SELECT device_id,layer2_network_id,data_ins_user,data_ins_date,data_upd_user,data_upd_date
-FROM jazzhands.device_layer2_network;
-
-
 CREATE OR REPLACE VIEW jazzhands_legacy.device_management_controller AS
 SELECT
 	manager_device_id,

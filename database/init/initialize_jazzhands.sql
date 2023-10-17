@@ -2562,6 +2562,13 @@ INSERT INTO val_source_repository_protocol (
 	('https'),
 	('ssh');
 
+INSERT INTO val_service_version_collection_purpose (
+	service_version_collection_purpose, description
+) VALUES
+	('all', 'all services for a given service'),
+	('current', 'current services for a given service; for when a release does an overhaul from the db perspective')
+;
+
 -------------------------------------------------------------------------
 --
 -- END Services

@@ -24,34 +24,20 @@ BEGIN
 			service_version_collection_id, service_version_id
 		) SELECT service_version_collection_id, NEW.service_version_id
 		FROM service_version_collection
-		WHERE service_version_collection_type = 'all-services'
-		AND service_version_collection_name IN (SELECT service_name
-			FROM service
-			WHERE service_id = NEW.service_id
-		);
-		INSERT INTO service_version_collection_service_version (
-			service_version_collection_id, service_version_id
-		) SELECT service_version_collection_id, NEW.service_version_id
-		FROM service_version_collection
-		WHERE service_version_collection_type = 'current-services'
-		AND service_version_collection_name IN (SELECT service_name
-			FROM service
-			WHERE service_id = NEW.service_id
-		);
+			JOIN service_version_collection_purpose
+				USING (service_version_collection_id)
+		WHERE service_version_collection_purpose IN ('all','current')
+		AND service_id = NEW.service_id;
 	ELSIF TG_OP = 'DELETE' THEN
 		DELETE FROM service_version_collection_service_version
 		WHERE service_version_id = OLD.service_version_id
 		AND service_version_collection_id IN (
 			SELECT service_version_collection_id
 			FROM service_version_collection
-			WHERE service_version_collection_name IN (
-				SELECT service_name
-				FROM service
-				WHERE service_id = OLD.service_id
-			)
-			AND service_version_collection_type IN (
-				'all-services', 'current-services'
-			)
+				JOIN service_version_collection_purpose
+					USING (service_version_collection_id)
+			WHERE service_id = OLD.service_id
+			AND service_version_collection_purpose IN ( 'all', 'current' )
 		);
 		RETURN OLD;
 	END IF;
