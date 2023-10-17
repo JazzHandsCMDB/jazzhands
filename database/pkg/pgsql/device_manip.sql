@@ -133,6 +133,13 @@ BEGIN
 	;
 
 	--
+	-- Remove service instances
+	--
+	PERFORM service_manip.remove_service_instance(si.service_instance_id)
+		FROM service_instance si
+		WHERE si.device_id = ANY(device_id_list);
+
+	--
 	-- Delete layer3_interfaces
 	--
 	PERFORM device_manip.remove_layer3_interfaces(
