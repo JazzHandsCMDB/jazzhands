@@ -82,3 +82,74 @@ CREATE TRIGGER trigger_create_all_services_collection_del
 	FOR EACH ROW
 	EXECUTE PROCEDURE create_all_services_collection();
 
+-----------------------------------------------------------------------------
+
+---
+--- Check if there are service_version_collection_purpose mismatches.
+---
+CREATE OR REPLACE FUNCTION service_version_collection_purpose_service_version_enforce()
+RETURNS TRIGGER AS $$
+BEGIN
+	PERFORM *
+	FROM service_version sv
+		JOIN service_version_collection_service_version
+			USING (service_version_id)
+		JOIN service_version_collection_purpose svcp
+			USING (service_version_collection_id)
+	WHERE svcp.service_version_collection_id = NEW.service_version_collection_id	AND sv.service_Id != svcp.service_id;
+
+	IF FOUND THEN
+		RAISE EXCEPTION 'service mismatch'
+			USING ERRCODE = 'foreign_key_violation';
+	END IF;
+	RETURN NEW;
+END;
+$$
+SET search_path=jazzhands
+LANGUAGE plpgsql SECURITY DEFINER;
+
+DROP TRIGGER IF EXISTS trigger_service_version_collection_purpose_service_version_enforce
+	ON service_version_collection_service_version;
+CREATE CONSTRAINT TRIGGER trigger_service_version_collection_purpose_service_version_enforce
+	AFTER INSERT OR UPDATE OF service_version_collection_id, service_version_id
+	ON service_version_collection_service_version
+	FOR EACH ROW
+	EXECUTE PROCEDURE service_version_collection_purpose_service_version_enforce();
+
+-----------------------------------------------------------------------------
+
+---
+--- Check if there are service_version_collection_purpose mismatches.
+---
+CREATE OR REPLACE FUNCTION service_version_collection_purpose_enforce()
+RETURNS TRIGGER AS $$
+BEGIN
+	PERFORM *
+	FROM service_version sv
+		JOIN service_version_collection_service_version
+			USING (service_version_id)
+		JOIN service_version_collection_purpose svcp
+			USING (service_version_collection_Id)
+	WHERE svcp.service_version_collection_purpose = 
+		NEW.service_version_collection_purpose
+	AND svcp.service_id != sv.service_id;
+
+	IF FOUND THEN
+		RAISE EXCEPTION 'Collections exist with a purpose associated with a difference service_id'
+			USING ERRCODE = 'foreign_key_violation';
+	END IF;
+	RETURN NEW;
+END;
+$$
+SET search_path=jazzhands
+LANGUAGE plpgsql SECURITY DEFINER;
+
+DROP TRIGGER IF EXISTS trigger_service_version_collection_purpose_enforce
+	ON service_version_collection_purpose;
+CREATE CONSTRAINT TRIGGER trigger_service_version_collection_purpose_enforce
+	AFTER INSERT OR UPDATE
+	ON service_version_collection_purpose
+	FOR EACH ROW
+	EXECUTE PROCEDURE service_version_collection_purpose_enforce();
+
+-----------------------------------------------------------------------------
