@@ -5053,6 +5053,35 @@ ALTER TABLE jazzhands.service_version_collection_purpose
 	FOREIGN KEY (service_version_collection_purpose) REFERENCES jazzhands.val_service_version_collection_purpose(service_version_collection_purpose);
 
 -- TRIGGERS
+-- considering NEW jazzhands.service_version_collection_purpose_enforce
+CREATE OR REPLACE FUNCTION jazzhands.service_version_collection_purpose_enforce()
+ RETURNS trigger
+ LANGUAGE plpgsql
+ SECURITY DEFINER
+ SET search_path TO 'jazzhands'
+AS $function$
+BEGIN
+	PERFORM *
+	FROM service_version sv
+		JOIN service_version_collection_service_version
+			USING (service_version_id)
+		JOIN service_version_collection_purpose svcp
+			USING (service_version_collection_Id)
+	WHERE svcp.service_version_collection_purpose = 
+		NEW.service_version_collection_purpose
+	AND svcp.service_id != sv.service_id;
+
+	IF FOUND THEN
+		RAISE EXCEPTION 'Collections exist with a purpose associated with a difference service_id'
+			USING ERRCODE = 'foreign_key_violation';
+	END IF;
+	RETURN NEW;
+END;
+$function$
+;
+REVOKE ALL ON FUNCTION jazzhands.service_version_collection_purpose_enforce() FROM public;
+CREATE CONSTRAINT TRIGGER trigger_service_version_collection_purpose_enforce AFTER INSERT OR UPDATE ON jazzhands.service_version_collection_purpose NOT DEFERRABLE INITIALLY IMMEDIATE FOR EACH ROW EXECUTE FUNCTION jazzhands.service_version_collection_purpose_enforce();
+
 DO $$
 BEGIN
 		DELETE FROM __recreate WHERE schema = 'jazzhands' AND object IN ('service_version_collection_purpose');
@@ -5292,7 +5321,7 @@ BEGIN
 			INSERT INTO service_version_collection (
 				service_version_collection_name, service_version_collection_type
 			) VALUES
-				(concat_ws(':', NEW.service_type,NEW.service_name), 
+				(concat_ws(':', NEW.service_type,NEW.service_name),
 					'all-services' )
 			RETURNING *
 		) INSERT INTO service_version_collection_purpose (
@@ -5305,7 +5334,7 @@ BEGIN
 			INSERT INTO service_version_collection (
 				service_version_collection_name, service_version_collection_type
 			) VALUES
-				(concat_ws(':', NEW.service_type,NEW.service_name), 
+				(concat_ws(':', NEW.service_type,NEW.service_name),
 					'current-services' )
 			RETURNING *
 		) INSERT INTO service_version_collection_purpose (
@@ -5315,10 +5344,10 @@ BEGIN
 		FROM svc;
 	ELSIF TG_OP = 'UPDATE' THEN
 		UPDATE service_version_collection svc
-			SET service_version_collection_name = 
+			SET service_version_collection_name =
 				concat_ws(':', NEW.service_type,NEW.service_name)
 			FROM service_version_collection_purpose svcp
-			WHERE svc.service_version_collection_id 
+			WHERE svc.service_version_collection_id
 					= svcp.service_version_collection_id
 			AND service_collection_purpose IN ('all', 'current');
 	ELSIF TG_OP = 'DELETE' THEN
@@ -5362,6 +5391,31 @@ BEGIN
 				USING (service_version_collection_id)
 		WHERE service_version_collection_purpose IN ('all','current')
 		AND service_id = NEW.service_id;
+	ELSIF TG_OP = 'UPDATE' THEN
+		UPDATE service_version_collection_service_version
+		SET service_version_collection_id = (
+			SELECT service_version_collection_id
+			FROM service_version_collection_purpose
+			WHERE service_id = NEW.service_id
+			AND service_version_collection_purpose = 'current'
+		) WHERE service_version_collection_id = (
+			SELECT service_version_collection_id
+			FROM service_version_collection_purpose
+			WHERE service_id = OLD.service_id
+			AND service_version_collection_purpose = 'current'
+		);
+		UPDATE service_version_collection_service_version
+		SET service_version_collection_id = (
+			SELECT service_version_collection_id
+			FROM service_version_collection_purpose
+			WHERE service_id = NEW.service_id
+			AND service_version_collection_purpose = 'all'
+		) WHERE service_version_collection_id = (
+			SELECT service_version_collection_id
+			FROM service_version_collection_purpose
+			WHERE service_id = OLD.service_id
+			AND service_version_collection_purpose = 'all'
+		);
 	ELSIF TG_OP = 'DELETE' THEN
 		DELETE FROM service_version_collection_service_version
 		WHERE service_version_id = OLD.service_version_id
@@ -5391,6 +5445,84 @@ END;
 $$;
 
 SELECT schema_support.replay_object_recreates(tags := ARRAY['process_all_procs_in_schema_jazzhands']);
+-- New function; dropping in case it returned because of type change
+CREATE OR REPLACE FUNCTION jazzhands.service_version_collection_purpose_enforce()
+ RETURNS trigger
+ LANGUAGE plpgsql
+ SECURITY DEFINER
+ SET search_path TO 'jazzhands'
+AS $function$
+BEGIN
+	PERFORM *
+	FROM service_version sv
+		JOIN service_version_collection_service_version
+			USING (service_version_id)
+		JOIN service_version_collection_purpose svcp
+			USING (service_version_collection_Id)
+	WHERE svcp.service_version_collection_purpose = 
+		NEW.service_version_collection_purpose
+	AND svcp.service_id != sv.service_id;
+
+	IF FOUND THEN
+		RAISE EXCEPTION 'Collections exist with a purpose associated with a difference service_id'
+			USING ERRCODE = 'foreign_key_violation';
+	END IF;
+	RETURN NEW;
+END;
+$function$
+;
+
+-- New function; dropping in case it returned because of type change
+CREATE OR REPLACE FUNCTION jazzhands.service_version_collection_purpose_service_version_enforce()
+ RETURNS trigger
+ LANGUAGE plpgsql
+ SECURITY DEFINER
+ SET search_path TO 'jazzhands'
+AS $function$
+BEGIN
+	PERFORM *
+	FROM service_version sv
+		JOIN service_version_collection_service_version
+			USING (service_version_id)
+		JOIN service_version_collection_purpose svcp
+			USING (service_version_collection_id)
+	WHERE svcp.service_version_collection_id = NEW.service_version_collection_id	AND sv.service_Id != svcp.service_id;
+
+	IF FOUND THEN
+		RAISE EXCEPTION 'service mismatch'
+			USING ERRCODE = 'foreign_key_violation';
+	END IF;
+	RETURN NEW;
+END;
+$function$
+;
+
+-- New function; dropping in case it returned because of type change
+CREATE OR REPLACE FUNCTION jazzhands.service_version_service_version_purpose_enforce()
+ RETURNS trigger
+ LANGUAGE plpgsql
+ SECURITY DEFINER
+ SET search_path TO 'jazzhands'
+AS $function$
+BEGIN
+	PERFORM *
+	FROM service_version_collection_service_version
+		JOIN service_version_collection_purpose svcp
+			USING (service_version_collection_id)
+		JOIN service_version_collection_service_version svcsv
+			USING (service_version_collection_id)
+	WHERE svcp.service_id != NEW.service_id
+	AND svcsv.service_version_id = NEW.service_version_id;
+
+	IF FOUND THEN
+		RAISE EXCEPTION 'A service_version_collection_purpose for this service does not allow changing the service_id'
+			USING ERRCODE = 'foreign_key_violation';
+	END IF;
+	RETURN NEW;
+END;
+$function$
+;
+
 --
 -- Process all procs in jazzhands_legacy_manip
 --
@@ -6720,11 +6852,13 @@ CREATE TRIGGER trig_userlog_service_version BEFORE INSERT OR UPDATE ON jazzhands
 DROP TRIGGER IF EXISTS trigger_audit_service_version ON service_version;
 CREATE TRIGGER trigger_audit_service_version AFTER INSERT OR DELETE OR UPDATE ON jazzhands.service_version FOR EACH ROW EXECUTE FUNCTION jazzhands.perform_audit_service_version();
 DROP TRIGGER IF EXISTS trigger_manip_all_svc_collection_members ON service_version;
-CREATE TRIGGER trigger_manip_all_svc_collection_members AFTER INSERT ON jazzhands.service_version FOR EACH ROW EXECUTE FUNCTION jazzhands.manip_all_svc_collection_members();
+CREATE TRIGGER trigger_manip_all_svc_collection_members AFTER INSERT OR UPDATE OF service_id ON jazzhands.service_version FOR EACH ROW EXECUTE FUNCTION jazzhands.manip_all_svc_collection_members();
 DROP TRIGGER IF EXISTS trigger_manip_all_svc_collection_members_del ON service_version;
 CREATE TRIGGER trigger_manip_all_svc_collection_members_del BEFORE DELETE ON jazzhands.service_version FOR EACH ROW EXECUTE FUNCTION jazzhands.manip_all_svc_collection_members();
 DROP TRIGGER IF EXISTS trigger_propagate_service_type_to_version ON service_version;
 CREATE TRIGGER trigger_propagate_service_type_to_version BEFORE INSERT ON jazzhands.service_version FOR EACH ROW EXECUTE FUNCTION jazzhands.propagate_service_type_to_version();
+DROP TRIGGER IF EXISTS trigger_service_version_service_version_purpose_enforce ON service_version;
+CREATE CONSTRAINT TRIGGER trigger_service_version_service_version_purpose_enforce AFTER UPDATE OF service_id ON jazzhands.service_version NOT DEFERRABLE INITIALLY IMMEDIATE FOR EACH ROW EXECUTE FUNCTION jazzhands.service_version_service_version_purpose_enforce();
 DROP TRIGGER IF EXISTS trig_userlog_service_version_artifact ON service_version_artifact;
 CREATE TRIGGER trig_userlog_service_version_artifact BEFORE INSERT OR UPDATE ON jazzhands.service_version_artifact FOR EACH ROW EXECUTE FUNCTION schema_support.trigger_ins_upd_generic_func();
 DROP TRIGGER IF EXISTS trigger_audit_service_version_artifact ON service_version_artifact;
@@ -6747,6 +6881,8 @@ DROP TRIGGER IF EXISTS trig_userlog_service_version_collection_service_version O
 CREATE TRIGGER trig_userlog_service_version_collection_service_version BEFORE INSERT OR UPDATE ON jazzhands.service_version_collection_service_version FOR EACH ROW EXECUTE FUNCTION schema_support.trigger_ins_upd_generic_func();
 DROP TRIGGER IF EXISTS trigger_audit_service_version_collection_service_version ON service_version_collection_service_version;
 CREATE TRIGGER trigger_audit_service_version_collection_service_version AFTER INSERT OR DELETE OR UPDATE ON jazzhands.service_version_collection_service_version FOR EACH ROW EXECUTE FUNCTION jazzhands.perform_audit_service_version_collection_service_version();
+DROP TRIGGER IF EXISTS trigger_service_version_collection_purpose_service_version_enfo ON service_version_collection_service_version;
+CREATE CONSTRAINT TRIGGER trigger_service_version_collection_purpose_service_version_enfo AFTER INSERT OR UPDATE OF service_version_collection_id, service_version_id ON jazzhands.service_version_collection_service_version NOT DEFERRABLE INITIALLY IMMEDIATE FOR EACH ROW EXECUTE FUNCTION jazzhands.service_version_collection_purpose_service_version_enforce();
 DROP TRIGGER IF EXISTS trig_userlog_service_version_software_artifact_repository ON service_version_software_artifact_repository;
 CREATE TRIGGER trig_userlog_service_version_software_artifact_repository BEFORE INSERT OR UPDATE ON jazzhands.service_version_software_artifact_repository FOR EACH ROW EXECUTE FUNCTION schema_support.trigger_ins_upd_generic_func();
 DROP TRIGGER IF EXISTS trigger_audit_service_version_software_artifact_repository ON service_version_software_artifact_repository;
