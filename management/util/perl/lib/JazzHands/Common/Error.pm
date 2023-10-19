@@ -41,7 +41,7 @@ our %EXPORT_TAGS = (
 #
 # This is used external to JazzHands and thus can't really change
 # It is used internally to these libraries in a few places to handle cases
-# where calls are bath both inside and not inside this library
+# where calls are both inside and not inside this library
 #
 sub SetError {
 	my $error = shift;

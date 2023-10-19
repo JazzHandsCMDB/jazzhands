@@ -95,7 +95,7 @@ BEGIN
 		NULL;
 	END;
 
-END $$ LANGUAGE plpgsql SECURITY DEFINER;
+END $$ LANGUAGE plpgsql SET search_path = jazzhands SECURITY DEFINER;
 
 
 CREATE OR REPLACE FUNCTION layerx_network_manip.delete_layer3_network (

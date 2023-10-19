@@ -928,6 +928,11 @@ BEGIN
 				description := 'disk vendor auto-insert'
 			) INTO cid;
 
+			--
+			-- Insert the probed string as a property so things can be
+			-- easily changed to a different vendor later if this needs
+			-- to be merged into something else.
+			--
 			INSERT INTO property (
 				property_name,
 				property_type,
@@ -953,21 +958,40 @@ BEGIN
 	END IF;
 
 	--
-	-- See if we have this component type in the database already.
+	-- Try to determine the component_type
 	--
 	SELECT DISTINCT
 		component_type_id INTO ctid
 	FROM
 		component_type ct JOIN
+		component_property cp USING (component_type_id) JOIN
 		component_type_component_function ctcf USING (component_type_id)
 	WHERE
-		component_function = 'disk' AND
-		ct.model = m AND
+		ctcf.component_function = 'disk' AND
+		cp.component_property_name = 'DiskModelProbeString' AND
+		cp.component_property_type = 'disk' AND
+		cp.property_value = m AND
 		CASE WHEN cid IS NOT NULL THEN
 			(company_id = cid)
 		ELSE
 			true
 		END;
+
+	IF ctid IS NULL THEN
+		SELECT DISTINCT
+			component_type_id INTO ctid
+		FROM
+			component_type ct JOIN
+			component_type_component_function ctcf USING (component_type_id)
+		WHERE
+			component_function = 'disk' AND
+			ct.model = m AND
+			CASE WHEN cid IS NOT NULL THEN
+				(company_id = cid)
+			ELSE
+				true
+			END;
+	END IF;
 
 	--
 	-- If the type isn't found, then we need to insert it
@@ -1010,11 +1034,6 @@ BEGIN
 				USING ERRCODE = 'JH501';
 		END IF;
 
-		IF cid IS NULL THEN
-			RAISE EXCEPTION 'unknown vendor adding disk component_type'
-				USING ERRCODE = 'JH501';
-		END IF;
-
 		INSERT INTO component_type (
 			company_id,
 			model,
@@ -1038,6 +1057,7 @@ BEGIN
 			component_type_id,
 			property_value
 		) VALUES
+			('DiskModelProbeString', 'disk', ctid, model),
 			('DiskSize', 'disk', ctid, bytes),
 			('DiskProtocol', 'disk', ctid, protocol),
 			('MediaType', 'disk', ctid, media_type);
