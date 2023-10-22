@@ -1,8 +1,8 @@
-jazzhands-perl-netdev-mgmt (0.96.1) unstable; urgency=low
+jazzhands-perl-netdev-mgmt (0.96.0) unstable; urgency=low
 
-  * Fix issue with an error being reported that should be ignored
+  * bump up various debian versions of things to be currentish
 
- -- Matthew Ragan <mdr@sucksless.net>  Wed, 19 Jul 2023 22:56:10 +0000
+ -- Todd Kover <kovert@omniscient.com>  Mon, 21 Aug 2023 17:23:00 -0400
 
 jazzhands-perl-netdev-mgmt (0.95.5) unstable; urgency=low
 

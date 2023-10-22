@@ -13,9 +13,13 @@ License:        BSD
 URL:    	http://www.jazzhands.net/
 Source0:        %{name}-%{version}.tar.gz
 BuildRoot:      %{_tmppath}/%{name}-%{version}-%{release}-buildroot
+BuildRequires:	make
 BuildArch:	noarch
 %if 0%{?suse_version}
+BuildRequires: perl(ExtUtils::MakeMaker)
 %else
+BuildRequires: perl-generators
+BuildRequires: perl-interpreter
 %if 0%{?rhel} < 6
 BuildRequires: perl(ExtUtils::MakeMaker)
 %else
@@ -40,21 +44,21 @@ Perl libraries for STAB
 
 %prep
 %setup -q -n %{name}-%{version}
-make -f Makefile.jazzhands BUILDPERL=%{__perl}
+make  BUILDPERL=%{__perl}
 
 %install
-make -f Makefile.jazzhands INSTALLROOT=%{buildroot} prefix=%{prefix} BUILDPERL=%{__perl} install
+make  DESTDIR=%{buildroot} prefix=%{prefix} BUILDPERL=%{__perl} install
 (cd %{buildroot} ; ( find .%{perl_vendorlib}/JazzHands ; find .%{_mandir} -name '*.pm*' -type f -print) | sed s,^\.,,) |sort | uniq | tee > %{filelist}
 (cd %{buildroot} ; ( find ./var/www | sed s,^\.,,) ) |sort | uniq | tee > %{wwwlist}
 
 %clean
-make -f Makefile.jazzhands clean
+make  clean
 rm -f %{filelist}
 
 %if 0%{?suse_version}
-%files -f %{wwwlist}
+%files -n jazzhands-stab -f %{wwwlist}
 %else
-%files -f debian/jazzhands-stab.install
+%files -n jazzhands-stab -f debian/jazzhands-stab.install
 %endif
 %defattr(755,root,root,-)
 

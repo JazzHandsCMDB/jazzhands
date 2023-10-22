@@ -15,12 +15,14 @@
 # limitations under the License.
 #
 
+PREFIX ?= /usr/libexec/jazzhands/zonegen/
+
 all:
 
 install:
 	rm -rf $(DESTDIR)
 	mkdir -p $(DESTDIR)/$(PREFIX)
-	for file in generate-and-sync.sh generate-zones.pl ; do \
+	for file in ingest-zonegen-changes.sh ; do \
 		newfn=`echo $$file | sed 's/\..*$$//'` ;\
 		install -m 555  $$file $(DESTDIR)/$(PREFIX)/$$newfn ;\
 	done

@@ -9,15 +9,18 @@ Url:        http://www.jazzhands.net/
 BuildArch:  noarch
 Source0:    %{name}-%{version}.tar.gz
 BuildRoot:  %{_tmppath}/%{name}-%{version}-%{release}-buildroot
+BuildRequires: make
 %if 0%{?suse_version}
+BuildRequires: perl(ExtUtils::MakeMaker)
 %else
+BuildRequires: perl-generators
+BuildRequires: perl-interpreter
 %if 0%{?rhel} < 6
 BuildRequires: perl(ExtUtils::MakeMaker)
 %else
 BuildRequires: perl-ExtUtils-MakeMaker
 %endif
 %endif
-BuildArch:  noarch
 
 %description
 Common Interfaces for interacting with ticketing systems.
@@ -30,7 +33,7 @@ Common Interfaces for interacting with ticketing systems.
 %install
 
 rm -rf %{buildroot}
-make pure_install 
+make pure_install
 
 find %{buildroot} -type f -name .packlist -exec rm -f {} \;
 find %{buildroot} -depth -type d -exec rmdir {} 2>/dev/null \;

@@ -36,7 +36,7 @@ INSTALL=/usr/ucb/install
 all:
 	@echo Nothing to build
 
-install: 
+install:
 	rm -rf fakeroot
 	mkdir -p fakeroot/$(INSTALLDIR)
 

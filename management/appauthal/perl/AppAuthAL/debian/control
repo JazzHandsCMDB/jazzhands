@@ -2,15 +2,15 @@ Source: perl-jazzhands-appauthal
 Section: unknown
 Priority: extra
 Maintainer: JazzHands Project <release@jazzhands.net>
-Build-Depends: debhelper (>= 8.0.0), perl-modules
-Standards-Version: 3.9.4
+Build-Depends: debhelper (>= 9.0.0), perl-modules
+Standards-Version: 4.6.2
 Homepage: http://www.jazzhands.net/
 
 Package: perl-jazzhands-appauthal
 Section: unknown
-Architecture: any
-Depends: libjson-perl, jazzhands-perl-common (>= 0.94.0)
-Suggests: jazzhands-perl-vault (>= 0.94.0)
+Architecture: all
+Depends: libjson-perl, jazzhands-perl-common (>= 0.96.0)
+Suggests: jazzhands-perl-vault (>= 0.96.0)
 Breaks: jazzhands-perl-vault (<= 0.91.0)
 Description:
  JazzHands-AppAuthAL - generic auth abstraction layer routines

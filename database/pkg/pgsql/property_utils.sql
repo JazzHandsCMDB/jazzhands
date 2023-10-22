@@ -695,7 +695,7 @@ BEGIN
 	-- If the RHS contains a service_version_collection_id, check to see if it must be a
 	-- specific type and verify that if so
 	IF NEW.property_value_service_version_collection_id IS NOT NULL THEN
-		IF v_prop.property_value_service_version_collection_id IS NOT NULL THEN
+		IF v_prop.property_value_service_version_collection_type_restriction IS NOT NULL THEN
 			BEGIN
 				SELECT * INTO STRICT v_service_version_collection
 					FROM service_version_collection WHERE

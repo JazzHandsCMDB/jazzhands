@@ -37,7 +37,7 @@ JAVASCRIPT_FILES= prototype.js
 all:
 	@echo Nothing to build
 
-install: 
+install:
 	rm -rf fakeroot
 	mkdir -p fakeroot/$(INSTALLDIR)
 
@@ -48,7 +48,7 @@ install:
 	find fakeroot/$(INSTALLDIR) -name .svn | xargs rm -rf
 	find fakeroot/$(INSTALLDIR) -type d -print | xargs chmod 755
 	find fakeroot/$(INSTALLDIR) -type f -print | xargs chmod 444
-		
+
 clean:
 	cd ${SRCDIR} && if [ -f Makefile ] ; then ${MAKE} clean; fi
 	rm -rf spool scratch fakeroot

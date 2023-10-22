@@ -1,4 +1,6 @@
 
+PREFIX	?= /var/www/account/directory
+
 all:
 	@echo Nothing to build
 

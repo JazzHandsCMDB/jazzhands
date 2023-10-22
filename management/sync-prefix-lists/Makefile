@@ -1,3 +1,4 @@
+PREFIX ?= /usr/libexec/jazzhands/sync-prefix-lists
 SOURCES= \
 	sync-prefix-lists.pl
 

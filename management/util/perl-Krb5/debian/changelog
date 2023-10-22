@@ -1,3 +1,9 @@
+perl-jazzhands-krb5 (0.96.0) xenial; urgency=medium
+
+  * bump up various debian versions of things to be currentish
+
+ -- Todd M. Kover <kovert@omniscient.com>  Mon, 21 Aug 2023 15:30:00 -0400
+
 perl-jazzhands-krb5 (0.66.1) trusty; urgency=medium
 
   * add debian bits; make that the default for release generation

@@ -110,6 +110,7 @@ BEGIN
 			AND child_lv_id IS NOT NULL
 	) INTO lv_list;
 
+	DELETE FROM block_storage_device WHERE logical_volume_id = ANY(lv_list);
 	DELETE FROM logical_volume_property WHERE logical_volume_id = ANY(lv_list);
 	DELETE FROM logical_volume_purpose WHERE logical_volume_id = ANY(lv_list);
 	DELETE FROM logical_volume WHERE logical_volume_id = ANY(lv_list);
@@ -350,6 +351,11 @@ BEGIN
 		logical_volume_id = ANY(lvids);
 	
 	DELETE FROM
+		block_storage_device
+	WHERE
+		logical_volume_id = ANY(lvids);
+	
+	DELETE FROM
 		logical_volume
 	WHERE
 		logical_volume_id = ANY(lvids);
@@ -408,6 +414,11 @@ BEGIN
 		logical_volume_purpose lvp
 	WHERE
 		lvp.logical_volume_id = ANY(logical_volume_list);
+	
+	DELETE FROM
+		block_storage_device bsd
+	WHERE
+		bsd.logical_volume_id = ANY(logical_volume_list);
 	
 	DELETE FROM
 		logical_volume lv

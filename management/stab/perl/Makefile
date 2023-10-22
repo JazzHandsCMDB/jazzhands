@@ -34,7 +34,7 @@ INSTALLDIR=/prod/stab/perl
 all:
 	cd ${SRCDIR} && perl Makefile.PL && ${MAKE}
 
-install: 
+install:
 	rm -rf fakeroot
 	mkdir fakeroot
 	cd ${SRCDIR} && ${MAKE} DESTDIR=$(PWD)/fakeroot/ pure_install

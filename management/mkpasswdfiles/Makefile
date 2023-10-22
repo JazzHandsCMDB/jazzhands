@@ -1,5 +1,5 @@
 #
-# Copyright (c) 2016-2018, Todd M. Kover
+# Copyright (c) 2016, Todd M. Kover
 # All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
@@ -15,13 +15,17 @@
 # limitations under the License.
 #
 
+PREFIX ?= /usr
+
 all:
 
 install:
-	mkdir -p $(DESTDIR)/$(PREFIX)/jazzhands
-	cp dbauth.php $(DESTDIR)/$(PREFIX)/jazzhands/dbauth.php
-
+	rm -rf $(DESTDIR)
+	mkdir -p $(DESTDIR)/$(PREFIX)/libexec/jazzhands/mkpasswdfiles
+	for file in mkpasswdfiles.pl ; do \
+		newfn=`echo $$file | sed 's/\..*$$//'` ;\
+		install -m 555  $$file $(DESTDIR)/$(PREFIX)/libexec/jazzhands/mkpasswdfiles/$$newfn ;\
+	done
 
 clean:
-	rm -rf $(DESTDIR)
-
+	[ -z "$(DESTDIR)" ] || rm -rf $(DESTDIR)

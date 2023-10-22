@@ -26,9 +26,9 @@
 
 STAB_DIR=/prod/www/stab/docs/device/os/write
 
-SUBDIRS= 
+SUBDIRS=
 
-SCRIPTS= updateos.pl 
+SCRIPTS= updateos.pl
 
 all:
 	@echo nothing to do

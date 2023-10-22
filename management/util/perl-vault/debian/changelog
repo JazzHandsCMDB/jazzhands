@@ -1,3 +1,9 @@
+jazzhands-perl-vault (0.96.0) jammy; urgency=medium
+
+  * bump up various debian versions of things to be currentish
+
+ -- Todd M. Kover <kovert@omniscient.com>  Mon, 21 Aug 2023 15:30:00 -0400
+
 jazzhands-perl-vault (0.95.5) jammy; urgency=medium
 
   * support for VAULT_CAPATH

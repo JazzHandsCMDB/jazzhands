@@ -76,18 +76,20 @@ sub connect {
 	# If we already have a connection to the device, just return
 	#
 	my $hostname = $device->{hostname};
-	if (defined($self->{connection_cache}->{$hostname}->{handle})) {
-		if (defined($debug)) {
-			&$debug(
-				2,
-				sprintf(
-					"Using cached handle for device %s",
-					$device->{hostname}
-				)
-			);
-		}
+	if (!$opt->{force_reconnect}) {
+		if (defined($self->{connection_cache}->{$hostname}->{handle})) {
+			if (defined($debug)) {
+				&$debug(
+					2,
+					sprintf(
+						"Using cached handle for device %s",
+						$device->{hostname}
+					)
+				);
+			}
 
-		return $self->{connection_cache}->{$hostname};
+			return $self->{connection_cache}->{$hostname};
+		}
 	}
 
 	my $objtype = ref($self) . '::__devtype::' . $device->{management_type};
@@ -104,7 +106,8 @@ sub connect {
 			q{->new(
 				device => $device, 
 				credentials => $opt->{credentials},
-				errors => $errors
+				errors => $errors,
+				debug => $opt->{debug}
 				)
 			};
 	

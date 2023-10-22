@@ -23,8 +23,9 @@ use Exporter;
 use JazzHands::Common::Util qw(:all);
 use JazzHands::Common::Error qw(:internal);
 use Data::Dumper;
-use Carp qw(cluck);
 use Sys::Syslog;
+
+use vars qw(@CARP_NOT);
 
 =head1 NAME
 
@@ -43,7 +44,7 @@ $logh->log(facilty, sprintf style);
 
 $logh->{trace,debug,info,notice,warn,warning,crit,critical,error,alert,emerg,fatal}(sprintf style)
 
-$logh_>SetDebugCallback(func);
+$logh->SetDebugCallback(func);
 $logh->SetDebug(#);
 $logh->_Debug();
 
@@ -103,7 +104,8 @@ The log function is simliar to Sys::Syslog's syslog() call.
 
 The loghandle routine returns a type of this object.  It's meant to be the
 primary interface for logging and has a bunch of subroutines.  It also
-provides interfaces simlar to Sys::Syslog and Log::Log4perl
+provides interfaces simlar to Sys::Syslog and Log::Log4perl and this is where
+the drop in or near drop in replacement can be used.
 
 The routine get_logger passes through to if log4perl is cofigured, otherwise
 returns undef.
@@ -321,8 +323,10 @@ use Exporter;
 use JazzHands::Common::Util qw(:all);
 use JazzHands::Common::Error qw(:internal);
 use Data::Dumper;
-use Carp qw(cluck confess);
+use Carp qw(carp cluck croak confess);
 use Sys::Syslog;
+
+use vars qw(@CARP_NOT);
 
 #
 # returns log4perl handle for doing log4perl operations.  If log4perl is not
@@ -433,6 +437,41 @@ sub _Debug {
 
 }
 
+sub logdie {
+	my $self = shift @_;
+
+	$self->fatal(@_) && die @_;
+}
+
+sub logwarn  {
+	my $self = shift @_;
+
+	$self->warn(@_) && die @_;
+}
+
+sub logcarp {
+	my $self = shift @_;
+
+	$self->warn(@_) && carp @_;
+}
+
+sub logcluck {
+	my $self = shift @_;
+
+	$self->warn(@_) && cluck @_;
+}
+
+sub logcroak {
+	my $self = shift @_;
+
+	$self->fatal(@_) && croak @_;
+}
+
+sub logconfess {
+	my $self = shift @_;
+
+	$self->fatal(@_) && confess @_;
+}
 
 # I hate this, but convert the list in @permited to arguments to _log()
 # and otherwise just fail.

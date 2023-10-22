@@ -1,5 +1,5 @@
 #
-# Copyright (c) 2016, Todd M. Kover
+# Copyright (c) 2016-2018, Todd M. Kover
 # All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
@@ -15,19 +15,15 @@
 # limitations under the License.
 #
 
-PREFIX ?= /usr
+PREFIX	?= /usr/share/php
 
 all:
-	@echo Nothing to build...
 
 install:
-	install -d $(INSTALLROOT)/$(PREFIX)/libexec/jazzhands/dbsyncer
-	install table-sync.pl $(INSTALLROOT)/$(PREFIX)/libexec/jazzhands/dbsyncer/table-sync
+	mkdir -p $(DESTDIR)/$(PREFIX)/jazzhands
+	cp dbauth.php $(DESTDIR)/$(PREFIX)/jazzhands/dbauth.php
 
-	install -d $(INSTALLROOT)/etc/init.d/
-	install dbsyncer.init.d $(INSTALLROOT)/etc/init.d/dbsyncer
 
 clean:
-	@echo Nothing clean build...
+	rm -rf $(DESTDIR)
 
-distclean: clean

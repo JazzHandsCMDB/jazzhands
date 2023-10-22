@@ -15,6 +15,8 @@
 # limitations under the License.
 #
 
+PREFIX ?= ./usr/libexec/jazzhands/approval/
+
 configure:
 	echo Building perl modules
 	cd lib && perl Makefile.PL INSTALLDIRS=vendor --default
@@ -40,7 +42,7 @@ install:
 	install process-kace-queue-approvals.pl $(DESTDIR)/$(PREFIX)/process-kace-queue-approvals
 
 	# module stuff
-	cd lib && make pure_install DESTDIR=${DESTDIR}
+	cd lib && make pure_install
 	find $(DESTDIR) -type f -name .packlist -exec rm -f {} \;
 	find $(DESTDIR) -depth -type d -exec rmdir {} 2>/dev/null \;
 

@@ -15,15 +15,14 @@
 # limitations under the License.
 #
 
+PREFIX ?= /var/www/jazzhands-javascript-common
+
 all:
 
 install:
 	rm -rf $(DESTDIR)
-	mkdir -p $(DESTDIR)/$(PREFIX)/libexec/jazzhands/mkpasswdfiles
-	for file in mkpasswdfiles.pl ; do \
-		newfn=`echo $$file | sed 's/\..*$$//'` ;\
-		install -m 555  $$file $(DESTDIR)/$(PREFIX)/libexec/jazzhands/mkpasswdfiles/$$newfn ;\
-	done 
+	mkdir -p $(DESTDIR)/$(PREFIX)
+	tar cf - `find . -name \*.js -o -name \*.css ` external/chosen/* external/jquery-Autocomplete/* | (cd $(DESTDIR)/$(PREFIX) ; tar xpf -)
 
 clean:
 	[ -z "$(DESTDIR)" ] || rm -rf $(DESTDIR)

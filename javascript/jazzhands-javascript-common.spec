@@ -1,4 +1,5 @@
 %define prefix  /var/www/jazzhands-javascript-common
+%define filelist %{name}-%{version}-filelist
 
 Summary:    Javascript used by all JazzHands systems
 Vendor:     JazzHands
@@ -11,20 +12,21 @@ Url:        http://www.jazzhands.net/
 BuildArch:  noarch
 Source0:   %{name}-%{version}.tar.gz
 BuildRoot: %{_tmppath}/%{name}-%{version}-%{release}-buildroot
-BuildArch:noarch
+BuildRequires: make
 
 %description
 Javascript used by all JazzHands systems (many external)
 
 %prep
 %setup -q -n %{name}-%{version}
-make -f Makefile.jazzhands
+make
 
 %install
-make -f Makefile.jazzhands DESTDIR=%{buildroot} PREFIX=%{prefix} install
+make DESTDIR=%{buildroot} PREFIX=%{prefix} install
+(cd %{buildroot}  && (find .%{prefix} \( -type f -o -type l \) -print) | sed s,^\.,,) |sort | uniq | tee > %{filelist}
 
 %clean
-make -f Makefile.jazzhands clean
+make clean
 
-%files -f debian/jazzhands-javascript-common.install
+%files -f %{filelist}
 %defattr(755,root,root,-)

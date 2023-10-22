@@ -409,7 +409,7 @@ BEGIN
 
 	SELECT dns_domain_id INTO domain_id FROM dns_domain where dns_domain_name = domain;
 	IF NOT FOUND THEN
-		-- domain_id := dns_manip.add_dns_domain(domain);
+		domain_id := dns_manip.add_dns_domain(domain);
 	END IF;
 
 	RETURN domain_id;

@@ -26,6 +26,7 @@ my $subnet_priority;
 my $domain;
 my $tag;
 my $upload = 0;
+my $netblock;
 my $force = 0;
 
 my $authapp = 'network-manip';
@@ -37,6 +38,7 @@ if (!GetOptions(
 	'debug!', \$debug,
 	'encapsulation-tag|tag|vlan=i', \$tag,
 	'encapsulation-domain|domain|site=s', \$domain,
+	'netblock=s', \$netblock,
 	'upload!', \$upload,
 	'super-secret-forcd!', \$ignoreme,
 	'super-secret-force!', \$force,
@@ -45,7 +47,9 @@ if (!GetOptions(
 }
 
 if (!$tag || !$domain) {
-	print STDERR "Error: must give --encapsulation-domain and --encapsulation-tag\n";
+	if (!$netblock) {
+		print STDERR "Error: must give --netblock or both --encapsulation-domain and --encapsulation-tag\n";
+	}
 	exit 1;
 }
 

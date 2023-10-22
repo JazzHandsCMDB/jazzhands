@@ -11,8 +11,12 @@ URL:    	http://www.jazzhands.net/
 Source0:        %{name}-%{version}.tar.gz
 BuildRoot:      %{_tmppath}/%{name}-%{version}-%{release}-buildroot
 BuildArch:	noarch
+BuildRequires:	make
 %if 0%{?suse_version}
+BuildRequires: perl(ExtUtils::MakeMaker)
 %else
+BuildRequires: perl-generators
+BuildRequires: perl-interpreter
 %if 0%{?rhel} < 6
 BuildRequires: perl(ExtUtils::MakeMaker)
 %else
@@ -28,16 +32,16 @@ System Tools for Administrative Baselining
 
 %prep
 %setup -q -n %{name}-%{version}
-make -f Makefile.jazzhands BUILDPERL=%{__perl} configure
+make  BUILDPERL=%{__perl} configure
 
 %build
-make -f Makefile.jazzhands BUILDPERL=%{__perl} all
+make  BUILDPERL=%{__perl} all
 
 %install
-make -f Makefile.jazzhands DESTDIR=%{buildroot} PREFIX=%{prefix} install
+make  DESTDIR=%{buildroot} PREFIX=%{prefix} install
 
 %clean
-make -f Makefile.jazzhands clean
+make  clean
 
 
 %post

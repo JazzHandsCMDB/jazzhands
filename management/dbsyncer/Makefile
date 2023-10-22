@@ -15,17 +15,19 @@
 # limitations under the License.
 #
 
+PREFIX ?= /usr
+
 all:
+	@echo Nothing to build...
 
 install:
-	rm -rf $(DESTDIR)
-	mkdir -p $(DESTDIR)/$(PREFIX)
-	for file in ingest-zonegen-changes.sh ; do \
-		newfn=`echo $$file | sed 's/\..*$$//'` ;\
-		install -m 555  $$file $(DESTDIR)/$(PREFIX)/$$newfn ;\
-	done
+	install -d $(DESTDIR)/$(PREFIX)/libexec/jazzhands/dbsyncer
+	install table-sync.pl $(DESTDIR)/$(PREFIX)/libexec/jazzhands/dbsyncer/table-sync
+
+	install -d $(DESTDIR)/etc/init.d/
+	install dbsyncer.init.d $(DESTDIR)/etc/init.d/dbsyncer
 
 clean:
-	[ -z "$(DESTDIR)" ] || rm -rf $(DESTDIR)
+	@echo Nothing clean build...
 
 distclean: clean

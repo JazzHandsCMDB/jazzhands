@@ -26,10 +26,10 @@
 
 
 all:
-	cd web && $(MAKE) -e $(MFLAGS) all 
+	cd web && $(MAKE) -e $(MFLAGS) all
 
 install:
-	cd web && $(MAKE) -e $(MFLAGS) install 
+	cd web && $(MAKE) -e $(MFLAGS) install
 
 clean:
-	cd web && $(MAKE) -e $(MFLAGS) clean 
+	cd web && $(MAKE) -e $(MFLAGS) clean

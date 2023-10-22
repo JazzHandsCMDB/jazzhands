@@ -9,7 +9,9 @@ License:    Unknown
 Group:      System/Management
 Url:        http://www.jazzhands.net/
 Source0:    %{pkgname}-%{version}.tar.gz
+BuildRequires: make
 %if 0%{?suse_version}
+BuildRequires: perl(ExtUtils::MakeMaker)
 %else
 %if 0%{?rhel} < 6
 BuildRequires: perl(ExtUtils::MakeMaker)
@@ -25,13 +27,13 @@ JazzHands configuration generation for ISC dhcpd
 
 %prep
 %setup -q -n %{pkgname}-%{version}
-make -f Makefile.jazzhands
+make
 
 %install
-make -f Makefile.jazzhands DESTDIR=%{buildroot} PREFIX=%{prefix} install
+make  DESTDIR=%{buildroot} PREFIX=%{prefix} install
 
 %clean
-make -f Makefile.jazzhands clean
+make  clean
 
 
 %files

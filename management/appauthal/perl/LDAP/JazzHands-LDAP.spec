@@ -18,11 +18,14 @@ release:   0
 license:   Apache
 url:       http://www.jazzhands.net
 Source0:   %{pkgname}-%{version}.tar.gz
+BuildRequires: make
 %if 0%{?suse_version}
+BuildRequires: perl(ExtUtils::MakeMaker)
 %else
+BuildRequires: perl-generators
+BuildRequires: perl-interpreter
 %if 0%{?rhel} < 6
 BuildRequires: perl(ExtUtils::MakeMaker)
-BuildRequires: perl(JazzHands::AppAuthAL)
 BuildRequires: perl(Net::LDAP)
 %else
 BuildRequires: perl-ExtUtils-MakeMaker
@@ -50,7 +53,7 @@ None.
 make -f Makefile.jazzhands BUILDPERL=%{__perl}
 
 %install
-make -f Makefile.jazzhands INSTALLROOT=%{buildroot} prefix=%{prefix} BUILDPERL=%{__perl} install
+make -f Makefile.jazzhands DESTDIR=%{buildroot} prefix=%{prefix} BUILDPERL=%{__perl} install
 
 %clean
 make -f Makefile.jazzhands clean

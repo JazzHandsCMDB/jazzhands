@@ -2,10 +2,10 @@ Source: jazzhands-perl-netdev-mgmt
 Section: System/Management
 Priority: optional
 Maintainer: Matthew Ragan <mdr@sucksless.net>
-Build-Depends: debhelper (>= 8.0.0)
-Standards-Version: 3.9.4
+Build-Depends: debhelper (>= 9.0.0)
+Standards-Version: 4.6.2
 
 Package: jazzhands-perl-netdev-mgmt
 Architecture: all
-Depends: ${perl:Depends}, libdbd-pg-perl, postgresql-client (>= 9.3), jazzhands-perl-common, perl-jazzhands-dbi, perl-jazzhands-appauthal, libdbi-perl, libjson-xs-perl, libjson-perl, libnet-mac-perl, libnetaddr-mac-perl, libuuid-tiny-perl
+Depends: ${perl:Depends}, libdbd-pg-perl, postgresql-client (>= 12), jazzhands-perl-common ( >= 0.96.0) , perl-jazzhands-dbi ( >= 0.96.0) , perl-jazzhands-appauthal ( >= 0.96.0) , libdbi-perl, libjson-xs-perl, libjson-perl, libnet-mac-perl, libnetaddr-mac-perl, libuuid-tiny-perl
 Description: external network device management perl library for JazzHands

@@ -2,10 +2,10 @@ Source: jazzhands-netdev-mgmt-utils
 Section: System/Management
 Priority: optional
 Maintainer: Matthew Ragan <mdr@sucksless.net>
-Build-Depends: debhelper (>= 8.0.0)
-Standards-Version: 3.9.4
+Build-Depends: debhelper (>= 9.0.0)
+Standards-Version: 4.6.2
 
 Package: jazzhands-netdev-mgmt-utils
 Architecture: all
-Depends: libdbd-pg-perl, postgresql-client (>= 9.3), jazzhands-perl-common, perl-jazzhands-dbi, perl-jazzhands-appauthal, jazzhands-perl-netdev-mgmt ( >= 0.81.5), libdbi-perl, liblog-log4perl-perl, libnetaddr-ip-perl
+Depends: libdbd-pg-perl, postgresql-client (>= 12), jazzhands-perl-common ( >= 0.96.0) , perl-jazzhands-dbi ( >= 0.96.0) , perl-jazzhands-appauthal ( >= 0.96.0) , jazzhands-perl-netdev-mgmt ( >= 0.96.0), libdbi-perl, liblog-log4perl-perl, libnetaddr-ip-perl
 Description: JazzHands network device management utilities

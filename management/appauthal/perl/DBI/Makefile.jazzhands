@@ -12,7 +12,7 @@ install:
 
 	find $(DESTDIR) -type f -name .packlist -exec rm -f {} \;
 	find $(DESTDIR) -depth -type d -exec rmdir {} 2>/dev/null \;
-	find $(DESTDIR) -name Makefile -print |xargs rm -f 
+	find $(DESTDIR) -name Makefile -print |xargs rm -f
 	echo Done install
 
 clean:

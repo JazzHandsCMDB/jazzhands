@@ -61,11 +61,115 @@ BEGIN
 END;
 $$;
 
---
+---
+--- Given an existing service_endpoint_id, create a new service endpoint
+--- on the same node, given a different service_endpoint_uri_fragment and
+--- either attach to the list of devices or, if NULL, look up all the existing
+--- devices
+---
+--- service_endpoint_uri_fragment, add a new service_endpoint.  if not,
+--- just add the new service_version to everything that has the same endpoint.
+---
+CREATE OR REPLACE FUNCTION service_manip.add_new_child_service_endpoint(
+	service_endpoint_id				INTEGER,
+	service_endpoint_uri_fragment	TEXT,
+	service_version_id				INTEGER,
+	service_environment_id			INTEGER,
+	device_ids						INTEGER[] DEFAULT NULL
+) RETURNS INTEGER[]
+AS $$
+DECLARE
+	_in_service_endpoint_id		ALIAS FOR service_endpoint_id;
+	_in_service_version_id		ALIAS FOR service_version_id;
+	_in_service_environment_id	ALIAS FOR service_environment_id;
+	_in_url_frag				ALIAS FOR service_endpoint_uri_fragment;
+	_se							service_endpoint;
+	_rv							INTEGER[];
+	_dvs						INTEGER[];
+	_sepid						INTEGER;
+	_prid						INTEGER;
+BEGIN
+	IF service_endpoint_uri_fragment IS NULL THEN
+		RAISE EXCEPTION 'must provide service_endpoint_uri_fragment'
+			USING ERRCODE = 'not_null_violation';
+	END IF;
+
+	SELECT se.* INTO _se
+	FROM service_endpoint se
+	WHERE se.service_endpoint_uri_fragment = _in_url_frag
+	AND (se.service_endpoint_id, se.dns_record_id)
+		IN (
+			SELECT ise.service_endpoint_id, ise.dns_record_id
+			FROM service_endpoint ise
+			WHERE ise.service_endpoint_id = _in_service_endpoint_id
+		);
+
+	IF NOT FOUND THEN
+		INSERT INTO service_endpoint (
+			service_id, dns_record_id, port_range_id, service_endpoint_uri_fragment
+		) SELECT sv.service_id, se.dns_record_id, se.port_range_id, _in_url_frag
+		FROM service_version sv, service_endpoint se
+		WHERE sv.service_version_Id = _in_service_version_id
+		AND se.service_endpoint_id = _in_service_endpoint_id
+		RETURNING * INTO _se;
+
+		INSERT INTO service_endpoint_service_endpoint_provider_collection (
+			service_endpoint_id, service_endpoint_provider_collection_id,
+			service_endpoint_relation_type, service_endpoint_relation_key,
+			weight, maximum_capacity, is_enabled
+		) SELECT _se.service_endpoint_id, service_endpoint_provider_collection_id,
+			service_endpoint_relation_type, service_endpoint_relation_key,
+			weight, maximum_capacity, is_enabled
+		FROM service_endpoint_service_endpoint_provider_collection o
+		WHERE o.service_endpoint_id = _in_service_endpoint_id;
+
+		RAISE NOTICE 'se is %', to_jsonb(_se);
+	END IF;
+
+	_dvs := device_ids;
+	IF _dvs IS NULL THEN
+		SELECT service_endpoint_provider_id, se.port_range_id,
+			array_agg(device_id ORDER BY device_id)
+			INTO _sepid, _prid, _dvs
+			FROM service_endpoint se
+				JOIN service_endpoint_service_endpoint_provider_collection
+					USING (service_endpoint_id)
+				JOIN service_endpoint_provider_collection_service_endpoint_provider
+					USING (service_endpoint_provider_collection_id)
+				JOIN service_endpoint_provider
+					USING (service_endpoint_provider_id)
+				JOIN service_endpoint_provider_service_instance
+					USING (service_endpoint_provider_id)
+				JOIN service_instance USING (service_instance_id)
+				JOIN service_version USING (service_version_id, service_id)
+			WHERE se.service_endpoint_id = _in_service_endpoint_id
+			GROUP BY 1, 2;
+	RAISE NOTICE '% %', _in_service_endpoint_id, _dvs;
+	END IF;
 
 
+	WITH si AS (
+		INSERT INTO service_instance (
+			device_id, service_version_id, service_environment_id, is_primary
+		) VALUES (
+			unnest(_dvs), _in_service_version_id, service_environment_id, false
+		) RETURNING *
+	), sepsi AS (
+		INSERT INTO service_endpoint_provider_service_instance (
+			service_endpoint_provider_id, service_instance_id, port_range_id
+		) SELECT _sepid, service_instance_id, _prid
+			FROM si
+			RETURNING *
+	) SELECT array_agg(service_instance_id) INTO _rv FROM sepsi;
+
+	RETURN _rv;
+END
+$$
+SET search_path=jazzhands
+LANGUAGE plpgsql SECURITY DEFINER;
+
 --
--- connects a service_endpoint to a device using set data.   
+-- connects a service_endpoint to a device using set data.
 -- If service_endpoint_id is SET, then the rest of the range and service
 -- version are pulled from there.  If not, they and dns_record_id are
 -- required.
@@ -98,13 +202,13 @@ DECLARE
 	_in_service_version_id	ALIAS FOR service_version_id;
 	_in_port_range_id		ALIAS FOR port_range_id;
 	_in_dns_record_id		ALIAS FOR dns_record_id;
-	_s		service%ROWTYPE;
-	_sv		service_version%ROWTYPE;
-	_si		service_instance%ROWTYPE;
+	_s			service%ROWTYPE;
+	_sv			service_version%ROWTYPE;
+	_si			service_instance%ROWTYPE;
 	_send		service_endpoint%ROWTYPE;
 	_senv		service_endpoint%ROWTYPE;
-	_sep	service_endpoint_provider%ROWTYPE;
-	_sepc	service_endpoint_provider_collection%ROWTYPE;
+	_sep		service_endpoint_provider%ROWTYPE;
+	_sepc		service_endpoint_provider_collection%ROWTYPE;
 BEGIN
 	SELECT * INTO _sv
 	FROM service_version sv
@@ -149,7 +253,7 @@ BEGIN
 			service_id, dns_record_id, port_range_id
 		) SELECT
 			_sv.service_id, dr.dns_record_id, pr.port_range_id
-		FROM port_range pr, dns_record dr 
+		FROM port_range pr, dns_record dr
 		WHERE pr.port_range_id = _in_port_range_id
 		AND dr.dns_record_id = _in_dns_record_id
 		RETURNING * INTO _send;
@@ -233,3 +337,72 @@ END;
 $$
 SET search_path=jazzhands
 LANGUAGE plpgsql SECURITY DEFINER;
+
+---
+--- delete service instances and if they're directly connected to an
+--- endpoint, also purge that
+---
+CREATE OR REPLACE FUNCTION service_manip.remove_service_instance(
+	service_instance_id				INTEGER
+) RETURNS boolean AS $$
+DECLARE
+	_in_si_id	ALIAS FOR service_instance_id;
+	_r			RECORD;
+	_sep		service_endpoint_provider;
+	_sepcsep	service_endpoint_provider_collection_service_endpoint_provider;
+	_sesepc		service_endpoint_service_endpoint_provider_collection;
+BEGIN
+	FOR _r IN SELECT * FROM service_endpoint_provider_service_instance sepsi
+		WHERE sepsi.service_instance_id = _in_si_id
+	LOOP
+		SELECT * INTO _sep FROM service_endpoint_provider sep WHERE
+			sep.service_endpoint_provider_id = _r.service_endpoint_provider_id;
+		DELETE FROM service_endpoint_provider_service_instance
+		WHERE service_endpoint_provider_service_instance_id =
+			_r.service_endpoint_provider_service_instance_id;
+
+		DELETE FROM service_endpoint_provider_collection_service_endpoint_provider sepcsep
+		WHERE sepcsep.service_endpoint_provider_id =
+			_r.service_endpoint_provider_id
+			RETURNING * INTO _sepcsep;
+
+		IF _sep.service_endpoint_provider_type = 'direct' THEN
+
+			DELETE FROM service_endpoint_service_endpoint_provider_collection sesepc
+			WHERE sesepc.service_endpoint_provider_collection_id =
+				_sepcsep.service_endpoint_provider_collection_id
+				RETURNING * INTO _sesepc;
+
+			DELETE FROM service_endpoint_provider_collection
+			WHERE service_endpoint_provider_collection_id =
+				_sepcsep.service_endpoint_provider_collection_id;
+
+
+			DELETE FROM service_endpoint_provider WHERE
+				service_endpoint_provider_id = _sep.service_endpoint_provider_id;
+
+			DELETE FROM service_endpoint_service_sla
+			WHERE service_endpoint_id = _sesepc.service_endpoint_id;
+
+			DELETE FROM service_endpoint
+			WHERE service_endpoint_id = _sesepc.service_endpoint_id;
+
+		ELSE
+			DELETE FROM service_endpoint_provider_service_instance WHERE
+				service_endpoint_provider_id = _sep.service_endpoint_provider_id;
+			DELETE FROM service_endpoint_provider WHERE
+				service_endpoint_provider_id = _sep.service_endpoint_provider_id;
+		END IF;
+
+	END LOOP;
+
+	DELETE FROM service_instance si WHERE si.service_instance_id = _in_si_id;
+	RETURN true;
+END;
+$$
+SET search_path=jazzhands
+LANGUAGE plpgsql SECURITY DEFINER;
+
+REVOKE ALL ON SCHEMA service_manip FROM public;
+REVOKE ALL ON ALL FUNCTIONS IN SCHEMA service_manip FROM public;
+GRANT EXECUTE ON ALL FUNCTIONS IN SCHEMA service_manip TO iud_role

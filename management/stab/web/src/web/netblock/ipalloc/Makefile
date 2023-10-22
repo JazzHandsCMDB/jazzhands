@@ -28,12 +28,12 @@ STAB_DIR=/prod/www/stab/docs/netblock/ipalloc
 
 SUBDIRS=
 
-SCRIPTS= allocate_ip.pl 
+SCRIPTS= allocate_ip.pl
 
 all:
 	@echo nothing to do
 	@#for subdir in $(SUBDIRS) ; do \
-	@#	( cd $$subdir && $(MAKE) -e $(MFLAGS) all) 
+	@#	( cd $$subdir && $(MAKE) -e $(MFLAGS) all)
 	@#done
 
 install:
