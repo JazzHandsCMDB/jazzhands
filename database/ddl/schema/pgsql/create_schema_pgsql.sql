@@ -2090,36 +2090,6 @@ ALTER TABLE device_encapsulation_domain ADD COLUMN data_upd_date TIMESTAMP WITH 
 
 
 /***********************************************
- * Table: device_layer2_network
- ***********************************************/
-
-CREATE TABLE device_layer2_network
-( 
-	device_id            integer  NOT NULL ,
-	layer2_network_id    integer  NOT NULL 
-);
-
-ALTER TABLE device_layer2_network
-	ADD CONSTRAINT pk_device_layer2_network PRIMARY KEY (device_id,layer2_network_id);
-
-CREATE INDEX xif_device_l2_net_devid ON device_layer2_network
-( 
-	device_id
-);
-
-CREATE INDEX xif_device_l2_net_l2netid ON device_layer2_network
-( 
-	layer2_network_id
-);
-
-ALTER TABLE device_layer2_network ADD COLUMN data_ins_user varchar(255);
-ALTER TABLE device_layer2_network ADD COLUMN data_ins_date TIMESTAMP WITH TIME ZONE;
-ALTER TABLE device_layer2_network ADD COLUMN data_upd_user varchar(255);
-ALTER TABLE device_layer2_network ADD COLUMN data_upd_date TIMESTAMP WITH TIME ZONE;
-
-
-
-/***********************************************
  * Table: device_note
  ***********************************************/
 
@@ -6515,6 +6485,45 @@ ALTER TABLE service_version_collection_permitted_feature ADD COLUMN data_upd_dat
 
 
 /***********************************************
+ * Table: service_version_collection_purpose
+ ***********************************************/
+
+CREATE TABLE service_version_collection_purpose
+( 
+	service_version_collection_id integer  NOT NULL ,
+	service_version_collection_purpose varchar(255)  NOT NULL ,
+	service_id           integer  NULL 
+);
+
+ALTER TABLE service_version_collection_purpose
+	ADD CONSTRAINT pk_service_version_collection_purpose PRIMARY KEY (service_version_collection_id,service_version_collection_purpose);
+
+ALTER TABLE service_version_collection_purpose
+	ADD CONSTRAINT ak_service_version_collection_purpose_service UNIQUE (service_version_collection_purpose,service_version_collection_id);
+
+CREATE INDEX xifkl_service_version_collection_purpose_purpose ON service_version_collection_purpose
+( 
+	service_version_collection_purpose ASC
+);
+
+CREATE INDEX xifservice_version_collection_purpose_service ON service_version_collection_purpose
+( 
+	service_id ASC
+);
+
+CREATE INDEX xifservice_version_collection_purpose_service_version_collectio ON service_version_collection_purpose
+( 
+	service_version_collection_id ASC
+);
+
+ALTER TABLE service_version_collection_purpose ADD COLUMN data_ins_user varchar(255);
+ALTER TABLE service_version_collection_purpose ADD COLUMN data_ins_date TIMESTAMP WITH TIME ZONE;
+ALTER TABLE service_version_collection_purpose ADD COLUMN data_upd_user varchar(255);
+ALTER TABLE service_version_collection_purpose ADD COLUMN data_upd_date TIMESTAMP WITH TIME ZONE;
+
+
+
+/***********************************************
  * Table: service_version_collection_service_version
  ***********************************************/
 
@@ -10120,6 +10129,26 @@ ALTER TABLE val_service_type ADD COLUMN data_upd_date TIMESTAMP WITH TIME ZONE;
 
 
 /***********************************************
+ * Table: val_service_version_collection_purpose
+ ***********************************************/
+
+CREATE TABLE val_service_version_collection_purpose
+( 
+	service_version_collection_purpose varchar(255)  NOT NULL ,
+	description          varchar(4096)  NULL 
+);
+
+ALTER TABLE val_service_version_collection_purpose
+	ADD CONSTRAINT pk_val_service_version_collection_purpose PRIMARY KEY (service_version_collection_purpose);
+
+ALTER TABLE val_service_version_collection_purpose ADD COLUMN data_ins_user varchar(255);
+ALTER TABLE val_service_version_collection_purpose ADD COLUMN data_ins_date TIMESTAMP WITH TIME ZONE;
+ALTER TABLE val_service_version_collection_purpose ADD COLUMN data_upd_user varchar(255);
+ALTER TABLE val_service_version_collection_purpose ADD COLUMN data_upd_date TIMESTAMP WITH TIME ZONE;
+
+
+
+/***********************************************
  * Table: val_service_version_collection_type
  ***********************************************/
 
@@ -11888,17 +11917,6 @@ ALTER TABLE device_encapsulation_domain
 		ON DELETE NO ACTION;
 
 
-ALTER TABLE device_layer2_network
-	ADD CONSTRAINT fk_device_l2_net_devid FOREIGN KEY (device_id) REFERENCES device(device_id)
-		ON UPDATE NO ACTION
-		ON DELETE NO ACTION;
-
-ALTER TABLE device_layer2_network
-	ADD CONSTRAINT fk_device_l2_net_l2netid FOREIGN KEY (layer2_network_id) REFERENCES layer2_network(layer2_network_id)
-		ON UPDATE NO ACTION
-		ON DELETE NO ACTION;
-
-
 ALTER TABLE device_note
 	ADD CONSTRAINT ckc_note_user_device_n CHECK  ( note_user= upper(note_user) ) ;
 
@@ -12184,7 +12202,9 @@ ALTER TABLE encryption_key
 ALTER TABLE filesystem
 	ADD CONSTRAINT fk_filesystem_block_storage_device_id FOREIGN KEY (block_storage_device_id,device_id) REFERENCES block_storage_device(block_storage_device_id,device_id)
 		ON UPDATE NO ACTION
-		ON DELETE NO ACTION;
+		ON DELETE NO ACTION
+		DEFERRABLE  
+		INITIALLY IMMEDIATE ;
 
 ALTER TABLE filesystem
 	ADD CONSTRAINT fk_filesystem_val_filesystem_type FOREIGN KEY (filesystem_type) REFERENCES val_filesystem_type(filesystem_type)
@@ -13782,6 +13802,22 @@ ALTER TABLE service_version_collection_permitted_feature
 		DEFERRABLE  ;
 
 
+ALTER TABLE service_version_collection_purpose
+	ADD CONSTRAINT fkl_service_version_collection_purpose_purpose FOREIGN KEY (service_version_collection_purpose) REFERENCES val_service_version_collection_purpose(service_version_collection_purpose)
+		ON UPDATE NO ACTION
+		ON DELETE NO ACTION;
+
+ALTER TABLE service_version_collection_purpose
+	ADD CONSTRAINT fk_service_version_collection_purpose_service FOREIGN KEY (service_id) REFERENCES service(service_id)
+		ON UPDATE NO ACTION
+		ON DELETE NO ACTION;
+
+ALTER TABLE service_version_collection_purpose
+	ADD CONSTRAINT fk_service_version_collection_purpose_service_version_collectio FOREIGN KEY (service_version_collection_id) REFERENCES service_version_collection(service_version_collection_id)
+		ON UPDATE NO ACTION
+		ON DELETE NO ACTION;
+
+
 ALTER TABLE service_version_collection_service_version
 	ADD CONSTRAINT fk_service_version_collection_service_version_version FOREIGN KEY (service_version_id) REFERENCES service_version(service_version_id)
 		ON UPDATE NO ACTION
@@ -14223,6 +14259,13 @@ ALTER TABLE val_application_key_values
 		ON UPDATE NO ACTION
 		ON DELETE NO ACTION;
 
+
+ALTER TABLE val_block_storage_device_type
+	ADD CONSTRAINT check_prp_prmt_1709045498 CHECK  ( permit_logical_volume_id IN ('REQUIRED', 'PROHIBITED', 'ALLOWED') ) ;
+
+ALTER TABLE val_block_storage_device_type
+	ADD CONSTRAINT check_prp_prmt_1312273807 CHECK  ( permit_component_id IN ('REQUIRED', 'PROHIBITED', 'ALLOWED') ) ;
+
 ALTER TABLE val_block_storage_device_type
 	ALTER COLUMN permit_logical_volume_id
 		SET DEFAULT 'PROHIBITED';
@@ -14404,6 +14447,10 @@ ALTER TABLE val_encapsulation_mode
 		ON UPDATE NO ACTION
 		ON DELETE NO ACTION;
 
+
+ALTER TABLE val_encryption_key_purpose
+	ADD CONSTRAINT check_prp_prmt_790339211 CHECK  ( permit_encryption_key_db_value IN ('REQUIRED', 'PROHIBITED', 'ALLOWED') ) ;
+
 ALTER TABLE val_encryption_key_purpose
 	ALTER COLUMN permit_encryption_key_db_value
 		SET DEFAULT 'PROHIBITED';
@@ -14433,6 +14480,16 @@ ALTER TABLE val_encryption_method
 	ADD CONSTRAINT fk_enc_mthod_cipher FOREIGN KEY (cipher) REFERENCES val_cipher(cipher)
 		ON UPDATE NO ACTION
 		ON DELETE NO ACTION;
+
+
+ALTER TABLE val_filesystem_type
+	ADD CONSTRAINT check_prp_prmt_354720359 CHECK  ( permit_mountpoint IN ('REQUIRED', 'PROHIBITED', 'ALLOWED') ) ;
+
+ALTER TABLE val_filesystem_type
+	ADD CONSTRAINT check_prp_prmt_202454059 CHECK  ( permit_filesystem_label IN ('REQUIRED', 'PROHIBITED', 'ALLOWED') ) ;
+
+ALTER TABLE val_filesystem_type
+	ADD CONSTRAINT check_prp_prmt_388499636 CHECK  ( permit_filesystem_serial IN ('REQUIRED', 'PROHIBITED', 'ALLOWED') ) ;
 
 ALTER TABLE val_filesystem_type
 	ALTER COLUMN permit_mountpoint

@@ -120,6 +120,7 @@ begin;
 
 \ir tests/pgsql/device_management_controller_regression.sql
 \ir tests/pgsql/scsi_id_compat_regression.sql
+\ir tests/pgsql/service_version_collection_purpose_regresssion.sql
 
 savepoint preplperl;
 DROP SCHEMA IF EXISTS x509_plperl_cert_utils CASCADE;
