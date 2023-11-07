@@ -448,6 +448,121 @@ END;
 $$;
 
 -- Changed function
+SELECT schema_support.save_dependent_objects_for_replay('component_manip', 'remove_component_hier');
+SELECT schema_support.save_grants_for_replay('component_manip', 'remove_component_hier');
+-- Dropped in case type changes.
+DROP FUNCTION IF EXISTS component_manip.remove_component_hier ( integer,boolean );
+CREATE OR REPLACE FUNCTION component_manip.remove_component_hier(component_id integer, really_delete boolean DEFAULT false)
+ RETURNS boolean
+ LANGUAGE plpgsql
+ SECURITY DEFINER
+ SET search_path TO 'jazzhands'
+AS $function$
+DECLARE
+	slot_list		integer[];
+	shelf_list		integer[];
+	delete_list		integer[];
+	cid				integer;
+BEGIN
+	cid := component_id;
+
+	SELECT ARRAY(
+		SELECT
+			slot_id
+		FROM
+			v_component_hier h JOIN
+			slot s ON (h.child_component_id = s.component_id)
+		WHERE
+			h.component_id = cid)
+	INTO slot_list;
+
+	IF really_delete THEN
+		SELECT ARRAY(
+			SELECT
+				child_component_id
+			FROM
+				v_component_hier h
+			WHERE
+				h.component_id = cid)
+		INTO delete_list;
+	ELSE
+
+		SELECT ARRAY(
+			SELECT
+				child_component_id
+			FROM
+				v_component_hier h LEFT JOIN
+				asset a on (a.component_id = h.child_component_id)
+			WHERE
+				h.component_id = cid AND
+				serial_number IS NOT NULL
+		)
+		INTO shelf_list;
+
+		SELECT ARRAY(
+			SELECT
+				child_component_id
+			FROM
+				v_component_hier h LEFT JOIN
+				asset a on (a.component_id = h.child_component_id)
+			WHERE
+				h.component_id = cid AND
+				serial_number IS NULL
+		)
+		INTO delete_list;
+
+	END IF;
+
+	DELETE FROM
+		inter_component_connection
+	WHERE
+		slot1_id = ANY (slot_list) OR
+		slot2_id = ANY (slot_list);
+
+	UPDATE
+		component c
+	SET
+		parent_slot_id = NULL
+	WHERE
+		c.component_id = ANY (array_cat(delete_list, shelf_list)) AND
+		parent_slot_id IS NOT NULL;
+
+	DELETE FROM component_property cp WHERE
+		cp.component_id = ANY (delete_list) OR
+		slot_id = ANY (slot_list);
+
+	DELETE FROM
+		slot s
+	WHERE
+		slot_id = ANY (slot_list) AND
+		s.component_id = ANY(delete_list);
+
+	DELETE FROM
+		asset a
+	WHERE
+		a.component_id = ANY (delete_list);
+
+	DELETE FROM
+		component c
+	WHERE
+		c.component_id = ANY (delete_list);
+
+	RETURN true;
+END;
+$function$
+;
+
+DO $$
+-- not dropping regrants here.
+BEGIN
+	DELETE FROM __recreate WHERE schema = 'component_manip' AND type = 'function' AND object IN ('remove_component_hier');
+EXCEPTION WHEN undefined_table THEN
+	RAISE NOTICE 'Drop of proc remove_component_hier failed but that is ok';
+	NULL;
+END;
+$$;
+
+-- Changed function
 SELECT schema_support.save_dependent_objects_for_replay('component_manip', 'update_pci_component_type_model');
 SELECT schema_support.save_grants_for_replay('component_manip', 'update_pci_component_type_model');
 -- Dropped in case type changes.
@@ -731,6 +846,11 @@ BEGIN
 				description := 'disk vendor auto-insert'
 			) INTO cid;
 
+			--
+			-- Insert the probed string as a property so things can be
+			-- easily changed to a different vendor later if this needs
+			-- to be merged into something else.
+			--
 			INSERT INTO property (
 				property_name,
 				property_type,
@@ -756,21 +876,40 @@ BEGIN
 	END IF;
 
 	--
-	-- See if we have this component type in the database already.
+	-- Try to determine the component_type
 	--
 	SELECT DISTINCT
 		component_type_id INTO ctid
 	FROM
 		component_type ct JOIN
+		component_property cp USING (component_type_id) JOIN
 		component_type_component_function ctcf USING (component_type_id)
 	WHERE
-		component_function = 'disk' AND
-		ct.model = m AND
+		ctcf.component_function = 'disk' AND
+		cp.component_property_name = 'DiskModelProbeString' AND
+		cp.component_property_type = 'disk' AND
+		cp.property_value = m AND
 		CASE WHEN cid IS NOT NULL THEN
 			(company_id = cid)
 		ELSE
 			true
 		END;
+
+	IF ctid IS NULL THEN
+		SELECT DISTINCT
+			component_type_id INTO ctid
+		FROM
+			component_type ct JOIN
+			component_type_component_function ctcf USING (component_type_id)
+		WHERE
+			component_function = 'disk' AND
+			ct.model = m AND
+			CASE WHEN cid IS NOT NULL THEN
+				(company_id = cid)
+			ELSE
+				true
+			END;
+	END IF;
 
 	--
 	-- If the type isn't found, then we need to insert it
@@ -813,11 +952,6 @@ BEGIN
 				USING ERRCODE = 'JH501';
 		END IF;
 
-		IF cid IS NULL THEN
-			RAISE EXCEPTION 'unknown vendor adding disk component_type'
-				USING ERRCODE = 'JH501';
-		END IF;
-
 		INSERT INTO component_type (
 			company_id,
 			model,
@@ -841,6 +975,7 @@ BEGIN
 			component_type_id,
 			property_value
 		) VALUES
+			('DiskModelProbeString', 'disk', ctid, model),
 			('DiskSize', 'disk', ctid, bytes),
 			('DiskProtocol', 'disk', ctid, protocol),
 			('MediaType', 'disk', ctid, media_type);
@@ -990,7 +1125,175 @@ $function$
 --
 -- Process middle (non-trigger) schema component_utils
 --
+SELECT schema_support.save_dependent_objects_for_replay(schema := 'component_utils'::text, object := 'create_component_template_slots ( integer )'::text, tags := ARRAY['process_all_procs_in_schema_component_utils'::text]);
+DROP FUNCTION IF EXISTS component_utils.create_component_template_slots ( integer );
+SELECT schema_support.save_dependent_objects_for_replay(schema := 'component_utils'::text, object := 'fetch_component ( integer,text,boolean,text,integer )'::text, tags := ARRAY['process_all_procs_in_schema_component_utils'::text]);
+DROP FUNCTION IF EXISTS component_utils.fetch_component ( integer,text,boolean,text,integer );
+SELECT schema_support.save_dependent_objects_for_replay(schema := 'component_utils'::text, object := 'insert_component_into_parent_slot ( integer,integer,text,text,text,integer,text )'::text, tags := ARRAY['process_all_procs_in_schema_component_utils'::text]);
+DROP FUNCTION IF EXISTS component_utils.insert_component_into_parent_slot ( integer,integer,text,text,text,integer,text );
+SELECT schema_support.save_dependent_objects_for_replay(schema := 'component_utils'::text, object := 'insert_cpu_component ( text,bigint,bigint,text,text,text )'::text, tags := ARRAY['process_all_procs_in_schema_component_utils'::text]);
+DROP FUNCTION IF EXISTS component_utils.insert_cpu_component ( text,bigint,bigint,text,text,text );
+SELECT schema_support.save_dependent_objects_for_replay(schema := 'component_utils'::text, object := 'insert_disk_component ( text,bigint,text,text,text,text )'::text, tags := ARRAY['process_all_procs_in_schema_component_utils'::text]);
+DROP FUNCTION IF EXISTS component_utils.insert_disk_component ( text,bigint,text,text,text,text );
+SELECT schema_support.save_dependent_objects_for_replay(schema := 'component_utils'::text, object := 'insert_memory_component ( text,bigint,bigint,text,text,text )'::text, tags := ARRAY['process_all_procs_in_schema_component_utils'::text]);
+DROP FUNCTION IF EXISTS component_utils.insert_memory_component ( text,bigint,bigint,text,text,text );
+SELECT schema_support.save_dependent_objects_for_replay(schema := 'component_utils'::text, object := 'insert_pci_component ( integer,integer,integer,integer,text,text,text,text,text[],text,text )'::text, tags := ARRAY['process_all_procs_in_schema_component_utils'::text]);
+DROP FUNCTION IF EXISTS component_utils.insert_pci_component ( integer,integer,integer,integer,text,text,text,text,text[],text,text );
+SELECT schema_support.save_dependent_objects_for_replay(schema := 'component_utils'::text, object := 'migrate_component_template_slots ( integer )'::text, tags := ARRAY['process_all_procs_in_schema_component_utils'::text]);
+DROP FUNCTION IF EXISTS component_utils.migrate_component_template_slots ( integer );
+SELECT schema_support.save_dependent_objects_for_replay(schema := 'component_utils'::text, object := 'remove_component_hier ( integer,boolean )'::text, tags := ARRAY['process_all_procs_in_schema_component_utils'::text]);
+DROP FUNCTION IF EXISTS component_utils.remove_component_hier ( integer,boolean );
+SELECT schema_support.save_dependent_objects_for_replay(schema := 'component_utils'::text, object := 'replace_component ( integer,integer )'::text, tags := ARRAY['process_all_procs_in_schema_component_utils'::text]);
+DROP FUNCTION IF EXISTS component_utils.replace_component ( integer,integer );
+SELECT schema_support.save_dependent_objects_for_replay(schema := 'component_utils'::text, object := 'set_slot_names ( integer[] )'::text, tags := ARRAY['process_all_procs_in_schema_component_utils'::text]);
+DROP FUNCTION IF EXISTS component_utils.set_slot_names ( integer[] );
 SELECT schema_support.replay_object_recreates(tags := ARRAY['process_all_procs_in_schema_component_utils']);
+-- New function; dropping in case it returned because of type change
+SELECT schema_support.save_grants_for_replay('component_utils', 'fetch_disk_component');
+DROP FUNCTION IF EXISTS component_utils.fetch_disk_component ( text,text,text );
+CREATE OR REPLACE FUNCTION component_utils.fetch_disk_component(model text, serial_number text, vendor_name text DEFAULT NULL::text)
+ RETURNS jazzhands.component
+ LANGUAGE plpgsql
+ SECURITY DEFINER
+ SET search_path TO 'jazzhands'
+AS $function$
+DECLARE
+	m			ALIAS FOR model;
+	sn			ALIAS FOR serial_number;
+	ctid		integer;
+	stid		integer;
+	c			RECORD;
+	cid			integer;
+BEGIN
+	cid := NULL;
+
+	IF
+		model IS NULL OR model ~ '^\s*$' OR
+		serial_number IS NULL OR serial_number ~ '^\s*$'
+	THEN
+		RAISE EXCEPTION 'model and serial_number must be given to fetch_disk_component'
+			USING ERRCODE = 'JH501';
+	END IF;
+
+	IF vendor_name IS NOT NULL THEN
+		--
+		-- Try to find a vendor that matches.  Look up various properties
+		-- for a probe string match, and then see if it matches the
+		-- company name.
+		--
+		SELECT
+			comp.company_id INTO cid
+		FROM
+			company comp JOIN
+			company_collection_company ccc USING (company_id) JOIN
+			property p USING (company_collection_id)
+		WHERE
+			p.property_type = 'DeviceProvisioning' AND
+			p.property_name = 'DiskVendorProbeString' AND
+			p.property_value = vendor_name
+		ORDER BY
+			p.property_id
+		LIMIT 1;
+
+		IF cid IS NULL THEN
+			SELECT
+				comp.company_id INTO cid
+			FROM
+				company comp JOIN
+				company_collection_company ccc USING (company_id) JOIN
+				property p USING (company_collection_id)
+			WHERE
+				p.property_type = 'DeviceProvisioning' AND
+				p.property_name = 'DeviceVendorProbeString' AND
+				p.property_value = vendor_name
+			ORDER BY
+				p.property_id
+			LIMIT 1;
+		END IF;
+
+		--
+		-- This is being deprecated in favor of the company_collection
+		-- above
+		--
+		IF cid IS NULL THEN
+			SELECT
+				company_id INTO cid
+			FROM
+				property p
+			WHERE
+				p.property_type = 'DeviceProvisioning' AND
+				p.property_name = 'DeviceVendorProbeString' AND
+				p.property_value = vendor_name;
+		END IF;
+
+		IF cid IS NULL THEN
+			SELECT
+				company_id INTO cid
+			FROM
+				company comp
+			WHERE
+				comp.company_name = vendor_name;
+		END IF;
+
+		IF cid IS NULL THEN
+			RETURN NULL;
+		END IF;
+	END IF;
+
+	--
+	-- Try to determine the component_type
+	--
+
+	SELECT DISTINCT
+		component_type_id INTO ctid
+	FROM
+		component_type ct JOIN
+		component_property cp USING (component_type_id) JOIN
+		component_type_component_function ctcf USING (component_type_id)
+	WHERE
+		ctcf.component_function = 'disk' AND
+		cp.component_property_name = 'DiskModelProbeString' AND
+		cp.component_property_type = 'disk' AND
+		cp.property_value = m AND
+		CASE WHEN cid IS NOT NULL THEN
+			(company_id = cid)
+		ELSE
+			true
+		END;
+
+	IF ctid IS NULL THEN
+		SELECT DISTINCT
+			component_type_id INTO ctid
+		FROM
+			component_type ct JOIN
+			component_type_component_function ctcf USING (component_type_id)
+		WHERE
+			component_function = 'disk' AND
+			ct.model = m AND
+			CASE WHEN cid IS NOT NULL THEN
+				(company_id = cid)
+			ELSE
+				true
+			END;
+	END IF;
+
+	--
+	-- Find a component of this type with the given serial_number
+	--
+	 SELECT
+		component.* INTO c
+	FROM
+		component JOIN
+		asset a USING (component_id)
+	WHERE
+		component_type_id = ctid AND
+		a.serial_number = sn;
+
+	RETURN c;
+END;
+$function$
+;
+
 --
 -- Process middle (non-trigger) schema device_manip
 --
@@ -1441,6 +1744,74 @@ SELECT schema_support.replay_object_recreates(tags := ARRAY['process_all_procs_i
 -- Process middle (non-trigger) schema dns_manip
 --
 -- Changed function
+SELECT schema_support.save_dependent_objects_for_replay('dns_manip', 'add_domain_from_cidr');
+SELECT schema_support.save_grants_for_replay('dns_manip', 'add_domain_from_cidr');
+-- Dropped in case type changes.
+DROP FUNCTION IF EXISTS dns_manip.add_domain_from_cidr ( inet );
+CREATE OR REPLACE FUNCTION dns_manip.add_domain_from_cidr(block inet)
+ RETURNS integer
+ LANGUAGE plpgsql
+ SET search_path TO 'jazzhands'
+AS $function$
+DECLARE
+	ipaddr		text;
+	ipnodes		text[];
+	domain		text;
+	domain_id	dns_domain.dns_domain_id%TYPE;
+	j			text;
+BEGIN
+	-- silently fail for ipv6
+	IF family(block) != 4 THEN
+		RETURN NULL;
+	END IF;
+	IF family(block) != 4 THEN
+		j := '';
+		-- this needs to be tweaked to expand ::, which postgresql does
+		-- not easily do.  This requires more thinking than I was up for today.
+		ipaddr := regexp_replace(host(block)::text, ':', '', 'g');
+	ELSE
+		j := '\.';
+		ipaddr := host(block);
+	END IF;
+
+	EXECUTE 'select array_agg(member order by rn desc)
+		from (
+        select
+			row_number() over () as rn, *
+			from
+			unnest(regexp_split_to_array($1, $2)) as member
+		) x
+	' INTO ipnodes USING ipaddr, j;
+
+	IF family(block) = 4 THEN
+		domain := array_to_string(ARRAY[ipnodes[2],ipnodes[3],ipnodes[4]], '.')
+			|| '.in-addr.arpa';
+	ELSE
+		domain := array_to_string(ipnodes, '.')
+			|| '.ip6.arpa';
+	END IF;
+
+	SELECT dns_domain_id INTO domain_id FROM dns_domain where dns_domain_name = domain;
+	IF NOT FOUND THEN
+		domain_id := dns_manip.add_dns_domain(domain);
+	END IF;
+
+	RETURN domain_id;
+END;
+$function$
+;
+
+DO $$
+-- not dropping regrants here.
+BEGIN
+	DELETE FROM __recreate WHERE schema = 'dns_manip' AND type = 'function' AND object IN ('add_domain_from_cidr');
+EXCEPTION WHEN undefined_table THEN
+	RAISE NOTICE 'Drop of proc add_domain_from_cidr failed but that is ok';
+	NULL;
+END;
+$$;
+
+-- Changed function
 SELECT schema_support.save_dependent_objects_for_replay('dns_manip', 'set_dns_for_interface');
 SELECT schema_support.save_grants_for_replay('dns_manip', 'set_dns_for_interface');
 -- Dropped in case type changes.
@@ -1664,6 +2035,74 @@ SELECT schema_support.replay_object_recreates(tags := ARRAY['process_all_procs_i
 --
 -- Process middle (non-trigger) schema layerx_network_manip
 --
+-- Changed function
+SELECT schema_support.save_dependent_objects_for_replay('layerx_network_manip', 'delete_layer2_networks');
+SELECT schema_support.save_grants_for_replay('layerx_network_manip', 'delete_layer2_networks');
+-- Dropped in case type changes.
+DROP FUNCTION IF EXISTS layerx_network_manip.delete_layer2_networks ( integer[],boolean );
+CREATE OR REPLACE FUNCTION layerx_network_manip.delete_layer2_networks(layer2_network_id_list integer[], purge_network_interfaces boolean DEFAULT false)
+ RETURNS SETOF jazzhands.layer2_network
+ LANGUAGE plpgsql
+ SECURITY DEFINER
+ SET search_path TO 'jazzhands'
+AS $function$
+DECLARE
+	netblock_id_list	integer[];
+BEGIN
+	IF array_length(layer2_network_id_list, 1) IS NULL THEN
+		RETURN;
+	END IF;
+
+	BEGIN
+		PERFORM local_hooks.delete_layer2_networks_before_hooks(
+			layer2_network_id_list := layer2_network_id_list
+		);
+	EXCEPTION WHEN invalid_schema_name OR undefined_function THEN
+		NULL;
+	END;
+
+	PERFORM layerx_network_manip.delete_layer3_networks(
+		layer3_network_id_list := ARRAY(
+				SELECT layer3_network_id
+				FROM layer3_network l3n
+				WHERE layer2_network_id = ANY(layer2_network_id_list)
+			),
+		purge_network_interfaces :=
+			delete_layer2_networks.purge_network_interfaces
+	);
+
+	DELETE FROM
+		layer2_network_collection_layer2_network l2nc
+	WHERE
+		l2nc.layer2_network_id = ANY(layer2_network_id_list);
+
+	RETURN QUERY DELETE FROM
+		layer2_network l2n
+	WHERE
+		l2n.layer2_network_id = ANY(layer2_network_id_list)
+	RETURNING *;
+
+	BEGIN
+		PERFORM local_hooks.delete_layer2_networks_after_hooks(
+			layer2_network_id_list := layer2_network_id_list
+		);
+	EXCEPTION WHEN invalid_schema_name OR undefined_function THEN
+		NULL;
+	END;
+
+END $function$
+;
+
+DO $$
+-- not dropping regrants here.
+BEGIN
+	DELETE FROM __recreate WHERE schema = 'layerx_network_manip' AND type = 'function' AND object IN ('delete_layer2_networks');
+EXCEPTION WHEN undefined_table THEN
+	RAISE NOTICE 'Drop of proc delete_layer2_networks failed but that is ok';
+	NULL;
+END;
+$$;
+
 SELECT schema_support.replay_object_recreates(tags := ARRAY['process_all_procs_in_schema_layerx_network_manip']);
 --
 -- Process middle (non-trigger) schema logical_port_manip
@@ -5281,6 +5720,28 @@ SELECT schema_support.replay_object_recreates(tags := ARRAY['process_all_procs_i
 -- Process all procs in component_utils
 --
 select clock_timestamp(), clock_timestamp() - now() AS len;
+SELECT schema_support.save_dependent_objects_for_replay(schema := 'component_utils'::text, object := 'create_component_template_slots ( integer )'::text, tags := ARRAY['process_all_procs_in_schema_component_utils'::text]);
+DROP FUNCTION IF EXISTS component_utils.create_component_template_slots ( integer );
+SELECT schema_support.save_dependent_objects_for_replay(schema := 'component_utils'::text, object := 'fetch_component ( integer,text,boolean,text,integer )'::text, tags := ARRAY['process_all_procs_in_schema_component_utils'::text]);
+DROP FUNCTION IF EXISTS component_utils.fetch_component ( integer,text,boolean,text,integer );
+SELECT schema_support.save_dependent_objects_for_replay(schema := 'component_utils'::text, object := 'insert_component_into_parent_slot ( integer,integer,text,text,text,integer,text )'::text, tags := ARRAY['process_all_procs_in_schema_component_utils'::text]);
+DROP FUNCTION IF EXISTS component_utils.insert_component_into_parent_slot ( integer,integer,text,text,text,integer,text );
+SELECT schema_support.save_dependent_objects_for_replay(schema := 'component_utils'::text, object := 'insert_cpu_component ( text,bigint,bigint,text,text,text )'::text, tags := ARRAY['process_all_procs_in_schema_component_utils'::text]);
+DROP FUNCTION IF EXISTS component_utils.insert_cpu_component ( text,bigint,bigint,text,text,text );
+SELECT schema_support.save_dependent_objects_for_replay(schema := 'component_utils'::text, object := 'insert_disk_component ( text,bigint,text,text,text,text )'::text, tags := ARRAY['process_all_procs_in_schema_component_utils'::text]);
+DROP FUNCTION IF EXISTS component_utils.insert_disk_component ( text,bigint,text,text,text,text );
+SELECT schema_support.save_dependent_objects_for_replay(schema := 'component_utils'::text, object := 'insert_memory_component ( text,bigint,bigint,text,text,text )'::text, tags := ARRAY['process_all_procs_in_schema_component_utils'::text]);
+DROP FUNCTION IF EXISTS component_utils.insert_memory_component ( text,bigint,bigint,text,text,text );
+SELECT schema_support.save_dependent_objects_for_replay(schema := 'component_utils'::text, object := 'insert_pci_component ( integer,integer,integer,integer,text,text,text,text,text[],text,text )'::text, tags := ARRAY['process_all_procs_in_schema_component_utils'::text]);
+DROP FUNCTION IF EXISTS component_utils.insert_pci_component ( integer,integer,integer,integer,text,text,text,text,text[],text,text );
+SELECT schema_support.save_dependent_objects_for_replay(schema := 'component_utils'::text, object := 'migrate_component_template_slots ( integer )'::text, tags := ARRAY['process_all_procs_in_schema_component_utils'::text]);
+DROP FUNCTION IF EXISTS component_utils.migrate_component_template_slots ( integer );
+SELECT schema_support.save_dependent_objects_for_replay(schema := 'component_utils'::text, object := 'remove_component_hier ( integer,boolean )'::text, tags := ARRAY['process_all_procs_in_schema_component_utils'::text]);
+DROP FUNCTION IF EXISTS component_utils.remove_component_hier ( integer,boolean );
+SELECT schema_support.save_dependent_objects_for_replay(schema := 'component_utils'::text, object := 'replace_component ( integer,integer )'::text, tags := ARRAY['process_all_procs_in_schema_component_utils'::text]);
+DROP FUNCTION IF EXISTS component_utils.replace_component ( integer,integer );
+SELECT schema_support.save_dependent_objects_for_replay(schema := 'component_utils'::text, object := 'set_slot_names ( integer[] )'::text, tags := ARRAY['process_all_procs_in_schema_component_utils'::text]);
+DROP FUNCTION IF EXISTS component_utils.set_slot_names ( integer[] );
 SELECT schema_support.replay_object_recreates(tags := ARRAY['process_all_procs_in_schema_component_utils']);
 --
 -- Process all procs in device_manip
