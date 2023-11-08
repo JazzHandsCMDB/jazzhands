@@ -51,6 +51,16 @@ sub DESTROY {
 	my $self = shift @_;
 	my $ac   = $self->{_dbh}->{AutoCommit};
 
+	# for figuring out active statement handles.  did not actually end up
+	# needing
+
+	#	DBI->visit_handles(sub {
+	#		my $s = shift @_;
+	#		if (ref $s eq 'DBI::st') {
+	#			warn "Statement:", $s->{Statement}, ", Active:", $s->{Active},"\n";
+	#		}
+	#	});
+
 	$self->rollback if ( !$ac );
 	$self->disconnect;
 }
@@ -300,7 +310,6 @@ sub link_inaddr {
 		dns_type      => 'REVERSE_ZONE_BLOCK_PTR',
 	};
 	$match->{ip_universe_id} = $universe if ( defined($universe) );
-warn "xx1: ", Dumper($match, $universe);
 	if (
 
 		my $dbrec = $self->DBFetch(
@@ -345,12 +354,21 @@ warn "xx1: ", Dumper($match, $universe);
 		ip_universe_id => $nblk->{ip_universe_id},
 		netblock_id    => $nblk->{netblock_id},
 	};
-	warn "xx2: ", Dumper($dns, $nblk);
-	$self->DBInsert(
-		table => 'dns_record',
-		hash  => $dns,
-		errs  => \@errs,
-	) || die join( " ", @errs, ", wtf -- ", $self->dbh->errstr );
+
+	if ( !$self->DBFetch(
+		table           => 'dns_record',
+		match           => $dns,
+		result_set_size => 'exactlyone',
+		errors          => \@errs
+	) )
+	{
+		$self->DBInsert(
+			table => 'dns_record',
+			hash  => $dns,
+			errs  => \@errs,
+		) || die join( " ", @errs, ", wtf -- ", $self->dbh->errstr );
+	}
+
 	1;
 }
 
@@ -415,7 +433,6 @@ sub get_ptr {
 sub get_parent_domain {
 	my ( $self, $zone ) = @_;
 
-	# print "processing zone is $zone\n";
 	my (@errs);
 	while ( $zone =~ s/^[^\.]+\.// ) {
 		my $old = $self->DBFetch(
@@ -590,6 +607,7 @@ sub freshen_zone {
 		} ) || die $self->dbh->errstr;
 
 		$sth->execute( $zone, $type ) || die $sth->errstr;
+		$sth->finish;
 
 		$$dom = $self->DBFetch(
 			table           => 'dns_domain',
@@ -771,7 +789,7 @@ sub freshen_soa {
 		# should be deleted, because Zone Generaion will DTRT with
 		# delegation
 		my $shortname = $zone;
-		$shortname =~ s/.$parent->{soa_name}$//;
+		$shortname =~ s/\.$parent->{soa_name}$//;
 		foreach my $z (
 			@{
 				$self->DBFetch(
@@ -875,11 +893,13 @@ sub refresh_dns_record {
 		} elsif ( $self->{_namespace}
 			&& ( defined( my $x = $self->guess_universe($address) ) ) )
 		{
-			$self->_Debug( 9, "Redefining Universe to $x" )
-			  if ( $x ne $universe );
-			$universe = $x;
+			if ( $x ne $universe ) {
+				$self->_Debug( 9, "Redefining Universe to $x" );
+				$universe = $x;
+			}
 		} else {
 			if ( defined( my $x = $self->get_universe($address) ) ) {
+				$self->_Debug( 9, "guessed universe $x" );
 				$universe = $x;
 			}
 		}
@@ -1010,17 +1030,19 @@ sub refresh_dns_record {
 			}
 			$self->dbh->do("RELEASE SAVEPOINT biteme");
 		}
-
 	}
 
 	my $match = {
 		dns_name       => $name,
-		dns_value      => $value,
 		dns_type       => $opt->{dns_type},
 		dns_domain_id  => $opt->{dns_domain_id},
-		netblock_id    => ($nb) ? $nb->{netblock_id} : undef,
 		ip_universe_id => $universe,
 	};
+	if ( $nb && $nb->{netblock_id} ) {
+		$match->{netblock_id} = $nb->{netblock_id};
+	} elsif ($value) {
+		$match->{dns_value} = $value;
+	}
 	if ($srv_service) {
 		$match->{dns_srv_service}  = $srv_service;
 		$match->{dns_srv_protocol} = $srv_protocol;
@@ -1089,23 +1111,44 @@ sub refresh_dns_record {
 			}
 		}
 	} else {
+		my $rowexists;
 		#
 		# This means the network was not found above given existing rules so
 		# this is a last ditch effort to try universe bleeding.
 		if ( !$nb->{netblock_id} && $self->{universebleed} ) {
 			$new = $self->bleed_universes( $new, $nb );
+
+			#
+			# Kind of a hack, but check to see if the record already exists
+			# because of a universebleed.  I'd make this smarter if this was
+			# not meant to be a short lived tool
+			#
+			$rowexists = $self->DBFetch(
+				table  => 'dns_record',
+				match  => $new,
+				errors => \@errs,
+			) || die join( " ", @errs );
 		}
-		$numchanges += $self->DBInsert(
-			table  => 'dns_record',
-			hash   => $new,
-			errors => \@errs,
-		  )
-		  || die "failed to insert: ",
-		  join( " ",
-			Dumper($new),   "failed to match",
-			Dumper($match), ":", @errs );
-		$dnsrecid = $new->{dns_record_id};
-		$self->_Debug( 8, "Inserted new record: %d", $new->{dns_record_id} );
+
+		if ( !$rowexists ) {
+			$numchanges += $self->DBInsert(
+				table  => 'dns_record',
+				hash   => $new,
+				errors => \@errs,
+			  )
+			  || die "failed to insert: ",
+			  join( " ",
+				Dumper($new),
+				"... led to failed to match",
+				Dumper( $match, $dnsrec ),
+				":", @errs );
+			$dnsrecid = $new->{dns_record_id};
+			$self->_Debug( 8, "Inserted new record: %d",
+				$new->{dns_record_id} );
+		} else {
+			$self->_Debug( 8,
+				"Skipping insert because an existing record bled over" );
+		}
 	}
 
 	$numchanges;
@@ -1128,8 +1171,6 @@ sub process_zone($$$;$) {
 	if ( defined($r) ) {
 		$numchanges += $r;
 	}
-
-	#return undef;
 
 	my $domid = $dom->{dns_domain_id};
 
@@ -1186,7 +1227,8 @@ sub process_zone($$$;$) {
 		if ( $name eq $dom->{soa_name} ) {
 			$name = undef;
 		} else {
-			$name =~ s/\.$dom->{soa_name}$//;
+			my $soaname = $dom->{soa_name};
+			$name =~ s/\.${soaname}$//;
 		}
 
 		$numrec++;
@@ -1244,7 +1286,7 @@ sub process_zone($$$;$) {
 								$h =~ s/\.(\d+)$/.$digits[$#digits]/;
 								$ip = $h;
 							} else {
-								warn "-- Unable to figure out in-addr mapping";
+								warn "-- Unable to figure out in-addr mapping ";
 							}
 						}
 					} elsif ( $t =~ /ip6/ ) {
@@ -1300,6 +1342,7 @@ sub process_zone($$$;$) {
 					$new->{name} = undef;
 				} else {
 					$n =~ s/\.$xferzone$//;
+
 					$new->{name} = $n;
 				}
 
