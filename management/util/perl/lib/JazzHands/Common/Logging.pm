@@ -272,8 +272,8 @@ sub initialize_logging {
 			return undef;
 		}
 		$logh->{_messages} = $f;
-	} elsif ( my $h = $logh->{_errors} ) {
-		$logh->{_messages} = $h;
+	} elsif ( my $eh = $logh->{_errors} ) {
+		$logh->{_messages} = $eh;
 	}
 
 	if ( !$something ) {
