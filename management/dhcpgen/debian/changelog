@@ -1,3 +1,9 @@
+jazzhands-dhcpgen (0.96.1) trusty; urgency=medium
+
+  * add a timeout to dhcpgen to reconnect to stomp every five minutes
+
+ -- Nenad Buncic <nenad@buncic.net>  Thu, 18 Jan 2024 11:03:24 +0100
+
 jazzhands-dhcpgen (0.96.0) trusty; urgency=medium
 
   * bump up various debian versions of things to be currentish
