@@ -40,7 +40,7 @@ WITH cs AS (
 		CEIL(SUM(cp.property_value::bigint) FILTER (
 			WHERE cp.component_property_type::text = 'disk'::text
 			AND cp.component_property_name::text = 'DiskSize'::text
-		) / 1073741824::numeric) || 'G'::text AS total_disk
+		) / 1073741824::numeric) AS total_disk
 	FROM
 		jazzhands.v_device_components dc
 		JOIN jazzhands.component c USING (component_id)

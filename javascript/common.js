@@ -57,12 +57,17 @@ function jazzhands_common_init() {
 		// Create a new hidden input box with the value of the text
 		// element
 
+		// Unescape the text to convert things like &lt; to <
+		// This is required for the input field value
+		// But it must not be used for any span/div innerHTML value (code injection)
+		let unescapedHTML = new DOMParser().parseFromString( text, "text/html" ).documentElement.textContent;
+
 		textbox = $("<input/>", {
 			id: inid,
 			name: id,
 			type: "text",
 			"class": "editabletext",
-			value: text
+			value: unescapedHTML
 		});
 
 		textbox.hide();
@@ -71,8 +76,6 @@ function jazzhands_common_init() {
 		// Create a span with the text, or "Set Description" if no text
 		// Set the class to "editabletext" or "hinttext" depending on
 		// how we want it displayed
-
-
 
 		$(el).append( $("<span/>", {
 			html: text || "Set Description",

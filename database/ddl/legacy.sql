@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2019-2022 Todd Kover
+ * Copyright (c) 2019-2023 Todd Kover
  * All rights reserved.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
@@ -15,6 +15,34 @@
  * limitations under the License.
  */
 \set ON_ERROR_STOP
+
+-- Some things in here:
+-- Copyright (c) 2020-2019 Todd Kover
+-- Copyright (c) 2020-2019 Matthew Ragan
+-- Copyright (c) 2005-2010, Vonage Holdings Corp.
+-- All rights reserved.
+--
+-- Redistribution and use in source and binary forms, with or without
+-- modification, are permitted provided that the following conditions are met:
+--     * Redistributions of source code must retain the above copyright
+--       notice, this list of conditions and the following disclaimer.
+--     * Redistributions in binary form must reproduce the above copyright
+--       notice, this list of conditions and the following disclaimer in the
+--       documentation and/or other materials provided with the distribution.
+--
+-- THIS SOFTWARE IS PROVIDED BY VONAGE HOLDINGS CORP. ''AS IS'' AND ANY
+-- EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE IMPLIED
+-- WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE
+-- DISCLAIMED. IN NO EVENT SHALL VONAGE HOLDINGS CORP. BE LIABLE FOR ANY
+-- DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES
+-- (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES;
+-- LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND
+-- ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT
+-- (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS
+-- SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
+--
+-- $Id$
+--
 
 DO $$
 DECLARE
@@ -67,27 +95,6 @@ SELECT account_id,
 	key_usage_reason_for_assignment AS key_usage_reason_for_assign,
 	data_ins_user,data_ins_date,data_upd_user,data_upd_date
 FROM jazzhands.account_assigned_certificate;
-
-
-
--- Simple column rename
-CREATE OR REPLACE VIEW jazzhands_legacy.account_auth_log AS
-SELECT
-	account_id,
-	account_authentication_timestamp AS account_auth_ts,
-	authentication_resource aS auth_resource,
-	account_authentication_seq AS account_auth_seq,
-	CASE WHEN was_authentication_successful IS NULL THEN NULL
-		WHEN was_authentication_successful = true THEN 'Y'
-		WHEN was_authentication_successful = false THEN 'N'
-		ELSE NULL
-	END AS was_auth_success,
-	authentication_resource_instance AS auth_resource_instance,
-	authentication_origin AS auth_origin,
-	data_ins_date,
-	data_ins_user
-FROM jazzhands.account_authentication_log;
-
 
 
 CREATE OR REPLACE VIEW jazzhands_legacy.account_coll_type_relation AS
@@ -425,13 +432,19 @@ FROM jazzhands.company_type;
 
 CREATE OR REPLACE VIEW jazzhands_legacy.component AS
 SELECT component_id,component_type_id,component_name,rack_location_id,parent_slot_id,data_ins_user,data_ins_date,data_upd_user,data_upd_date
-FROM jazzhands.component;
+FROM jazzhands.component
+WHERE component_id NOT IN (
+	SELECT component_id
+	FROM jazzhands.virtual_component_logical_volume
+);
 
 
 
 CREATE OR REPLACE VIEW jazzhands_legacy.component_property AS
 SELECT component_property_id,component_function,component_type_id,component_id,inter_component_connection_id,slot_function,slot_type_id,slot_id,component_property_name,component_property_type,property_value,data_ins_user,data_ins_date,data_upd_user,data_upd_date
-FROM jazzhands.component_property;
+FROM jazzhands.component_property
+WHERE component_property_type != 'storage'
+AND component_property_name != 'SCSI_Id';
 
 
 
@@ -643,8 +656,8 @@ SELECT
 FROM jazzhands.component_management_controller c
 	JOIN (SELECT device_id, component_id FROM jazzhands.device) d
 		USING (component_id)
-	JOIN (SELECT device_id AS manager_device_id, 
-			component_id AS manager_component_id 
+	JOIN (SELECT device_id AS manager_device_id,
+			component_id AS manager_component_id
 			FROM jazzhands.device) md
 		USING (manager_component_id)
 ;
@@ -1133,6 +1146,8 @@ CREATE OR REPLACE VIEW jazzhands_legacy.logical_volume AS
 SELECT logical_volume_id,logical_volume_name,logical_volume_type,volume_group_id,device_id,logical_volume_size_in_bytes,logical_volume_offset_in_bytes,filesystem_type,data_ins_user,data_ins_date,data_upd_user,data_upd_date
 FROM jazzhands.logical_volume;
 
+ALTER TABLE jazzhands_legacy.logical_volume ALTER logical_volume_type SET DEFAULT 'legacy';
+
 CREATE OR REPLACE VIEW jazzhands_legacy.logical_volume_property AS
 SELECT logical_volume_property_id,logical_volume_id,logical_volume_type,logical_volume_purpose,filesystem_type,logical_volume_property_name,logical_volume_property_value,data_ins_user,data_ins_date,data_upd_user,data_upd_date
 FROM jazzhands.logical_volume_property;
@@ -1556,12 +1571,18 @@ SELECT
 ;
 
 
-
 CREATE OR REPLACE VIEW jazzhands_legacy.physicalish_volume AS
-SELECT physicalish_volume_id,physicalish_volume_name,physicalish_volume_type,device_id,logical_volume_id,component_id,data_ins_user,data_ins_date,data_upd_user,data_upd_date
+SELECT	physicalish_volume_id,
+	physicalish_volume_name,
+	physicalish_volume_type,
+	device_id,
+	logical_volume_id,
+	component_id,
+	data_ins_user,
+	data_ins_date,
+	data_upd_user,
+	data_upd_date
 FROM jazzhands.physicalish_volume;
-
-
 
 -- Simple column rename
 CREATE OR REPLACE VIEW jazzhands_legacy.private_key AS
@@ -2014,37 +2035,35 @@ FROM jazzhands.v_account_collection_account;
 --
 CREATE OR REPLACE VIEW jazzhands_legacy.v_account_collection_expanded AS
 WITH RECURSIVE var_recurse (
-        level,
-        root_account_collection_id,
-        account_collection_id,
-        array_path,
-        cycle
+	level,
+	root_account_collection_id,
+	account_collection_id,
+	array_path,
+	cycle
 ) as (
-        SELECT
-                0                               as level,
-                a.account_collection_id         as root_account_collection_id,
-                a.account_collection_id         as account_collection_id,
-                ARRAY[a.account_collection_id]  as array_path,
-                false                           as cycle
-          FROM  account_collection a
+	SELECT
+		0                               as level,
+		a.account_collection_id         as root_account_collection_id,
+		a.account_collection_id         as account_collection_id,
+		ARRAY[a.account_collection_id]  as array_path,
+		false                           as cycle
+	FROM  account_collection a
 UNION ALL
-        SELECT
-                x.level + 1                     as level,
-                x.root_account_collection_id    as root_account_collection_id,
-                ach.child_account_collection_id as account_collection_id,
-                ach.child_account_collection_id ||
-                        x.array_path            as array_path,
-                ach.child_account_collection_id =
-                        ANY(x.array_path)       as cycle
-          FROM  var_recurse x
-                inner join account_collection_hier ach
-                        on x.account_collection_id =
-                                ach.account_collection_id
-        WHERE   NOT x.cycle
-) SELECT        level,
-                root_account_collection_id,
-                account_collection_id
-  from          var_recurse;
+	   SELECT
+		x.level + 1                     as level,
+		x.root_account_collection_id    as root_account_collection_id,
+		ach.child_account_collection_id as account_collection_id,
+		ach.child_account_collection_id ||
+				x.array_path            as array_path,
+		ach.child_account_collection_id = ANY(x.array_path)       as cycle
+		FROM  var_recurse x
+			inner join account_collection_hier ach
+				on x.account_collection_id = ach.account_collection_id
+		WHERE   NOT x.cycle
+) SELECT   level,
+			root_account_collection_id,
+			account_collection_id
+from	var_recurse;
 
 
 CREATE OR REPLACE VIEW jazzhands_legacy.v_account_collection_hier_from_ancestor AS
@@ -2062,70 +2081,233 @@ CREATE OR REPLACE VIEW jazzhands_legacy.v_account_name AS
 SELECT account_id,first_name,last_name,display_name
 FROM jazzhands.v_account_name;
 
-
-
-CREATE OR REPLACE VIEW jazzhands_legacy.v_acct_coll_acct_expanded AS
-SELECT account_collection_id,account_id
-FROM jazzhands.v_account_collection_account_expanded;
-
-
-
+--- This is getting dropped completely.
 CREATE OR REPLACE VIEW jazzhands_legacy.v_acct_coll_acct_expanded_detail AS
-SELECT account_collection_id,root_account_collection_id,account_id,acct_coll_level,dept_level,assign_method,text_path,array_path
-FROM jazzhands.v_account_collection_account_expanded_detail;
-
-
-
-CREATE OR REPLACE VIEW jazzhands_legacy.v_acct_coll_expanded AS
-SELECT level,account_collection_id,root_account_collection_id,text_path,array_path,rvs_array_path
-FROM jazzhands.v_account_collection_expanded;
-
-
-
--- Simple column rename
-CREATE OR REPLACE VIEW jazzhands_legacy.v_acct_coll_expanded_detail AS
-SELECT
+WITH RECURSIVE var_recurse(
 	account_collection_id,
 	root_account_collection_id,
-	account_collection_level AS acct_coll_level,
-	department_level AS dept_level,
-	assignment_method AS assign_method,
-	text_path,
-	array_path
-FROM jazzhands.v_account_collection_expanded_detail;
-
-
-
--- Simple column rename
-CREATE OR REPLACE VIEW jazzhands_legacy.v_acct_coll_prop_expanded AS
-SELECT
+	account_id,
+	acct_coll_level,
+	dept_level,
+	assign_method,
+	array_path,
+	cycle
+) AS (
+	SELECT
+		aca.account_collection_id,
+		aca.account_collection_id,
+		aca.account_id,
+		CASE ac.account_collection_type
+			WHEN 'department'::text THEN 0
+			ELSE 1
+		END,
+		CASE ac.account_collection_type
+			WHEN 'department'::text THEN 1
+			ELSE 0
+		END,
+		CASE ac.account_collection_type
+			WHEN 'department'::text THEN 'DirectDepartmentAssignment'::text
+			ELSE 'DirectAccountCollectionAssignment'::text
+		END,
+		ARRAY[aca.account_collection_id],
+		false
+	FROM
+		jazzhands.account_collection ac JOIN
+		jazzhands.v_account_collection_account aca USING (account_collection_id)
+	UNION ALL
+	SELECT
+		ach.account_collection_id,
+		x.root_account_collection_id,
+		x.account_id,
+		CASE ac.account_collection_type
+			WHEN 'department'::text THEN x.dept_level
+			ELSE x.acct_coll_level + 1
+		END,
+		CASE ac.account_collection_type
+			WHEN 'department'::text THEN x.dept_level + 1
+			ELSE x.dept_level
+		END,
+		CASE
+			WHEN ac.account_collection_type::text = 'department'::text
+				THEN 'AccountAssignedToChildDepartment'::text
+			WHEN x.dept_level > 1 AND x.acct_coll_level > 0
+				THEN 'ParentDepartmentAssignedToParentAccountCollection'::text
+			WHEN x.dept_level > 1
+				THEN 'ParentDepartmentAssignedToAccountCollection'::text
+			WHEN x.dept_level = 1 AND x.acct_coll_level > 0
+				THEN 'DepartmentAssignedToParentAccountCollection'::text
+			WHEN x.dept_level = 1
+				THEN 'DepartmentAssignedToAccountCollection'::text
+			ELSE 'AccountAssignedToParentAccountCollection'::text
+		END AS assign_method,
+		x.array_path || ach.account_collection_id AS array_path,
+		ach.account_collection_id = ANY (x.array_path)
+	FROM
+		var_recurse x
+		JOIN jazzhands.account_collection_hier ach
+			ON x.account_collection_id = ach.child_account_collection_id JOIN
+		jazzhands.account_collection ac
+			ON ach.account_collection_id = ac.account_collection_id
+	WHERE
+		NOT x.cycle
+) SELECT
 	account_collection_id,
-	property_id,
-	property_name,
-	property_type,
-	property_value,
-	property_value_timestamp,
-	property_value_account_collection_id AS property_value_account_coll_id,
-	property_value_netblock_collection_id AS property_value_nblk_coll_id,
-	property_value_password_type,
-	property_value_token_collection_id AS property_value_token_col_id,
-	property_rank,
-	is_multivalue,
-	assignment_rank AS assign_rank
-FROM jazzhands.v_account_collection_property_expanded;
+	root_account_collection_id,
+	account_id,
+	acct_coll_level,
+	dept_level,
+	assign_method,
+	array_to_string(var_recurse.array_path, '/'::text) AS text_path,
+	array_path
+FROM
+	var_recurse;
+
+--- This is getting dropped completely.
+CREATE OR REPLACE VIEW jazzhands_legacy.v_acct_coll_expanded AS
+WITH RECURSIVE acct_coll_recurse (
+	level,
+	root_account_collection_id,
+	account_collection_id,
+	array_path,
+	rvs_array_path,
+	cycle
+) AS (
+		SELECT
+			0 as level,
+			ac.account_collection_id as root_account_collection_id,
+			ac.account_collection_id as account_collection_id,
+			ARRAY[ac.account_collection_id] as array_path,
+			ARRAY[ac.account_collection_id] as rvs_array_path,
+			false
+		FROM
+			jazzhands.account_collection ac
+	UNION ALL
+		SELECT
+			x.level + 1 as level,
+			x.root_account_collection_id as root_account_collection_id,
+			ach.account_collection_id as account_collection_id,
+			x.array_path || ach.account_collection_id as array_path,
+			ach.account_collection_id || x.rvs_array_path
+				as rvs_array_path,
+			ach.account_collection_id = ANY(array_path) as cycle
+		FROM
+			acct_coll_recurse x JOIN jazzhands.account_collection_hier ach ON
+				x.account_collection_id = ach.child_account_collection_id
+		WHERE
+			NOT cycle
+) SELECT
+		level,
+		account_collection_id,
+		root_account_collection_id,
+		array_to_string(array_path, '/') as text_path,
+		array_path,
+		rvs_array_path
+	FROM
+		acct_coll_recurse;
+
+-- XXX there may be some weird definition BS here that needs  to be sorted
+-- out
+-- Copyright (c) 2013-2019, Todd M. Kover
+CREATE OR REPLACE VIEW jazzhands_legacy.v_acct_coll_acct_expanded AS
+	SELECT DISTINCT
+		ace.account_collection_id,
+		aca.account_id
+	FROM
+		jazzhands_legacy.v_acct_coll_expanded ace JOIN
+		jazzhands.v_account_collection_account aca ON
+			aca.account_collection_id = ace.root_account_collection_id;
 
 
-
-CREATE OR REPLACE VIEW jazzhands_legacy.v_application_role AS
-SELECT role_level,role_id,parent_role_id,root_role_id,root_role_name,role_name,role_path,role_is_leaf,array_path,cycle
-FROM jazzhands.v_application_role;
+--- This is getting dropped completely.
+-- Simple column rename
+CREATE OR REPLACE VIEW jazzhands_legacy.v_acct_coll_expanded_detail AS
+WITH RECURSIVE var_recurse (
+	root_account_collection_id,
+	account_collection_id,
+	account_collection_level,
+	department_level,
+	assignment_method,
+	array_path,
+	cycle
+	) AS (
+		SELECT
+			ac.account_collection_id as account_collection_id,
+			ac.account_collection_id as root_account_collection_id,
+			CASE ac.account_collection_type
+				WHEN 'department' THEN 0
+				ELSE 1
+			END as account_collection_level,
+			CASE ac.account_collection_type
+				WHEN 'department' THEN 1
+				ELSE 0
+			END as department_level,
+			CASE ac.account_collection_type
+				WHEN 'department' THEN 'DirectDepartmentAssignment'
+				ELSE 'DirectAccountCollectionAssignment'
+			END as assignment_method,
+			ARRAY[ac.account_collection_id] as array_path,
+			false
+		FROM
+			account_collection ac
+	UNION ALL
+		SELECT
+			x.root_account_collection_id as root_account_collection_id,
+			ach.account_collection_id as account_collection_id,
+			CASE ac.account_collection_type
+				WHEN 'department' THEN x.department_level
+				ELSE x.account_collection_level + 1
+			END as account_collection_level,
+			CASE ac.account_collection_type
+				WHEN 'department' THEN x.department_level + 1
+				ELSE x.department_level
+			END as department_level,
+			CASE
+				WHEN ac.account_collection_type = 'department'
+					THEN 'AccountAssignedToChildDepartment'
+				WHEN x.department_level > 1 AND x.account_collection_level > 0
+					THEN 'ChildDepartmentAssignedToChildAccountCollection'
+				WHEN x.department_level > 1
+					THEN 'ChildDepartmentAssignedToAccountCollection'
+				WHEN x.department_level = 1 and x.account_collection_level > 0
+					THEN 'DepartmentAssignedToChildAccountCollection'
+				WHEN x.department_level = 1
+					THEN 'DepartmentAssignedToAccountCollection'
+				ELSE 'AccountAssignedToChildAccountCollection'
+				END as assignment_method,
+			x.array_path || ach.account_collection_id as array_path,
+			ach.account_collection_id = ANY(array_path)
+		FROM
+			var_recurse x JOIN account_collection_hier ach ON
+				x.account_collection_id = ach.child_account_collection_id JOIN
+			account_collection ac ON
+				ach.account_collection_id = ac.account_collection_id
+		WHERE
+			NOT cycle
+) SELECT
+		account_collection_id,
+		root_account_collection_id,
+		account_collection_level AS acct_coll_level,
+		department_level dept_level,
+		assignment_method AS assign_method,
+		array_to_string(array_path, '/') as text_path,
+		array_path
+	FROM var_recurse;
 
 
 
 CREATE OR REPLACE VIEW jazzhands_legacy.v_application_role_member AS
-SELECT device_id,role_id,data_ins_user,data_ins_date,data_upd_user,data_upd_date
-FROM jazzhands.v_application_role_member;
-
+	select	device_id,
+		device_collection_id as role_id,
+		DATA_INS_USER,
+		DATA_INS_DATE,
+		DATA_UPD_USER,
+		DATA_UPD_DATE
+	from	jazzhands.device_collection_device
+	where	device_collection_id in
+		(select device_collection_id from jazzhands.device_collection
+			where device_collection_type = 'appgroup'
+		)
+;
 
 
 -- Simple column rename
@@ -2144,17 +2326,45 @@ SELECT
 	END AS is_approved
 FROM jazzhands.v_approval_instance_step_expanded;
 
-
-
+-- Copyright (c) 2012-2014, Todd M. Kover
 CREATE OR REPLACE VIEW jazzhands_legacy.v_company_hier AS
-SELECT root_company_id,company_id
-FROM jazzhands.v_company_hier;
-
+WITH RECURSIVE var_recurse (
+	level,
+	root_company_id,
+	company_id,
+	array_path,
+	cycle
+) as (
+	SELECT
+		0				as level,
+		c.company_id			as root_company_id,
+		c.company_id			as company_id,
+		ARRAY[c.company_id]		as array_path,
+		false				as cycle
+	FROM	company c
+UNION ALL
+	SELECT
+		x.level + 1			as level,
+		x.root_company_id		as root_company_id,
+		c.company_id			as company_id,
+		c.company_id || x.array_path	as array_path,
+		c.company_id = ANY(x.array_path) as cycle
+	FROM	var_recurse x
+		inner join company c
+			on c.parent_company_id = x.company_id
+	WHERE	NOT x.cycle
+) SELECT	distinct root_company_id as root_company_id, company_id
+	from	var_recurse;
 
 
 CREATE OR REPLACE VIEW jazzhands_legacy.v_component_hier AS
 SELECT component_id,child_component_id,component_path,level
-FROM jazzhands.v_component_hier;
+FROM jazzhands.v_component_hier
+WHERE component_id NOT IN (
+	SELECT component_id FROM virtual_component_logical_volume
+) AND child_component_id NOT IN (
+	SELECT component_id FROM virtual_component_logical_volume
+);
 
 
 
@@ -2181,97 +2391,234 @@ SELECT
 	data_upd_date
 FROM jazzhands.v_corp_family_account;
 
-
-
+-- Copyright (c) 2011-2014, Todd M. Kover
 CREATE OR REPLACE VIEW jazzhands_legacy.v_department_company_expanded AS
-SELECT company_id,account_collection_id
-FROM jazzhands.v_department_company_expanded;
+WITH RECURSIVE var_recurse (
+	level,
+	root_company_id,
+	company_id,
+	account_collection_id,
+	array_path,
+	cycle
+) as (
+	SELECT
+		0				as level,
+		c.company_id			as root_company_id,
+		c.company_id			as company_id,
+		d.account_collection_id		as account_collection_id,
+		ARRAY[c.company_id]		as array_path,
+		false
+	FROM	jazzhands.company c
+		inner join jazzhands.department d USING (company_id)
+UNION ALL
+	SELECT
+		x.level + 1			as level,
+		x.company_id			as root_company_id,
+		c.company_id			as company_id,
+		d.account_collection_id		as account_collection_id,
+		c.company_id || x.array_path	as array_path,
+		c.company_id = ANY (x.array_path)	as cycle
+	FROM	var_recurse x
+		inner join jazzhands.company c
+			on c.parent_company_id = x.company_id
+		inner join jazzhands.department d
+			on c.company_id = d.company_id
+	WHERE
+		NOT x.cycle
+) SELECT	distinct root_company_id as company_id, account_collection_id
+  from	var_recurse;
 
 
 
-CREATE OR REPLACE VIEW jazzhands_legacy.v_dev_col_device_root AS
-SELECT device_id,root_id,root_name,root_type,leaf_id,leaf_name,leaf_type
-FROM jazzhands.v_device_collection_device_root;
-
-
-
-CREATE OR REPLACE VIEW jazzhands_legacy.v_dev_col_root AS
-SELECT root_id,root_name,root_type,leaf_id,leaf_name,leaf_type
-FROM jazzhands.v_device_collection_root;
-
-
-
--- Simple column rename
-CREATE OR REPLACE VIEW jazzhands_legacy.v_dev_col_user_prop_expanded AS
-SELECT
-	property_id,
-	device_collection_id,
-	account_id,
-	login,
-	account_status,
-	account_realm_id,
-	account_realm_name,
-	CASE WHEN is_enabled IS NULL THEN NULL
-		WHEN is_enabled = true THEN 'Y'
-		WHEN is_enabled = false THEN 'N'
-		ELSE NULL
-	END AS is_enabled,
-	property_type,
-	property_name,
-	property_rank,
-	property_value,
-	is_multivalue,
-	is_boolean
-FROM jazzhands.v_device_collection_account_property_expanded;
-
-
-
-CREATE OR REPLACE VIEW jazzhands_legacy.v_device_col_account_cart AS
-SELECT device_collection_id,account_id,setting
-FROM jazzhands.v_device_collection_account_cart;
-
-
-
-CREATE OR REPLACE VIEW jazzhands_legacy.v_device_col_account_col_cart AS
-SELECT device_collection_id,account_collection_id,setting
-FROM jazzhands.v_device_collection_account_collection_cart;
-
-
-
-CREATE OR REPLACE VIEW jazzhands_legacy.v_device_col_acct_col_expanded AS
-SELECT device_collection_id,account_collection_id,account_id
-FROM jazzhands.v_device_collection_account_collection_expanded;
-
-
-
-CREATE OR REPLACE VIEW jazzhands_legacy.v_device_col_acct_col_unixgroup AS
-SELECT device_collection_id,account_collection_id
-FROM jazzhands.v_device_collection_account_collection_unix_group;
-
-
-
-CREATE OR REPLACE VIEW jazzhands_legacy.v_device_col_acct_col_unixlogin AS
-SELECT device_collection_id,account_collection_id,account_id
-FROM jazzhands.v_device_collection_account_collection_unix_login;
-
-
-
+-- Copyright (c) 2015-2019 Todd M. Kover
 CREATE OR REPLACE VIEW jazzhands_legacy.v_device_coll_device_expanded AS
-SELECT device_collection_id,device_id
-FROM jazzhands.v_device_collection_device_expanded;
+WITH RECURSIVE var_recurse (
+	root_device_collection_id,
+	device_collection_id,
+	parent_device_collection_id,
+	device_collection_level,
+	array_path,
+	cycle
+) as (
+	SELECT	device_collection_id	as root_device_collection_id,
+		device_collection_id	as device_collection_id,
+		device_collection_id	as parent_device_collection_id,
+		0			as device_collection_level,
+		ARRAY[device_collection_id],
+		false
+	FROM	jazzhands_legacy.device_collection
+UNION  ALL
+	SELECT	x.root_device_collection_id	as root_device_collection_id,
+		dch.child_device_collection_id AS device_collection_id,
+		dch.device_collection_id AS parent_device_colletion_id,
+		x.device_collection_level + 1 as device_collection_level,
+		dch.device_collection_id || x.array_path AS array_path,
+		dch.device_collection_id = ANY(x.array_path)
+	FROM	var_recurse x
+		inner join jazzhands_legacy.device_collection_hier dch
+			on x.device_collection_id =
+				dch.device_collection_id
+	WHERE
+		NOT x.cycle
+) SELECT	DISTINCT root_device_collection_id as device_collection_id,
+		device_id
+	FROM	var_recurse
+		INNER JOIN jazzhands_legacy.device_collection_device
+			USING (device_collection_id)
+;
 
 
 
+-- Copyright (c) 2011-2019, Todd M. Kover
+-- Copyright (c) 2005-2010, Vonage Holdings Corp.
 CREATE OR REPLACE VIEW jazzhands_legacy.v_device_coll_hier_detail AS
-SELECT device_collection_id,parent_device_collection_id,device_collection_level
-FROM jazzhands.v_device_collection_hier_detail;
+WITH RECURSIVE var_recurse (
+	root_device_collection_id,
+	device_collection_id,
+	parent_device_collection_id,
+	device_collection_level,
+	array_path,
+	cycle
+) as (
+	SELECT	device_collection_id	as root_device_collection_id,
+		device_collection_id	as device_collection_id,
+		device_collection_id	as parent_device_collection_id,
+		0			as device_collection_level,
+		ARRAY[device_collection_id],
+		false
+	FROM	jazzhands_legacy.device_collection
+UNION  ALL
+	SELECT	x.root_device_collection_id	as root_device_collection_id,
+		dch.child_device_collection_id AS device_collection_id,
+		dch.device_collection_id AS parent_device_collection_id,
+		x.device_collection_level + 1 as device_collection_level,
+		dch.device_collection_id || x.array_path AS array_path,
+		dch.device_collection_id = ANY(x.array_path)
+	FROM	var_recurse x
+		inner join jazzhands_legacy.device_collection_hier dch
+			on x.parent_device_collection_id =
+				dch.child_device_collection_id
+	WHERE
+		NOT x.cycle
+) SELECT
+	root_device_collection_id	as device_collection_id,
+	parent_device_collection_id	as parent_device_collection_id,
+	device_collection_level		as device_collection_level
+FROM	var_recurse;
 
+-- Copyright (c) 2016, Kurt Adam
+CREATE OR REPLACE VIEW jazzhands_legacy.v_dev_col_root AS
+WITH x AS (
+	SELECT
+		c.device_collection_id AS leaf_id,
+		c.device_collection_name AS leaf_name,
+		c.device_collection_type AS leaf_type,
+		p.device_collection_id AS root_id,
+		p.device_collection_name AS root_name,
+		p.device_collection_type AS root_type,
+		dch.device_collection_level
+	FROM jazzhands_legacy.device_collection c
+	JOIN jazzhands_legacy.v_device_coll_hier_detail dch ON dch.device_collection_id = c.device_collection_id
+	JOIN jazzhands_legacy.device_collection p ON dch.parent_device_collection_id = p.device_collection_id
+		AND p.device_collection_type = c.device_collection_type
+)
+SELECT
+	xx.root_id,
+	xx.root_name,
+	xx.root_type,
+	xx.leaf_id,
+	xx.leaf_name,
+	xx.leaf_type
+FROM (	SELECT
+		x.root_id,
+		x.root_name,
+		x.root_type,
+		x.leaf_id,
+		x.leaf_name,
+		x.leaf_type,
+		x.device_collection_level,
+		row_number() OVER (PARTITION BY x.leaf_id ORDER BY x.device_collection_level DESC) AS rn
+	FROM x) xx
+WHERE xx.rn = 1;
 
+-- Copyright (c) 2016, Kurt Adam
+-- Copyright (c) 2020, Todd Kove
+CREATE OR REPLACE VIEW jazzhands_legacy.v_dev_col_device_root AS
+WITH x AS (
+	SELECT
+		dcd.device_id,
+		c.device_collection_id AS leaf_id,
+		c.device_collection_name AS leaf_name,
+		c.device_collection_type AS leaf_type,
+		p.device_collection_id AS root_id,
+		p.device_collection_name AS root_name,
+		p.device_collection_type AS root_type,
+		dch.device_collection_level
+	FROM jazzhands_legacy.v_device_coll_hier_detail dch
+	INNER JOIN jazzhands_legacy.device_collection_device dcd USING (device_collection_id)
+	INNER JOIN jazzhands_legacy.device_collection c ON dch.device_collection_id = c.device_collection_id
+	INNER JOIN jazzhands_legacy.device_collection p ON dch.parent_device_collection_id = p.device_collection_id
+)
+SELECT
+	xx.device_id,
+	xx.root_id,
+	xx.root_name,
+	xx.root_type,
+	xx.leaf_id,
+	xx.leaf_name,
+	xx.leaf_type
+FROM ( SELECT x.device_id,
+		x.root_id,
+		x.root_name,
+		x.root_type,
+		x.leaf_id,
+		x.leaf_name,
+		x.leaf_type,
+		row_number() OVER (PARTITION BY x.device_id, x.root_type ORDER BY x.device_collection_level DESC) AS rn
+	FROM x) xx
+WHERE xx.rn = 1;
 
+--
+-- This maps device collections to users.
+--
+-- NOTE:  There are two kinds of ssh keys.  "global" which are found in
+-- account_ssh_key and end up with a device collection of null and
+-- device_collection_ssh_key which maps ssh keys to account collections (and
+-- thus accounts) for only given mclasses.
+--
+-- This means a user may have two rows in this view.  Some thought should go
+-- into how to make that go away.  It means a cartesian join against
+-- account_ssh_key and device_collection in the second query
+-- in the union, I think.
+--
 CREATE OR REPLACE VIEW jazzhands_legacy.v_device_collection_account_ssh_key AS
-SELECT device_collection_id,account_id,ssh_public_key
-FROM jazzhands.v_device_collection_account_ssh_key;
-
+SELECT device_collection_id, account_id,
+		array_agg(ssh_public_key) as ssh_public_key
+FROM (
+	SELECT * FROM (
+		SELECT  dchd.device_collection_id,
+			account_id,
+			ssh_public_key
+		FROM    jazzhands_legacy.device_collection_ssh_key dcssh
+			INNER JOIN jazzhands_legacy.ssh_key USING (ssh_key_id)
+			INNER JOIN jazzhands_legacy.v_acct_coll_acct_expanded ac
+				USING (account_collection_id)
+			INNER JOIN jazzhands_legacy.account a USING (account_id)
+			INNER JOIN jazzhands_legacy.v_device_coll_hier_detail dchd ON
+				dchd.parent_device_collection_id =
+					dcssh.device_collection_id
+	UNION
+		SELECT  NULL as device_collection_id,
+			account_id,
+			ssh_public_key
+	FROM    jazzhands.account_ssh_key ask
+		INNER JOIN jazzhands.ssh_key skey using (ssh_key_id)
+	) keylist
+	ORDER BY account_id,
+		coalesce(device_collection_id, 0), ssh_public_key
+) allkeys
+	GROUP BY device_collection_id, account_id
+;
 
 
 CREATE OR REPLACE VIEW jazzhands_legacy.v_device_collection_hier_from_ancestor AS
@@ -2281,7 +2628,14 @@ FROM jazzhands.v_device_collection_hier_from_ancestor;
 
 
 CREATE OR REPLACE VIEW jazzhands_legacy.v_device_component_summary AS
-SELECT device_id,cpu_model,cpu_count,core_count,memory_count,total_memory,disk_count,total_disk
+SELECT device_id,
+	cpu_model,
+	cpu_count,
+	core_count,
+	memory_count,
+	total_memory,
+	disk_count,
+	total_disk || 'G'::text AS total_disk
 FROM jazzhands.v_device_component_summary;
 
 
@@ -2297,12 +2651,129 @@ SELECT device_id,component_id,slot_id,vendor,model,serial_number,functions,slot_
 FROM jazzhands.v_device_components_expanded;
 
 
-
+-- Copyright (c) 2018, Matthew Ragan
 CREATE OR REPLACE VIEW jazzhands_legacy.v_device_components_json AS
-SELECT device_id,components
-FROM jazzhands.v_device_components_json;
-
-
+WITH ctf AS (
+	SELECT
+		ctcf.component_type_id,
+		array_agg(ctcf.component_function ORDER BY ctcf.component_function)
+			AS functions
+	FROM
+		jazzhands_legacy.component_type_component_func ctcf
+	GROUP BY
+		ctcf.component_type_id
+), cpu_info AS (
+	SELECT
+		c.component_id,
+		jsonb_build_object(
+			'component_id', c.component_id,
+			'component_type_id', c.component_type_id,
+			'company_name', comp.company_name,
+			'model', ct.model,
+			'core_count', pc.property_value::bigint,
+			'processor_speed', ps.property_value,
+			'component_function', 'CPU'
+		) as component_json
+	FROM
+		component c
+		JOIN component_type ct USING (component_type_id)
+		JOIN component_type_component_function ctcf USING (component_type_id)
+		JOIN component_property pc ON (
+			ct.component_type_id = pc.component_type_id
+			AND (pc.component_property_name, pc.component_property_type) =
+				('ProcessorCores', 'CPU')
+		)
+		JOIN component_property ps ON (
+			ct.component_type_id = ps.component_type_id
+			AND (ps.component_property_name, ps.component_property_type) =
+				('ProcessorSpeed', 'CPU')
+		)
+		LEFT JOIN company comp USING (company_id)
+	WHERE
+		ctcf.component_function = 'CPU'
+), disk_info AS (
+	SELECT
+		c.component_id,
+		jsonb_build_object(
+			'component_id', c.component_id,
+			'component_type_id', c.component_type_id,
+			'company_name', comp.company_name,
+			'model', ct.model,
+			'serial_number', a.serial_number,
+			'size_bytes', ds.property_value::bigint,
+			'size', CEIL(ds.property_value::bigint / 1073741824::numeric) ||
+				'G'::text,
+			'protocol', dp.property_value,
+			'media_type', mt.property_value,
+			'component_function', 'disk'
+		) as component_json
+	FROM
+		component c
+		JOIN component_type ct USING (component_type_id)
+		JOIN component_type_component_function ctcf USING (component_type_id)
+		LEFT JOIN asset a USING (component_id)
+		JOIN component_property ds ON (
+			ct.component_type_id = ds.component_type_id
+			AND (ds.component_property_name, ds.component_property_type) =
+				('DiskSize', 'disk')
+		)
+		JOIN component_property dp ON (
+			ct.component_type_id = dp.component_type_id
+			AND (dp.component_property_name, dp.component_property_type) =
+				('DiskProtocol', 'disk')
+		)
+		JOIN component_property mt ON (
+			ct.component_type_id = mt.component_type_id
+			AND (mt.component_property_name, mt.component_property_type) =
+				('MediaType', 'disk')
+		)
+		LEFT JOIN company comp USING (company_id)
+	WHERE
+		ctcf.component_function = 'disk'
+), memory_info AS (
+	SELECT
+		c.component_id,
+		jsonb_build_object(
+			'component_id', c.component_id,
+			'component_type_id', c.component_type_id,
+			'company_name', comp.company_name,
+			'model', ct.model,
+			'serial_number', a.serial_number,
+			'size', msize.property_value::bigint,
+			'speed', mspeed.property_value,
+			'component_function', 'memory'
+		) as component_json
+	FROM
+		component c
+		JOIN component_type ct USING (component_type_id)
+		JOIN component_type_component_function ctcf USING (component_type_id)
+		LEFT JOIN asset a USING (component_id)
+		JOIN component_property msize ON (
+			ct.component_type_id = msize.component_type_id
+			AND (msize.component_property_name, msize.component_property_type) =
+				('MemorySize', 'memory')
+		)
+		JOIN component_property mspeed ON (
+			ct.component_type_id = mspeed.component_type_id
+			AND (mspeed.component_property_name, mspeed.component_property_type) =
+				('MemorySpeed', 'memory')
+		)
+		LEFT JOIN company comp USING (company_id)
+	WHERE
+		ctcf.component_function = 'memory'
+)
+SELECT
+	dc.device_id,
+	jsonb_agg(x.component_json) AS components
+FROM
+	jazzhands_legacy.v_device_components dc JOIN
+	(
+		SELECT * FROM cpu_info UNION
+		SELECT * FROM disk_info UNION
+		SELECT * FROM memory_info
+	) x USING (component_id)
+GROUP BY
+	dc.device_id;
 
 CREATE OR REPLACE VIEW jazzhands_legacy.v_device_slot_connections AS
 SELECT inter_component_connection_id,device_id,slot_id,slot_name,slot_index,mac_address,slot_type_id,slot_type,slot_function,remote_device_id,remote_slot_id,remote_slot_name,remote_slot_index,remote_mac_address,remote_slot_type_id,remote_slot_type,remote_slot_function
@@ -2314,46 +2785,56 @@ CREATE OR REPLACE VIEW jazzhands_legacy.v_device_slots AS
 SELECT device_id,device_component_id,component_id,slot_id
 FROM jazzhands.v_device_slots;
 
-
-
--- Simple column rename
-CREATE OR REPLACE VIEW jazzhands_legacy.v_dns AS
-SELECT
-	dns_record_id,
-	network_range_id,
-	dns_domain_id,
-	dns_name,
-	dns_ttl,
-	dns_class,
-	dns_type,
-	dns_value,
-	dns_priority,
-	ip,
-	netblock_id,
-	ip_universe_id,
-	ref_record_id,
-	dns_srv_service,
-	dns_srv_protocol,
-	dns_srv_weight,
-	dns_srv_port,
-	CASE WHEN is_enabled IS NULL THEN NULL
-		WHEN is_enabled = true THEN 'Y'
-		WHEN is_enabled = false THEN 'N'
-		ELSE NULL
-	END AS is_enabled,
-	CASE WHEN should_generate_ptr IS NULL THEN NULL
-		WHEN should_generate_ptr = true THEN 'Y'
-		WHEN should_generate_ptr = false THEN 'N'
-		ELSE NULL
-	END AS should_generate_ptr,
-	dns_value_record_id
-FROM jazzhands.v_dns;
-
-
-
--- Simple column rename
+-- Copyright (c) 2015, Todd M. Kover
+-- This is used by the zonegen software
 CREATE OR REPLACE VIEW jazzhands_legacy.v_dns_changes_pending AS
-SELECT
+WITH chg AS NOT MATERIALIZED (
+	SELECT dns_change_record_id, dns_domain_id,
+		case WHEN family(ip_address)  = 4 THEN set_masklen(ip_address, 24)
+			ELSE set_masklen(ip_address, 64) END as ip_address,
+		dns_utils.get_domain_from_cidr(ip_address) as cidrdns
+	FROM jazzhands.dns_change_record
+	WHERE ip_address is not null
+), z AS NOT MATERIALIZED ( SELECT *
+FROM (
+	SELECT	chg.dns_change_record_id, n.dns_domain_id, du.ip_universe_id,
+		du.should_generate, du.last_generated,
+		n.dns_domain_name, chg.ip_address
+	FROM   chg
+		INNER JOIN jazzhands.dns_domain n on chg.cidrdns = n.dns_domain_name
+		INNER JOIN jazzhands.dns_domain_ip_universe du ON
+			du.dns_domain_id = n.dns_domain_id
+UNION ALL
+	SELECT  chg.dns_change_record_id, d.dns_domain_id, du.ip_universe_id,
+		du.should_generate, du.last_generated,
+		d.dns_domain_name, NULL
+	FROM	jazzhands.dns_change_record chg
+		INNER JOIN jazzhands.dns_domain d USING (dns_domain_id)
+		INNER JOIN jazzhands.dns_domain_ip_universe du USING (dns_domain_id)
+	WHERE   dns_domain_id IS NOT NULL
+	AND chg.ip_universe_id IS NULL
+UNION ALL
+	SELECT  chg.dns_change_record_id, d.dns_domain_id, ip_universe_id,
+		du.should_generate, du.last_generated,
+		d.dns_domain_name, NULL
+	FROM	jazzhands.dns_change_record chg
+		INNER JOIN jazzhands.dns_domain d USING (dns_domain_id)
+		INNER JOIN jazzhands.dns_domain_ip_universe du USING (dns_domain_id,ip_universe_id)
+	WHERE   dns_domain_id IS NOT NULL
+	AND chg.ip_universe_id IS NOT NULL
+UNION ALL
+	SELECT  chg.dns_change_record_id, d.dns_domain_id,
+		iv.visible_ip_universe_id,
+		du.should_generate, du.last_generated,
+		d.dns_domain_name, NULL
+	FROM	jazzhands.dns_change_record chg
+		INNER JOIN jazzhands.ip_universe_visibility iv USING (ip_universe_id)
+		INNER JOIN jazzhands.dns_domain d USING (dns_domain_id)
+		INNER JOIN jazzhands.dns_domain_ip_universe du USING (dns_domain_id)
+	WHERE   dns_domain_id IS NOT NULL
+	AND chg.ip_universe_id IS NOT NULL
+) x
+) SELECT
 	dns_change_record_id,
 	dns_domain_id,
 	ip_universe_id,
@@ -2365,7 +2846,7 @@ SELECT
 	last_generated,
 	dns_domain_name AS soa_name,
 	ip_address
-FROM jazzhands.v_dns_changes_pending;
+FROM z;
 
 
 --
@@ -2405,6 +2886,7 @@ WHERE ip_universe_id = 0
 ;
 
 
+-- Copyright (c) 2016, Todd M. Kover
 -- Simple column rename
 CREATE OR REPLACE VIEW jazzhands_legacy.v_dns_fwd AS
 SELECT
@@ -2425,22 +2907,135 @@ SELECT
 	dns_srv_protocol,
 	dns_srv_weight,
 	dns_srv_port,
-	CASE WHEN is_enabled IS NULL THEN NULL
-		WHEN is_enabled = true THEN 'Y'
-		WHEN is_enabled = false THEN 'N'
-		ELSE NULL
-	END AS is_enabled,
-	CASE WHEN should_generate_ptr IS NULL THEN NULL
-		WHEN should_generate_ptr = true THEN 'Y'
-		WHEN should_generate_ptr = false THEN 'N'
-		ELSE NULL
-	END AS should_generate_ptr,
+	is_enabled,
+	should_generate_ptr,
 	dns_value_record_id
-FROM jazzhands.v_dns_fwd;
-
-
+FROM (
+SELECT * FROM  (
+	SELECT
+		d.dns_record_id,
+		NULL::integer AS network_range_id,
+		d.dns_domain_id,
+		coalesce(rdns.dns_name, d.dns_name) AS dns_name,
+		d.dns_ttl, d.dns_class,
+		d.dns_type,
+		CASE WHEN d.dns_value IS NOT NULL THEN d.dns_value
+			WHEN d.dns_type IN ('A','AAAA') AND d.netblock_id IS NULL
+				AND d.dns_value_record_id IS NOT NULL THEN NULL
+			WHEN d.dns_value_record_id IS NULL THEN d.dns_value
+			WHEN dv.dns_domain_id = d.dns_domain_id THEN dv.dns_name
+			ELSE concat(dv.dns_name, '.', dv.dns_domain_name, '.') END AS dns_value,
+	d.dns_priority,
+		CASE WHEN d.dns_value_record_id IS NOT NULL
+			AND dns_type IN ('A','AAAA') THEN	dv.ip_address
+			ELSE ni.ip_address END AS ip,
+		CASE WHEN d.dns_value_record_id IS NOT NULL
+			AND dns_type IN ('A','AAAA') THEN	dv.netblock_id
+			ELSE ni.netblock_id END AS netblock_id,
+		d.ip_universe_id,
+	rdns.reference_dns_record_id AS ref_record_id,
+	d.dns_srv_service, d.dns_srv_protocol,
+	d.dns_srv_weight, d.dns_srv_port,
+	CASE WHEN d.is_enabled THEN 'Y' ELSE 'N' END AS is_enabled,
+	CASE WHEN d.should_generate_ptr THEN 'Y' ELSE 'N' END AS should_generate_ptr,
+	d.dns_value_record_id
+	FROM  jazzhands.dns_record d
+		LEFT join jazzhands.netblock ni USING (netblock_id)
+		LEFT JOIN (
+			SELECT dns_record_id AS reference_dns_record_id,
+					dns_name,
+					netblock_id,
+					ip_address
+			FROM	jazzhands.dns_record
+					LEFT JOIN jazzhands.netblock USING (netblock_id)
+		) rdns USING (reference_dns_record_id)
+		LEFT JOIN (
+			SELECT  dr.dns_record_id, dr.dns_name,
+				dom.dns_domain_id, dom.dns_domain_name,
+				dr.dns_value,
+				dnb.ip_address AS ip,
+				dnb.ip_address, dnb.netblock_id
+			FROM  jazzhands.dns_record dr
+			INNER JOIN jazzhands.dns_domain dom USING (dns_domain_id)
+			LEFT JOIN jazzhands.netblock dnb USING (netblock_id)
+		) dv ON d.dns_value_record_id = dv.dns_record_id
+	UNION ALL
+	SELECT
+		NULL AS dns_record_id,
+		network_range_id,
+		dns_domain_id,
+		concat(coalesce(dns_prefix, 'pool'), '-',
+			replace(host(ip)::text, '.', '-')) AS dns_name,
+		NULL AS dns_ttl, 'IN' AS dns_class,
+		CASE WHEN family(ip::inet) = 4 THEN 'A' ELSE 'AAAA' END AS dns_type,
+		NULL AS dns_value,
+		NULL AS dns_prority,
+		ip::inet,
+		NULL AS netblock_id,
+		ip_universe_id,
+		NULL AS ref_dns_record_id,
+		NULL AS dns_srv_service,
+		NULL AS dns_srv_protocol,
+		NULL AS dns_srv_weight,
+		NULL AS dns_srv_port,
+		'Y' AS is_enabled,
+		'N' AS should_generate_ptr,
+		NULL AS dns_value_record_id
+	FROM (
+		SELECT
+		network_range_id,
+		dns_domain_id,
+		nbstart.ip_universe_id,
+		coalesce(dns_prefix, default_dns_prefix) as dns_prefix,
+		nbstart.ip_address +
+			generate_series(0, nbstop.ip_address - nbstart.ip_address)
+			as ip
+		from  jazzhands.network_range dr
+		INNER JOIN val_network_range_type USING (network_range_type)
+		INNER JOIN jazzhands.netblock nbstart
+			ON dr.start_netblock_id = nbstart.netblock_id
+		INNER JOIN jazzhands.netblock nbstop
+			ON dr.stop_netblock_id = nbstop.netblock_id
+		WHERE dns_domain_id IS NOT NULL
+		) range
+) u
+WHERE  dns_type NOT IN ('REVERSE_ZONE_BLOCK_PTR', 'DEFAULT_DNS_DOMAIN')
+	UNION ALL
+	SELECT
+		NULL::integer AS dns_record_id,	-- not editable.
+		NULL::integer AS network_range_id,
+		parent_dns_domain_id AS dns_domain_id,
+		regexp_replace(dns_domain_name, '\.' || pdom.parent_dns_domain_name || '$', '') AS dns_name,
+		dns_ttl,
+		dns_class,
+		dns_type,
+		CASE WHEN dns_value ~ '\.$' THEN dns_value
+			ELSE concat(dns_value, '.', dns_domain_name, '.') END as
+				dns_value,
+		dns_priority,
+		NULL::inet AS ip,
+		NULL::integer AS netblock_id,
+		dns_record.ip_universe_id,
+		NULL::integer AS ref_record_id,
+		NULL::text AS dns_srv_service,
+		NULL::text AS dns_srv_protocol,
+		NULL::integer AS dns_srv_weight,
+		NULL::integer AS dns_srv_port,
+		CASE WHEN is_enabled THEN 'Y' ELSE 'N' END AS is_enabled,
+		'N' AS should_generate_ptr,
+		NULL AS dns_value_record_id
+	FROM	jazzhands.dns_record JOIN jazzhands.dns_domain USING (dns_domain_id)
+		join (SELECT dns_domain_id AS parent_dns_domain_id,
+				dns_domain_name AS parent_dns_domain_name
+		FROM jazzhands.dns_domain)  pdom
+					USING(parent_dns_domain_id)
+	WHERE	dns_class = 'IN' AND dns_type = 'NS'
+	AND dns_name IS NULL
+	AND	parent_dns_domain_id is not NULL
+)  x;
 
 -- Simple column rename
+-- Copyright (c) 2016, Todd M. Kover
 CREATE OR REPLACE VIEW jazzhands_legacy.v_dns_rvs AS
 SELECT
 	dns_record_id,
@@ -2460,25 +3055,149 @@ SELECT
 	dns_srv_protocol,
 	dns_srv_weight,
 	dns_srv_srv_port,
-	CASE WHEN is_enabled IS NULL THEN NULL
-		WHEN is_enabled = true THEN 'Y'
-		WHEN is_enabled = false THEN 'N'
-		ELSE NULL
-	END AS is_enabled,
-	CASE WHEN should_generate_ptr IS NULL THEN NULL
-		WHEN should_generate_ptr = true THEN 'Y'
-		WHEN should_generate_ptr = false THEN 'N'
-		ELSE NULL
-	END AS should_generate_ptr,
+	is_enabled,
+	should_generate_ptr,
 	dns_value_record_id
-FROM jazzhands.v_dns_rvs;
-
-
+FROM (
+SELECT	NULL::integer	as dns_record_id,
+		network_range_id,
+		dns_domain_id,
+		CASE WHEN family(ip)= 4
+			THEN regexp_replace(host(ip)::text, '^.*[.](\d+)$', '\1', 'i')
+			ELSE regexp_replace(dns_utils.v6_inaddr(ip),
+				'.' || replace(dd.dns_domain_name, '.ip6.arpa', '') || '$', '', 'i')
+			END as dns_name,
+		combo.dns_ttl as dns_ttl,
+		'IN'::text	as dns_class,
+		'PTR'::text	as dns_type,
+		CASE WHEN combo.dns_NAME IS NULL THEN concat(combo.dns_domain_name, '.')
+			ELSE concat(combo.dns_name, '.', combo.dns_domain_name, '.') END
+			AS dns_value,
+		NULL::integer as dns_priority,
+		combo.ip,
+		combo.netblock_id,
+		combo.ip_universe_id,
+		NULL::integer as rdns_record_id,
+		NULL::text as dns_srv_service,
+		NULL::text as dns_srv_protocol,
+		NULL::integer as dns_srv_weight,
+		NULL::integer as dns_srv_srv_port,
+		combo.is_enabled,
+		'N' AS should_generate_ptr,
+		NULL::integer AS dns_value_record_id
+FROM (
+	SELECT  host(nb.ip_address)::inet as ip,
+		NULL::integer as network_range_id,
+		coalesce(rdns.dns_name,dns.dns_name) as dns_name,
+		dom.dns_domain_name,
+		dns.dns_ttl,
+		network(nb.ip_address) as ip_base,
+		nb.ip_universe_id,
+		CASE WHEN dns.is_enabled THEN 'Y' ELSE 'N' END AS is_enabled,
+		'N' AS should_generate_ptr,
+		nb.netblock_id as netblock_id
+	FROM  jazzhands.netblock nb
+		inner join jazzhands.dns_record dns
+			on nb.netblock_id = dns.netblock_id
+		inner join jazzhands.dns_domain dom
+			on dns.dns_domain_id =
+			dom.dns_domain_id
+		left join jazzhands.dns_record rdns
+			on rdns.dns_record_id = dns.reference_dns_record_id
+	where dns.should_generate_ptr
+	and  dns.dns_class = 'IN'
+	and ( dns.dns_type = 'A' or dns.dns_type = 'AAAA')
+	and nb.is_single_address
+UNION ALL
+	select host(ip)::inet as ip,
+			network_range_id,
+			concat(coalesce(dns_prefix, 'pool'), '-',
+				replace(host(ip)::text, '.', '-')) as dns_name,
+			dns_domain_name, NULL as dns_ttl, network(ip) as ip_base,
+			ip_universe_id,
+			'Y' as is_enabled,
+		'N' AS should_generate_ptr,
+			NULL as netblock_id
+	from (
+	select
+		network_range_id,
+		nbstart.ip_universe_id,
+		dns_domain_id,
+		coalesce(dns_prefix, default_dns_prefix) as dns_prefix,
+		nbstart.ip_address +
+			generate_series(0, nbstop.ip_address - nbstart.ip_address)
+			as ip
+		from  jazzhands.network_range dr
+			INNER JOIN val_network_range_type USING (network_range_type)
+			inner join jazzhands.netblock nbstart
+				on dr.start_netblock_id = nbstart.netblock_id
+			inner join jazzhands.netblock nbstop
+				on dr.stop_netblock_id = nbstop.netblock_id
+		where	dns_domain_id is NOT NULL
+	) range
+		inner join jazzhands.dns_domain dom
+		    on range.dns_domain_id =
+			dom.dns_domain_id
+) combo, netblock root
+		inner join jazzhands.dns_record rootd
+		    on rootd.netblock_id = root.netblock_id
+		    and rootd.dns_type =
+			'REVERSE_ZONE_BLOCK_PTR'
+	inner join jazzhands.dns_domain dd using (dns_domain_id)
+WHERE
+	family(root.ip_address) = family(ip)
+	AND ( set_masklen(ip, masklen(root.ip_address))
+			    <<= root.ip_address
+		)
+) x;
 
 -- Simple column rename
+-- Copyright (c) 2016-2017, Todd M. Kover
+CREATE OR REPLACE VIEW jazzhands_legacy.v_dns AS
+SELECT d.dns_record_id,
+	d.network_range_id,
+	d.dns_domain_id,
+	d.dns_name,
+	d.dns_ttl,
+	d.dns_class,
+	d.dns_type,
+	d.dns_value,
+	d.dns_priority,
+	d.ip,
+	d.netblock_id,
+	d.real_ip_universe_id as ip_universe_Id,
+	d.ref_record_id,
+	d.dns_srv_service,
+	d.dns_srv_protocol,
+	d.dns_srv_weight,
+	d.dns_srv_port,
+	d.is_enabled,
+	d.should_generate_ptr,
+	d.dns_value_record_id
+FROM (
+	SELECT  ip_universe_id AS real_ip_universe_id, f.*
+	FROM jazzhands_legacy.v_dns_fwd f
+	UNION
+	SELECT x.ip_universe_id AS real_ip_universe_id, f.*
+	FROM jazzhands_legacy.ip_universe_visibility x, jazzhands_legacy.v_dns_fwd f
+	WHERE x.visible_ip_universe_id = f.ip_universe_id
+	OR    f.ip_universe_id IS NULL
+
+	UNION
+
+	SELECT  ip_universe_id AS real_ip_universe_id, f.*
+	FROM jazzhands_legacy.v_dns_rvs f
+	UNION
+	SELECT x.ip_universe_id AS real_ip_universe_id, f.*
+	FROM jazzhands_legacy.ip_universe_visibility x, jazzhands_legacy.v_dns_rvs f
+	WHERE x.visible_ip_universe_id = f.ip_universe_id
+	OR    f.ip_universe_id IS NULL
+) d;
+
+-- Simple column rename
+-- Copyright (c) 2016, Todd M. Kover
 CREATE OR REPLACE VIEW jazzhands_legacy.v_dns_sorted AS
-SELECT
-	dns_record_id,
+SELECT  dns_record_id,
 	network_range_id,
 	dns_value_record_id,
 	dns_name,
@@ -2487,80 +3206,36 @@ SELECT
 	dns_type,
 	dns_value,
 	dns_priority,
-	ip,
+	host(ip) as ip,
 	netblock_id,
 	ref_record_id,
 	dns_srv_service,
 	dns_srv_protocol,
 	dns_srv_weight,
 	dns_srv_port,
-	CASE WHEN should_generate_ptr IS NULL THEN NULL
-		WHEN should_generate_ptr = true THEN 'Y'
-		WHEN should_generate_ptr = false THEN 'N'
-		ELSE NULL
-	END AS should_generate_ptr,
-	CASE WHEN is_enabled IS NULL THEN NULL
-		WHEN is_enabled = true THEN 'Y'
-		WHEN is_enabled = false THEN 'N'
-		ELSE NULL
-	END AS is_enabled,
+	should_generate_ptr,
+	is_enabled,
 	dns_domain_id,
-	anchor_record_id,
-	anchor_rank
-FROM jazzhands.v_dns_sorted;
-
-
-
-CREATE OR REPLACE VIEW jazzhands_legacy.v_hotpants_account_attribute AS
-SELECT property_id,account_id,device_collection_id,login,property_name,property_type,property_value,property_rank,is_boolean
-FROM jazzhands.v_hotpants_account_attribute;
-
-
-
-CREATE OR REPLACE VIEW jazzhands_legacy.v_hotpants_client AS
-SELECT device_id,device_name,ip_address,radius_secret
-FROM jazzhands.v_hotpants_client;
-
-
-
-CREATE OR REPLACE VIEW jazzhands_legacy.v_hotpants_dc_attribute AS
-SELECT property_id,device_collection_id,property_name,property_type,property_rank,property_value
-FROM jazzhands.v_hotpants_device_collection_attribute;
-
-
-
-CREATE OR REPLACE VIEW jazzhands_legacy.v_hotpants_device_collection AS
-SELECT device_id,device_name,device_collection_id,device_collection_name,device_collection_type,ip_address
-FROM jazzhands.v_hotpants_device_collection;
-
-
-
--- Simple column rename
-CREATE OR REPLACE VIEW jazzhands_legacy.v_hotpants_token AS
-SELECT
-	token_id,
-	token_type,
-	token_status,
-	token_serial,
-	token_key,
-	zero_time,
-	time_modulo,
-	token_password,
-	CASE WHEN is_token_locked IS NULL THEN NULL
-		WHEN is_token_locked = true THEN 'Y'
-		WHEN is_token_locked = false THEN 'N'
-		ELSE NULL
-	END AS is_token_locked,
-	token_unlock_time,
-	bad_logins,
-	token_sequence,
-	last_updated,
-	encryption_key_db_value,
-	encryption_key_purpose,
-	encryption_key_purpose_version,
-	encryption_method
-FROM jazzhands.v_hotpants_token;
-
+	coalesce(ref_record_id, dns_value_record_id, dns_record_id) as anchor_record_id,
+	CASE WHEN ref_record_id is NOT NULL THEN 2
+		WHEN dns_value_record_id IS NOT NULL THEN 3
+		ELSE 1
+	END as anchor_rank
+  FROM	jazzhands_legacy.v_dns
+ORDER BY
+	dns_domain_id,
+	CASE WHEN dns_name IS NULL THEN 0 ELSE 1 END,
+	CASE WHEN dns_type = 'NS' THEN 0
+		WHEN dns_type = 'PTR' THEN 1
+		WHEN dns_type = 'A' THEN 2
+		WHEN dns_type = 'AAAA' THEN 3
+		ELSE 4
+	END,
+	CASE WHEN DNS_TYPE = 'PTR' THEN lpad(dns_name, 10, '0') END,
+	anchor_record_id, anchor_rank,
+	dns_type,
+	ip, dns_value
+;
 
 CREATE OR REPLACE VIEW jazzhands_legacy.v_l1_all_physical_ports AS
 WITH pp AS (
@@ -2673,16 +3348,45 @@ FROM jazzhands.v_layerx_network_expanded;
 
 
 
-CREATE OR REPLACE VIEW jazzhands_legacy.v_lv_hier AS
-SELECT physicalish_volume_id,volume_group_id,logical_volume_id,child_pv_id,child_vg_id,child_lv_id,pv_path,vg_path,lv_path
-FROM jazzhands.v_lv_hier;
 
-
-
+-- Copyright (c) 2011-2014, Todd M. Kover
 CREATE OR REPLACE VIEW jazzhands_legacy.v_nblk_coll_netblock_expanded AS
-SELECT netblock_collection_id,netblock_id
-FROM jazzhands.v_netblock_collection_netblock_expanded;
+WITH RECURSIVE var_recurse (
+	level,
+	root_collection_id,
+	netblock_collection_id,
+	child_netblock_collection_id,
+	array_path,
+	cycle
+) as (
+	SELECT
+		0				as level,
+		u.netblock_collection_id		as root_collection_id,
+		u.netblock_collection_id		as netblock_collection_id,
+		u.netblock_collection_id		as child_netblock_collection_id,
+		ARRAY[u.netblock_collection_id]	as array_path,
+		false							as cycle
+	  FROM	jazzhands.netblock_collection u
+UNION ALL
+	SELECT
+		x.level + 1			as level,
+		x.netblock_collection_id		as root_netblock_collection_id,
+		uch.child_netblock_collection_id		as netblock_collection_id,
+		uch.child_netblock_collection_id	as child_netblock_collection_id,
+		uch.child_netblock_collection_id ||
+			x.array_path				as array_path,
+		uch.child_netblock_collection_id =
+			ANY(x.array_path)			as cycle
 
+	  FROM	var_recurse x
+		inner join jazzhands.netblock_collection_hier uch
+			on x.child_netblock_collection_id =
+				uch.netblock_collection_id
+	WHERE	NOT x.cycle
+) SELECT	distinct root_collection_id as netblock_collection_id,
+		netblock_id as netblock_id
+  from	var_recurse
+	join jazzhands.netblock_collection_netblock using (netblock_collection_id);
 
 
 CREATE OR REPLACE VIEW jazzhands_legacy.v_netblock_coll_expanded AS
@@ -2933,6 +3637,259 @@ SELECT
 	data_upd_date
 FROM jazzhands.v_property;
 
+-- Simple column rename
+CREATE OR REPLACE VIEW jazzhands_legacy.val_property_collection_type AS
+SELECT
+	property_name_collection_type AS property_collection_type,
+	description,
+	max_num_members,
+	max_num_collections,
+	CASE WHEN can_have_hierarchy IS NULL THEN NULL
+		WHEN can_have_hierarchy = true THEN 'Y'
+		WHEN can_have_hierarchy = false THEN 'N'
+		ELSE NULL
+	END AS can_have_hierarchy,
+	data_ins_user,
+	data_ins_date,
+	data_upd_user,
+	data_upd_date
+FROM jazzhands.val_property_name_collection_type;
+
+CREATE OR REPLACE VIEW jazzhands_legacy.val_property_data_type AS
+SELECT property_data_type,description,data_ins_user,data_ins_date,data_upd_user,data_upd_date
+FROM jazzhands.val_property_data_type;
+
+
+
+-- Simple column rename
+CREATE OR REPLACE VIEW jazzhands_legacy.val_property_type AS
+SELECT
+	property_type,
+	description,
+	property_value_account_collection_type_restriction AS prop_val_acct_coll_type_rstrct,
+	CASE WHEN is_multivalue IS NULL THEN NULL
+		WHEN is_multivalue = true THEN 'Y'
+		WHEN is_multivalue = false THEN 'N'
+		ELSE NULL
+	END AS is_multivalue,
+	data_ins_user,
+	data_ins_date,
+	data_upd_user,
+	data_upd_date
+FROM jazzhands.val_property_type;
+
+CREATE OR REPLACE VIEW jazzhands_legacy.val_property_value AS
+SELECT property_name,property_type,valid_property_value,description,data_ins_user,data_ins_date,data_upd_user,data_upd_date
+FROM jazzhands.val_property_value;
+
+
+-- Simple column rename
+CREATE OR REPLACE VIEW jazzhands_legacy.val_property AS
+SELECT
+	property_name,
+	property_type,
+	description,
+	account_collection_type,
+	company_collection_type,
+	device_collection_type,
+	dns_domain_collection_type,
+	layer2_network_collection_type,
+	layer3_network_collection_type,
+	netblock_collection_type,
+	network_range_type,
+	property_name_collection_type AS property_collection_type,
+	service_environment_collection_type AS service_env_collection_type,
+	CASE WHEN is_multivalue IS NULL THEN NULL
+		WHEN is_multivalue = true THEN 'Y'
+		WHEN is_multivalue = false THEN 'N'
+		ELSE NULL
+	END AS is_multivalue,
+	property_value_account_collection_type_restriction AS prop_val_acct_coll_type_rstrct,
+	property_value_device_collection_type_restriction AS prop_val_dev_coll_type_rstrct,
+	property_value_netblock_collection_type_restriction AS prop_val_nblk_coll_type_rstrct,
+	property_data_type,
+	property_value_json_schema,
+	permit_account_collection_id,
+	permit_account_id,
+	permit_account_realm_id,
+	permit_company_id,
+	permit_company_collection_id,
+	permit_device_collection_id,
+	permit_dns_domain_collection_id AS permit_dns_domain_coll_id,
+	permit_layer2_network_collection_id AS permit_layer2_network_coll_id,
+	permit_layer3_network_collection_id AS permit_layer3_network_coll_id,
+	permit_netblock_collection_id,
+	permit_network_range_id,
+	permit_operating_system_id,
+	permit_operating_system_snapshot_id AS permit_os_snapshot_id,
+	permit_property_name_collection_id AS permit_property_collection_id,
+	permit_service_environment_collection_id AS permit_service_env_collection,
+	permit_site_code,
+	permit_x509_signed_certificate_id AS permit_x509_signed_cert_id,
+	permit_property_rank,
+	data_ins_user,
+	data_ins_date,
+	data_upd_user,
+	data_upd_date
+FROM jazzhands.val_property;
+
+-- Copyright (c) 2016, Kurt Adam
+CREATE OR REPLACE VIEW jazzhands_legacy.v_device_collection_root AS
+WITH x AS (
+	SELECT
+		c.device_collection_id AS leaf_id,
+		c.device_collection_name AS leaf_name,
+		c.device_collection_type AS leaf_type,
+		p.device_collection_id AS root_id,
+		p.device_collection_name AS root_name,
+		p.device_collection_type AS root_type,
+		dch.device_collection_level
+	FROM jazzhands_legacy.device_collection c
+	JOIN jazzhands_legacy.v_device_coll_hier_detail dch ON dch.device_collection_id = c.device_collection_id
+	JOIN jazzhands_legacy.device_collection p ON dch.parent_device_collection_id = p.device_collection_id
+		AND p.device_collection_type = c.device_collection_type
+)
+SELECT
+	xx.root_id,
+	xx.root_name,
+	xx.root_type,
+	xx.leaf_id,
+	xx.leaf_name,
+	xx.leaf_type
+FROM (	SELECT
+		x.root_id,
+		x.root_name,
+		x.root_type,
+		x.leaf_id,
+		x.leaf_name,
+		x.leaf_type,
+		x.device_collection_level,
+		row_number() OVER (PARTITION BY x.leaf_id ORDER BY x.device_collection_level DESC) AS rn
+	FROM x) xx
+WHERE xx.rn = 1;
+
+-- Simple column rename
+CREATE OR REPLACE VIEW jazzhands_legacy.v_dev_col_user_prop_expanded AS
+SELECT
+	property_id,
+	dchd.device_collection_id,
+	a.account_id, a.login, a.account_status,
+	ar.account_realm_id, ar.account_realm_name,
+	a.is_enabled,
+	upo.property_type property_type,
+	upo.property_name property_name,
+	upo.property_rank property_rank,
+	coalesce(Property_Value_Password_Type, Property_Value) AS property_value,
+	CASE WHEN upn.is_multivalue = 'N' THEN 0
+		ELSE 1 END is_multivalue,
+	CASE WHEN pdt.property_data_type = 'boolean' THEN 1 ELSE 0 END is_boolean
+FROM	jazzhands_legacy.v_acct_coll_acct_expanded_detail uued
+	INNER JOIN jazzhands_legacy.Account_Collection u
+		USING (account_collection_id)
+	INNER JOIN jazzhands_legacy.v_property upo ON
+		upo.Account_Collection_id = u.Account_Collection_id
+		AND upo.property_type in (
+			'CCAForceCreation', 'CCARight', 'ConsoleACL', 'RADIUS',
+			'TokenMgmt', 'UnixPasswdFileValue', 'UserMgmt', 'cca',
+			'feed-attributes', 'wwwgroup', 'HOTPants')
+	INNER JOIN jazzhands_legacy.val_property upn
+		ON upo.property_name = upn.property_name
+		AND upo.property_type = upn.property_type
+	INNER JOIN jazzhands_legacy.val_property_data_type pdt
+		ON upn.property_data_type = pdt.property_data_type
+	INNER JOIN jazzhands_legacy.account a ON uued.account_id = a.account_id
+	INNER JOIN jazzhands_legacy.account_realm ar ON a.account_realm_id = ar.account_realm_id
+	LEFT JOIN jazzhands_legacy.v_device_coll_hier_detail dchd
+		ON (dchd.parent_device_collection_id = upo.device_collection_id)
+ORDER BY device_collection_level,
+   CASE WHEN u.Account_Collection_type = 'per-account' THEN 0
+	WHEN u.Account_Collection_type = 'property' THEN 1
+	WHEN u.Account_Collection_type = 'systems' THEN 2
+	ELSE 3 END,
+  CASE WHEN uued.assign_method = 'Account_CollectionAssignedToPerson' THEN 0
+	WHEN uued.assign_method = 'Account_CollectionAssignedToDept' THEN 1
+	WHEN uued.assign_method =
+	'ParentAccount_CollectionOfAccount_CollectionAssignedToPerson' THEN 2
+	WHEN uued.assign_method =
+	'ParentAccount_CollectionOfAccount_CollectionAssignedToDept' THEN 2
+	WHEN uued.assign_method =
+	'Account_CollectionAssignedToParentDept' THEN 3
+	WHEN uued.assign_method =
+	'ParentAccount_CollectionOfAccount_CollectionAssignedToParentDep'
+			THEN 3
+	    ELSE 6 END,
+  uued.dept_level, uued.acct_coll_level, dchd.device_collection_id,
+  u.Account_Collection_id;
+
+CREATE OR REPLACE VIEW jazzhands_legacy.v_device_col_acct_col_expanded AS
+SELECT DISTINCT dchd.device_collection_id, dcu.account_collection_id,
+	vuue.account_id
+FROM jazzhands_legacy.v_device_coll_hier_detail dchd
+JOIN jazzhands_legacy.v_property dcu ON dcu.device_collection_id =
+	dchd.parent_device_collection_id
+JOIN jazzhands_legacy.v_acct_coll_acct_expanded vuue
+	on vuue.account_collection_id = dcu.account_collection_id
+WHERE dcu.property_name in ('UnixLogin' )
+and dcu.property_type = 'MclassUnixProp';
+
+
+-- Copyright (c) 2011-2014, Todd M. Kover
+CREATE OR REPLACE VIEW jazzhands_legacy.v_application_role AS
+WITH RECURSIVE var_recurse(
+	role_level,
+	role_id,
+	parent_role_id,
+	root_role_id,
+	root_role_name,
+	role_name,
+	role_path,
+	role_is_leaf,
+	array_path,
+	cycle
+) as (
+	SELECT
+		0					as role_level,
+		device_collection_id			as role_id,
+		cast(NULL AS integer)			as parent_role_id,
+		device_collection_id			as root_role_id,
+		device_collection_name			as root_role_name,
+		device_collection_name			as role_name,
+		'/'||device_collection_name		as role_path,
+		'N'								as role_is_leaf,
+		ARRAY[device_collection_id]		as array_path,
+		false							as cycle
+	FROM
+		jazzhands.device_collection
+	WHERE
+		device_collection_type = 'appgroup'
+	AND	device_collection_id not in
+		(select child_device_collection_id from device_collection_hier)
+UNION ALL
+	SELECT	x.role_level + 1				as role_level,
+			dch.device_collection_id		as role_id,
+		dch.device_collection_id	as parent_role_id,
+		x.root_role_id				as root_role_id,
+		x.root_role_name			as root_role_name,
+		dc.device_collection_name			as role_name,
+		cast(x.role_path || '/' || dc.device_collection_name
+					as varchar(255))	as role_path,
+		case WHEN lchk.device_collection_id IS NULL
+			THEN 'Y'
+			ELSE 'N'
+			END				as role_is_leaf,
+		dch.device_collection_id || x.array_path	as array_path,
+		dch.device_collection_id = ANY(x.array_path)	as cycle
+	FROM	var_recurse x
+		inner join jazzhands.device_collection_hier dch
+			on x.role_id = dch.device_collection_id
+		inner join jazzhands.device_collection dc
+			on dch.device_collection_id = dc.device_collection_id
+		left join jazzhands.device_collection_hier lchk
+			on dch.device_collection_id
+				= lchk.device_collection_id
+	WHERE NOT x.cycle
+) SELECT distinct * FROM var_recurse;
+
 
 
 CREATE OR REPLACE VIEW jazzhands_legacy.v_site_netblock_expanded AS
@@ -2974,35 +3931,589 @@ SELECT
 FROM jazzhands.v_token;
 
 
+-- Copyright (c) 2012-2019, Todd M. Kover
+CREATE OR REPLACE VIEW jazzhands_legacy.v_acct_coll_prop_expanded AS
+	SELECT
+		root_account_collection_id as account_collection_id,
+		property_id,
+		property_name,
+		property_type,
+		property_value,
+		property_value_timestamp,
+		property_value_account_coll_id,
+		property_value_nblk_coll_id,
+		property_value_password_type,
+		property_value_token_col_id,
+		property_rank,
+		is_multivalue,
+		CASE ac.account_collection_type
+			WHEN 'per-account' THEN 0
+			ELSE CASE assign_method
+				WHEN 'DirectAccountCollectionAssignment' THEN 10
+				WHEN 'DirectDepartmentAssignment' THEN 200
+				WHEN 'DepartmentAssignedToAccountCollection' THEN 300
+						+ dept_level + acct_coll_level
+				WHEN 'AccountAssignedToChildDepartment' THEN 400
+						+ dept_level
+				WHEN 'AccountAssignedToChildAccountCollection' THEN 500
+						+ acct_coll_level
+				WHEN 'DepartmentAssignedToChildAccountCollection' THEN 600
+						+ dept_level + acct_coll_level
+				WHEN 'ChildDepartmentAssignedToAccountCollection' THEN 700
+						+ dept_level + acct_coll_level
+				WHEN 'ChildDepartmentAssignedToChildAccountCollection' THEN 800
+						+ dept_level + acct_coll_level
+				ELSE 999
+			END END as assign_rank
+	FROM
+		jazzhands_legacy.v_acct_coll_expanded_detail JOIN
+		jazzhands_legacy.account_collection ac USING (account_collection_id) JOIN
+		jazzhands_legacy.v_property USING (account_collection_id) JOIN
+		jazzhands_legacy.val_property USING (property_name, property_type);
 
-CREATE OR REPLACE VIEW jazzhands_legacy.v_unix_account_overrides AS
-SELECT device_collection_id,account_id,setting
-FROM jazzhands.v_unix_account_overrides;
 
 
-
-CREATE OR REPLACE VIEW jazzhands_legacy.v_unix_group_mappings AS
-SELECT device_collection_id,account_collection_id,group_name,unix_gid,group_password,setting,mclass_setting,members
-FROM jazzhands.v_unix_group_mappings;
-
-
-
+-- Copyright (c) 2014, Todd M. Kover
+--
+-- This query pulls out all the device collection overrides for account
+-- collections.
+--
+-- NOTE:  This view does not attempt to validate if a user has any
+-- association with a device collection, just if a user is there, what
+-- properties are set.  Its primary use is by other views.
+--
 CREATE OR REPLACE VIEW jazzhands_legacy.v_unix_group_overrides AS
-SELECT device_collection_id,account_collection_id,setting
-FROM jazzhands.v_unix_group_overrides;
+WITH perdevtomclass AS  (
+	SELECT  hdc.device_collection_id as host_device_collection_id,
+			mdc.device_collection_id as mclass_device_collection_id,
+			device_id
+	FROM    jazzhands.device_collection hdc
+			INNER JOIN jazzhands.device_collection_device hdcd USING (device_collection_id)
+			INNER JOIN jazzhands.device_collection_device mdcd USING (device_id)
+			INNER JOIN jazzhands.device_collection mdc on
+	                    mdcd.device_collection_id = mdc.device_collection_id
+	WHERE   hdc.device_collection_type = 'per-device'
+	AND     mdc.device_collection_type = 'mclass'
+), dcmap AS (
+	SELECT device_collection_id, parent_device_collection_id,
+		 device_collection_level
+		 FROM jazzhands_legacy.v_device_coll_hier_detail
+	UNION
+	SELECT  p.host_device_collection_id as device_collection_id,
+			d.parent_device_collection_id,
+			d.device_collection_level
+	FROM perdevtomclass p
+		INNER JOIN jazzhands_legacy.v_device_coll_hier_detail d ON
+			d.device_collection_id = p.mclass_device_collection_id
+)
+SELECT device_collection_id, account_collection_id,
+	array_agg(setting ORDER BY rn) AS setting
+FROM (
+	SELECT *, row_number() over () AS rn FROM (
+		SELECT device_collection_id, account_collection_id,
+				unnest(ARRAY[property_name, property_value]) AS setting
+		FROM (
+			SELECT  dchd.device_collection_id,
+					acpe.account_collection_id,
+					p.property_name,
+					coalesce(p.property_value,
+						p.property_value_password_type
+					) as property_value,
+					row_number() OVER (partition by
+							dchd.device_collection_id,
+							acpe.account_collection_id,
+							acpe.property_name
+							ORDER BY dchd.device_collection_level, assign_rank,
+								property_id
+					) AS ord
+			FROM    jazzhands_legacy.v_acct_coll_prop_expanded acpe
+				INNER JOIN jazzhands_legacy.unix_group ug USING (account_collection_id)
+				INNER JOIN jazzhands_legacy.v_property p USING (property_id)
+				INNER JOIN dcmap dchd
+					ON dchd.parent_device_collection_id =
+						p.device_collection_id
+			WHERE	p.property_type IN ('UnixPasswdFileValue',
+						'UnixGroupFileProperty',
+						'MclassUnixProp')
+			AND		p.property_name NOT IN
+					('UnixLogin','UnixGroup','UnixGroupMemberOverride')
+		) dc_acct_prop_list
+		WHERE ord = 1
+	) select_for_ordering
+) property_list
+GROUP BY device_collection_id, account_collection_id
+;
 
-
-
+-- Copyright (c) 2014, Todd M. Kover
+--
+-- This view maps device collections to an array of non-user specific
+-- properties for the device collection.
+--
+-- Its primary use if by other views to figure out how to generate files
+-- for credentials management
+--
 CREATE OR REPLACE VIEW jazzhands_legacy.v_unix_mclass_settings AS
-SELECT device_collection_id,mclass_setting
-FROM jazzhands.v_unix_mclass_settings;
+SELECT device_collection_id,
+	array_agg(setting ORDER BY rn) AS mclass_setting
+FROM (
+	SELECT *, row_number() over () AS rn FROM (
+		SELECT device_collection_id,
+				unnest(ARRAY[property_name, property_value]) AS setting
+		FROM (
+			SELECT  dcd.device_collection_id,
+					p.property_name,
+					coalesce(p.property_value,
+						p.property_value_password_type
+					) as property_value,
+					row_number() OVER (partition by
+							dcd.device_collection_id,
+							p.property_name
+							ORDER BY dcd.device_collection_level, property_id
+					) AS ord
+			FROM    jazzhands_legacy.v_device_coll_hier_detail dcd
+				INNER JOIN jazzhands_legacy.v_property p on
+						p.device_collection_id = dcd.parent_device_collection_id
+			WHERE	p.property_type IN  ('MclassUnixProp')
+			AND		p.account_collection_id is NULL
+		) dc
+		WHERE ord = 1
+	) select_for_ordering
+) property_list
+GROUP BY device_collection_id
+;
 
+-- This view shows which users are mapped to which device collections,
+-- which is particularly important for generating passwd files. Please
+-- note that the same account_id can be mapped to the same
+-- device_collection multiple times via different account_collections. The
+-- user_collection_id column is important mostly to join the results of the
+-- view back to the account_collection table, and select only certain
+-- account_collection types (such as 'system' and 'per-user') to be expanded.
+--
+-- This is also going away.
+CREATE OR REPLACE VIEW jazzhands_legacy.v_device_col_acct_col_unixlogin AS
+SELECT DISTINCT dchd.device_collection_id,
+	dcu.account_collection_id,
+	vuue.account_id
+FROM jazzhands_legacy.v_device_coll_hier_detail dchd
+	JOIN jazzhands_legacy.v_property dcu
+		ON dcu.device_collection_id = dchd.parent_device_collection_id
+	JOIN jazzhands_legacy.v_acct_coll_acct_expanded vuue
+		ON vuue.account_collection_id = dcu.account_collection_id
+WHERE dcu.property_name = 'UnixLogin'
+AND dcu.property_type = 'MclassUnixProp';
 
+-- This view shows which users are mapped to which device collections,
+-- which is particularly important for generating passwd files. Please
+-- note that the same account_id can be mapped to the same
+-- device_collection multiple times via different account_collections. The
+-- user_collection_id column is important mostly to join the results of the
+-- view back to the account_collection table, and select only
+-- certain account_collection types (such as 'system' and 'per-user') to be expanded.
+CREATE OR REPLACE VIEW jazzhands_legacy.v_device_col_acct_col_unixgroup AS
+SELECT DISTINCT dchd.device_collection_id, ace.account_collection_id
+FROM jazzhands_legacy.v_device_coll_hier_detail dchd
+	JOIN jazzhands_legacy.v_property dcu
+		ON dcu.device_collection_id = dchd.parent_device_collection_id
+	JOIN jazzhands_legacy.v_acct_coll_expanded ace
+		ON dcu.account_collection_id = ace.root_account_collection_id
+WHERE dcu.property_name = 'UnixGroup'
+AND dcu.property_type = 'MclassUnixProp';
 
+-- Copyright (c) 2014-2017, Todd M. Kover
+--
+--
+-- This query pulls out all the device collection overrides
+--
+-- NOTE:  This view does not attempt to validate if a user has any
+-- association with a device collection, just if a user is there, what
+-- properties are set.  Its primary use is by other views.
+--
+-- It includes entries for all mclasses and will also include contrived entries
+-- for every -- per-device device collection by mapping it through devices
+-- to an mclass.
+-- That is, if there is a ForceHome (or whatever) on an mclass and that user is
+-- added to the per-device collection, the ForceHome will show up on the
+-- per-device collection too.  This is used to do the device mappings for
+-- ownership and the like
+--
+CREATE OR REPLACE VIEW jazzhands_legacy.v_unix_account_overrides AS
+SELECT device_collection_id, account_id,
+	array_agg(setting ORDER BY rn) AS setting
+FROM (
+	SELECT *, row_number() over () AS rn FROM (
+		SELECT device_collection_id, account_id,
+				unnest(ARRAY[property_name, property_value]) AS setting
+		FROM (
+			SELECT  dchd.device_collection_id,
+					acae.account_id,
+					p.property_name,
+					coalesce(p.property_value,
+						p.property_value_password_type
+					 ) as property_value,
+					row_number() OVER (partition by
+							dchd.device_collection_id,
+							acae.account_id,
+							acpe.property_name
+							ORDER BY dchd.device_collection_level, assign_rank,
+								property_id
+					) AS ord
+			FROM    jazzhands_legacy.v_acct_coll_prop_expanded acpe
+				INNER JOIN jazzhands_legacy.v_acct_coll_acct_expanded acae
+						USING (account_collection_id)
+				INNER JOIN jazzhands_legacy.v_property p USING (property_id)
+				INNER JOIN (
+					SELECT device_collection_id, parent_device_collection_id,
+						device_collection_level
+						FROM jazzhands_legacy.v_device_coll_hier_detail
+					UNION ALL
+					SELECT  p.host_device_collection_id as device_collection_id,
+							d.parent_device_collection_id,
+							d.device_collection_level
+					FROM (
+						SELECT  hdc.device_collection_id as host_device_collection_id,
+							mdc.device_collection_id as mclass_device_collection_id,
+							device_id
+						FROM    jazzhands_legacy.device_collection hdc
+							INNER JOIN jazzhands_legacy.device_collection_device hdcd
+									USING (device_collection_id)
+							INNER JOIN jazzhands_legacy.device_collection_device mdcd USING (device_id)
+							INNER JOIN jazzhands_legacy.device_collection mdc on
+								mdcd.device_collection_id = mdc.device_collection_id
+						WHERE   hdc.device_collection_type = 'per-device'
+						AND     mdc.device_collection_type = 'mclass'
+						) p
+						INNER JOIN jazzhands_legacy.v_device_coll_hier_detail d ON
+							d.device_collection_id = p.mclass_device_collection_id
+				) dchd
+					ON dchd.parent_device_collection_id = p.device_collection_id
+			WHERE	p.property_type IN ('UnixPasswdFileValue',
+						'UnixGroupFileProperty',
+						'MclassUnixProp')
+			AND		p.property_name NOT IN
+					('UnixLogin','UnixGroup','UnixGroupMemberOverride')
+		) dc_acct_prop_list
+		WHERE ord = 1
+	) select_for_ordering
+) property_list
+GROUP BY device_collection_id, account_id
+;
+
+-- Copyright (c) 2014-2019, Todd M. Kover
+--
+-- This query maps device collections to accounts and limits it accounts
+-- that are associated with a mclass/device collection.
+--
+-- NOTE:  This primary exists to build credentials files on a host.
+-- Ideally it would be generic and NOT have the limits against
+-- v_device_col_acct_col_expanded but that is necesary (for now) because
+-- of dependent views
+--
+-- Alternately a materized view could work, but that was still pretty
+-- sluggish.  A materilized view of the restricted v_device_col_account_cart
+-- here speeds things up but not enough to be worth the overhead
+--
+CREATE OR REPLACE VIEW jazzhands_legacy.v_device_col_account_cart AS
+SELECT device_collection_id, account_id, setting
+FROM (
+	SELECT x.*,
+		row_number() OVER (partition by device_collection_id,
+			account_id ORDER BY setting) as rn
+	FROM (
+		SELECT	device_collection_id, account_id, NULL as setting
+		FROM	jazzhands_legacy.v_device_col_acct_col_unixlogin
+				INNER JOIN jazzhands_legacy.account USING (account_id)
+				INNER JOIN jazzhands_legacy.account_unix_info USING (account_id)
+		UNION ALL select device_collection_id, account_id, setting
+		from jazzhands_legacy.v_unix_account_overrides
+				INNER JOIN jazzhands_legacy.account USING (account_id)
+				INNER JOIN jazzhands_legacy.account_unix_info USING (account_id)
+				INNER JOIN jazzhands_legacy.v_device_col_acct_col_unixlogin
+					USING (device_collection_id, account_id)
+	) x
+) xx
+WHERE rn = 1;
+
+-- Copyright (c) 2014-2019, Todd M. Kover
+CREATE OR REPLACE VIEW jazzhands_legacy.v_device_col_account_col_cart AS
+SELECT device_collection_Id, account_collection_id, setting
+FROM (SELECT x.*,
+	row_number() OVER (partition by device_collection_id,
+		account_collection_id ORDER BY setting) AS rn
+	FROM (
+		SELECT	device_collection_id, account_collection_id, NULL as setting
+		FROM	jazzhands_legacy.v_device_col_acct_col_unixgroup
+			INNER JOIN jazzhands_legacy.account_collection USING (account_collection_id)
+			INNER JOIN jazzhands_legacy.unix_group USING (account_collection_id)
+		UNION
+		SELECT device_collection_id, account_collection_id, setting
+		from jazzhands_legacy.v_unix_group_overrides
+		) x
+	) xx
+WHERE rn = 1;
+
+-- Copyright (c) 2014-2017, Todd M. Kover
+--
+-- This query returns what can become a passwd entry for a given mclass,
+-- applying all the various ways for mclass properties to tweak behavior
+--
+-- This relies on v_device_col_account_cart which limits the responses to
+-- just mclasses/accounts mapped through the UnixLogin property
+--
+--
 CREATE OR REPLACE VIEW jazzhands_legacy.v_unix_passwd_mappings AS
-SELECT device_collection_id,account_id,login,crypt,unix_uid,unix_group_name,gecos,home,shell,ssh_public_key,setting,mclass_setting,extra_groups
-FROM jazzhands.v_unix_passwd_mappings;
+WITH  passtype AS (
+	SELECT ap.account_id, ap.password, ap.expire_time, ap.change_time,
+	subq.* FROM
+	(
+		SELECT	dchd.device_collection_id,
+			p.property_value_password_type as password_type,
+				row_number() OVER (partition by
+					dchd.device_collection_id)  as ord
+		FROM	jazzhands_legacy.v_property p
+				INNER JOIN jazzhands_legacy.v_device_coll_hier_detail dchd
+					ON dchd.parent_device_collection_id =
+						p.device_collection_id
+		WHERE
+				p.property_name = 'UnixPwType'
+		AND		p.property_type = 'MclassUnixProp'
+	) subq
+			INNER JOIN jazzhands_legacy.account_password ap USING (password_type)
+			INNER JOIN jazzhands_legacy.account_unix_info a USING (account_id)
+	WHERE ord = 1
+)
+select
+	device_collection_id, account_id, login, crypt,
+	unix_uid,
+	unix_group_name,
+	regexp_replace(gecos, ' +', ' ', 'g') AS gecos,
+	regexp_replace(
+		CASE
+			WHEN forcehome IS NOT NULL and forcehome ~ '/$' THEN
+				concat(forcehome, login)
+			WHEN home IS NOT NULL and home ~ '^/' THEN
+				home
+			WHEN hometype = 'generic' THEN
+				concat( coalesce(homeplace, '/home'), '/', 'generic')
+			WHEN home IS NOT NULL and home ~ '/$' THEN
+				concat(home, '/', login)
+			WHEN homeplace IS NOT NULL and homeplace ~ '/$' THEN
+				concat(homeplace, '/', login)
+			ELSE concat(coalesce(homeplace, '/home'), '/', login)
+		END, '/+', '/', 'g') as home,
+	shell, ssh_public_key,
+	setting,
+	mclass_setting,
+	group_names as extra_groups
+FROM
+(
+SELECT	o.device_collection_id,
+		a.account_id, login,
+		coalesce(setting[(select i + 1
+			from generate_subscripts(setting, 1) as i
+			where setting[i] = 'ForceCrypt')]::text, (
+				CASE WHEN (expire_time is not NULL AND now() < expire_time) OR
+						now() - change_time < (
+								concat(coalesce((select property_value
+									from v_property where property_type='Defaults'
+										and property_name='_maxpasswdlife')::text,
+								 90::text)::text, 'days')::text)::interval
+					THEN password
+				END
+			), '*') as crypt,
+		coalesce(setting[(select i + 1
+			from generate_subscripts(setting, 1) as i
+			where setting[i] = 'ForceUserUID')]::integer, unix_uid) as unix_uid,
+		coalesce(setting[(select i + 1
+			from generate_subscripts(setting, 1) as i
+			where setting[i] = 'ForceUserGroup')]::varchar(255),
+				ugac.account_collection_name) AS unix_group_name,
+		CASE WHEN a.description IS NOT NULL THEN a.description
+			ELSE concat(coalesce(preferred_first_name, first_name), ' ',
+				case WHEN middle_name is NOT NULL AND
+					length(middle_name) = 1 THEN concat(middle_name,'.')
+				ELSE middle_name END, ' ',
+				coalesce(preferred_last_name, last_name))
+			END as gecos,
+		coalesce(setting[(select i + 1
+			from generate_subscripts(setting, 1) as i
+			where setting[i] = 'ForceHome')], default_home) as home,
+		coalesce(setting[(select i + 1
+			from generate_subscripts(setting, 1) as i
+			where setting[i] = 'ForceShell')], shell) as shell,
+		o.setting,
+		mcs.mclass_setting,
+		setting[(select i + 1
+			from generate_subscripts(setting, 1) as i
+			where setting[i] = 'ForceHome')] as forcehome,
+		mclass_setting[(select i + 1
+			from generate_subscripts(mcs.mclass_setting, 1) as i
+			where mcs.mclass_setting[i] = 'HomePlace')] as homeplace,
+		mclass_setting[(select i + 1
+			from generate_subscripts(mcs.mclass_setting, 1) as i
+			where mcs.mclass_setting[i] = 'UnixHomeType')] as hometype,
+		ssh_public_key,
+		extra_groups.group_names
+FROM
+		(
+			SELECT a.*, aui.unix_uid, aui.unix_group_acct_collection_id,
+						aui.shell, aui.default_home
+			FROM jazzhands_legacy.account a
+					INNER JOIN jazzhands_legacy.account_unix_info aui using (account_id)
+			WHERE a.is_enabled = 'Y'
+		) a
+			JOIN jazzhands_legacy.v_device_col_account_cart o using (account_id)
+			JOIN jazzhands_legacy.device_collection dc USING (device_collection_id)
+			JOIN jazzhands_legacy.person p USING (person_id)
+			JOIN jazzhands_legacy.unix_group ug on (a.unix_group_acct_collection_id
+				= ug.account_collection_id)
+			JOIN jazzhands_legacy.account_collection ugac
+				on (ugac.account_collection_id = ug.account_collection_id)
+			LEFT JOIN (
+				SELECT	device_collection_id, acae.account_id,
+						array_agg(ac.account_collection_name) as group_names
+				FROM	jazzhands_legacy.v_property p
+						INNER JOIN jazzhands_legacy.device_collection dc
+							USING (device_collection_id)
+						INNER JOIN jazzhands_legacy.account_collection ac
+							USING (account_collection_id)
+						INNER JOIN jazzhands_legacy.account_collection pac ON
+							pac.account_collection_id = p.property_value_account_coll_id
+						INNER JOIN  jazzhands_legacy.v_acct_coll_acct_expanded acae ON
+							pac.account_collection_id = acae.account_collection_id
+				WHERE
+						p.property_type = 'MclassUnixProp'
+				AND		p.property_name = 'UnixGroupMemberOverride'
+				AND		dc.device_collection_type != 'mclass'
+				GROUP BY device_collection_id, acae.account_id
+				) extra_groups USING (device_collection_id, account_id)
+			LEFT JOIN jazzhands_legacy.v_device_collection_account_ssh_key ssh
+				ON (a.account_id = ssh.account_id  AND
+					(ssh.device_collection_id is NULL
+						or ssh.device_collection_id =
+							o.device_collection_id ))
+			LEFT JOIN jazzhands_legacy.v_unix_mclass_settings mcs
+				ON mcs.device_collection_id = dc.device_collection_id
+			LEFT JOIN passtype pwt
+				ON o.device_collection_id = pwt.device_collection_id
+				AND a.account_id = pwt.account_id
+) s
+order by device_collection_id, account_id
+;
 
+-- Copyright (c) 2014-2017, Todd M. Kover
+--
+-- This query returns what can become a group entry for a given mclass,
+-- applying all the various ways for mclass properties to tweak behavior
+--
+-- This relies on v_device_col_account_col_cart which limits the responses to
+-- just mclasses/accounts mapped through the UnixGroup property.  That feature
+-- may be able to be undone...
+--
+--
+CREATE OR REPLACE VIEW jazzhands_legacy.v_unix_group_mappings AS
+SELECT	dc.device_collection_id,
+		ac.account_collection_id,
+		ac.account_collection_name as group_name,
+		coalesce(setting[(select i + 1
+			from generate_subscripts(setting, 1) as i
+			where setting[i] = 'ForceGroupGID')]::integer, unix_gid
+			) as unix_gid,
+		group_password,
+		o.setting,
+		mcs.mclass_setting,
+		array_agg(DISTINCT a.login ORDER BY a.login) as members
+FROM	device_collection dc
+		JOIN (
+			SELECT dch.device_collection_id, vace.account_collection_id
+				FROM jazzhands.v_property  p
+					JOIN jazzhands_legacy.v_device_coll_hier_detail dch ON
+						p.device_collection_id = dch.parent_device_collection_id
+					join jazzhands_legacy.v_acct_coll_expanded vace
+						ON vace.root_account_collection_id =
+							p.account_collection_id
+				WHERE property_name = 'UnixGroup'
+				AND property_type = 'MclassUnixProp'
+			UNION ALL
+			select dch.device_collection_id, uag.account_collection_id
+			from   jazzhands_legacy.v_property p
+					JOIN jazzhands_legacy.v_device_coll_hier_detail dch ON
+							p.device_collection_id =
+								dch.parent_device_collection_id
+					join jazzhands_legacy.v_acct_coll_acct_expanded vace
+						using (account_collection_id)
+					join (
+						SELECT a.*
+						FROM account a
+							INNER JOIN account_unix_info using (account_id)
+							WHERE a.is_enabled = 'Y'
+						) a on vace.account_id = a.account_id
+					join jazzhands_legacy.account_unix_info aui on a.account_id = aui.account_id
+					join jazzhands_legacy.unix_group ug
+						on ug.account_collection_id = aui.unix_group_acct_collection_id
+					join jazzhands_legacy.account_collection uag
+				on ug.account_collection_id = uag.account_collection_id
+			WHERE property_name = 'UnixLogin'
+			AND property_type = 'MclassUnixProp'
+			) ugmap USING (device_collection_id)
+		JOIN jazzhands_legacy.account_collection ac USING (account_collection_id)
+		JOIN jazzhands_legacy.unix_group USING (account_collection_id)
+		LEFT JOIN jazzhands_legacy.v_device_col_account_col_cart o
+			USING (device_collection_id,account_collection_id)
+		LEFT JOIN (
+			SELECT	g.*
+			FROM	(
+				SELECT * FROM (
+					SELECT device_collection_id, account_collection_id,account_id
+				FROM	jazzhands_legacy.device_collection dc, jazzhands_legacy.v_acct_coll_acct_expanded ae
+								INNER JOIN jazzhands_legacy.unix_group USING (account_collection_id)
+							INNER JOIN jazzhands_legacy.account_collection inac using
+									(account_collection_id)
+				WHERE	dc.device_collection_type = 'mclass'
+				UNION ALL
+				SELECT * from (
+							SELECT  dch.device_collection_id,
+									p.account_collection_id, aca.account_id
+							FROM    jazzhands_legacy.v_property p
+									INNER JOIN jazzhands_legacy.unix_group ug USING (account_collection_id)
+									JOIN jazzhands_legacy.v_device_coll_hier_detail dch ON
+										p.device_collection_id = dch.parent_device_collection_id
+									INNER JOIN jazzhands_legacy.v_acct_coll_acct_expanded  aca
+										ON p.property_value_account_coll_id = aca.account_collection_id
+							WHERE   p.property_name = 'UnixGroupMemberOverride'
+							AND     p.property_type = 'MclassUnixProp'
+						) dcugm
+					) actoa
+						JOIN jazzhands_legacy.account_unix_info ui USING (account_id)
+						JOIN (
+					SELECT a.*
+					FROM jazzhands_legacy.account a
+						INNER JOIN jazzhands_legacy.account_unix_info using (account_id)
+							WHERE a.is_enabled = 'Y'
+
+						) a USING (account_id)
+					) g
+					JOIN (
+						SELECT a.*
+						FROM jazzhands_legacy.account a
+							INNER JOIN jazzhands_legacy.account_unix_info using (account_id)
+						WHERE a.is_enabled = 'Y'
+
+						) accts USING (account_id)
+					JOIN jazzhands_legacy.v_unix_passwd_mappings
+						USING (device_collection_id, account_id)
+			) a USING (device_collection_id,account_collection_id)
+		LEFT JOIN jazzhands_legacy.v_unix_mclass_settings mcs
+				ON mcs.device_collection_id = dc.device_collection_id
+GROUP BY	dc.device_collection_id,
+		ac.account_collection_id,
+		ac.account_collection_name,
+		unix_gid,
+		group_password,
+		o.setting,
+		mcs.mclass_setting
+order by device_collection_id, account_collection_id
+;
 
 
 CREATE OR REPLACE VIEW jazzhands_legacy.val_account_collection_relatio AS
@@ -3248,7 +4759,10 @@ SELECT
 	data_ins_date,
 	data_upd_user,
 	data_upd_date
-FROM jazzhands.val_component_property;
+FROM jazzhands.val_component_property
+WHERE component_property_type != 'storage'
+AND component_property_name != 'SCSI_Id'
+;
 
 ALTER TABLE jazzhands_legacy.val_component_property ALTER permit_component_type_id SET DEFAULT 'PROHIBITED'::bpchar;
 ALTER TABLE jazzhands_legacy.val_component_property ALTER permit_component_function SET DEFAULT 'PROHIBITED'::bpchar;
@@ -3767,12 +5281,18 @@ CREATE OR REPLACE VIEW jazzhands_legacy.val_physical_address_type AS
 SELECT physical_address_type,description,data_ins_user,data_ins_date,data_upd_user,data_upd_date
 FROM jazzhands.val_physical_address_type;
 
-
-
 CREATE OR REPLACE VIEW jazzhands_legacy.val_physicalish_volume_type AS
-SELECT physicalish_volume_type,description,data_ins_user,data_ins_date,data_upd_user,data_upd_date
-FROM jazzhands.val_physicalish_volume_type;
-
+SELECT	block_storage_device_type AS physicalish_volume_type,
+	description,
+	data_ins_user,
+	data_ins_date,
+	data_upd_user,
+	data_upd_date
+FROM jazzhands.val_block_storage_device_type
+WHERE block_storage_device_type NOT IN
+        ('disk partition', 'ZFS filesystem', 'ZFS volume',
+        'LVM volume', 'encrypted_block_storage_device')
+;
 
 
 CREATE OR REPLACE VIEW jazzhands_legacy.val_processor_architecture AS
@@ -3786,56 +5306,6 @@ SELECT production_state,description,data_ins_user,data_ins_date,data_upd_user,da
 FROM jazzhands.val_production_state;
 
 
-
--- Simple column rename
-CREATE OR REPLACE VIEW jazzhands_legacy.val_property AS
-SELECT
-	property_name,
-	property_type,
-	description,
-	account_collection_type,
-	company_collection_type,
-	device_collection_type,
-	dns_domain_collection_type,
-	layer2_network_collection_type,
-	layer3_network_collection_type,
-	netblock_collection_type,
-	network_range_type,
-	property_name_collection_type AS property_collection_type,
-	service_environment_collection_type AS service_env_collection_type,
-	CASE WHEN is_multivalue IS NULL THEN NULL
-		WHEN is_multivalue = true THEN 'Y'
-		WHEN is_multivalue = false THEN 'N'
-		ELSE NULL
-	END AS is_multivalue,
-	property_value_account_collection_type_restriction AS prop_val_acct_coll_type_rstrct,
-	property_value_device_collection_type_restriction AS prop_val_dev_coll_type_rstrct,
-	property_value_netblock_collection_type_restriction AS prop_val_nblk_coll_type_rstrct,
-	property_data_type,
-	property_value_json_schema,
-	permit_account_collection_id,
-	permit_account_id,
-	permit_account_realm_id,
-	permit_company_id,
-	permit_company_collection_id,
-	permit_device_collection_id,
-	permit_dns_domain_collection_id AS permit_dns_domain_coll_id,
-	permit_layer2_network_collection_id AS permit_layer2_network_coll_id,
-	permit_layer3_network_collection_id AS permit_layer3_network_coll_id,
-	permit_netblock_collection_id,
-	permit_network_range_id,
-	permit_operating_system_id,
-	permit_operating_system_snapshot_id AS permit_os_snapshot_id,
-	permit_property_name_collection_id AS permit_property_collection_id,
-	permit_service_environment_collection_id AS permit_service_env_collection,
-	permit_site_code,
-	permit_x509_signed_certificate_id AS permit_x509_signed_cert_id,
-	permit_property_rank,
-	data_ins_user,
-	data_ins_date,
-	data_upd_user,
-	data_upd_date
-FROM jazzhands.val_property;
 
 ALTER TABLE jazzhands_legacy.val_property ALTER is_multivalue SET DEFAULT 'N'::bpchar;
 ALTER TABLE jazzhands_legacy.val_property ALTER permit_account_collection_id SET DEFAULT 'PROHIBITED'::bpchar;
@@ -3856,52 +5326,6 @@ ALTER TABLE jazzhands_legacy.val_property ALTER permit_service_env_collection SE
 ALTER TABLE jazzhands_legacy.val_property ALTER permit_site_code SET DEFAULT 'PROHIBITED'::bpchar;
 ALTER TABLE jazzhands_legacy.val_property ALTER permit_x509_signed_cert_id SET DEFAULT 'PROHIBITED'::bpchar;
 ALTER TABLE jazzhands_legacy.val_property ALTER permit_property_rank SET DEFAULT 'PROHIBITED'::bpchar;
-
--- Simple column rename
-CREATE OR REPLACE VIEW jazzhands_legacy.val_property_collection_type AS
-SELECT
-	property_name_collection_type AS property_collection_type,
-	description,
-	max_num_members,
-	max_num_collections,
-	CASE WHEN can_have_hierarchy IS NULL THEN NULL
-		WHEN can_have_hierarchy = true THEN 'Y'
-		WHEN can_have_hierarchy = false THEN 'N'
-		ELSE NULL
-	END AS can_have_hierarchy,
-	data_ins_user,
-	data_ins_date,
-	data_upd_user,
-	data_upd_date
-FROM jazzhands.val_property_name_collection_type;
-
-CREATE OR REPLACE VIEW jazzhands_legacy.val_property_data_type AS
-SELECT property_data_type,description,data_ins_user,data_ins_date,data_upd_user,data_upd_date
-FROM jazzhands.val_property_data_type;
-
-
-
--- Simple column rename
-CREATE OR REPLACE VIEW jazzhands_legacy.val_property_type AS
-SELECT
-	property_type,
-	description,
-	property_value_account_collection_type_restriction AS prop_val_acct_coll_type_rstrct,
-	CASE WHEN is_multivalue IS NULL THEN NULL
-		WHEN is_multivalue = true THEN 'Y'
-		WHEN is_multivalue = false THEN 'N'
-		ELSE NULL
-	END AS is_multivalue,
-	data_ins_user,
-	data_ins_date,
-	data_upd_user,
-	data_upd_date
-FROM jazzhands.val_property_type;
-
-CREATE OR REPLACE VIEW jazzhands_legacy.val_property_value AS
-SELECT property_name,property_type,valid_property_value,description,data_ins_user,data_ins_date,data_upd_user,data_upd_date
-FROM jazzhands.val_property_value;
-
 
 
 CREATE OR REPLACE VIEW jazzhands_legacy.val_pvt_key_encryption_type AS
@@ -4095,17 +5519,86 @@ FROM jazzhands.volume_group;
 -- Simple column rename
 CREATE OR REPLACE VIEW jazzhands_legacy.volume_group_physicalish_vol AS
 SELECT
-	physicalish_volume_id,
+	block_storage_device_id AS physicalish_volume_id,
 	volume_group_id,
 	device_id,
-	volume_group_primary_position AS volume_group_primary_pos,
-	volume_group_secondary_position AS volume_group_secondary_pos,
+	volume_group_primary_position,
+	volume_group_secondary_position,
 	volume_group_relation,
 	data_ins_user,
 	data_ins_date,
 	data_upd_user,
 	data_upd_date
-FROM jazzhands.volume_group_physicalish_volume;
+FROM jazzhands.volume_group_block_storage_device;
+
+-- Copyright (c) 2015 Matthew Ragan
+CREATE OR REPLACE VIEW jazzhands_legacy.v_lv_hier (
+	physicalish_volume_id,
+	volume_group_id,
+	logical_volume_id,
+	child_pv_id,
+	child_vg_id,
+	child_lv_id,
+	pv_path,
+	vg_path,
+	lv_path
+) AS
+WITH RECURSIVE lv_hier (
+	physicalish_volume_id,
+	pv_logical_volume_id,
+	volume_group_id,
+	logical_volume_id,
+	pv_path,
+	vg_path,
+	lv_path
+) AS (
+	SELECT
+		pv.physicalish_volume_id,
+		pv.logical_volume_id,
+		vg.volume_group_id,
+		lv.logical_volume_id,
+		ARRAY[pv.physicalish_volume_id]::integer[],
+		ARRAY[vg.volume_group_id]::integer[],
+		ARRAY[lv.logical_volume_id]::integer[]
+	FROM
+		jazzhands_legacy.physicalish_volume pv LEFT JOIN
+		jazzhands_legacy.volume_group_physicalish_vol USING (physicalish_volume_id) FULL JOIN
+		jazzhands_legacy.volume_group vg USING (volume_group_id) LEFT JOIN
+		jazzhands_legacy.logical_volume lv USING (volume_group_id)
+	WHERE
+		lv.logical_volume_id IS NULL OR
+		lv.logical_volume_id NOT IN (
+			SELECT logical_volume_id
+			FROM physicalish_volume
+			WHERE logical_volume_id IS NOT NULL
+		)
+	UNION
+	SELECT
+		pv.physicalish_volume_id,
+		pv.logical_volume_id,
+		vg.volume_group_id,
+		lv.logical_volume_id,
+		array_prepend(pv.physicalish_volume_id, lh.pv_path),
+		array_prepend(vg.volume_group_id, lh.vg_path),
+		array_prepend(lv.logical_volume_id, lh.lv_path)
+	FROM
+		jazzhands_legacy.physicalish_volume pv LEFT JOIN
+		jazzhands_legacy.volume_group_physicalish_vol USING (physicalish_volume_id) FULL JOIN
+		jazzhands_legacy.volume_group vg USING (volume_group_id) LEFT JOIN
+		jazzhands_legacy.logical_volume lv USING (volume_group_id) JOIN
+		lv_hier lh ON (lv.logical_volume_id = lh.pv_logical_volume_id)
+)
+SELECT DISTINCT
+	physicalish_volume_id,
+	volume_group_id,
+	logical_volume_id,
+	unnest(pv_path),
+	unnest(vg_path),
+	unnest(lv_path),
+	pv_path,
+	vg_path,
+	lv_path
+FROM lv_hier;
 
 
 
@@ -4206,19 +5699,37 @@ FROM jazzhands.public_key_hash;
 
 
 CREATE OR REPLACE VIEW jazzhands_legacy.val_x509_fingerprint_hash_algorithm AS
-SELECT x509_fingerprint_hash_algorighm, description, data_ins_user, data_ins_date, data_upd_user, data_upd_date
+SELECT cryptographic_hash_algorithm AS x509_fingerprint_hash_algorighm,
+	description,
+	data_ins_user,
+	data_ins_date,
+	data_upd_user,
+	data_upd_date
 FROM jazzhands.val_x509_fingerprint_hash_algorithm;
 
 
 
 CREATE OR REPLACE VIEW jazzhands_legacy.x509_signed_certificate_fingerprint AS
-SELECT x509_signed_certificate_id, x509_fingerprint_hash_algorighm, fingerprint, description, data_ins_user, data_ins_date, data_upd_user, data_upd_date
+SELECT x509_signed_certificate_id,
+	cryptographic_hash_algorithm AS x509_fingerprint_hash_algorighm,
+	fingerprint,
+	description,
+	data_ins_user,
+	data_ins_date,
+	data_upd_user,
+	data_upd_date
 FROM jazzhands.x509_signed_certificate_fingerprint;
 
 
 
 CREATE OR REPLACE VIEW jazzhands_legacy.public_key_hash_hash AS
-SELECT public_key_hash_id, x509_fingerprint_hash_algorighm, calculated_hash, data_ins_user, data_ins_date, data_upd_user, data_upd_date
+SELECT public_key_hash_id,
+	cryptographic_hash_algorithm AS x509_fingerprint_hash_algorighm,
+	calculated_hash,
+	data_ins_user,
+	data_ins_date,
+	data_upd_user,
+	data_upd_date
 FROM jazzhands.public_key_hash_hash;
 
 
@@ -4264,16 +5775,138 @@ ALTER TABLE jazzhands_legacy.x509_signed_certificate ALTER x509_certificate_type
 ALTER TABLE jazzhands_legacy.x509_signed_certificate ALTER is_active SET DEFAULT 'Y'::bpchar;
 ALTER TABLE jazzhands_legacy.x509_signed_certificate ALTER is_certificate_authority SET DEFAULT 'N'::bpchar;
 
+CREATE OR REPLACE VIEW jazzhands_legacy.v_hotpants_client AS
+SELECT
+	            device_id,
+	            device_name,
+		ip_address,
+		p.property_value as radius_secret
+	        FROM    jazzhands.v_property p
+	                INNER JOIN jazzhands_legacy.v_device_coll_device_expanded dc
+	                    USING (device_collection_id)
+	                INNER JOIN jazzhands.device d USING (device_id)
+	                INNER JOIN jazzhands.layer3_interface_netblock ni USING (device_id)
+	                INNER JOIN jazzhands.netblock USING (netblock_id)
+	        WHERE     property_name = 'RadiusSharedSecret'
+	        AND     property_type = 'HOTPants';
+
+
+-- Copyright (c) 2016, Todd M. Kover
+CREATE OR REPLACE VIEW jazzhands_legacy.v_hotpants_dc_attribute AS
+SELECT  property_id,
+	device_collection_id,
+	property_name,
+	property_type,
+	property_rank,
+	Property_Value_Password_Type	as property_value
+	    FROM    jazzhands.v_property
+	    WHERE   Property_Name = 'PWType'
+	    AND     Property_Type = 'HOTPants'
+	    AND     account_collection_id IS NULL
+;
+
+
+-- Copyright (c) 2015-2017, Todd M. Kover
+CREATE OR REPLACE VIEW jazzhands_legacy.v_hotpants_device_collection AS
+SELECT
+	Device_Id,
+	Device_Name,
+	Device_Collection_Id,
+	Device_Collection_Name,
+	Device_Collection_Type,
+	host(IP_Address) as IP_address
+FROM (
+	SELECT
+		Device_Id,
+		Device_Name,
+		dc.Device_Collection_Id,
+		dc.Device_Collection_Name,
+		dc.Device_Collection_Type,
+		dcr.device_collection_level,
+		IP_Address as IP_address,
+		rank() OVER
+			(PARTITION BY device_id ORDER BY device_collection_level )
+			AS rank
+	FROM	jazzhands_legacy.device_collection dc
+		LEFT JOIN jazzhands_legacy.v_device_coll_hier_detail dcr ON
+			dc.device_collection_id = dcr.parent_device_collection_id
+		LEFT JOIN jazzhands_legacy.device_collection_device dcd ON
+			dcd.device_collection_id = dcr.device_collection_id
+		LEFT JOIN jazzhands_legacy.Device USING (Device_Id)
+		LEFT JOIN jazzhands.layer3_interface_netblock NI USING (device_id)
+		LEFT JOIN jazzhands_legacy.Netblock NB USING (Netblock_id)
+	WHERE
+		device_collection_type IN ('HOTPants', 'HOTPants-app')
+	) rankbyhier
+WHERE
+	device_collection_type = 'HOTPants-app'
+OR
+	(rank = 1 AND ip_address IS NOT NULL )
+;
+
+
+-- Copyright (c) 2015, Todd M. Kover
+-- Simple column rename
+CREATE OR REPLACE VIEW jazzhands_legacy.v_hotpants_token AS
+SELECT
+	token_id,
+	token_type,
+	token_status,
+	token_serial,
+	token_key,
+	zero_time,
+	time_modulo,
+	token_password,
+	CASE WHEN is_token_locked IS NULL THEN NULL
+		WHEN is_token_locked = true THEN 'Y'
+		WHEN is_token_locked = false THEN 'N'
+		ELSE NULL
+	END AS is_token_locked,
+	token_unlock_time,
+	bad_logins,
+	token_sequence,
+	ts.last_updated as last_updated,
+	en.encryption_key_db_value,
+	en.encryption_key_purpose,
+	en.encryption_key_purpose_version,
+	en.encryption_method
+FROM	jazzhands.token t
+	INNER JOIN jazzhands.token_sequence ts USING (token_id)
+	LEFT JOIN jazzhands.encryption_key en USING (encryption_key_id)
+;
+
+-- Copyright (c) 2016, Todd M. Kover
+CREATE OR REPLACE VIEW jazzhands_legacy.v_hotpants_account_attribute AS
+SELECT	property_id,
+	account_id,
+	device_collection_id,
+	login,
+	property_name,
+	property_type,
+	property_value,
+	property_rank,
+	is_boolean
+FROM	jazzhands_legacy.v_dev_col_user_prop_expanded
+	INNER JOIN jazzhands_legacy.device_collection USING (Device_Collection_ID)
+WHERE	is_enabled = 'Y'
+AND	(
+		Device_Collection_Type IN ('HOTPants-app', 'HOTPants')
+	OR
+		Property_Type IN ('RADIUS', 'HOTPants')
+	)
+;
+
+
 
 
 -- Deal with dropped tables
 CREATE OR REPLACE VIEW jazzhands_legacy.v_device_collection_hier_trans AS
  SELECT device_collection_id AS parent_device_collection_id,
-    child_device_collection_id AS device_collection_id,
-    data_ins_user,
-    data_ins_date,
-    data_upd_user,
-    data_upd_date
+	child_device_collection_id AS device_collection_id,
+	data_ins_user,
+	data_ins_date,
+	data_upd_user,
+	data_upd_date
    FROM jazzhands.device_collection_hier;
 
 CREATE OR REPLACE VIEW jazzhands_legacy.v_network_interface_trans AS
@@ -4869,191 +6502,6 @@ CREATE TRIGGER trigger_account_del
 	INSTEAD OF DELETE ON jazzhands_legacy.account
 	FOR EACH ROW
 	EXECUTE PROCEDURE jazzhands_legacy.account_del();
-
-
--- Triggers for account_auth_log
-
-CREATE OR REPLACE FUNCTION jazzhands_legacy.account_auth_log_ins()
-RETURNS TRIGGER AS
-$$
-DECLARE
-	_cq	text[];
-	_vq	text[];
-	_nr	jazzhands.account_authentication_log%rowtype;
-BEGIN
-
-	IF NEW.account_id IS NOT NULL THEN
-		_cq := array_append(_cq, quote_ident('account_id'));
-		_vq := array_append(_vq, quote_nullable(NEW.account_id));
-	END IF;
-
-	IF NEW.account_auth_ts IS NOT NULL THEN
-		_cq := array_append(_cq, quote_ident('account_authentication_timestamp'));
-		_vq := array_append(_vq, quote_nullable(NEW.account_auth_ts));
-	END IF;
-
-	IF NEW.auth_resource IS NOT NULL THEN
-		_cq := array_append(_cq, quote_ident('authentication_resource'));
-		_vq := array_append(_vq, quote_nullable(NEW.auth_resource));
-	END IF;
-
-	IF NEW.account_auth_seq IS NOT NULL THEN
-		_cq := array_append(_cq, quote_ident('account_authentication_seq'));
-		_vq := array_append(_vq, quote_nullable(NEW.account_auth_seq));
-	END IF;
-
-	IF NEW.was_auth_success IS NOT NULL THEN
-		_cq := array_append(_cq, quote_ident('was_authentication_successful'));
-		_vq := array_append(_vq, quote_nullable(CASE WHEN NEW.was_auth_success = 'Y' THEN true WHEN NEW.was_auth_success = 'N' THEN false ELSE NULL END));
-	END IF;
-
-	IF NEW.auth_resource_instance IS NOT NULL THEN
-		_cq := array_append(_cq, quote_ident('authentication_resource_instance'));
-		_vq := array_append(_vq, quote_nullable(NEW.auth_resource_instance));
-	END IF;
-
-	IF NEW.auth_origin IS NOT NULL THEN
-		_cq := array_append(_cq, quote_ident('authentication_origin'));
-		_vq := array_append(_vq, quote_nullable(NEW.auth_origin));
-	END IF;
-
-	EXECUTE 'INSERT INTO jazzhands.account_authentication_log (' ||
-		array_to_string(_cq, ', ') ||
-		') VALUES ( ' ||
-		array_to_string(_vq, ', ') ||
-		') RETURNING *' INTO _nr;
-
-	NEW.account_id = _nr.account_id;
-	NEW.account_auth_ts = _nr.account_authentication_timestamp;
-	NEW.auth_resource = _nr.authentication_resource;
-	NEW.account_auth_seq = _nr.account_authentication_seq;
-	NEW.was_auth_success = CASE WHEN _nr.was_authentication_successful = true THEN 'Y' WHEN _nr.was_authentication_successful = false THEN 'N' ELSE NULL END;
-	NEW.auth_resource_instance = _nr.authentication_resource_instance;
-	NEW.auth_origin = _nr.authication_origin;
-	NEW.data_ins_date = _nr.data_ins_date;
-	NEW.data_ins_user = _nr.data_ins_user;
-	RETURN NEW;
-END;
-$$
-SET search_path=jazzhands
-LANGUAGE plpgsql SECURITY DEFINER;
-
-DROP TRIGGER IF EXISTS trigger_account_auth_log_ins
-	ON jazzhands_legacy.account_auth_log;
-CREATE TRIGGER trigger_account_auth_log_ins
-	INSTEAD OF INSERT ON jazzhands_legacy.account_auth_log
-	FOR EACH ROW
-	EXECUTE PROCEDURE jazzhands_legacy.account_auth_log_ins();
-
-
-CREATE OR REPLACE FUNCTION jazzhands_legacy.account_auth_log_upd()
-RETURNS TRIGGER AS
-$$
-DECLARE
-	_r	jazzhands_legacy.account_auth_log%rowtype;
-	_nr	jazzhands.account_authentication_log%rowtype;
-	_uq	text[];
-BEGIN
-
-	IF OLD.account_id IS DISTINCT FROM NEW.account_id THEN
-_uq := array_append(_uq, 'account_id = ' || quote_nullable(NEW.account_id));
-	END IF;
-
-	IF OLD.account_auth_ts IS DISTINCT FROM NEW.account_auth_ts THEN
-_uq := array_append(_uq, 'account_authentication_timestamp = ' || quote_nullable(NEW.account_auth_ts));
-	END IF;
-
-	IF OLD.auth_resource IS DISTINCT FROM NEW.auth_resource THEN
-_uq := array_append(_uq, 'authentication_resource = ' || quote_nullable(NEW.auth_resource));
-	END IF;
-
-	IF OLD.account_auth_seq IS DISTINCT FROM NEW.account_auth_seq THEN
-_uq := array_append(_uq, 'account_authentication_seq = ' || quote_nullable(NEW.account_auth_seq));
-	END IF;
-
-	IF OLD.was_auth_success IS DISTINCT FROM NEW.was_auth_success THEN
-IF NEW.was_auth_success = 'Y' THEN
-	_uq := array_append(_uq, 'was_authentication_successful = true');
-ELSIF NEW.was_auth_success = 'N' THEN
-	_uq := array_append(_uq, 'was_authentication_successful = false');
-ELSE
-	_uq := array_append(_uq, 'was_authentication_successful = NULL');
-END IF;
-	END IF;
-
-	IF OLD.auth_resource_instance IS DISTINCT FROM NEW.auth_resource_instance THEN
-		_uq := array_append(_uq, 'authentication_resource_instance = ' || quote_nullable(NEW.auth_resource_instance));
-	END IF;
-
-	IF OLD.auth_origin IS DISTINCT FROM NEW.auth_origin THEN
-_uq := array_append(_uq, 'authentication_origin = ' || quote_nullable(NEW.auth_origin));
-	END IF;
-
-	IF _uq IS NOT NULL THEN
-		EXECUTE 'UPDATE jazzhands.account_authentication_log SET ' ||
-			array_to_string(_uq, ', ') ||
-			' WHERE  account_id = $1 AND  account_auth_ts = $2 AND  auth_resource = $3 AND  account_auth_seq = $4 RETURNING *'  USING OLD.account_id, OLD.account_auth_ts, OLD.auth_resource, OLD.account_auth_seq
-			INTO _nr;
-
-		NEW.account_id = _nr.account_id;
-		NEW.account_auth_ts = _nr.account_authentication_timestamp;
-		NEW.auth_resource = _nr.authentication_resource;
-		NEW.account_auth_seq = _nr.account_authentication_seq;
-		NEW.was_auth_success = CASE WHEN _nr.was_authentication_successful = true THEN 'Y' WHEN _nr.was_auth_success = false THEN 'N' ELSE NULL END;
-		NEW.auth_resource_instance = _nr.authentication_resource_instance;
-		NEW.auth_origin = _nr.authentication_origin;
-		NEW.data_ins_date = _nr.data_ins_date;
-		NEW.data_ins_user = _nr.data_ins_user;
-	END IF;
-	RETURN NEW;
-END;
-$$
-SET search_path=jazzhands
-LANGUAGE plpgsql SECURITY DEFINER;
-
-DROP TRIGGER IF EXISTS trigger_account_auth_log_upd
-	ON jazzhands_legacy.account_auth_log;
-CREATE TRIGGER trigger_account_auth_log_upd
-	INSTEAD OF UPDATE ON jazzhands_legacy.account_auth_log
-	FOR EACH ROW
-	EXECUTE PROCEDURE jazzhands_legacy.account_auth_log_upd();
-
-
-CREATE OR REPLACE FUNCTION jazzhands_legacy.account_auth_log_del()
-RETURNS TRIGGER AS
-$$
-DECLARE
-	_or	jazzhands.account_authentication_log%rowtype;
-BEGIN
-	DELETE FROM jazzhands.account_authentication_log
-		WHERE  account_id = OLD.account_id
-		AND  account_authentication_timestamp = OLD.account_auth_ts
-		AND  authentication_resource = OLD.auth_resource
-		AND  account_authentication_seq = OLD.account_auth_seq
-		RETURNING *
-		INTO _or;
-	OLD.account_id = _or.account_id;
-	OLD.account_auth_ts = _or.account_authentication_timestamp;
-	OLD.auth_resource = _or.authentication_resource;
-	OLD.account_auth_seq = _or.account_authentication_seq;
-	OLD.was_auth_success = CASE WHEN _or.was_authentication_successful = true THEN 'Y' WHEN _or.was_auth_success = false THEN 'N' ELSE NULL END;
-	OLD.auth_resource_instance = _or.authentication_resource_instance;
-	OLD.auth_origin = _or.authentication_origin;
-	OLD.data_ins_date = _or.data_ins_date;
-	OLD.data_ins_user = _or.data_ins_user;
-	RETURN OLD;
-END;
-$$
-SET search_path=jazzhands
-LANGUAGE plpgsql SECURITY DEFINER;
-
-DROP TRIGGER IF EXISTS trigger_account_auth_log_del
-	ON jazzhands_legacy.account_auth_log;
-CREATE TRIGGER trigger_account_auth_log_del
-	INSTEAD OF DELETE ON jazzhands_legacy.account_auth_log
-	FOR EACH ROW
-	EXECUTE PROCEDURE jazzhands_legacy.account_auth_log_del();
-
 
 -- Triggers for approval_instance_item
 
@@ -12528,250 +13976,50 @@ CREATE TRIGGER trigger_v_dns_domain_nouniverse_del
 
 
 -- Triggers for v_hotpants_token
-
-CREATE OR REPLACE FUNCTION jazzhands_legacy.v_hotpants_token_ins()
-RETURNS TRIGGER AS
-$$
-DECLARE
-	_cq	text[];
-	_vq	text[];
-	_nr	jazzhands.v_hotpants_token%rowtype;
-BEGIN
-
-	IF NEW.token_id IS NOT NULL THEN
-		_cq := array_append(_cq, quote_ident('token_id'));
-		_vq := array_append(_vq, quote_nullable(NEW.token_id));
-	END IF;
-
-	IF NEW.token_type IS NOT NULL THEN
-		_cq := array_append(_cq, quote_ident('token_type'));
-		_vq := array_append(_vq, quote_nullable(NEW.token_type));
-	END IF;
-
-	IF NEW.token_status IS NOT NULL THEN
-		_cq := array_append(_cq, quote_ident('token_status'));
-		_vq := array_append(_vq, quote_nullable(NEW.token_status));
-	END IF;
-
-	IF NEW.token_serial IS NOT NULL THEN
-		_cq := array_append(_cq, quote_ident('token_serial'));
-		_vq := array_append(_vq, quote_nullable(NEW.token_serial));
-	END IF;
-
-	IF NEW.token_key IS NOT NULL THEN
-		_cq := array_append(_cq, quote_ident('token_key'));
-		_vq := array_append(_vq, quote_nullable(NEW.token_key));
-	END IF;
-
-	IF NEW.zero_time IS NOT NULL THEN
-		_cq := array_append(_cq, quote_ident('zero_time'));
-		_vq := array_append(_vq, quote_nullable(NEW.zero_time));
-	END IF;
-
-	IF NEW.time_modulo IS NOT NULL THEN
-		_cq := array_append(_cq, quote_ident('time_modulo'));
-		_vq := array_append(_vq, quote_nullable(NEW.time_modulo));
-	END IF;
-
-	IF NEW.token_password IS NOT NULL THEN
-		_cq := array_append(_cq, quote_ident('token_password'));
-		_vq := array_append(_vq, quote_nullable(NEW.token_password));
-	END IF;
-
-	IF NEW.is_token_locked IS NOT NULL THEN
-		_cq := array_append(_cq, quote_ident('is_token_locked'));
-		_vq := array_append(_vq, quote_nullable(CASE WHEN NEW.is_token_locked = 'Y' THEN true WHEN NEW.is_token_locked = 'N' THEN false ELSE NULL END));
-	END IF;
-
-	IF NEW.token_unlock_time IS NOT NULL THEN
-		_cq := array_append(_cq, quote_ident('token_unlock_time'));
-		_vq := array_append(_vq, quote_nullable(NEW.token_unlock_time));
-	END IF;
-
-	IF NEW.bad_logins IS NOT NULL THEN
-		_cq := array_append(_cq, quote_ident('bad_logins'));
-		_vq := array_append(_vq, quote_nullable(NEW.bad_logins));
-	END IF;
-
-	IF NEW.token_sequence IS NOT NULL THEN
-		_cq := array_append(_cq, quote_ident('token_sequence'));
-		_vq := array_append(_vq, quote_nullable(NEW.token_sequence));
-	END IF;
-
-	IF NEW.last_updated IS NOT NULL THEN
-		_cq := array_append(_cq, quote_ident('last_updated'));
-		_vq := array_append(_vq, quote_nullable(NEW.last_updated));
-	END IF;
-
-	IF NEW.encryption_key_db_value IS NOT NULL THEN
-		_cq := array_append(_cq, quote_ident('encryption_key_db_value'));
-		_vq := array_append(_vq, quote_nullable(NEW.encryption_key_db_value));
-	END IF;
-
-	IF NEW.encryption_key_purpose IS NOT NULL THEN
-		_cq := array_append(_cq, quote_ident('encryption_key_purpose'));
-		_vq := array_append(_vq, quote_nullable(NEW.encryption_key_purpose));
-	END IF;
-
-	IF NEW.encryption_key_purpose_version IS NOT NULL THEN
-		_cq := array_append(_cq, quote_ident('encryption_key_purpose_version'));
-		_vq := array_append(_vq, quote_nullable(NEW.encryption_key_purpose_version));
-	END IF;
-
-	IF NEW.encryption_method IS NOT NULL THEN
-		_cq := array_append(_cq, quote_ident('encryption_method'));
-		_vq := array_append(_vq, quote_nullable(NEW.encryption_method));
-	END IF;
-
-	EXECUTE 'INSERT INTO jazzhands.v_hotpants_token (' ||
-		array_to_string(_cq, ', ') ||
-		') VALUES ( ' ||
-		array_to_string(_vq, ', ') ||
-		') RETURNING *' INTO _nr;
-
-	NEW.token_id = _nr.token_id;
-	NEW.token_type = _nr.token_type;
-	NEW.token_status = _nr.token_status;
-	NEW.token_serial = _nr.token_serial;
-	NEW.token_key = _nr.token_key;
-	NEW.zero_time = _nr.zero_time;
-	NEW.time_modulo = _nr.time_modulo;
-	NEW.token_password = _nr.token_password;
-	NEW.is_token_locked = CASE WHEN _nr.is_token_locked = true THEN 'Y' WHEN _nr.is_token_locked = false THEN 'N' ELSE NULL END;
-	NEW.token_unlock_time = _nr.token_unlock_time;
-	NEW.bad_logins = _nr.bad_logins;
-	NEW.token_sequence = _nr.token_sequence;
-	NEW.last_updated = _nr.last_updated;
-	NEW.encryption_key_db_value = _nr.encryption_key_db_value;
-	NEW.encryption_key_purpose = _nr.encryption_key_purpose;
-	NEW.encryption_key_purpose_version = _nr.encryption_key_purpose_version;
-	NEW.encryption_method = _nr.encryption_method;
-	RETURN NEW;
-END;
-$$
-SET search_path=jazzhands
-LANGUAGE plpgsql SECURITY DEFINER;
-
-DROP TRIGGER IF EXISTS trigger_v_hotpants_token_ins
-	ON jazzhands_legacy.v_hotpants_token;
-CREATE TRIGGER trigger_v_hotpants_token_ins
-	INSTEAD OF INSERT ON jazzhands_legacy.v_hotpants_token
-	FOR EACH ROW
-	EXECUTE PROCEDURE jazzhands_legacy.v_hotpants_token_ins();
-
+/*
+ * Copyright (c) 2016 Todd Kover
+ * All rights reserved.
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *      http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
 
 CREATE OR REPLACE FUNCTION jazzhands_legacy.v_hotpants_token_upd()
-RETURNS TRIGGER AS
-$$
+RETURNS TRIGGER AS $$
 DECLARE
-	_r	jazzhands_legacy.v_hotpants_token%rowtype;
-	_nr	jazzhands.v_hotpants_token%rowtype;
-	_uq	text[];
+	acct_realm_id	account_realm.account_realm_id%TYPE;
 BEGIN
-
-	IF OLD.token_id IS DISTINCT FROM NEW.token_id THEN
-_uq := array_append(_uq, 'token_id = ' || quote_nullable(NEW.token_id));
-	END IF;
-
-	IF OLD.token_type IS DISTINCT FROM NEW.token_type THEN
-_uq := array_append(_uq, 'token_type = ' || quote_nullable(NEW.token_type));
-	END IF;
-
-	IF OLD.token_status IS DISTINCT FROM NEW.token_status THEN
-_uq := array_append(_uq, 'token_status = ' || quote_nullable(NEW.token_status));
-	END IF;
-
-	IF OLD.token_serial IS DISTINCT FROM NEW.token_serial THEN
-_uq := array_append(_uq, 'token_serial = ' || quote_nullable(NEW.token_serial));
-	END IF;
-
-	IF OLD.token_key IS DISTINCT FROM NEW.token_key THEN
-_uq := array_append(_uq, 'token_key = ' || quote_nullable(NEW.token_key));
-	END IF;
-
-	IF OLD.zero_time IS DISTINCT FROM NEW.zero_time THEN
-_uq := array_append(_uq, 'zero_time = ' || quote_nullable(NEW.zero_time));
-	END IF;
-
-	IF OLD.time_modulo IS DISTINCT FROM NEW.time_modulo THEN
-_uq := array_append(_uq, 'time_modulo = ' || quote_nullable(NEW.time_modulo));
-	END IF;
-
-	IF OLD.token_password IS DISTINCT FROM NEW.token_password THEN
-_uq := array_append(_uq, 'token_password = ' || quote_nullable(NEW.token_password));
-	END IF;
-
-	IF OLD.is_token_locked IS DISTINCT FROM NEW.is_token_locked THEN
-IF NEW.is_token_locked = 'Y' THEN
-	_uq := array_append(_uq, 'is_token_locked = true');
-ELSIF NEW.is_token_locked = 'N' THEN
-	_uq := array_append(_uq, 'is_token_locked = false');
-ELSE
-	_uq := array_append(_uq, 'is_token_locked = NULL');
-END IF;
-	END IF;
-
-	IF OLD.token_unlock_time IS DISTINCT FROM NEW.token_unlock_time THEN
-_uq := array_append(_uq, 'token_unlock_time = ' || quote_nullable(NEW.token_unlock_time));
+	IF OLD.token_sequence IS DISTINCT FROM NEW.token_sequence THEN
+		PERFORM token_utils.set_sequence(
+			p_token_id := NEW.token_id,
+			p_token_sequence := NEW.token_sequence,
+			p_reset_time := NEW.last_updated::timestamp
+		);
 	END IF;
 
 	IF OLD.bad_logins IS DISTINCT FROM NEW.bad_logins THEN
-_uq := array_append(_uq, 'bad_logins = ' || quote_nullable(NEW.bad_logins));
-	END IF;
-
-	IF OLD.token_sequence IS DISTINCT FROM NEW.token_sequence THEN
-_uq := array_append(_uq, 'token_sequence = ' || quote_nullable(NEW.token_sequence));
-	END IF;
-
-	IF OLD.last_updated IS DISTINCT FROM NEW.last_updated THEN
-_uq := array_append(_uq, 'last_updated = ' || quote_nullable(NEW.last_updated));
-	END IF;
-
-	IF OLD.encryption_key_db_value IS DISTINCT FROM NEW.encryption_key_db_value THEN
-_uq := array_append(_uq, 'encryption_key_db_value = ' || quote_nullable(NEW.encryption_key_db_value));
-	END IF;
-
-	IF OLD.encryption_key_purpose IS DISTINCT FROM NEW.encryption_key_purpose THEN
-_uq := array_append(_uq, 'encryption_key_purpose = ' || quote_nullable(NEW.encryption_key_purpose));
-	END IF;
-
-	IF OLD.encryption_key_purpose_version IS DISTINCT FROM NEW.encryption_key_purpose_version THEN
-_uq := array_append(_uq, 'encryption_key_purpose_version = ' || quote_nullable(NEW.encryption_key_purpose_version));
-	END IF;
-
-	IF OLD.encryption_method IS DISTINCT FROM NEW.encryption_method THEN
-_uq := array_append(_uq, 'encryption_method = ' || quote_nullable(NEW.encryption_method));
-	END IF;
-
-	IF _uq IS NOT NULL THEN
-		EXECUTE 'UPDATE jazzhands.v_hotpants_token SET ' ||
-			array_to_string(_uq, ', ') ||
-			' WHERE  token_id = $1 RETURNING *'  USING OLD.token_id
-			INTO _nr;
-
-		NEW.token_id = _nr.token_id;
-		NEW.token_type = _nr.token_type;
-		NEW.token_status = _nr.token_status;
-		NEW.token_serial = _nr.token_serial;
-		NEW.token_key = _nr.token_key;
-		NEW.zero_time = _nr.zero_time;
-		NEW.time_modulo = _nr.time_modulo;
-		NEW.token_password = _nr.token_password;
-		NEW.is_token_locked = CASE WHEN _nr.is_token_locked = true THEN 'Y' WHEN _nr.is_token_locked = false THEN 'N' ELSE NULL END;
-		NEW.token_unlock_time = _nr.token_unlock_time;
-		NEW.bad_logins = _nr.bad_logins;
-		NEW.token_sequence = _nr.token_sequence;
-		NEW.last_updated = _nr.last_updated;
-		NEW.encryption_key_db_value = _nr.encryption_key_db_value;
-		NEW.encryption_key_purpose = _nr.encryption_key_purpose;
-		NEW.encryption_key_purpose_version = _nr.encryption_key_purpose_version;
-		NEW.encryption_method = _nr.encryption_method;
+		PERFORM token_utils.set_lock_status(
+			p_token_id := NEW.token_id,
+			p_lock_status := NEW.is_token_locked,
+			p_unlock_time := NEW.token_unlock_time,
+			p_bad_logins := NEW.bad_logins,
+			p_last_updated :=NEW.last_updated::timestamp
+		);
 	END IF;
 	RETURN NEW;
 END;
-$$
-SET search_path=jazzhands
+$$ SET search_path=jazzhands
 LANGUAGE plpgsql SECURITY DEFINER;
+
 
 DROP TRIGGER IF EXISTS trigger_v_hotpants_token_upd
 	ON jazzhands_legacy.v_hotpants_token;
@@ -12780,45 +14028,6 @@ CREATE TRIGGER trigger_v_hotpants_token_upd
 	FOR EACH ROW
 	EXECUTE PROCEDURE jazzhands_legacy.v_hotpants_token_upd();
 
-
-CREATE OR REPLACE FUNCTION jazzhands_legacy.v_hotpants_token_del()
-RETURNS TRIGGER AS
-$$
-DECLARE
-	_or	jazzhands.v_hotpants_token%rowtype;
-BEGIN
-	DELETE FROM jazzhands.v_hotpants_token
-	WHERE  token_id = OLD.token_id  RETURNING *
-	INTO _or;
-	OLD.token_id = _or.token_id;
-	OLD.token_type = _or.token_type;
-	OLD.token_status = _or.token_status;
-	OLD.token_serial = _or.token_serial;
-	OLD.token_key = _or.token_key;
-	OLD.zero_time = _or.zero_time;
-	OLD.time_modulo = _or.time_modulo;
-	OLD.token_password = _or.token_password;
-	OLD.is_token_locked = CASE WHEN _or.is_token_locked = true THEN 'Y' WHEN _or.is_token_locked = false THEN 'N' ELSE NULL END;
-	OLD.token_unlock_time = _or.token_unlock_time;
-	OLD.bad_logins = _or.bad_logins;
-	OLD.token_sequence = _or.token_sequence;
-	OLD.last_updated = _or.last_updated;
-	OLD.encryption_key_db_value = _or.encryption_key_db_value;
-	OLD.encryption_key_purpose = _or.encryption_key_purpose;
-	OLD.encryption_key_purpose_version = _or.encryption_key_purpose_version;
-	OLD.encryption_method = _or.encryption_method;
-	RETURN OLD;
-END;
-$$
-SET search_path=jazzhands
-LANGUAGE plpgsql SECURITY DEFINER;
-
-DROP TRIGGER IF EXISTS trigger_v_hotpants_token_del
-	ON jazzhands_legacy.v_hotpants_token;
-CREATE TRIGGER trigger_v_hotpants_token_del
-	INSTEAD OF DELETE ON jazzhands_legacy.v_hotpants_token
-	FOR EACH ROW
-	EXECUTE PROCEDURE jazzhands_legacy.v_hotpants_token_del();
 
 
 -- Triggers for v_person_company
@@ -13096,7 +14305,7 @@ _uq := array_append(_uq, 'nickname = ' || quote_nullable(NEW.nickname));
 		NEW.data_upd_date = _nr.data_upd_date;
 	END IF;
 
-       IF NEW.employee_id IS NOT NULL AND OLD.employee_id IS DISTINCT FROM NEW.employee_id  THEN
+	   IF NEW.employee_id IS NOT NULL AND OLD.employee_id IS DISTINCT FROM NEW.employee_id  THEN
 		INSERT INTO jazzhands.person_company_attribute AS pca (
 			company_id, person_id, person_company_attribute_name, attribute_value
 		) VALUES (
@@ -17630,7 +18839,7 @@ DECLARE
 	_uq	text[];
 BEGIN
 	SELECT * INTO crt FROM jazzhands.x509_signed_certificate
-        WHERE x509_signed_certificate_id = OLD.x509_cert_id;
+	    WHERE x509_signed_certificate_id = OLD.x509_cert_id;
 
 	IF crt.private_key_ID IS NULL AND NEW.private_key IS NOT NULL THEN
 		INSERT INTO private_key (
@@ -18627,33 +19836,33 @@ DECLARE
 BEGIN
 	IF NEW.service_environment_id IS NOT NULL THEN
 		INSERT INTO service_environment (
-				service_environment_id,
-       		service_environment_name,
-       		service_environment_type,
-       		production_state,
-       		description,
-       		external_id
+			service_environment_id,
+			service_environment_name,
+			service_environment_type,
+			production_state,
+			description,
+			external_id
 		) VALUES (
-				NEW.service_environment_id,
-       		NEW.service_environment_name,
-       		'default',
-       		NEW.production_state,
-       		NEW.description,
-       		NEW.external_id
+			NEW.service_environment_id,
+			NEW.service_environment_name,
+			'default',
+			NEW.production_state,
+			NEW.description,
+			NEW.external_id
 		) RETURNING * INTO _se;
 	ELSE
 		INSERT INTO service_environment (
-       		service_environment_name,
-       		service_environment_type,
-       		production_state,
-       		description,
-       		external_id
+			service_environment_name,
+			service_environment_type,
+			production_state,
+			description,
+			external_id
 		) VALUES (
-       		NEW.service_environment_name,
-       		'default',
-       		NEW.production_state,
-       		NEW.description,
-       		NEW.external_id
+			NEW.service_environment_name,
+			'default',
+			NEW.production_state,
+			NEW.description,
+			NEW.external_id
 		) RETURNING * INTO _se;
 
 	END IF;
@@ -18890,7 +20099,7 @@ BEGIN
 			INTO _cmc;
 
 		NEW.device_mgmt_control_type	= _cmc.component_management_controller_type;
-	  	NEW.description					= _cmc.description;
+		NEW.description					= _cmc.description;
 
 		NEW.data_ins_user := _cmc.data_ins_user;
 		NEW.data_ins_date := _cmc.data_ins_date;

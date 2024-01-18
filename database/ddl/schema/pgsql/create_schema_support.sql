@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2010-2021 Todd Kover, Matthew Ragan
+ * Copyright (c) 2010-2023 Todd Kover, Matthew Ragan
  * All rights reserved.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
@@ -16,23 +16,6 @@
  */
 
 \set ON_ERROR_STOP
-
-/*
- * Copyright (c) 2010-2021 Matthew Ragan
- * All rights reserved.
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *      http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- */
 
 
 --
@@ -72,8 +55,16 @@ $$ LANGUAGE plpgsql;
 -- end of procedure id_tag
 -------------------------------------------------------------------
 
+-------------------------------------------------------------------
+--
+-- Reset sequence to the greater of one more than the maximum value or
+-- the current nextval of the sequence.  Sets to 1 if the table
+-- is empty.  Set lowerseq to false to cause the sequence to be left
+-- alone if it would decrement it.
+--
+-------------------------------------------------------------------
 CREATE OR REPLACE FUNCTION schema_support.reset_table_sequence
-    ( schema VARCHAR, table_name VARCHAR )
+    ( schema VARCHAR, table_name VARCHAR, lowerseq BOOLEAN DEFAULT true )
 RETURNS VOID AS $$
 DECLARE
 	_r	RECORD;
@@ -102,22 +93,58 @@ BEGIN
 		AND relname = reset_table_sequence.table_name
 		AND NOT a.attisdropped
 	LOOP
-		EXECUTE  format('SELECT max(%s)+1 FROM %s.%s',
+		EXECUTE  format('SELECT coalesce(max(%s), 0)+1 FROM %s.%s',
 			quote_ident(_r.column),
 			quote_ident(schema),
 			quote_ident(table_name)
 		) INTO m;
-		IF m IS NOT NULL THEN
-			IF _r.nv > m THEN
-				m := _r.nv;
-			END IF;
-			EXECUTE format('ALTER SEQUENCE %s.%s RESTART WITH %s',
-				quote_ident(_r.seq_namespace),
-				quote_ident(_r.seq_name),
-				m
-			);
+
+		IF NOT lowerseq AND m < _r.nv  THEN
+			m := _r.nv;
 		END IF;
+		RAISE DEBUG 'resetting to %', m;
+		EXECUTE format('ALTER SEQUENCE %s.%s RESTART WITH %s',
+			quote_ident(_r.seq_namespace),
+			quote_ident(_r.seq_name),
+			m
+		);
 	END LOOP;
+END;
+$$
+SET search_path=schema_support
+LANGUAGE plpgsql SECURITY INVOKER;
+
+-------------------------------------------------------------------
+---
+--- resequence an audit table so audit records are generally in aud#seq
+--- order.  This is useful  when synthesizing a bunch of audit data.
+--- Note taht it does _not_ handle foreign keys.
+---
+-------------------------------------------------------------------
+CREATE OR REPLACE FUNCTION schema_support.renumber_audit_table_sequences (
+	schema	TEXT,
+	relation	TEXT
+) RETURNS VOID AS $$
+DECLARE
+	_seq	TEXT;
+BEGIN
+	_seq := concat('seq_', md5(concat(schema, '.', relation)));
+	EXECUTE format('CREATE SEQUENCE %s', _seq);
+
+	EXECUTE format('
+		UPDATE %s.%s o
+		SET "aud#seq" = newseqid
+		FROM (
+			SELECT	*, nextval(''%s'') as newseqid
+			FROM	%s.%s
+			ORDER BY	"aud#timestamp", "aud#realtime", "aud#seq"
+		) n
+		WHERE n."aud#seq" = o."aud#seq"
+		AND o."aud#seq" != newseqid
+	', schema, relation, quote_ident(_seq), schema, relation);
+
+	EXECUTE format('DROP SEQUENCE if exists %s', _seq);
+	PERFORM schema_support.reset_table_sequence(schema, relation, true);
 END;
 $$
 SET search_path=schema_support
@@ -156,36 +183,78 @@ BEGIN
 	|| '.' || quote_ident('perform_audit_' || table_name)
 	|| $ZZ$() RETURNS TRIGGER AS $TQ$
 	    DECLARE
-		appuser VARCHAR;
+			sub TEXT;
+			act TEXT;
+			appuser TEXT;
+			structuser JSONB;
+			c JSONB;
 	    BEGIN
-		appuser := concat_ws('/', session_user,
-			coalesce(
+
+		c := current_setting('request.jwt.claims', true);
+
+		-- this gets reset later to a more elaborate user. note that the
+		-- session user is no longer there.
+		appuser := coalesce(
 				current_setting('jazzhands.appuser', true),
 				current_setting('request.header.x-remote-user', true)
-			)
-		);
+			);
+		structuser := coalesce(current_setting('jazzhands.auditaugment',
+			true)::jsonb, '{}'::jsonb) ||
+			jsonb_build_object('user', current_user);
+		IF current_user != session_user THEN
+			structuser := structuser || jsonb_build_object('session', session_user);
+		ELSE
+			structuser := structuser - 'session';
+		END IF;
 
-		appuser = substr(appuser, 1, 255);
+		IF c IS NOT NULL AND c ? 'sub' THEN
+			sub := c->'sub';
+			structuser := structuser || jsonb_build_object('sub', sub);
+		ELSE
+			structuser := structuser - 'sub';
+		END IF;
+
+		IF c IS NOT NULL AND c ? 'act' AND c->'act' ? 'sub' THEN
+			act := c->'act'->'sub';
+			structuser := structuser || jsonb_build_object('act', act);
+		ELSE
+			structuser := structuser - 'act';
+		END IF;
+
+		IF appuser IS NOT NULL THEN
+			structuser := structuser || jsonb_build_object('appuser', appuser);
+		ELSE
+			structuser := structuser - 'appuser';
+		END IF;
+
+		appuser := concat_ws('/',
+			session_user,
+			CASE WHEN session_user != current_user THEN current_user ELSE NULL END,
+			act,
+			CASE WHEN sub IS DISTINCT FROM current_user THEN sub ELSE NULL END,
+			appuser
+		);
+		appuser := substr(appuser, 1, 255);
 
 		IF TG_OP = 'DELETE' THEN
 		    INSERT INTO $ZZ$ || quote_ident(aud_schema)
 			|| '.' || quote_ident(table_name) || $ZZ$
 		    VALUES ( OLD.*, 'DEL', now(),
-			clock_timestamp(), txid_current(), appuser );
+			clock_timestamp(), txid_current(), appuser, structuser );
 		    RETURN OLD;
 		ELSIF TG_OP = 'UPDATE' THEN
 			IF OLD != NEW THEN
 				INSERT INTO $ZZ$ || quote_ident(aud_schema)
 				|| '.' || quote_ident(table_name) || $ZZ$
 				VALUES ( NEW.*, 'UPD', now(),
-				clock_timestamp(), txid_current(), appuser );
+				clock_timestamp(), txid_current(), appuser, structuser );
 			END IF;
 			RETURN NEW;
 		ELSIF TG_OP = 'INSERT' THEN
 		    INSERT INTO $ZZ$ || quote_ident(aud_schema)
 			|| '.' || quote_ident(table_name) || $ZZ$
 		    VALUES ( NEW.*, 'INS', now(),
-			clock_timestamp(), txid_current(), appuser );
+			clock_timestamp(), txid_current(), appuser, structuser );
 		    RETURN NEW;
 		END IF;
 		RETURN NULL;
@@ -244,6 +313,7 @@ CREATE OR REPLACE FUNCTION schema_support.rebuild_audit_table_finish(
 RETURNS VOID AS $FUNC$
 DECLARE
 	cols	text[];
+	vals	text[];
 	i	text;
 	_t	text;
 BEGIN
@@ -252,8 +322,9 @@ BEGIN
 	-- get columns - XXX NOTE:  Need to remove columns not in the new
 	-- table...
 	--
-	SELECT	array_agg(quote_ident(a.attname) ORDER BY a.attnum)
-	INTO	cols
+	SELECT	array_agg(quote_ident(a.attname) ORDER BY a.attnum),
+		array_agg(quote_ident(a.attname) ORDER BY a.attnum)
+	INTO	cols, vals
 	FROM	pg_catalog.pg_attribute a
 	INNER JOIN pg_catalog.pg_class c on a.attrelid = c.oid
 	INNER JOIN pg_catalog.pg_namespace n on n.oid = c.relnamespace
@@ -266,6 +337,15 @@ BEGIN
 	  AND	NOT a.attisdropped
 	;
 
+	-- initial population of aud#actor.  This is digusting.
+	IF NOT quote_ident('aud#actor') = ANY(cols) THEN
+		cols := array_append(cols, '"aud#actor"');
+		vals := array_append(vals,
+			'jsonb_build_object(''user'', regexp_replace("aud#user", ''/.*$'', '''')) || CASE WHEN "aud#user" ~ ''/'' THEN jsonb_build_object(''appuser'', regexp_replace("aud#user", ''^[^/]*/?'', '''')) ELSE ''{}'' END'
+		);
+	END IF;
+
+
 	IF cols IS NULL THEN
 		RAISE EXCEPTION 'Unable to get columns from "%.%"',
 			quote_ident(aud_schema), _t;
@@ -275,7 +355,7 @@ BEGIN
 		|| quote_ident(aud_schema) || '.'
 		|| quote_ident(table_name) || ' ( '
 		|| array_to_string(cols, ',') || ' ) SELECT '
-		|| array_to_string(cols, ',') || ' FROM '
+		|| array_to_string(vals, ',') || ' FROM '
 		|| quote_ident(aud_schema) || '.'
 		|| quote_ident('__old__t' || table_name)
 		|| ' ORDER BY '
@@ -702,7 +782,9 @@ BEGIN
 		|| 'SELECT *, NULL::char(3) as "aud#action", now() as "aud#timestamp", '
 		|| 'clock_timestamp() as "aud#realtime", '
 		|| 'txid_current() as "aud#txid", '
-		|| 'NULL::varchar(255) AS "aud#user", NULL::integer AS "aud#seq" '
+		|| 'NULL::varchar(255) AS "aud#user", '
+		|| 'NULL::jsonb AS "aud#actor", '
+		|| 'NULL::integer AS "aud#seq" '
 		|| 'FROM ' || quote_ident(tbl_schema) || '.' || quote_ident(table_name)
 		|| ' LIMIT 0';
 
@@ -815,35 +897,50 @@ $FUNC$ LANGUAGE plpgsql;
 CREATE OR REPLACE FUNCTION schema_support.trigger_ins_upd_generic_func()
 RETURNS TRIGGER AS $$
 DECLARE
-    appuser VARCHAR;
+    appuser TEXT;
+	c JSONB;
+	act TEXT;
+	sub TEXT;
 BEGIN
-	appuser := concat_ws('/', session_user,
+	c := current_setting('request.jwt.claims', true);
+
+	IF c IS NOT NULL AND c ? 'sub' THEN
+		sub := c->'sub';
+	END IF;
+
+	IF c IS NOT NULL AND c ? 'act' AND c->'act' ? 'sub' THEN
+		act := c->'act'->'sub';
+	END IF;
+
+	appuser := concat_ws('/',
+		session_user,
+		act,
+		CASE WHEN session_user != current_user THEN current_user ELSE NULL END,
+		CASE WHEN sub IS DISTINCT FROM current_user THEN sub ELSE NULL END,
 		coalesce(
 			current_setting('jazzhands.appuser', true),
 			current_setting('request.header.x-remote-user', true)
 		)
 	);
-    appuser = substr(appuser, 1, 255);
+	appuser := substr(appuser, 1, 255);
 
     IF TG_OP = 'INSERT' THEN
-	NEW.data_ins_user = appuser;
-	NEW.data_ins_date = 'now';
-    END IF;
+		NEW.data_ins_user = appuser;
+		NEW.data_ins_date = 'now';
+    ELSIF TG_OP = 'UPDATE' AND OLD != NEW THEN
+		NEW.data_upd_user = appuser;
+		NEW.data_upd_date = 'now';
 
-    IF TG_OP = 'UPDATE' AND OLD != NEW THEN
-	NEW.data_upd_user = appuser;
-	NEW.data_upd_date = 'now';
+		IF OLD.data_ins_user != NEW.data_ins_user THEN
+	    	RAISE EXCEPTION
+			'Non modifiable column "DATA_INS_USER" cannot be modified.';
+		END IF;
 
-	IF OLD.data_ins_user != NEW.data_ins_user THEN
-	    RAISE EXCEPTION
-		'Non modifiable column "DATA_INS_USER" cannot be modified.';
+		IF OLD.data_ins_date != NEW.data_ins_date THEN
+	    	RAISE EXCEPTION
+			'Non modifiable column "DATA_INS_DATE" cannot be modified.';
+    	END IF;
 	END IF;
-
-	IF OLD.data_ins_date != NEW.data_ins_date THEN
-	    RAISE EXCEPTION
-		'Non modifiable column "DATA_INS_DATE" cannot be modified.';
-	END IF;
-    END IF;
 
     RETURN NEW;
 
@@ -910,13 +1007,13 @@ DECLARE
 	_tally	integer;
 BEGIN
 	IF shouldbesuper THEN
-		SELECT usesuper INTO issuper FROM pg_user where usename = current_user;
+		SELECT rolsuper INTO issuper FROM pg_roles where rolname = current_user;
 		IF issuper IS false THEN
 			PERFORM groname, rolname
 			FROM (
 				SELECT groname, unnest(grolist) AS oid
 				FROM pg_group ) g
-			JOIN pg_roles r USING (oid)
+			JOIN pg_roles u USING (oid)
 			WHERE groname = 'dba'
 			AND rolname = current_user;
 
@@ -957,7 +1054,7 @@ BEGIN
 			LEFT JOIN (
 		SELECT relowner, count(*) AS numrels
 				FROM pg_class
-				WHERE relkind IN ('r','v')
+				WHERE relkind IN ('r','v') AND relpersistence != 't'
 				GROUP BY 1
 				) c ON r.oid = c.relowner
 			LEFT JOIN (SELECT proowner, count(*) AS numprocs
@@ -967,7 +1064,7 @@ BEGIN
 			LEFT JOIN (
 				SELECT relowner, count(*) AS numfks
 				FROM pg_class r JOIN pg_constraint fk ON fk.confrelid = r.oid
-				WHERE contype = 'f'
+				WHERE contype = 'f' AND relpersistence != 't'
 				GROUP BY 1
 			) fk ON r.oid = fk.relowner
 		WHERE r.oid > 16384
@@ -992,7 +1089,7 @@ DECLARE
 	_myrole	TEXT;
 	msg TEXT;
 BEGIN
-	SELECT usesuper INTO issuper FROM pg_user where usename = current_user;
+	SELECT rolsuper INTO issuper FROM pg_roles where rolname = current_user;
 	IF issuper THEN
 		EXECUTE 'ALTER USER ' || current_user || ' NOSUPERUSER';
 	END IF;
@@ -1034,7 +1131,7 @@ BEGIN
 			LEFT JOIN (
 		SELECT relowner, count(*) AS numrels
 				FROM pg_class
-				WHERE relkind IN ('r','v')
+				WHERE relkind IN ('r','v') AND relpersistence != 't'
 				GROUP BY 1
 				) c ON r.oid = c.relowner
 			LEFT JOIN (SELECT proowner, count(*) AS numprocs
@@ -1044,7 +1141,7 @@ BEGIN
 			LEFT JOIN (
 				SELECT relowner, count(*) AS numfks
 				FROM pg_class r JOIN pg_constraint fk ON fk.confrelid = r.oid
-				WHERE contype = 'f'
+				WHERE contype = 'f' AND relpersistence != 't'
 				GROUP BY 1
 			) fk ON r.oid = fk.relowner
 		WHERE r.oid > 16384
@@ -1500,11 +1597,11 @@ BEGIN
 
 	-- now save the view
 	FOR _r in SELECT c.oid, n.nspname, c.relname, 'view',
-				coalesce(u.usename, 'public') as owner,
+				coalesce(u.rolname, 'public') as owner,
 				pg_get_viewdef(c.oid, true) as viewdef, relkind
 		FROM pg_class c
 		INNER JOIN pg_namespace n on n.oid = c.relnamespace
-		LEFT JOIN pg_user u on u.usesysid = c.relowner
+		LEFT JOIN pg_roles u on u.oid = c.relowner
 		WHERE c.relname = object
 		AND n.nspname = schema
 	LOOP
@@ -1921,13 +2018,13 @@ BEGIN
 	-- implicitly save regrants
 	PERFORM schema_support.save_grants_for_replay(schema, object, object, tags);
 	FOR _r IN SELECT n.nspname, p.proname,
-				coalesce(u.usename, 'public') as owner,
+				coalesce(u.rolname, 'public') as owner,
 				pg_get_functiondef(p.oid) as funcdef,
 				pg_get_function_identity_arguments(p.oid) as idargs
 		FROM    pg_catalog.pg_proc  p
 				INNER JOIN pg_catalog.pg_namespace n on n.oid = p.pronamespace
 				INNER JOIN pg_catalog.pg_language l on l.oid = p.prolang
-				INNER JOIN pg_catalog.pg_user u on u.usesysid = p.proowner
+				INNER JOIN pg_catalog.pg_roles u on u.oid = p.proowner
 		WHERE   n.nspname = schema
 		  AND	p.proname = object
 	LOOP
@@ -2195,20 +2292,43 @@ CREATE OR REPLACE FUNCTION schema_support.undo_audit_row(
 	in_txids		bigint[] DEFAULT NULL
 ) RETURNS INTEGER AS $$
 DECLARE
-	tally	integer;
-	pks		text[];
-	cols	text[];
-	q		text;
-	val		text;
-	x		text;
-	_whcl	text;
-	_eq		text;
-	setstr	text;
-	_r		record;
-	_c		record;
-	_br		record;
-	_vals	text[];
+	tally				integer;
+	pks					text[];
+	cols				text[];
+	q					text;
+	val					text;
+	x					text;
+	_whcl				text;
+	_eq					text;
+	setstr				text;
+	_r					record;
+	_c					record;
+	_br					record;
+	_vals				text[];
+	txt_in_audit_ids	text;
+	txt_in_txids		text;
+	i					integer;
 BEGIN
+	IF in_txids IS NOT NULL THEN
+		FOREACH i IN ARRAY in_txids LOOP
+			IF txt_in_txids IS NULL THEN
+				txt_in_txids := i;
+			ELSE
+				txt_in_txids := txt_in_txids || ',' || i;
+			END IF;
+		END LOOP;
+	END IF;
+
+	IF in_audit_ids IS NOT NULL THEN
+		FOREACH i IN ARRAY in_audit_ids LOOP
+			IF txt_in_audit_ids IS NULL THEN
+				txt_in_audit_ids := i;
+			ELSE
+				txt_in_audit_ids := txt_in_audit_ids || ',' || i;
+			END IF;
+		END LOOP;
+	END IF;
+
 	tally := 0;
 	pks := schema_support.get_pk_columns(in_schema, in_table);
 	cols := schema_support.get_columns(in_schema, in_table);
@@ -2243,19 +2363,23 @@ BEGIN
 		ELSE
 			q := q || 'AND ';
 		END IF;
-		q := q || quote_ident('aud#seq') || ' = ANY (in_audit_ids)';
+		RAISE NOTICE 'xx -> %', txt_in_audit_ids;
+		q := q || quote_ident('aud#seq') || ' = ANY (ARRAY[' || txt_in_audit_ids || '])';
 	END IF;
-	IF in_audit_ids is not NULL THEN
+	IF in_txids is not NULL THEN
 		IF q = '' THEN
 			q := q || 'WHERE ';
 		ELSE
 			q := q || 'AND ';
 		END IF;
-		q := q || quote_ident('aud#txid') || ' = ANY (in_txids)';
+		RAISE NOTICE 'xx -> %', txt_in_txids;
+		q := q || quote_ident('aud#txid') || ' = ANY (ARRAY[' || txt_in_txids || '])';
 	END IF;
 
+	RAISE NOTICE 'q-> %', q;
+
 	-- Iterate over all the rows that need to be replayed
-	q := 'SELECT * from ' || quote_ident(in_audit_schema) || '.' ||
+	q := 'SELECT * FROM ' || quote_ident(in_audit_schema) || '.' ||
 			quote_ident(in_table) || ' ' || q || ' ORDER BY "aud#seq" desc';
 	FOR _r IN EXECUTE q
 	LOOP
@@ -2389,7 +2513,7 @@ BEGIN
 		FROM    pg_catalog.pg_proc  p
 				INNER JOIN pg_catalog.pg_namespace n on n.oid = p.pronamespace
 				INNER JOIN pg_catalog.pg_language l on l.oid = p.prolang
-				INNER JOIN pg_catalog.pg_user u on u.usesysid = p.proowner
+				INNER JOIN pg_catalog.pg_roles u on u.oid = p.proowner
 		WHERE   n.nspname = schema
 		  AND	p.proname = object
 	LOOP
@@ -2543,6 +2667,9 @@ BEGIN
 			key_relation := old_rel;
 		END IF;
 		prikeys := schema_support.get_pk_columns(_oldschema, key_relation);
+		IF prikeys IS NULL THEN
+			RAISE EXCEPTION 'Could not determine primary keys';
+		END IF;
 	END IF;
 
 	-- read into _cols the column list in common between old_rel and new_rel
@@ -2766,6 +2893,108 @@ BEGIN
 		ORDER BY table_name
     LOOP
 		SELECT schema_support.migrate_legacy_serial_to_identity(tbl_schema, table_list) INTO _r;
+		_tally := _tally + _r;
+    END LOOP;
+	RETURN _tally;
+END;
+$$ LANGUAGE plpgsql
+SECURITY INVOKER;
+
+--
+-- to facilitate rollback of identity to serial.  Undoes the above.
+--
+CREATE OR REPLACE FUNCTION schema_support.migrate_identity_to_legacy_serial (
+	schema TEXT,
+	relation TEXT
+) RETURNS integer AS $$
+DECLARE
+	_r	RECORD;
+	_d	RECORD;
+	_s	RECORD;
+	_t	INTEGER;
+BEGIN
+	_t := 0;
+	FOR _r IN SELECT attrelid, attname, seq_id, seq_name, deptype
+		FROM pg_attribute a
+			JOIN pg_class c ON c.oid = a.attrelid
+			JOIN pg_namespace n ON n.oid = c.relnamespace
+			INNER JOIN (
+				SELECT refobjid AS attrelid, refobjsubid AS attnum,
+					c.oid AS seq_id, c.relname AS seq_name,
+					n.oid AS seq_nspid, n.nspname AS seq_namespace,
+					deptype
+				FROM
+					pg_depend d
+					JOIN pg_class c ON c.oid = d.objid
+					JOIN pg_namespace n ON n.oid = c.relnamespace
+				WHERE	c.relkind = 'S'
+					AND deptype = 'i'
+			) seq USING (attrelid, attnum)
+		WHERE	NOT a.attisdropped
+			AND nspname = SCHEMA
+			AND relname = relation
+		ORDER BY
+			a.attnum
+	LOOP
+		EXECUTE format('SELECT s.*, coalesce(pg_sequence_last_value(''%s.%s''), nextval(''%s.%s''))  as lastval  FROM pg_sequence s WHERE seqrelid = %s',
+			quote_ident(schema), quote_ident(_r.seq_name),
+			quote_ident(schema), quote_ident(_r.seq_name),
+			_r.seq_id
+		) INTO _s;
+
+		EXECUTE format('ALTER TABLE %s.%s ALTER COLUMN %s DROP IDENTITY',
+			quote_ident(schema),
+			quote_ident(relation),
+			quote_ident(_r.attname));
+
+		EXECUTE format('CREATE SEQUENCE %s.%s OWNED BY %s.%s.%s INCREMENT BY %s',
+			quote_ident(schema),
+			quote_ident(_r.seq_name),
+			quote_ident(schema),
+			quote_ident(relation),
+			quote_ident(_r.attname),
+			_s.seqincrement
+		);
+
+		EXECUTE format('ALTER SEQUENCE %s.%s RESTART WITH %s',
+			quote_ident(schema),
+			quote_ident(_r.seq_name),
+			_s.lastval + 1
+		);
+
+		EXECUTE format('ALTER TABLE %s.%s ALTER COLUMN %s SET DEFAULT nextval(%s)',
+			quote_ident(schema),
+			quote_ident(relation),
+			quote_ident(_r.attname),
+			quote_literal(concat_ws('.',
+				quote_ident(schema),
+				quote_ident(_r.seq_name)
+			))
+		);
+
+		_t := _t + 1;
+	END LOOP;
+	RETURN _t;
+END;
+$$ LANGUAGE plpgsql
+SECURITY INVOKER;
+
+CREATE OR REPLACE FUNCTION schema_support.migrate_identity_to_legacy_serials (
+	tbl_schema TEXT
+) RETURNS INTEGER AS $$
+DECLARE
+	_r		INTEGER;
+	_tally	INTEGER;
+	table_list	TEXT;
+BEGIN
+
+	_tally := 0;
+    FOR table_list IN
+		SELECT table_name::text FROM information_schema.tables
+		WHERE table_type = 'BASE TABLE' AND table_schema = tbl_schema
+		ORDER BY table_name
+    LOOP
+		SELECT schema_support.migrate_identity_to_legacy_serial(tbl_schema, table_list) INTO _r;
 		_tally := _tally + _r;
     END LOOP;
 	RETURN _tally;
@@ -3074,7 +3303,7 @@ BEGIN
 			p->>'privilege_type' as privilege_type,
 			col,
 			r.usename as grantor, e.usename as grantee,
-			r.usesysid as rid,  e.usesysid as eid,
+			r.oid as rid,  e.oid as eid,
 			e.useconfig
 		FROM (
 			SELECT  c.oid, n.nspname as schema,
@@ -3112,8 +3341,8 @@ BEGIN
 			WHERE c.relkind IN ('r', 'v', 'S', 'f')
 			AND a.attacl IS NOT NULL
 		) x
-		LEFT JOIN pg_user r ON r.usesysid = (p->>'grantor')::oid
-		LEFT JOIN pg_user e ON e.usesysid = (p->>'grantee')::oid
+		LEFT JOIN pg_roles r ON r.oid = (p->>'grantor')::oid
+		LEFT JOIN pg_roles e ON e.oid = (p->>'grantee')::oid
 		) i
 		) select *
 		FROM x
@@ -3297,6 +3526,38 @@ LANGUAGE plpgsql
 -- setting a search_path messes with the function, so do not.
 SECURITY DEFINER;
 
+---
+--- Shows difference between JSONB hashes
+--- currently only one level but patches welcome
+CREATE OR REPLACE FUNCTION schema_support.jsonb_diff(one JSONB, other JSONB)
+RETURNS JSONB
+AS
+$$
+DECLARE
+	key	TEXT;
+	rv	JSONB;
+BEGIN
+	rv := '{}';
+	FOR key IN SELECT * FROM jsonb_object_keys(one)
+	LOOP
+		IF NOT other ? key THEN
+			rv := rv || jsonb_build_object(
+					key, jsonb_build_array(one->key, NULL));
+		ELSIF other->>key IS DISTINCT FROM one->>key THEN
+			rv := rv || jsonb_build_object(
+					key, jsonb_build_array(one->key, other->key));
+		END IF;
+	END LOOP;
+	FOR key IN SELECT * FROM jsonb_object_keys(other)
+	LOOP
+		IF NOT one ? key THEN
+			rv := rv || jsonb_build_object(
+					key, jsonb_build_array(NULL, other->key));
+		END IF;
+	END LOOP;
+	RETURN rv;
+END;
+$$ LANGUAGE plpgsql;
 
 --
 -- This migrates grants from one schema to another for setting up a shadow

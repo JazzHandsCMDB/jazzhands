@@ -9,6 +9,7 @@ Url:        http://www.jazzhands.net/
 Source0:    %{name}-%{version}.tar.gz
 BuildRoot:  %{_tmppath}/%{name}-%{version}-%{release}-buildroot
 BuildArch:  noarch
+BuildRequires: make
 %if 0%{?suse_version}
 BuildRequires: python >= 2.7
 Requires: python >= 2.7
@@ -34,6 +35,6 @@ python2.7 setup.py install -O1 --root=%{buildroot} --record=%{filelist}
 
 %files -f %{filelist}
 %defattr(755,root,root,-)
-%if %{_vendor} == "suse"
+%if 0%{?suse_version}
 %dir /usr/lib/python2.7/site-packages/jazzhands_vault
 %endif

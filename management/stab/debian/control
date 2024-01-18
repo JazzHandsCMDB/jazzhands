@@ -2,18 +2,18 @@ Source: jazzhands-stab
 Section: unknown
 Priority: extra
 Maintainer: JazzHands Project <release@jazzhands.net>
-Build-Depends: debhelper (>= 8.0.0), perl-modules
-Standards-Version: 3.9.4
+Build-Depends: debhelper (>= 9.0.0), perl-modules
+Standards-Version: 4.6.2
 Homepage: http://www.jazzhands.net/
 
 Package: jazzhands-perl-stab
-Architecture: any
-Pre-Depends: libnet-ip-perl, libnet-dns-perl, libnetaddr-ip-perl, libcgi-pm-perl, libnet-netmask-perl, perl-jazzhands-dbi ( >= 0.86.0 )
+Architecture: all
+Depends: libnet-ip-perl, libnet-dns-perl, libnetaddr-ip-perl, libcgi-pm-perl, libnet-netmask-perl, perl-jazzhands-dbi ( >= 0.96.0 )
 Description: 
  Perl libraries for STAB
 
 Package: jazzhands-stab
-Architecture: any
-Pre-Depends: jazzhands-perl-mgmt (>= 0.79.0), jazzhands-perl-common (>= 0.86.0), jazzhands-perl-stab (=${binary:Version}), jazzhands-javascript-common  (>= 0.79.0)
+Architecture: all
+Depends: jazzhands-perl-mgmt (>= 0.96.0), jazzhands-perl-common (>= 0.96.0), jazzhands-perl-stab (=${binary:Version}), jazzhands-javascript-common  (>= 0.96.0)
 Description: 
  JazzHands STAB Web Front End

@@ -1,0 +1,14 @@
+[Unit]
+Description=jazzhands-dhcpgen service
+After=network.target
+
+[Service]
+Type=simple
+Environment=logfile=/var/log/dhcpgen
+ExecStart=/usr/libexec/jazzhands/dhcpgen/dhcpgen --logfile ${logfile}
+StartLimitInterval=60s
+StartLimitBurst=3
+Restart=on-failure
+
+[Install]
+WantedBy=multi-user.target

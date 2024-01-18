@@ -2,12 +2,12 @@ Source: jazzhands-mkpasswdfiles
 Section: unknown
 Priority: extra
 Maintainer: JazzHands Project <release@jazzhands.net>
-Build-Depends: debhelper (>= 8.0.0), perl-modules
-Standards-Version: 3.9.4
+Build-Depends: debhelper (>= 9.0.0), perl-modules
+Standards-Version: 4.6.2
 Homepage: http://www.jazzhands.net/
 
 Package: jazzhands-mkpasswdfiles
-Depends: jazzhands-perl-common (>= 0.73.2), perl-jazzhands-dbi (>= 0.84.3)
-Architecture: any
+Depends: jazzhands-perl-common (>= 0.96.0), perl-jazzhands-dbi (>= 0.96.0)
+Architecture: all
 Description: 
  Generates unix credentials

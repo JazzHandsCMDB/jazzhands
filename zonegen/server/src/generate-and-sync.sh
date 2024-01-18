@@ -251,7 +251,6 @@ fi
 
 if [ -x "$STATS_SCRIPT" ] ; then
 	jq < $STATSFILEN '.events |= . + [{"rsync": '$rsynctime'}]' |
-		jq -j -r '.events[] | to_entries | .[] | "\(.key):\(.value); "' |
 		$STATS_SCRIPT
 fi
 rm -f "$STATSFILEN"

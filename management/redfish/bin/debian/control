@@ -2,10 +2,10 @@ Source: jazzhands-redfish-utils
 Section: System/Management
 Priority: optional
 Maintainer: Matthew Ragan <mdr@sucksless.net>
-Build-Depends: debhelper (>= 8.0.0)
-Standards-Version: 3.9.4
+Build-Depends: debhelper (>= 9.0.0)
+Standards-Version: 4.6.2
 
 Package: jazzhands-redfish-utils
 Architecture: all
-Depends: jazzhands-perl-redfish ( >= 0.81.5)
+Depends: jazzhands-perl-redfish ( >= 0.96.0)
 Description: JazzHands redfish management utilities

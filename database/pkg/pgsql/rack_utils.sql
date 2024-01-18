@@ -100,7 +100,7 @@ BEGIN
 	END IF;
 
 	IF component_id IS NOT NULL THEN
-		SELECT * INTO rec FROM component c WHERE d.component_id = cid;
+		SELECT * INTO rec FROM component c WHERE c.component_id = cid;
 		IF rec.rack_location_id IS DISTINCT FROM rlid THEN
 			UPDATE component c SET rack_location_id = rlid WHERE
 				c.component_id = cid;

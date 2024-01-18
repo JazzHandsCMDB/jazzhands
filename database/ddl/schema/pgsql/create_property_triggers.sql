@@ -25,8 +25,10 @@ SET search_path=jazzhands
 LANGUAGE plpgsql SECURITY DEFINER;
 
 DROP TRIGGER IF EXISTS trigger_validate_property ON property;
-CREATE TRIGGER trigger_validate_property BEFORE INSERT OR UPDATE
-	ON property FOR EACH ROW EXECUTE PROCEDURE validate_property();
+CREATE CONSTRAINT TRIGGER trigger_validate_property
+	AFTER INSERT OR UPDATE
+	ON property FOR EACH ROW
+	EXECUTE PROCEDURE validate_property();
 
 
 ------------------------------------------------------------------------------
@@ -42,20 +44,6 @@ DECLARE
 BEGIN
 
 	PERFORM property_utils.validate_val_property(NEW);
-
-	IF TG_OP = 'UPDATE' AND OLD.property_data_type != NEW.property_data_type THEN
-		SELECT	count(*)
-		INTO	_tally
-		FROM	property
-		WHERE	property_name = NEW.property_name
-		AND		property_type = NEW.property_type;
-
-		IF _tally > 0  THEN
-			RAISE 'May not change property type if there are existing properties'
-				USING ERRCODE = 'foreign_key_violation';
-
-		END IF;
-	END IF;
 
 	IF TG_OP = 'INSERT' AND NEW.permit_company_id != 'PROHIBITED' OR
 		( TG_OP = 'UPDATE' AND NEW.permit_company_id != 'PROHIBITED' AND

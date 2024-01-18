@@ -49,8 +49,9 @@
 -- data is there; need to do that before rewritten to use proper savepoints.
 
 SAVEPOINT property_trigger_test;
-\ir ../../pkg/pgsql/property_utils.sql
-\ir ../../ddl/schema/pgsql/create_property_triggers.sql
+-- Tests things in here
+-- \ir ../../pkg/pgsql/property_utils.sql
+-- \ir ../../ddl/schema/pgsql/create_property_triggers.sql
 
 CREATE FUNCTION validate_property_triggers() RETURNS BOOLEAN AS $$
 DECLARE
@@ -925,7 +926,7 @@ Wx8Cnfff014Sk0b/BSBxSP9PQWjkh8PEQRiGajDRd93FJ2w=
 	FROM pkh
 	RETURNING private_key_id INTO v_private_key_id;
 
-	INSERT INTO val_encryption_method (encryption_method) VALUES ('JHTEST');
+	INSERT INTO val_encryption_method (encryption_method, cipher, key_size, cipher_chain_mode, cipher_padding, passphrase_cryptographic_hash_algorithm ) VALUES ('JHTEST', 'none', 0, 'none', 'none', 'none');
 	INSERT INTO val_encryption_key_purpose (encryption_key_purpose, encryption_key_purpose_version) VALUES ('JHTEST', 1);
 
 	INSERT INTO encryption_key (

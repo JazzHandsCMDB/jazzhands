@@ -41,7 +41,7 @@ our %EXPORT_TAGS = (
 #
 # This is used external to JazzHands and thus can't really change
 # It is used internally to these libraries in a few places to handle cases
-# where calls are bath both inside and not inside this library
+# where calls are both inside and not inside this library
 #
 sub SetError {
 	my $error = shift;
@@ -130,33 +130,33 @@ sub ErrorF {
 	return $self->Error($str);
 }
 
+#
+# These next three are being folded into the new logging system and will
+# eventually go away.
+#
+#
+
 sub SetDebug {
 	my $self = shift;
-	if (@_) { $self->{_debug} = shift; }
-	return $self->{_debug};
+	$self->{_loghandle} || $self->initialize_logging;
+	$self->{_loghandle}->SetDebug(@_);
 }
 
 sub SetDebugCallback {
 	my $self = shift;
-	if (@_) { $self->{_debug_callback} = shift; }
-	return $self->{_debug_callback};
+	$self->{_loghandle} || $self->initialize_logging;
+	$self->{_loghandle}->SetDebugCallback(@_);
 }
 
 sub _Debug {
 	my $self  = shift;
-	my $level = shift;
-
-	if ( $level <= $self->{_debug} && @_ ) {
-		if ( $self->{_debug_callback} ) {
-			my $fmt = shift @_;
-			my $str = sprintf( $fmt, @_ );
-			&{ $self->{_debug_callback} }( $level, $str );
-		} else {
-			printf STDERR @_;
-			print STDERR "\n";
-		}
-	}
+	$self->{_loghandle} || $self->initialize_logging;
+	$self->{_loghandle}->_Debug(@_);
 }
+
+#
+# End of things that will eventually go away.
+#
 
 1;
 

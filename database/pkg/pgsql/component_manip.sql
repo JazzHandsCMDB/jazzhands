@@ -1,13 +1,13 @@
 --
 -- Copyright (c) 2015-2020 Matthew Ragan
 -- All rights reserved.
--- 
+--
 -- Licensed under the Apache License, Version 2.0 (the "License");
 -- you may not use this file except in compliance with the License.
 -- You may obtain a copy of the License at
--- 
+--
 --      http://www.apache.org/licenses/LICENSE-2.0
--- 
+--
 -- Unless required by applicable law or agreed to in writing, software
 -- distributed under the License is distributed on an "AS IS" BASIS,
 -- WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
@@ -114,7 +114,7 @@ BEGIN
 			st.slot_function,
 			ctst.component_type_slot_template_id
 		FROM
-			slot s JOIN 
+			slot s JOIN
 			slot_type st USING (slot_type_id) JOIN
 			component c USING (component_id) LEFT JOIN
 			component_type_slot_template ctst USING (component_type_slot_template_id)
@@ -128,7 +128,7 @@ BEGIN
 			s.slot_type_id,
 			st.slot_function
 		FROM
-			slot s JOIN 
+			slot s JOIN
 			slot_type st USING (slot_type_id) JOIN
 			component c USING (component_id) LEFT JOIN
 			component_type_slot_template ctst USING (component_type_slot_template_id)
@@ -241,7 +241,7 @@ BEGIN
 	-- Get a list of all slots that have replacement values
 
 	FOR slot_rec IN
-		SELECT 
+		SELECT
 			s.slot_id,
 			COALESCE(pst.child_slot_name_template, st.slot_name_template)
 				AS slot_name_template,
@@ -277,7 +277,7 @@ BEGIN
 		IF (slot_rec.parent_slot_index IS NOT NULL AND
 			slot_rec.slot_index IS NOT NULL) THEN
 			sn := regexp_replace(sn,
-				'%\{relative_slot_index\}', 
+				'%\{relative_slot_index\}',
 				(slot_rec.parent_slot_index + slot_rec.slot_index)::text,
 				'g');
 		END IF;
@@ -369,13 +369,18 @@ BEGIN
 	DELETE FROM component_property cp WHERE
 		cp.component_id = ANY (delete_list) OR
 		slot_id = ANY (slot_list);
-		
+
 	DELETE FROM
 		slot s
 	WHERE
 		slot_id = ANY (slot_list) AND
 		s.component_id = ANY(delete_list);
-		
+
+	DELETE FROM
+		asset a
+	WHERE
+		a.component_id = ANY (delete_list);
+
 	DELETE FROM
 		component c
 	WHERE
@@ -387,11 +392,6 @@ $$
 SET search_path=jazzhands
 SECURITY DEFINER
 LANGUAGE plpgsql;
-
---
--- These need to all call a generic component/component_type insertion
--- function, rather than all of the specific types, but that's thinking
---
 
 CREATE OR REPLACE FUNCTION component_manip.insert_pci_component(
 	pci_vendor_id	integer,
@@ -409,13 +409,14 @@ CREATE OR REPLACE FUNCTION component_manip.insert_pci_component(
 AS $$
 DECLARE
 	sn			ALIAS FOR serial_number;
-	ctid		integer;
+	ct			RECORD;
 	comp_id		integer;
 	sub_comp_id	integer;
 	stid		integer;
 	vendor_name	text;
 	sub_vendor_name	text;
 	model_name	text;
+	descrip		text;
 	c			RECORD;
 BEGIN
 	IF (pci_sub_vendor_id IS NULL AND pci_subsystem_id IS NOT NULL) OR
@@ -428,7 +429,7 @@ BEGIN
 	-- See if we have this component type in the database already
 	--
 	SELECT
-		vid.component_type_id INTO ctid
+		component_type.* INTO ct
 	FROM
 		component_property vid JOIN
 		component_property did ON (
@@ -444,7 +445,9 @@ BEGIN
 		component_property sid ON (
 			sid.component_property_name = 'PCISubsystemID' AND
 			sid.component_property_type = 'PCI' AND
-			sid.component_type_id = did.component_type_id )
+			sid.component_type_id = did.component_type_id ) JOIN
+		component_type ON (
+			did.component_type_id = component_type.component_type_id )
 	WHERE
 		vid.property_value = pci_vendor_id::varchar AND
 		did.property_value = pci_device_id::varchar AND
@@ -455,7 +458,7 @@ BEGIN
 	-- The device type doesn't exist, so attempt to insert it
 	--
 
-	IF NOT FOUND THEN	
+	IF NOT FOUND THEN
 		IF pci_device_name IS NULL OR component_function_list IS NULL THEN
 			RAISE EXCEPTION 'component_id not found and pci_device_name or component_function_list was not passed' USING ERRCODE = 'JH501';
 		END IF;
@@ -472,19 +475,19 @@ BEGIN
 			property_type = 'DeviceProvisioning' AND
 			property_name = 'PCIVendorID' AND
 			property_value = pci_vendor_id::text;
-		
+
 		IF NOT FOUND THEN
 			IF pci_vendor_name IS NULL THEN
 				RAISE EXCEPTION 'PCI vendor id mapping not found and pci_vendor_name was not passed' USING ERRCODE = 'JH501';
 			END IF;
 			SELECT company_id INTO comp_id FROM company
 			WHERE company_name = pci_vendor_name;
-		
+
 			IF NOT FOUND THEN
 				SELECT company_manip.add_company(
-					_company_name := pci_vendor_name,
-					_company_types := ARRAY['hardware provider'],
-					 _description := 'PCI vendor auto-insert'
+					company_name := pci_vendor_name,
+					company_types := ARRAY['hardware provider'],
+					description := 'PCI vendor auto-insert'
 				) INTO comp_id;
 			END IF;
 
@@ -511,14 +514,14 @@ BEGIN
 			property_type = 'DeviceProvisioning' AND
 			property_name = 'PCIVendorID' AND
 			property_value = pci_sub_vendor_id::text;
-		
+
 		IF NOT FOUND THEN
 			IF pci_sub_vendor_name IS NULL THEN
 				RAISE EXCEPTION 'PCI subsystem vendor id mapping not found and pci_sub_vendor_name was not passed' USING ERRCODE = 'JH501';
 			END IF;
 			SELECT company_id INTO sub_comp_id FROM company
 			WHERE company_name = pci_sub_vendor_name;
-		
+
 			IF NOT FOUND THEN
 				SELECT company_manip.add_company(
 					_company_name := pci_sub_vendor_name,
@@ -545,7 +548,7 @@ BEGIN
 		-- Fetch the slot type
 		--
 
-		SELECT 
+		SELECT
 			slot_type_id INTO stid
 		FROM
 			slot_type st
@@ -562,16 +565,27 @@ BEGIN
 		--
 		-- Figure out the best name/description to insert this component with
 		--
-		IF pci_sub_device_name IS NOT NULL AND pci_sub_device_name != 'Device' THEN
-			model_name = concat_ws(' ', 
+		IF
+			pci_sub_device_name IS NOT NULL AND
+			pci_sub_device_name !~ '^Device'
+		THEN
+			model_name = pci_sub_device_name;
+			descrip = concat_ws(' ',
 				sub_vendor_name, pci_sub_device_name,
 				'(' || vendor_name, pci_device_name || ')');
-		ELSIF pci_sub_device_name = 'Device' THEN
-			model_name = concat_ws(' ', 
-				vendor_name, '(' || sub_vendor_name || ')', pci_device_name);
+		ELSIF pci_sub_device_name ~ '^Device' THEN
+			model_name = pci_device_name;
+			descrip = concat_ws(
+				' ',
+				vendor_name,
+				'(' || sub_vendor_name || ')',
+				pci_device_name
+			);
 		ELSE
-			model_name = concat_ws(' ', vendor_name, pci_device_name);
+			model_name = pci_device_name;
+			descrip = concat_ws(' ', vendor_name, pci_device_name);
 		END IF;
+
 		INSERT INTO component_type (
 			company_id,
 			model,
@@ -579,27 +593,12 @@ BEGIN
 			asset_permitted,
 			description
 		) VALUES (
-			CASE WHEN 
-				sub_comp_id IS NULL OR
-				pci_sub_device_name IS NULL OR
-				pci_sub_device_name = 'Device'
-			THEN
-				comp_id
-			ELSE
-				sub_comp_id
-			END,
-			CASE WHEN
-				pci_sub_device_name IS NULL OR
-				pci_sub_device_name = 'Device'
-			THEN
-				pci_device_name
-			ELSE
-				pci_sub_device_name
-			END,
+			COALESCE(sub_comp_id, comp_id),
+			model_name,
 			stid,
 			true,
-			model_name
-		) RETURNING component_type_id INTO ctid;
+			descrip
+		) RETURNING * INTO ct;
 		--
 		-- Insert properties for the PCI vendor/device IDs
 		--
@@ -608,19 +607,29 @@ BEGIN
 			component_property_type,
 			component_type_id,
 			property_value
-		) VALUES 
-			('PCIVendorID', 'PCI', ctid, pci_vendor_id),
-			('PCIDeviceID', 'PCI', ctid, pci_device_id);
-		
+		) VALUES
+			('PCIVendorID', 'PCI', ct.component_type_id, pci_vendor_id),
+			('PCIDeviceID', 'PCI', ct.component_type_id, pci_device_id);
+
 		IF (pci_subsystem_id IS NOT NULL) THEN
 			INSERT INTO component_property (
 				component_property_name,
 				component_property_type,
 				component_type_id,
 				property_value
-			) VALUES 
-				('PCISubsystemVendorID', 'PCI', ctid, pci_sub_vendor_id),
-				('PCISubsystemID', 'PCI', ctid, pci_subsystem_id);
+			) VALUES
+				(
+					'PCISubsystemVendorID',
+					'PCI',
+					ct.component_type_id,
+					pci_sub_vendor_id
+				),
+				(
+					'PCISubsystemID',
+					'PCI',
+					ct.component_type_id,
+					pci_subsystem_id)
+				;
 		END IF;
 		--
 		-- Insert the component functions
@@ -630,10 +639,45 @@ BEGIN
 			component_type_id,
 			component_function
 		) SELECT DISTINCT
-			ctid,
+			ct.component_type_id,
 			cf
 		FROM
 			unnest(array_append(component_function_list, 'PCI')) x(cf);
+	ELSE
+		IF
+			ct.model ~ '^Device [0-9a-f]{4}$'
+		THEN
+			IF
+				pci_sub_device_name IS NOT NULL AND
+				pci_sub_device_name !~ '^Device'
+			THEN
+				model_name = pci_sub_device_name;
+				descrip = concat_ws(' ',
+					sub_vendor_name, pci_sub_device_name,
+					'(' || vendor_name, pci_device_name || ')');
+			ELSIF pci_sub_device_name ~ '^Device' THEN
+				model_name = pci_device_name;
+				descrip = concat_ws(
+					' ',
+					vendor_name,
+					'(' || sub_vendor_name || ')',
+					pci_device_name
+				);
+			ELSE
+				model_name = pci_device_name;
+				descrip = concat_ws(' ', vendor_name, pci_device_name);
+			END IF;
+
+			IF model_name IS DISTINCT FROM ct.model THEN
+				UPDATE
+					component_type
+				SET
+					model = model_name,
+					description = descrip
+				WHERE
+					component_type_id = ct.component_type_id;
+			END IF;
+		END IF;
 	END IF;
 
 
@@ -642,13 +686,13 @@ BEGIN
 	-- serial number already exists
 	--
 	IF serial_number IS NOT NULL THEN
-		SELECT 
+		SELECT
 			component.* INTO c
 		FROM
 			component JOIN
 			asset a USING (component_id)
 		WHERE
-			component_type_id = ctid AND
+			component_type_id = ct.component_type_id AND
 			a.serial_number = sn;
 
 		IF FOUND THEN
@@ -659,7 +703,7 @@ BEGIN
 	INSERT INTO jazzhands.component (
 		component_type_id
 	) VALUES (
-		ctid
+		ct.component_type_id
 	) RETURNING * INTO c;
 
 	IF serial_number IS NOT NULL THEN
@@ -681,18 +725,122 @@ SET search_path=jazzhands
 SECURITY DEFINER
 LANGUAGE plpgsql;
 
+CREATE OR REPLACE FUNCTION component_manip.update_pci_component_type_model(
+	component_type_id		jazzhands.component_type.component_type_id%TYPE,
+	pci_device_name			text,
+	pci_sub_device_name		text DEFAULT NULL,
+	pci_vendor_name			text DEFAULT NULL,
+	pci_sub_vendor_name		text DEFAULT NULL
+) RETURNS jazzhands.component_type
+AS $$
+DECLARE
+	ct			RECORD;
+	model_name	text;
+	descrip		text;
+BEGIN
+	SELECT
+		* INTO ct
+	FROM
+		component_type comptype
+	WHERE
+		comptype.component_type_id =
+			update_pci_component_type_model.component_type_id;
+
+	IF NOT FOUND THEN
+		RETURN NULL;
+	END IF;
+
+	IF pci_vendor_name IS NULL THEN
+		SELECT
+			company_name INTO pci_vendor_name
+		FROM
+			component_property cp JOIN
+			property p ON (
+				p.property_name = 'PCIVendorID' AND
+				p.property_type = 'DeviceProvisioning' AND
+				p.property_value = cp.property_value
+			) JOIN
+			company c ON (c.company_id = p.company_id)
+		WHERE
+			cp.component_property_name = 'PCIVendorID' AND
+			cp.component_property_type = 'PCI' AND
+			cp.component_type_id =
+				update_pci_component_type_model.component_type_id;
+	END IF;
+
+	IF pci_sub_vendor_name IS NULL THEN
+		SELECT
+			company_name INTO pci_sub_vendor_name
+		FROM
+			component_property cp JOIN
+			property p ON (
+				p.property_name = 'PCIVendorID' AND
+				p.property_type = 'DeviceProvisioning' AND
+				p.property_value = cp.property_value
+			) JOIN
+			company c ON (c.company_id = p.company_id)
+		WHERE
+			cp.component_property_name = 'PCISubsystemVendorID' AND
+			cp.component_property_type = 'PCI' AND
+			cp.component_type_id =
+				update_pci_component_type_model.component_type_id;
+	END IF;
+
+	IF
+		pci_sub_device_name IS NOT NULL AND
+		pci_sub_device_name !~ '^Device'
+	THEN
+		model_name = pci_sub_device_name;
+		descrip = concat_ws(' ',
+			pci_sub_vendor_name, pci_sub_device_name,
+			'(' || coalesce(pci_vendor_name, 'Unknown'),
+			pci_device_name || ')'
+		);
+	ELSIF pci_sub_device_name ~ '^Device' THEN
+		model_name = pci_device_name;
+		descrip = concat_ws(
+			' ',
+			pci_vendor_name,
+			'(' || pci_sub_vendor_name || ')',
+			pci_device_name
+		);
+	ELSE
+		model_name = pci_device_name;
+		descrip = concat_ws(' ', pci_vendor_name, pci_device_name);
+	END IF;
+
+	IF model_name IS DISTINCT FROM ct.model THEN
+		UPDATE
+			component_type comptype
+		SET
+			model = model_name,
+			description = descrip
+		WHERE
+			comptype.component_type_id = ct.component_type_id
+		RETURNING * INTO ct;
+	END IF;
+
+	RETURN ct;
+END;
+$$
+SET search_path=jazzhands
+SECURITY DEFINER
+LANGUAGE plpgsql;
+
 --
--- These need to all call a generic component/component_type insertion
--- function, rather than all of the specific types, but that's thinking
+-- These should call a generic component/component_type insertion
+-- function, rather than all of the specific types, but there are
+-- stupid complications, because vendors suck.
 --
 
 CREATE OR REPLACE FUNCTION component_manip.insert_disk_component(
 	model				text,
-	bytes				bigint,
+	bytes				bigint DEFAULT NULL,
 	vendor_name			text DEFAULT NULL,
-	protocol			text DEFAULT 'SATA',
-	media_type			text DEFAULT 'Rotational',
-	serial_number		text DEFAULT NULL
+	protocol			text DEFAULT NULL,
+	media_type			text DEFAULT NULL,
+	serial_number		text DEFAULT NULL,
+	rotational_rate		integer DEFAULT NULL
 ) RETURNS jazzhands.component
 AS $$
 DECLARE
@@ -705,43 +853,174 @@ DECLARE
 BEGIN
 	cid := NULL;
 
-	IF vendor_name IS NOT NULL THEN	
-		SELECT 
-			company_id INTO cid
+	IF model IS NULL OR model ~ '^\s*$' THEN
+		RAISE EXCEPTION 'model must be given to insert component'
+			USING ERRCODE = 'JH501';
+	END IF;
+
+	IF vendor_name IS NOT NULL THEN
+		--
+		-- Try to find a vendor that matches.  Look up various properties
+		-- for a probe string match, and then see if it matches the
+		-- company name.
+		--
+		SELECT
+			comp.company_id INTO cid
 		FROM
-			company c LEFT JOIN
-			property p USING (company_id)
+			company comp JOIN
+			company_collection_company ccc USING (company_id) JOIN
+			property p USING (company_collection_id)
 		WHERE
-			property_type = 'DeviceProvisioning' AND
-			property_name = 'VendorDiskProbeString' AND
-			property_value = vendor_name;
+			p.property_type = 'DeviceProvisioning' AND
+			p.property_name = 'DiskVendorProbeString' AND
+			p.property_value = vendor_name
+		ORDER BY
+			p.property_id
+		LIMIT 1;
+
+		IF cid IS NULL THEN
+			SELECT
+				comp.company_id INTO cid
+			FROM
+				company comp JOIN
+				company_collection_company ccc USING (company_id) JOIN
+				property p USING (company_collection_id)
+			WHERE
+				p.property_type = 'DeviceProvisioning' AND
+				p.property_name = 'DeviceVendorProbeString' AND
+				p.property_value = vendor_name
+			ORDER BY
+				p.property_id
+			LIMIT 1;
+		END IF;
+
+		--
+		-- This is being deprecated in favor of the company_collection
+		-- above
+		--
+		IF cid IS NULL THEN
+			SELECT
+				company_id INTO cid
+			FROM
+				property p
+			WHERE
+				p.property_type = 'DeviceProvisioning' AND
+				p.property_name = 'DeviceVendorProbeString' AND
+				p.property_value = vendor_name;
+		END IF;
+
+		IF cid IS NULL THEN
+			SELECT
+				company_id INTO cid
+			FROM
+				company comp
+			WHERE
+				comp.company_name = vendor_name;
+		END IF;
+
+		--
+		-- Company was not found, so insert one
+		--
+		IF cid IS NULL THEN
+			SELECT company_manip.add_company(
+				company_name := vendor_name,
+				company_types := ARRAY['hardware provider'],
+				description := 'disk vendor auto-insert'
+			) INTO cid;
+
+			--
+			-- Insert the probed string as a property so things can be
+			-- easily changed to a different vendor later if this needs
+			-- to be merged into something else.
+			--
+			INSERT INTO property (
+				property_name,
+				property_type,
+				property_value,
+				company_collection_id
+			) VALUES (
+				'DiskVendorProbeString',
+				'DeviceProvisioning',
+				vendor_name,
+				(
+					SELECT
+						cc.company_collection_id
+					FROM
+						company_collection cc JOIN
+						company_collection_company ccc USING (company_collection_id) JOIN
+						company comp USING (company_id)
+					WHERE
+						cc.company_collection_type = 'per-device' AND
+						comp.company_id = cid
+				)
+			);
+		END IF;
 	END IF;
 
 	--
-	-- See if we have this component type in the database already.
+	-- Try to determine the component_type
 	--
 	SELECT DISTINCT
 		component_type_id INTO ctid
 	FROM
 		component_type ct JOIN
+		component_property cp USING (component_type_id) JOIN
 		component_type_component_function ctcf USING (component_type_id)
 	WHERE
-		component_function = 'disk' AND
-		ct.model = m AND
+		ctcf.component_function = 'disk' AND
+		cp.component_property_name = 'DiskModelProbeString' AND
+		cp.component_property_type = 'disk' AND
+		cp.property_value = m AND
 		CASE WHEN cid IS NOT NULL THEN
 			(company_id = cid)
 		ELSE
 			true
 		END;
 
+	IF ctid IS NULL THEN
+		SELECT DISTINCT
+			component_type_id INTO ctid
+		FROM
+			component_type ct JOIN
+			component_type_component_function ctcf USING (component_type_id)
+		WHERE
+			component_function = 'disk' AND
+			ct.model = m AND
+			CASE WHEN cid IS NOT NULL THEN
+				(company_id = cid)
+			ELSE
+				true
+			END;
+	END IF;
+
 	--
 	-- If the type isn't found, then we need to insert it
 	--
 	IF NOT FOUND THEN
 		--
+		-- Validate that we have all the parameters that we need to insert
+		-- this component_type.
+		--
+
+		IF
+			bytes IS NULL OR
+			cid IS NULL OR
+			protocol IS NULL OR
+			media_type IS NULL
+		THEN
+			RAISE EXCEPTION 'component_type for %model % not found so vendor_name, bytes, protocol, and media_type must be given',
+				CASE WHEN cid IS NOT NULL THEN 
+					('vendor ' || vendor_name)
+				ELSE
+					''
+				END,
+				model;
+		END IF;
+
+		--
 		-- Fetch the slot type
 		--
-		SELECT 
+		SELECT
 			slot_type_id INTO stid
 		FROM
 			slot_type st
@@ -753,22 +1032,6 @@ BEGIN
 			RAISE EXCEPTION 'slot type % with function disk not found adding component_type',
 				protocol
 				USING ERRCODE = 'JH501';
-		END IF;
-
-		IF cid IS NULL THEN
-			SELECT
-				company_id INTO cid
-			FROM
-				company
-			WHERE
-				company_name = 'unknown';
-
-			IF NOT FOUND THEN
-				IF NOT FOUND THEN
-					RAISE EXCEPTION 'company_id for unknown company not found adding component_type'
-						USING ERRCODE = 'JH501';
-				END IF;
-			END IF;
 		END IF;
 
 		INSERT INTO component_type (
@@ -793,15 +1056,25 @@ BEGIN
 			component_property_type,
 			component_type_id,
 			property_value
-		) VALUES 
+		) VALUES
+			('DiskModelProbeString', 'disk', ctid, model),
 			('DiskSize', 'disk', ctid, bytes),
 			('DiskProtocol', 'disk', ctid, protocol),
 			('MediaType', 'disk', ctid, media_type);
-		
+
+		IF rotational_rate IS NOT NULL THEN
+			INSERT INTO component_property (
+				component_property_name,
+				component_property_type,
+				component_type_id,
+				property_value
+			) VALUES
+				('RotationalRate', 'disk', ctid, rotational_rate);
+		END IF;
+
 		--
 		-- Insert the component functions
 		--
-
 		INSERT INTO component_type_component_function (
 			component_type_id,
 			component_function
@@ -817,7 +1090,7 @@ BEGIN
 	-- serial number already exists
 	--
 	IF serial_number IS NOT NULL THEN
-		SELECT 
+		SELECT
 			component.* INTO c
 		FROM
 			component JOIN
@@ -850,7 +1123,6 @@ BEGIN
 	END IF;
 
 	RETURN c;
-
 END;
 $$
 SET search_path=jazzhands
@@ -876,8 +1148,8 @@ DECLARE
 BEGIN
 	cid := NULL;
 
-	IF vendor_name IS NOT NULL THEN	
-		SELECT 
+	IF vendor_name IS NOT NULL THEN
+		SELECT
 			company_id INTO cid
 		FROM
 			company c LEFT JOIN
@@ -912,7 +1184,7 @@ BEGIN
 		--
 		-- Fetch the slot type
 		--
-		SELECT 
+		SELECT
 			slot_type_id INTO stid
 		FROM
 			slot_type st
@@ -964,10 +1236,10 @@ BEGIN
 			component_property_type,
 			component_type_id,
 			property_value
-		) VALUES 
+		) VALUES
 			('MemorySize', 'memory', ctid, memory_size),
 			('MemorySpeed', 'memory', ctid, memory_speed);
-		
+
 		--
 		-- Insert the component functions
 		--
@@ -987,7 +1259,7 @@ BEGIN
 	-- serial number already exists
 	--
 	IF serial_number IS NOT NULL THEN
-		SELECT 
+		SELECT
 			component.* INTO c
 		FROM
 			component JOIN
@@ -1047,8 +1319,8 @@ DECLARE
 BEGIN
 	cid := NULL;
 
-	IF vendor_name IS NOT NULL THEN	
-		SELECT 
+	IF vendor_name IS NOT NULL THEN
+		SELECT
 			company.company_id INTO cid
 		FROM
 			company JOIN
@@ -1092,7 +1364,7 @@ BEGIN
 		--
 		-- Fetch the slot type
 		--
-		SELECT 
+		SELECT
 			slot_type_id INTO stid
 		FROM
 			slot_type st
@@ -1147,10 +1419,10 @@ BEGIN
 			component_property_type,
 			component_type_id,
 			property_value
-		) VALUES 
+		) VALUES
 			('ProcessorCores', 'CPU', ctid, processor_cores),
 			('ProcessorSpeed', 'CPU', ctid, processor_speed);
-		
+
 		--
 		-- Insert the component functions
 		--
@@ -1170,7 +1442,7 @@ BEGIN
 	-- serial number already exists
 	--
 	IF serial_number IS NOT NULL THEN
-		SELECT 
+		SELECT
 			component.* INTO c
 		FROM
 			component JOIN
@@ -1279,7 +1551,7 @@ BEGIN
 	RAISE DEBUG 'Assigning component with component_id % to slot %',
 		cid, s.slot_id;
 
-	UPDATE 
+	UPDATE
 		component c
 	SET
 		parent_slot_id = s.slot_id
@@ -1325,7 +1597,7 @@ BEGIN
 	WHERE
 		component_id = old_component_id;
 
-	UPDATE 
+	UPDATE
 		component
 	SET
 		parent_slot_id = oc.parent_slot_id
@@ -1338,7 +1610,7 @@ BEGIN
 		component_id = new_component_id
 	WHERE
 		component_id = old_component_id;
-	
+
 	UPDATE
 		physicalish_volume
 	SET
@@ -1353,13 +1625,21 @@ SET search_path=jazzhands
 SECURITY DEFINER
 LANGUAGE plpgsql;
 
+DROP FUNCTION IF EXISTS component_manip.fetch_component(
+	jazzhands.component_type.component_type_id%TYPE,
+	text,
+	boolean,
+	text,
+	jazzhands.slot.slot_id%TYPE
+);
 
 CREATE OR REPLACE FUNCTION component_manip.fetch_component(
 	component_type_id	jazzhands.component_type.component_type_id%TYPE,
 	serial_number		text,
 	no_create			boolean DEFAULT false,
 	ownership_status	text DEFAULT 'unknown',
-	parent_slot_id		jazzhands.slot.slot_id%TYPE DEFAULT NULL
+	parent_slot_id		jazzhands.slot.slot_id%TYPE DEFAULT NULL,
+	force_parent		boolean DEFAULT false
 ) RETURNS jazzhands.component
 AS $$
 DECLARE
@@ -1373,7 +1653,7 @@ BEGIN
 	cid := NULL;
 
 	IF sn IS NOT NULL THEN
-		SELECT 
+		SELECT
 			comp.* INTO c
 		FROM
 			component comp JOIN
@@ -1386,7 +1666,9 @@ BEGIN
 			--
 			-- Only update the parent slot if it isn't set already
 			--
-			IF c.parent_slot_id IS NULL THEN
+			IF psid IS NOT NULL AND
+				(c.parent_slot_id IS NULL OR force_parent)
+			THEN
 				UPDATE
 					component comp
 				SET
@@ -1428,6 +1710,287 @@ $$
 SET search_path=jazzhands
 SECURITY DEFINER
 LANGUAGE plpgsql;
+
+CREATE OR REPLACE FUNCTION component_manip.set_component_property(
+	component_property_name	jazzhands.component_property.component_property_name%TYPE,
+	component_property_type	jazzhands.component_property.component_property_type%TYPE,
+	property_value			jazzhands.component_property.property_value%TYPE,
+	component_id			jazzhands.component.component_id%TYPE DEFAULT NULL,
+	component_type_id		jazzhands.component.component_type_id%TYPE DEFAULT NULL
+) RETURNS boolean
+AS $$
+DECLARE
+	cpn		ALIAS FOR component_property_name;
+	cpt		ALIAS FOR component_property_type;
+	pv		ALIAS FOR property_value;
+	cid		ALIAS FOR component_id;
+	ct_id	ALIAS FOR component_type_id;
+	cp		RECORD;
+BEGIN
+	IF cid IS NULL AND ct_id IS NULL THEN
+		RAISE EXCEPTION
+			'component_id or component_type_id must be passed to set_component_property';
+		RETURN NULL;
+	END IF;
+
+	IF cpn IS NULL OR cpt IS NULL THEN
+		RAISE EXCEPTION
+			'component_property_name and component_property_type must be passed to set_component_property';
+		RETURN NULL;
+	END IF;
+
+	IF property_value IS NULL THEN
+		DELETE FROM
+			component_property p
+		WHERE
+			p.component_property_name = cpn AND
+			p.component_property_type = cpt AND
+			( cid IS NULL OR p.component_id = cid ) AND
+			( ct_id IS NULL OR p.component_type_id = ct_id );
+		RETURN true;
+	END IF;
+
+	SELECT * FROM component_property p INTO cp WHERE
+		p.component_property_name = cpn AND
+		p.component_property_type = cpt AND
+		( cid IS NULL OR p.component_id = cid ) AND
+		( ct_id IS NULL OR p.component_type_id = ct_id );
+
+	IF NOT FOUND THEN
+		INSERT INTO component_property (
+			component_id,
+			component_type_id,
+			component_property_name,
+			component_property_type,
+			property_value
+		) VALUES (
+			cid,
+			ct_id,
+			cpn,
+			cpt,
+			pv
+		);
+		RETURN true;
+	END IF;
+
+	IF cp.property_value IS DISTINCT FROM pv THEN
+		UPDATE
+			component_property p
+		SET
+			property_value = pv
+		WHERE
+			p.component_property_id = cp.component_property_id;
+	END IF;
+
+	RETURN true;
+END;
+$$
+SET search_path=jazzhands
+SECURITY DEFINER
+LANGUAGE plpgsql;
+
+CREATE OR REPLACE FUNCTION component_manip.set_component_network_interface(
+	component_id        jazzhands.component.component_id%TYPE,
+	network_interface   jsonb
+) RETURNS jazzhands.slot
+AS $$
+DECLARE
+	cid		ALIAS FOR component_id;
+	ni		ALIAS FOR network_interface;
+	cs		RECORD;
+	lldp	jsonb;
+	stid	jazzhands.slot_type.slot_type_id%TYPE;
+BEGIN
+	IF component_id IS NULL OR network_interface IS NULL THEN
+	    RETURN NULL;
+	END IF;
+
+	--
+	-- If there isn't an interface name passed, then just give up
+	--
+
+	IF NOT (ni ? 'interface_name') OR (ni->>'interface_name' IS NULL) OR
+			(ni->>'interface_name' = '') THEN
+		RETURN NULL;
+	END IF;
+
+	--
+	-- Attempt to find the slot already inserted, in this order
+	--  - slot with this permanent_mac, if permanent_mac is passed
+	--  - slot with this component_id and given interface_name
+	--  - slot with this component_id where the remote LLDP connection matches
+	--
+
+	IF ni ? 'permanent_mac' THEN
+		--
+		-- First look to see if there's a slot with this MAC already
+		--
+		RAISE DEBUG 'Looking for slot with mac_address %',
+			ni->>'permanent_mac';
+
+		SELECT
+			* INTO cs
+		FROM
+			slot
+		WHERE
+			mac_address = (ni->>'permanent_mac')::macaddr;
+	END IF;
+
+	IF cs IS NULL AND ni ? 'interface_name' THEN
+		RAISE DEBUG 'Looking for slot for component % with name %',
+			cid,
+			ni->>'interface_name';
+
+		SELECT
+			s.* INTO cs
+		FROM
+			slot s JOIN
+			slot_type st USING (slot_type_id)
+		WHERE
+			s.component_id = cid AND
+			st.slot_function = 'network' AND
+			s.slot_name = ni->>'interface_name';
+	END IF;
+
+	IF cs IS NULL AND ni ? 'lldp' THEN
+		lldp := ni->'lldp';
+
+		RAISE DEBUG 'Looking for slot for component % connected to %/% port %',
+			cid,
+			lldp->>'device_name',
+			lldp->>'chassis_id',
+			lldp->>'interface';
+
+		SELECT
+			s.* INTO cs
+		FROM
+			slot s JOIN
+			v_device_slot_connections dsc USING (slot_id) JOIN
+			device d ON (dsc.remote_device_id = d.device_id)
+		WHERE
+			s.component_id = cid AND (
+				d.host_id = lldp->>'chassis_id' OR
+				(
+					d.device_name = lldp->>'device_name' AND
+					d.host_id IS NULL
+				)
+			) AND
+			dsc.remote_slot_name = lldp->>'interface'
+		ORDER BY
+			d.host_id NULLS LAST
+		LIMiT 1;
+	END IF;
+
+	--
+	-- Figure out which slot_type we're supposed to use.  If we don't know,
+	-- then c'est la vie.
+	--
+
+	IF ni ? 'capabilities' THEN
+		SELECT
+			slot_type_id INTO stid
+		FROM
+			device_provisioning.ethtool_xcvr_to_slot_type et
+		WHERE
+			ni->'capabilities' ? et.capability AND
+			ni->'transceiver'->>'port_type' = et.port_type AND
+			ni->'transceiver'->>'media_type' = et.media_type
+		ORDER BY
+			raw_speed DESC
+		LIMIT 1;
+
+		IF FOUND THEN
+			RAISE DEBUG 'slot_type_id for slot should be %', stid;
+		ELSE
+			RAISE DEBUG 'slot_type_id for slot could not be determined';
+		END IF;
+	END IF;
+
+	--
+	-- This is needed because Ubuntu 16.04 is broken detecting 25G.  We
+	-- only want this to happen if the above fails.
+	--
+	IF stid IS NULL THEN
+		SELECT
+			slot_type_id INTO stid
+		FROM
+			device_provisioning.ethtool_xcvr_to_slot_type et
+		WHERE
+			ni->'transceiver'->>'speed' = et.speed AND
+			ni->'transceiver'->>'port_type' = et.port_type AND
+			ni->'transceiver'->>'media_type' = et.media_type;
+
+		IF FOUND THEN
+			RAISE DEBUG 'slot_type_id for slot should be %', stid;
+		ELSE
+			RAISE DEBUG 'slot_type_id for slot could not be determined';
+		END IF;
+	END IF;
+
+	IF cs IS NULL AND stid IS NOT NULL THEN
+		INSERT INTO slot (
+			component_id,
+			slot_name,
+			slot_type_id,
+			mac_address
+		) VALUES (
+			cid,
+			ni->>'interface_name',
+			stid,
+			(ni->>'permanent_mac')::macaddr
+		) RETURNING * INTO cs;
+	END IF;
+
+	--
+	-- Fix the slot name if it doesn't match the current Linux name
+	--
+	IF cs.slot_name != ni->>'interface_name' THEN
+		UPDATE
+			slot
+		SET
+			slot_name = ni->>'interface_name'
+		WHERE
+			slot_id = cs.slot_id;
+
+		cs.slot_name := ni->>'interface_name';
+	END IF;
+
+	--
+	-- Update the mac_address if it needs to be
+	--
+	IF cs.mac_address IS DISTINCT FROM (ni->>'permanent_mac')::macaddr THEN
+		UPDATE
+			slot
+		SET
+			mac_address = (ni->>'permanent_mac')::macaddr
+		WHERE
+			slot_id = cs.slot_id;
+
+		cs.mac_address := (ni->>'permanent_mac')::macaddr;
+	END IF;
+
+	--
+	-- Fix the slot type if it isn't correct
+	--
+	IF cs.slot_type_id != stid THEN
+		UPDATE
+			slot
+		SET
+			slot_type_id = stid
+		WHERE
+			slot_id = cs.slot_id;
+
+		cs.slot_type_id := stid;
+	END IF;
+
+	RETURN cs;
+END;
+$$
+set search_path=jazzhands
+SECURITY DEFINER
+LANGUAGE plpgsql;
+
+GRANT EXECUTE ON FUNCTION component_manip.set_component_network_interface(integer, jsonb)  TO iud_role;
 
 REVOKE ALL ON SCHEMA component_manip FROM public;
 REVOKE ALL ON ALL FUNCTIONS IN SCHEMA component_manip FROM public;

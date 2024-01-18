@@ -1,4 +1,5 @@
 -- Copyright (c) 2021, Bernard Jech
+-- Copyright (c) 2023, Todd Kover
 -- All rights reserved.
 --
 -- Licensed under the Apache License, Version 2.0 (the "License");
@@ -225,6 +226,179 @@ CREATE OR REPLACE FUNCTION x509_plperl_cert_utils.get_csr_hashes(
 $$ LANGUAGE plperl;
 
 -------------------------------------------------------------------------------
+
+-------------------------------------------------------------------------------
+--
+-- Returns a JSON blob with all the information about an x509 certificate so
+-- that it can be inserted into the database
+--
+-------------------------------------------------------------------------------
+
+CREATE OR REPLACE FUNCTION x509_plperl_cert_utils.parse_x509_certificate(
+	certificate jazzhands.x509_signed_certificate.public_key%TYPE
+) RETURNS jsonb AS $pgsql$
+	my $pem = shift || return undef;
+
+	my $x509 = Crypt::OpenSSL::X509->new_from_string($pem) || return undef;
+
+	my $friendly;
+	my $names = $x509->subject_name()->entries();
+	foreach my $e ( @{$names} ) {
+		next if $e->type() ne 'CN';
+		$friendly = $e->value();
+		last;
+	}
+
+	my @ku;
+	my @san;
+
+	my ( $ski, $aki, $ca );
+	my $exts = $x509->extensions_by_oid();
+	foreach my $oid ( keys %$exts ) {
+		my $ext = $$exts{$oid};
+		if ( $oid eq '2.5.29.14' ) {
+			$ski = $ext->to_string();
+			$ski =~ s/\s+$//;
+		} elsif ( $oid eq '2.5.29.35' ) {
+			$aki = $ext->to_string();
+			$aki =~ s/keyid://;
+			$aki =~ s/\s+$//;
+		} elsif ( $oid eq '2.5.29.19' ) {
+
+			# basic constraints;
+			my $x = $ext->to_string();
+			if ( $x && $x =~ /CA:TRUE/i ) {
+				$ca = 1;
+			}
+		} elsif ( $oid eq '2.5.29.15' ) {
+
+			# my $c = $ext->critical();
+			my $map = {
+				"Digital Signature" => "digitalSignature",
+				"Non Repudiation"   => "nonRepudiation",
+				"Key Encipherment"  => "keyEncipherment",
+				"Data Encipherment" => "dataEncipherment",
+				"Key Agreement"     => "keyAgreement",
+				"Certificate Sign"  => "keyCertSign",
+				"CRL Sign"          => "cRLSign",
+				"Encipher Only"     => "encipherOnly",
+				"Decipher Only"     => "decipherOnly",
+			};
+
+			# yes, I threw up a litle; these are from crypto/x509v3/v3_bitst.c
+			foreach my $ku ( split( /,\s*/, $ext->to_string() ) ) {
+				push( @ku, $map->{$ku} ) if ( $map->{$ku} );
+			}
+
+		} elsif ( $oid eq '2.5.29.37' ) {
+			my $map = {
+				"serverAuth"      => "TLS Web Server Authentication",
+				"clientAuth"      => "TLS Web Client Authentication",
+				"codeSigning"     => "Code Signing",
+				"emailProtection" => "E-mail Protection",
+				"timeStamping"    => "Time Stamping",
+				"OCSPSigning"     => "OCSP Signing"
+			};
+
+			# yes, I threw up a litle; these are from crypto/objects/obj_dat.h
+			foreach my $ku ( split( /,\s*/, $ext->to_string() ) ) {
+				push( @ku, $map->{$ku} ) if ( $map->{$ku} );
+			}
+
+		} elsif ($oid eq '2.5.29.17') {
+			push(@san, split(/,\s*/, $ext->to_string() ));
+		} else {
+			next;
+		}
+	}
+
+	@ku = map { qq{"$_"} } @ku;
+	@san = map { qq{"$_"} } @san;
+	my $rv = {
+		friendly_name            => $friendly,
+		subject                  => $x509->subject(),
+		issuer                   => $x509->issuer(),
+		serial                   => $x509->serial(),
+		signing_algorithm        => $x509->sig_alg_name(),
+		key_algorithm            => $x509->key_alg_name(),
+		is_ca                    => $ca,
+		valid_from               => $x509->notBefore,
+		valid_to                 => $x509->notAfter,
+		self_signed              => ( $x509->is_selfsigned() ) ? 1 : undef,
+		subject_key_identifier   => $ski,
+		authority_key_identifier => $aki,
+		keyUsage                 => \@ku,
+		subjectAlternateName     => \@san,
+	};
+
+	# this is naaaasty but I did not want to require the JSON pp module
+	my $x = sprintf "{ %s }", join(
+		',',
+		map {
+			qq{"$_": }
+			  . (
+				( defined( $rv->{$_} ) )
+				? (
+					( ref( $rv->{$_} ) eq 'ARRAY' )
+					? '[ ' . join( ',', @{ $rv->{$_} } ) . ' ]'
+					: qq{"$rv->{$_}"}
+				  )
+				: 'null'
+			  )
+		} keys %$rv
+	);
+	$x;
+$pgsql$ LANGUAGE plperl;
+
+-------------------------------------------------------------------------------
+--
+-- Returns a JSON blob with all the information about an PKCS10 cert sign req
+-- so that it can be inserted into the database
+--
+-------------------------------------------------------------------------------
+CREATE OR REPLACE FUNCTION x509_plperl_cert_utils.parse_csr(
+	certificate_signing_request
+		 jazzhands.certificate_signing_request.certificate_signing_request%TYPE
+) RETURNS jsonb AS $pgsql$
+    my $csr_pem = shift || return undef;
+
+    my $tmp = File::Temp->new();
+    print $tmp $csr_pem;
+    my $fname = $tmp->filename();
+    $tmp->close;
+
+    my $req = Crypt::OpenSSL::PKCS10->new_from_file($fname) || return undef;
+
+    my $friendly = $req->subject;
+    $friendly =~ s/^.*CN=(\s*[^,]*)(,.*)?$/$1/;
+
+    my $rv = {
+        friendly_name => $friendly,
+        subject       => $req->subject(),
+    };
+
+    # this is naaaasty but I did not want to require the JSON pp module
+    my $x = sprintf "{ %s }", join(
+        ',',
+        map {
+            qq{"$_": }
+              . (
+                ( defined( $rv->{$_} ) )
+                ? (
+                    ( ref( $rv->{$_} ) eq 'ARRAY' )
+                    ? '[ ' . join( ',', @{ $rv->{$_} } ) . ' ]'
+                    : qq{"$rv->{$_}"}
+                  )
+                : 'null'
+              )
+        } keys %$rv
+    );
+
+    $x;
+$pgsql$ LANGUAGE plperl;
+
+-------------------------------------------------------------------------------
+
 
 REVOKE ALL ON SCHEMA x509_plperl_cert_utils  FROM public;
 REVOKE ALL ON ALL FUNCTIONS IN SCHEMA x509_plperl_cert_utils FROM public;

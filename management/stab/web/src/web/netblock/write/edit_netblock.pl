@@ -30,6 +30,7 @@ use warnings;
 use FileHandle;
 use JazzHands::STAB;
 use JazzHands::Common qw(:all);
+use Data::Dumper;
 
 edit_netblock();
 
@@ -44,7 +45,7 @@ sub edit_netblock {
 
 	my $cgi = $stab->cgi;
 
-       # print $cgi->header, $cgi->start_html, $cgi->Dump, $cgi->end_html; exit;
+	# print $cgi->header, $cgi->start_html, $cgi->Dump, $cgi->end_html; exit;
 
 	my $numchanges = 0;
 
@@ -76,7 +77,6 @@ sub process_netblock_update {
 		NETBLOCK_ID => $nblkid,
 		DESCRIPTION => $newval,
 	};
-
 	my $diffs = $stab->hash_table_diff( $orig, _dbx($new) );
 	my $tally = keys %$diffs;
 	if ($tally) {

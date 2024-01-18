@@ -1,5 +1,5 @@
 -- Copyright (c) 2014-2020 Matthew Ragan
--- Copyright (c) 2019-2020 Todd M. Kover
+-- Copyright (c) 2019-2023 Todd M. Kover
 -- All rights reserved.
 --
 -- Licensed under the Apache License, Version 2.0 (the "License");
@@ -79,7 +79,7 @@ BEGIN
 	UPDATE jazzhands.netblock SET parent_netblock_id = nbid
 		WHERE netblock_id = recalculate_parentage.netblock_id;
 
-	FOR childrec IN SELECT * 
+	FOR childrec IN SELECT *
 		FROM jazzhands.netblock  p
 		WHERE p.parent_netblock_id = nbid
 		AND p.netblock_id != recalculate_parentage.netblock_id
@@ -385,10 +385,10 @@ CREATE OR REPLACE FUNCTION netblock_manip.create_network_range(
 	allow_assigned		boolean DEFAULT false,
 	dns_prefix			TEXT DEFAULT NULL,
 	dns_domain_id		jazzhands.dns_domain.dns_domain_id%TYPE DEFAULT NULL,
-	lease_time			jazzhands.dns_domain.dns_domain_id%TYPE DEFAULT NULL
+	lease_time			jazzhands.network_range.lease_time%TYPE DEFAULT NULL
 ) RETURNS jazzhands.network_range AS $$
 DECLARE
-	par_netblock	RECORD;
+	nbcheck			RECORD;
 	start_netblock	RECORD;
 	stop_netblock	RECORD;
 	netrange		RECORD;
@@ -420,77 +420,16 @@ BEGIN
 	END IF;
 
 	--
-	-- If any other network ranges exist that overlap this, then error
+	-- Validate things passed.  This will throw an exception if things aren't
+	-- valid
 	--
-	PERFORM
-		*
-	FROM
-		jazzhands.network_range nr JOIN
-		jazzhands.netblock startnb ON
-			(nr.start_netblock_id = startnb.netblock_id) JOIN
-		jazzhands.netblock stopnb ON (nr.stop_netblock_id = stopnb.netblock_id)
-	WHERE
-		nr.network_range_type = nrtype AND ((
-			host(startnb.ip_address)::inet <= host(start_ip_address)::inet AND
-			host(stopnb.ip_address)::inet >= host(start_ip_address)::inet
-		) OR (
-			host(startnb.ip_address)::inet <= host(stop_ip_address)::inet AND
-			host(stopnb.ip_address)::inet >= host(stop_ip_address)::inet
-		));
 
-	IF FOUND THEN
-		RAISE 'create_network_range: a network_range of type % already exists that has addresses between % and %',
-			nrtype, start_ip_address, stop_ip_address
-			USING ERRCODE = 'check_violation';
-	END IF;
-
-	IF parent_netblock_id IS NOT NULL THEN
-		SELECT * INTO par_netblock FROM jazzhands.netblock WHERE
-			netblock_id = pnbid;
-		IF NOT FOUND THEN
-			RAISE 'create_network_range: parent_netblock_id % does not exist',
-				parent_netblock_id USING ERRCODE = 'foreign_key_violation';
-		END IF;
-	ELSE
-		SELECT * INTO par_netblock FROM jazzhands.netblock WHERE netblock_id = (
-			SELECT
-				*
-			FROM
-				netblock_utils.find_best_parent_netblock_id(
-					ip_address := start_ip_address,
-					is_single_address := true
-				)
-		);
-
-		IF NOT FOUND THEN
-			RAISE 'create_network_range: valid parent netblock for start_ip_address % does not exist',
-				start_ip_address USING ERRCODE = 'check_violation';
-		END IF;
-	END IF;
-
-	IF par_netblock.can_subnet != false OR
-			par_netblock.is_single_address != false THEN
-		RAISE 'create_network_range: parent netblock % must not be subnettable or a single address',
-			par_netblock.netblock_id USING ERRCODE = 'check_violation';
-	END IF;
-
-	IF NOT (start_ip_address <<= par_netblock.ip_address) THEN
-		RAISE 'create_network_range: start_ip_address % is not contained by parent netblock % (%)',
-			start_ip_address, par_netblock.ip_address,
-			par_netblock.netblock_id USING ERRCODE = 'check_violation';
-	END IF;
-
-	IF NOT (stop_ip_address <<= par_netblock.ip_address) THEN
-		RAISE 'create_network_range: stop_ip_address % is not contained by parent netblock % (%)',
-			stop_ip_address, par_netblock.ip_address,
-			par_netblock.netblock_id USING ERRCODE = 'check_violation';
-	END IF;
-
-	IF NOT (start_ip_address <= stop_ip_address) THEN
-		RAISE 'create_network_range: start_ip_address % is not lower than stop_ip_address %',
-			start_ip_address, stop_ip_address
-			USING ERRCODE = 'check_violation';
-	END IF;
+	SELECT * INTO nbcheck FROM netblock_manip.validate_network_range(
+		network_range_type := nrtype,
+		start_ip_address := start_ip_address,
+		stop_ip_address := stop_ip_address,
+		parent_netblock_id := parent_netblock_id
+	);
 
 	--
 	-- Validate that there are not currently any addresses assigned in the
@@ -502,20 +441,20 @@ BEGIN
 		FROM
 			jazzhands.netblock n
 		WHERE
-			n.parent_netblock_id = par_netblock.netblock_id AND
+			n.parent_netblock_id = nbcheck.parent_netblock_id AND
 			host(n.ip_address)::inet > host(start_ip_address)::inet AND
 			host(n.ip_address)::inet < host(stop_ip_address)::inet;
 
 		IF FOUND THEN
 			RAISE 'create_network_range: netblocks are already present for parent netblock % betweeen % and %',
-			par_netblock.netblock_id,
+			nbcheck.parent_netblock_id,
 			start_ip_address, stop_ip_address
 			USING ERRCODE = 'check_violation';
 		END IF;
 	END IF;
 
 	--
-	-- Ok, well, we should be able to insert things now
+	-- We should be able to insert things now
 	--
 
 	SELECT
@@ -529,7 +468,7 @@ BEGIN
 		n.netblock_type = 'network_range' AND
 		n.can_subnet = false AND
 		n.is_single_address = true AND
-		n.ip_universe_id = par_netblock.ip_universe_id;
+		n.ip_universe_id = nbcheck.ip_universe_id;
 
 	IF NOT FOUND THEN
 		INSERT INTO netblock (
@@ -545,7 +484,7 @@ BEGIN
 			true,
 			false,
 			'Allocated',
-			par_netblock.ip_universe_id
+			nbcheck.ip_universe_id
 		) RETURNING * INTO start_netblock;
 	END IF;
 
@@ -560,7 +499,7 @@ BEGIN
 		n.netblock_type = 'network_range' AND
 		n.can_subnet = false AND
 		n.is_single_address = true AND
-		n.ip_universe_id = par_netblock.ip_universe_id;
+		n.ip_universe_id = nbcheck.ip_universe_id;
 
 	IF NOT FOUND THEN
 		INSERT INTO netblock (
@@ -576,7 +515,7 @@ BEGIN
 			true,
 			false,
 			'Allocated',
-			par_netblock.ip_universe_id
+			nbcheck.ip_universe_id
 		) RETURNING * INTO stop_netblock;
 	END IF;
 
@@ -592,7 +531,7 @@ BEGIN
 	) VALUES (
 		nrtype,
 		description,
-		par_netblock.netblock_id,
+		nbcheck.parent_netblock_id,
 		start_netblock.netblock_id,
 		stop_netblock.netblock_id,
 		create_network_range.dns_prefix,
@@ -608,6 +547,199 @@ $$ LANGUAGE plpgsql
 SET search_path = jazzhands
 SECURITY DEFINER;
 
+
+CREATE OR REPLACE FUNCTION netblock_manip.update_network_range(
+	network_range_id	jazzhands.network_range.network_range_id%TYPE,
+	start_ip_address	inet DEFAULT NULL,
+	stop_ip_address		inet DEFAULT NULL,
+	parent_netblock_id	jazzhands.netblock.netblock_id%TYPE DEFAULT NULL,
+	allow_assigned		boolean DEFAULT false,
+	description			jazzhands.network_range.description%TYPE DEFAULT NULL,
+	dns_prefix			TEXT DEFAULT NULL,
+	dns_domain_id		jazzhands.dns_domain.dns_domain_id%TYPE DEFAULT NULL,
+	lease_time			jazzhands.network_range.lease_time%TYPE DEFAULT NULL
+) RETURNS boolean AS $$
+DECLARE
+	nbcheck					RECORD;
+	start_netblock			RECORD;
+	stop_netblock			RECORD;
+	new_start_ip_address	inet;
+	new_stop_ip_address		inet;
+	new_parent_netblock_id	jazzhands.netblock.netblock_id%TYPE;
+	netrange				RECORD;
+	nrid					ALIAS FOR network_range_id;
+	pnbid					ALIAS FOR parent_netblock_id;
+BEGIN
+	--
+	-- Pull things about the network_range.  Fetch things out of the
+	-- v_network_range_expanded view because it has everything we want in it.
+	--
+	SELECT
+		nr.* INTO netrange
+	FROM
+		jazzhands.v_network_range_expanded nr
+	WHERE
+		nr.network_range_id = nrid;
+
+	IF NOT FOUND THEN
+		RAISE EXCEPTION
+			'update_network_range: network_range %d does not exist',
+			nrid
+		USING ERRCODE = 'foreign_key_violation';
+	END IF;
+
+	--
+	-- Validate things passed.  This will throw an exception if things aren't
+	-- valid
+	--
+
+	--
+	-- Check that the netblock_type for the {start,stop} netblock are
+	-- valid if they are trying to be set.  If things are NULL, it's skipped.
+	--
+	IF
+		host(start_ip_address) != host(netrange.start_ip_address) AND
+		netrange.start_netblock_type != 'network_range'
+	THEN
+		RAISE EXCEPTION
+			'Address changes of start_ip_address are only allowed if the netblock_type is "network_range"'
+		USING ERRCODE = 'check_violation';
+	END IF;
+
+	IF
+		host(stop_ip_address) != host(netrange.stop_ip_address) AND
+		netrange.stop_netblock_type != 'network_range'
+	THEN
+		RAISE EXCEPTION
+			'Address changes of stop_ip_address are only allowed if the netblock_type is "network_range"'
+		USING ERRCODE = 'check_violation';
+	END IF;
+
+	new_start_ip_address := COALESCE(start_ip_address,
+		netrange.start_ip_address);
+	new_stop_ip_address := COALESCE(stop_ip_address,
+		netrange.stop_ip_address);
+	new_parent_netblock_id := COALESCE(parent_netblock_id,
+		netrange.parent_netblock_id);
+
+	SELECT * INTO nbcheck FROM netblock_manip.validate_network_range(
+		network_range_id := nrid,
+		network_range_type := netrange.network_range_type,
+		start_ip_address := new_start_ip_address,
+		stop_ip_address := new_stop_ip_address,
+		parent_netblock_id := new_parent_netblock_id
+	);
+
+	--
+	-- Validate that there are not currently any addresses assigned in the
+	-- updated range, unless allow_assigned is set
+	--
+	IF NOT allow_assigned THEN
+		PERFORM
+			*
+		FROM
+			jazzhands.netblock n
+		WHERE
+			n.parent_netblock_id = nbcheck.parent_netblock_id AND
+			host(n.ip_address)::inet > host(new_start_ip_address)::inet AND
+			host(n.ip_address)::inet < host(new_stop_ip_address)::inet;
+
+		IF FOUND THEN
+			RAISE 'create_network_range: netblocks are already present for parent netblock % betweeen % and %',
+				nbcheck.parent_netblock_id,
+				new_start_ip_address,
+				new_stop_ip_address
+			USING ERRCODE = 'check_violation';
+		END IF;
+	END IF;
+
+	--
+	-- We should be able to update things now
+	--
+
+	IF
+		host(start_ip_address) != host(netrange.start_ip_address)
+	THEN
+		UPDATE
+			netblock n
+		SET
+			ip_address = (host(start_ip_address))::inet
+		WHERE
+			n.netblock_id = netrange.start_netblock_id;
+	END IF;
+
+	IF
+		host(stop_ip_address) != host(netrange.stop_ip_address)
+	THEN
+		UPDATE
+			netblock n
+		SET
+			ip_address = (host(stop_ip_address))::inet
+		WHERE
+			n.netblock_id = netrange.stop_netblock_id;
+	END IF;
+
+	IF
+		description IS NOT NULL OR
+		dns_prefix IS NOT NULL OR
+		dns_domain_id IS NOT NULL OR
+		lease_time IS NOT NULL
+	THEN
+		--
+		-- This is a hack, but we shouldn't have empty descriptions anyways.
+		-- Meh.
+		--
+		IF description = '' THEN
+			description = NULL;
+		END IF;
+
+		UPDATE
+			network_range nr
+		SET
+			description = update_network_range.description,
+			dns_prefix = update_network_range.dns_prefix,
+			dns_domain_id = update_network_range.dns_domain_id,
+			lease_time = update_network_range.lease_time
+		WHERE
+			nr.network_range_id = nrid;
+	END IF;
+
+	RETURN true;
+END;
+$$ LANGUAGE plpgsql
+SET search_path = jazzhands
+SECURITY DEFINER;
+
+CREATE OR REPLACE FUNCTION netblock_manip.remove_network_range(
+	network_range_id jazzhands.network_range.network_range_id%TYPE,
+	force	boolean	DEFAULT false
+) RETURNS boolean AS $$
+DECLARE
+	nrrec		RECORD;
+
+	nr_id		ALIAS FOR network_range_id;
+BEGIN
+
+	SELECT
+		* INTO nrrec
+	FROM
+		network_range nr
+	WHERE
+		nr.network_range_id = nr_id;
+
+	IF NOT FOUND THEN
+		RAISE EXCEPTION 'network_range % does not exist', nr_id;
+	END IF;
+
+	IF force THEN
+		DELETE FROM property p WHERE p.network_range_id = nr_id;
+	END IF;
+
+	DELETE FROM network_range nr WHERE nr.network_range_id = nr_id;
+
+	RETURN true;
+END;
+$$ LANGUAGE plpgsql SECURITY DEFINER SET search_path = jazzhands;
 
 CREATE OR REPLACE FUNCTION netblock_manip.set_interface_addresses(
 	network_interface_id
@@ -650,6 +782,8 @@ CREATE OR REPLACE FUNCTION netblock_manip.set_layer3_interface_addresses(
 	ip_address_hash		jsonb DEFAULT NULL,
 	create_layer3_networks
 						boolean DEFAULT false,
+	layer2_network_id	jazzhands.layer2_network.layer2_network_id%TYPE
+						DEFAULT NULL,
 	move_addresses		text DEFAULT 'if_same_device',
 	address_errors		text DEFAULT 'error'
 ) RETURNS boolean AS $$
@@ -741,7 +875,7 @@ BEGIN
 		END IF;
 	END IF;
 
-	SELECT * INTO l3i_rec FROM layer3_interface l3i WHERE 
+	SELECT * INTO l3i_rec FROM layer3_interface l3i WHERE
 		l3i.layer3_interface_id = l3i_id;
 
 	--
@@ -893,9 +1027,9 @@ BEGIN
 					--
 					CONTINUE WHEN NOT create_layer3_networks;
 					INSERT INTO layer3_network(
-						netblock_id
+						netblock_id, layer2_network_id
 					) VALUES (
-						layer3_rec.netblock_id
+						layer3_rec.netblock_id, layer2_network_id
 					) RETURNING layer3_network_id INTO
 						layer3_rec.layer3_network_id;
 				END IF;
@@ -967,15 +1101,16 @@ BEGIN
 
 					WITH l3_ins AS (
 						INSERT INTO layer3_network(
-							netblock_id
+							netblock_id, layer2_network_id
 						) VALUES (
-							pnb_rec.netblock_id
+							pnb_rec.netblock_id, layer2_network_id
 						) RETURNING *
 					)
 					SELECT
 						pnb_rec.netblock_id,
 						pnb_rec.ip_address,
 						l3_ins.layer3_network_id,
+						l3_ins.layer2_network_Id,
 						NULL::inet
 					INTO layer3_rec
 					FROM
@@ -993,9 +1128,9 @@ BEGIN
 						universe;
 					CONTINUE WHEN NOT create_layer3_networks;
 					INSERT INTO layer3_network(
-						netblock_id
+						netblock_id, layer2_network_id
 					) VALUES (
-						layer3_rec.netblock_id
+						layer3_rec.netblock_id, layer2_network_id
 					) RETURNING layer3_network_id INTO
 						layer3_rec.layer3_network_id;
 				END IF;
@@ -1041,7 +1176,7 @@ BEGIN
 			-- See if this netblock is on something else, and delete it
 			-- if move_addresses is set, otherwise skip it
 			--
-			SELECT 
+			SELECT
 				l3i.layer3_interface_id,
 				l3i.layer3_interface_name,
 				l3in.netblock_id,
@@ -1151,6 +1286,12 @@ BEGIN
 			WHERE
 				l3in.layer3_interface_id = l3i_id
 			RETURNING * INTO l3in_rec;
+
+			PERFORM dns_manip.set_dns_for_interface(
+				netblock_id := nb_rec.netblock_id,
+				layer3_interface_name := l3i_name,
+				device_id := l3in_rec.device_id
+			);
 
 			RAISE DEBUG E'Inserted into:\n%',
 				jsonb_pretty(to_jsonb(l3in_rec));
@@ -1360,9 +1501,9 @@ BEGIN
 					--
 					CONTINUE WHEN NOT create_layer3_networks;
 					INSERT INTO layer3_network(
-						netblock_id
+						netblock_id, layer2_network_id
 					) VALUES (
-						layer3_rec.netblock_id
+						layer3_rec.netblock_id, layer2_network_id
 					) RETURNING layer3_network_id INTO
 						layer3_rec.layer3_network_id;
 				END IF;
@@ -1411,10 +1552,10 @@ BEGIN
 						) RETURNING *
 					), l3_ins AS (
 						INSERT INTO layer3_network(
-							netblock_id
+							netblock_id, layer2_network_id
 						)
 						SELECT
-							netblock_id
+							netblock_id, layer2_network_id
 						FROM
 							nb_ins
 						RETURNING *
@@ -1441,9 +1582,9 @@ BEGIN
 						universe;
 					CONTINUE WHEN NOT create_layer3_networks;
 					INSERT INTO layer3_network(
-						netblock_id
+						netblock_id, layer2_network_id
 					) VALUES (
-						layer3_rec.netblock_id
+						layer3_rec.netblock_id, layer2_network_id
 					) RETURNING layer3_network_id INTO
 						layer3_rec.layer3_network_id;
 				END IF;
@@ -1582,6 +1723,19 @@ BEGIN
 
 			RAISE DEBUG E'Inserted shared_netblock % onto interfaces:\n%',
 				sn_rec.shared_netblock_id, jsonb_pretty(to_jsonb(l3i_id_ary));
+
+			--
+			-- If this shared netblock is VARP or VRRP, and we are to assume default gateway,
+			-- update accordingly.
+			--
+			IF protocol IN ('VARP', 'VRRP') THEN
+				UPDATE layer3_network
+				SET default_gateway_netblock_id = sn_rec.netblock_id
+				WHERE layer3_network_id = layer3_rec.layer3_network_id
+				AND default_gateway_netblock_id IS DISTINCT FROM sn_rec.netblock_id;
+
+				PERFORM dns_manip.set_dns_for_shared_routing_addresses(sn_rec.netblock_id);
+			END IF;
 		END LOOP;
 		--
 		-- Remove any shared_netblocks that are on the interface that are not
@@ -1647,6 +1801,217 @@ BEGIN
 	RETURN true;
 END;
 $$ LANGUAGE plpgsql SECURITY DEFINER SET search_path = jazzhands;
+
+CREATE OR REPLACE FUNCTION netblock_manip.validate_network_range(
+	network_range_id	jazzhands.network_range.network_range_id%TYPE DEFAULT NULL,
+	start_ip_address	inet DEFAULT NULL,
+	stop_ip_address		inet DEFAULT NULL,
+	network_range_type	jazzhands.val_network_range_type.network_range_type%TYPE DEFAULT NULL,
+	parent_netblock_id	jazzhands.netblock.netblock_id%TYPE DEFAULT NULL
+) RETURNS jazzhands.v_network_range_expanded AS $$
+DECLARE
+	proposed_range	jazzhands.v_network_range_expanded%ROWTYPE;
+	current_range	jazzhands.v_network_range_expanded%ROWTYPE;
+	par_netblock	RECORD;
+	start_netblock	RECORD;
+	stop_netblock	RECORD;
+	nrt				RECORD;
+	temprange		RECORD;
+
+	nr_id			ALIAS FOR network_range_id;
+	nr_type			ALIAS FOR network_range_type;
+	nr_start_addr	ALIAS FOR start_ip_address;
+	nr_stop_addr	ALIAS FOR stop_ip_address;
+	pnbid			ALIAS FOR parent_netblock_id;
+BEGIN
+	--
+	-- If network_range_id is passed, because we're modifying an existing
+	-- one, pull it in, otherwise populate a new one
+	--
+	IF nr_id IS NOT NULL THEN
+		SELECT
+			* INTO current_range
+		FROM
+			v_network_range_expanded nr
+		WHERE
+			nr.network_range_id = nr_id;
+
+		IF NOT FOUND THEN
+			RAISE 'network_range with network_range_id % does not exist',
+				nr_id
+				USING ERRCODE = 'foreign_key_violation';
+		END IF;
+	END IF;
+	--
+	-- Make a copy of the current range if it exists.
+	--
+	proposed_range := current_range;
+
+	--
+	-- Don't allow network_range_type to be changed
+	--
+	IF
+		nr_type != proposed_range.network_range_type
+	THEN
+		RAISE 'network_range_type may not be changed'
+			USING ERRCODE = 'check_violation';
+	END IF;
+
+	--
+	-- Set anything that's passed into the proposed network_range
+	--
+	proposed_range.network_range_type :=
+		COALESCE(nr_type, proposed_range.network_range_type);
+
+	SELECT
+		* INTO nrt
+	FROM
+		val_network_range_type v
+	WHERE
+		v.network_range_type = proposed_range.network_range_type;
+
+	IF NOT FOUND THEN
+		RAISE 'invalid network_range_type'
+			USING ERRCODE = 'check_violation';
+	END IF;
+
+	IF (start_ip_address IS DISTINCT FROM proposed_range.start_ip_address) THEN
+		proposed_range.start_ip_address = start_ip_address;
+		proposed_range.start_netblock_id = NULL;
+		proposed_range.start_netblock_type = NULL;
+		proposed_range.start_ip_universe_id = NULL;
+	END IF;
+
+	IF (stop_ip_address IS DISTINCT FROM proposed_range.stop_ip_address) THEN
+		proposed_range.stop_ip_address = stop_ip_address;
+		proposed_range.stop_netblock_id = NULL;
+		proposed_range.stop_netblock_type = NULL;
+		proposed_range.stop_ip_universe_id = NULL;
+	END IF;
+
+	IF parent_netblock_id IS NOT NULL AND
+		parent_netblock_id IS DISTINCT FROM proposed_range.parent_netblock_id
+	THEN
+		proposed_range.parent_netblock_id = parent_netblock_id;
+		proposed_range.ip_address = NULL;
+		proposed_range.netblock_type = NULL;
+		proposed_range.ip_universe_id = NULL;
+	END IF;
+	proposed_range.parent_netblock_id :=
+		COALESCE(pnbid, proposed_range.parent_netblock_id);
+
+	IF (
+		proposed_range.start_ip_address IS NULL OR
+		proposed_range.stop_ip_address IS NULL
+	) THEN
+		RAISE 'start_ip_address and stop_ip_address must both be set for a network_range'
+			USING ERRCODE = 'check_violation';
+	END IF;
+
+	--
+	-- If any other network ranges of this type exist that overlap this one,
+	-- and the network_range_type doesn't allow that, then error.  This gets
+	-- the situation where an address has changed or if it's a new range
+	--
+	IF NOT nrt.can_overlap AND
+		(proposed_range.start_ip_address IS DISTINCT FROM
+			current_range.start_ip_address) OR
+		(proposed_range.stop_ip_address IS DISTINCT FROM
+			current_range.stop_ip_address)
+	THEN
+		SELECT
+			nr.network_range_id,
+			startnb.ip_address as start_ip_address,
+			stopnb.ip_address as stop_ip_address
+		INTO temprange
+		FROM
+			jazzhands.network_range nr JOIN
+			jazzhands.netblock startnb ON
+				(nr.start_netblock_id = startnb.netblock_id) JOIN
+			jazzhands.netblock stopnb ON (nr.stop_netblock_id = stopnb.netblock_id)
+		WHERE
+			nr.network_range_id IS DISTINCT FROM nr_id AND
+			nr.network_range_type = proposed_range.network_range_type AND ((
+				host(startnb.ip_address)::inet <=
+					host(proposed_range.start_ip_address)::inet AND
+				host(stopnb.ip_address)::inet >=
+					host(proposed_range.start_ip_address)::inet
+			) OR (
+				host(startnb.ip_address)::inet <=
+					host(proposed_range.stop_ip_address)::inet AND
+				host(stopnb.ip_address)::inet >=
+					host(proposed_range.stop_ip_address)::inet
+			));
+
+		IF FOUND THEN
+			RAISE 'validate_network_range: network_range % of type % already exists that has addresses between % and % (% through %)',
+				temprange.network_range_id,
+				proposed_range.network_range_type,
+				proposed_range.start_ip_address,
+				proposed_range.stop_ip_address,
+				temprange.start_ip_address,
+				temprange.stop_ip_address
+				USING ERRCODE = 'check_violation';
+		END IF;
+	END IF;
+
+	IF parent_netblock_id IS NOT NULL THEN
+		SELECT * INTO par_netblock FROM jazzhands.netblock WHERE
+			netblock_id = pnbid;
+		IF NOT FOUND THEN
+			RAISE 'validate_network_range: parent_netblock_id % does not exist',
+				parent_netblock_id USING ERRCODE = 'foreign_key_violation';
+		END IF;
+	ELSE
+		SELECT * INTO par_netblock FROM jazzhands.netblock WHERE netblock_id = (
+			SELECT
+				*
+			FROM
+				netblock_utils.find_best_parent_netblock_id(
+					ip_address := start_ip_address,
+					is_single_address := true
+				)
+		);
+
+		IF NOT FOUND THEN
+			RAISE 'validate_network_range: valid parent netblock for start_ip_address % does not exist',
+				start_ip_address USING ERRCODE = 'check_violation';
+		END IF;
+	END IF;
+
+	IF par_netblock.can_subnet != false OR
+			par_netblock.is_single_address != false THEN
+		RAISE 'validate_network_range: parent netblock % must not be subnettable or a single address',
+			par_netblock.netblock_id USING ERRCODE = 'check_violation';
+	END IF;
+
+	IF NOT (start_ip_address <<= par_netblock.ip_address) THEN
+		RAISE 'validate_network_range: start_ip_address % is not contained by parent netblock % (%)',
+			start_ip_address, par_netblock.ip_address,
+			par_netblock.netblock_id USING ERRCODE = 'check_violation';
+	END IF;
+
+	IF NOT (stop_ip_address <<= par_netblock.ip_address) THEN
+		RAISE 'validate_network_range: stop_ip_address % is not contained by parent netblock % (%)',
+			stop_ip_address, par_netblock.ip_address,
+			par_netblock.netblock_id USING ERRCODE = 'check_violation';
+	END IF;
+
+	IF NOT (start_ip_address <= stop_ip_address) THEN
+		RAISE 'validate_network_range: start_ip_address % is not lower than stop_ip_address %',
+			start_ip_address, stop_ip_address
+			USING ERRCODE = 'check_violation';
+	END IF;
+
+	proposed_range.parent_netblock_id := par_netblock.netblock_id;
+    proposed_range.ip_address := par_netblock.ip_address;
+    proposed_range.netblock_type := par_netblock.netblock_type;
+    proposed_range.ip_universe_id := par_netblock.ip_universe_id;
+	RETURN proposed_range;
+END;
+$$ LANGUAGE plpgsql
+SET search_path = jazzhands
+SECURITY DEFINER;
 
 SELECT schema_support.replay_saved_grants();
 

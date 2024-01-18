@@ -2,13 +2,13 @@ Source: perl-jazzhands-ldap
 Section: unknown
 Priority: extra
 Maintainer: JazzHands Project <release@jazzhands.net>
-Build-Depends: debhelper (>= 8.0.0), perl-modules
-Standards-Version: 3.9.4
+Build-Depends: debhelper (>= 9.0.0), perl-modules
+Standards-Version: 4.6.2
 Homepage: http://www.jazzhands.net/
 
 Package: perl-jazzhands-ldap
 Section: unknown
-Architecture: any
-Pre-Depends: perl-jazzhands-appauthal, libnet-ldap-perl
+Architecture: all
+Depends: perl-jazzhands-appauthal ( >= 0.96.0) , libnet-ldap-perl
 Description: 
  JazzHands App Authorization Abstraction Layer for php

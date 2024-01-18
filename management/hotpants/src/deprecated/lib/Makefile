@@ -52,7 +52,7 @@ DBTEST_SRCS=dbtest.c
 AUTHTEST_SRCS=authtest.c
 
 all: crypto libhotpants.so
-	
+
 .PHONY: crypto clean
 SUBDIRS=crypto
 

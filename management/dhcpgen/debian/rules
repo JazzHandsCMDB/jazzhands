@@ -1,9 +1,23 @@
 #!/usr/bin/make -f
-
-export DH_VERBOSE=1
+# -*- makefile -*-
+# Uncomment this to turn on verbose mode.
+# export DH_VERBOSE=1
 
 %:
-	dh $@
+	dh $@ --with systemd
+
+# Because I don't provide SysV scripts
+override_dh_installinit:
+	dh_installinit --noscripts
+
+# Not starting nor enabling the service upon install
+override_dh_systemd_start:
+	@echo Not starting the service
+	@dh_systemd_start --no-start
+
+override_dh_systemd_enable:
+	@echo Not enabling the service
+	@dh_systemd_enable --no-enable
 
 override_dh_auto_install:
-	$(MAKE) -f Makefile.jazzhands DESTDIR=$$(pwd)/debian/jazzhands-dhcpgen PREFIX=/usr/libexec/jazzhands/dhcpgen install
+	dh_auto_install -- prefix=/usr/libexec/jazzhands/dhcpgen

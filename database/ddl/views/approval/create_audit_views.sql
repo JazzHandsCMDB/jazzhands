@@ -1,4 +1,4 @@
--- Copyright (c) 2015-2017, Todd M. Kover
+-- Copyright (c) 2015-2023, Todd M. Kover
 -- All rights reserved.
 --
 -- Licensed under the Apache License, Version 2.0 (the "License");
@@ -17,7 +17,8 @@
 CREATE OR REPLACE VIEW approval_utils.v_account_collection_account_audit_map AS
 SELECT "aud#seq" as audit_seq_id, *
 FROM  (
-	SELECT acaa.*,
+	SELECT acaa.account_collection_id, acaa.account_id, acaa.account_collection_relation,
+		 acaa.account_id_rank, acaa.start_date, acaa.finish_date, "aud#seq",
 		row_number() OVER
 		(partition BY account_collection_id,account_id ORDER BY
 		"aud#seq" desc) as rownum
@@ -31,7 +32,7 @@ WHERE rownum = 1;
 CREATE OR REPLACE VIEW approval_utils.v_person_company_audit_map AS
 SELECT "aud#seq" as audit_seq_id, *
 FROM  (
-	SELECT pca.*,
+	SELECT pca.company_id, pca.person_id, pca.person_company_status, pca.person_company_relation, pca.is_exempt, pca.is_management, pca.is_full_time, pca.description, pca.position_title, pca.hire_date, pca.termination_date, pca.manager_person_id, pca.nickname, "aud#seq",
 		row_number() OVER
 		(partition BY person_id,company_id ORDER BY
 		"aud#seq" desc) as rownum

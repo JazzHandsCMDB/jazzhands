@@ -90,7 +90,10 @@
 \ir logical_port_manip.sql
 
 \ir service_manip.sql
+\ir x509_manip.sql
 \ir x509_hash_manip.sql
 \ir x509_plperl_cert_utils.sql
 
 \ir jazzhands_legacy_manip.sql
+
+\ir authorization_utils.sql

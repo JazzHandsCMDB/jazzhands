@@ -49,7 +49,7 @@ SCRIPTS= index.pl netcol-ajax.pl update_nb.pl
 all:
 	@echo nothing to do
 	@#for subdir in $(SUBDIRS) ; do \
-	@#	( cd $$subdir && $(MAKE) -e $(MFLAGS) all) 
+	@#	( cd $$subdir && $(MAKE) -e $(MFLAGS) all)
 	@#done
 
 install:

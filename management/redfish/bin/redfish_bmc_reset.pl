@@ -104,11 +104,11 @@ DEVLOOP: while ($host = shift) {
 			printf "Error resetting %s: ", $host;
 		}
 
-		printf "%s\n", $host, join("\n", @errors);
+		printf "%s: %s\n", $host, join("\n", @errors);
 		next DEVLOOP;
 	} else {
 		if ($verbose) {
-			printf "Ok\n", $host;
+			printf "Ok\n";
 		}
 	}
 }

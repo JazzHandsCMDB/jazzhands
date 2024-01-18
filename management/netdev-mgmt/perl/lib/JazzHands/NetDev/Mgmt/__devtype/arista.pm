@@ -198,8 +198,6 @@ sub SendCommand {
 	eval {
 		local $SIG{ALRM} = sub { die "timeout"; };
 		alarm($timeout);
-#		print Dumper $ua;
-#		print Dumper $req;
 		$res = $ua->request($req);
 		alarm(0);
 	};
@@ -216,10 +214,8 @@ sub SendCommand {
 		return undef;
 	}
 	undef $ua;
-#	print $res->content . "\n";
 	my $result;
 	eval { $result = JSON::XS->new->decode($res->content) };
-#	print Data::Dumper->Dump([$result], ["Response"]);
 	if ($result->{error}) {
 		SetError($err, $result->{error}->{message});
 		return undef;
@@ -814,7 +810,8 @@ sub SetBGPPeerStatus {
 		return undef;
 	}
 
-	my ($major, $minor, $patch) = split /\./, $chassisinfo->{software_version}, 3;
+	my ($major, $minor, $patch) = split /\./, 
+		$chassisinfo->{software}->{version}, 3;
 
 	#
 	# Validate that this is a valid BGP peer for the device
@@ -1149,8 +1146,7 @@ sub GetIPAddressInformation {
 		commands => [
 			'show ipv6 interface'
 		],
-		timeout => $opt->{timeout},
-		errors => $err
+		timeout => $opt->{timeout}
 	);
 
 	my $ipv6ifaces;
@@ -1864,13 +1860,18 @@ sub GetChassisInfo {
 
 	my $inventory = $result->[0];
 	my $software = $result->[1];
+	my ($major, $minor, $patch) = split /\./, $software->{version}, 3;
 	my $chassis = {
 		model => $inventory->{systemInformation}->{name},
 		manufacturer => 'Arista Networks',
 		manufacture_date => $inventory->{systemInformation}->{mfgDate},
 		hardware_rev => $inventory->{systemInformation}->{hardwareRev},
 		serial => $inventory->{systemInformation}->{serialNum},
-		software_version => $software->{version}
+		software => {
+			os_name => 'EOS',
+			version => $software->{version},
+			major_version => $major . '.' . $minor
+		}
 	};
 	#
 	# If the cardSlots hash is populated, then we're a modular chassis
@@ -1902,6 +1903,8 @@ sub GetChassisInfo {
 						model => $slots->{$_}->{name},
 						serial => $slots->{$_}->{serialNum}
 					}
+				} else {
+					()
 				}
 			} keys %$slots
 		};
@@ -1956,6 +1959,7 @@ sub GetChassisInfo {
 		};
 	}
 
+	$chassis->{management_type} = 'arista';
 	return $chassis;
 }
 

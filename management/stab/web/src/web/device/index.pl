@@ -57,34 +57,56 @@ my $devlist = $stab->cgi_parse_param('devlist');
 $cgi->delete($devlist) if ($devlist);
 
 print $cgi->header('text/html');
-print $stab->start_html( { -title => "Device Management" } ), "\n";
+print $stab->start_html(
+	{ -title => "Device Management", -javascript => 'device' } ), "\n";
 
 if ( defined($devlist) && $devlist =~ /^[\d,]+$/ ) {
 	my @devlist = split( /,/, $devlist );
-	my $tally = $#devlist + 1;
+	my $tally   = $#devlist + 1;
 	print $cgi->p(
+		{ -align => 'center' },
 		$cgi->b(
 			"The following $tally devices match the selected criteria.  Please choose or submit a new search:"
 		)
 	);
 	my $q = qq{
-		select	distinct device_id, device_name
+		select	distinct device_id, device_name, site_code
 		  from	device
 		  where	device_id in ($devlist)
-		order by device_name
+		order by site_code,device_id,device_name
 	};
 	my $sth = $stab->prepare($q) || $stab->return_db_err($dbh);
 	$sth->execute || $stab->return_db_err($sth);
 
-	my $all = "";
-	while ( my ( $id, $name ) = $sth->fetchrow_array ) {
+	my $all = $cgi->Tr(
+		{ -class => 'devicesearch' },
+		$cgi->th('Device ID'),
+		$cgi->th('Device Name')
+	);
+	while ( my ( $id, $name, $site ) = $sth->fetchrow_array ) {
 		$name = "(unnamed, retired device)" if ( !defined($name) );
-		$all .=
-		  $cgi->li( $cgi->a( { -href => "device.pl?devid=$id" }, $name ) )
-		  . "\n";
+
+		#$all .=
+		#  $cgi->li( $cgi->a( { -href => "device.pl?devid=$id" }, $name.' ('.$site.':'.$id.')' ) )
+		#  . "\n";
+		$all .= $cgi->Tr(
+			{ -class => 'devicesearch' },
+			$cgi->td(
+				{ -class => 'devicesearch' },
+				$cgi->a(
+					{ -href => "device.pl?devid=$id" }, $site . ':' . $id
+				)
+			),
+			$cgi->td(
+				{ -class => 'devicesearch' },
+				$cgi->a( { -href => "device.pl?devid=$id" }, $name )
+			)
+		) . "\n";
 	}
 	if ( length($all) ) {
-		print $cgi->ul($all), "\n";
+
+		#print $cgi->ul($all), "\n";
+		print $cgi->table( { -class => 'devicesearch' }, $all ) . "\n";
 	} else {
 		print $cgi->p( { -align => 'center', -style => 'color: green' },
 			"Unable to find any matches." );
@@ -97,8 +119,8 @@ print $cgi->h3( { -align => 'center' }, 'Search for a device' ), "\n";
 
 print $cgi->p(
 	{ -align => 'center' }, qq{
-	Please enter the criteria to search for.  Search will be for hosts
-	that match all fields that are filled in.  CIDR blocks are of the
+	Please enter the criteria to search for. Search will be for hosts
+	that match all fields that are filled in. CIDR blocks are of the
 	form ip/bits.
 	
 }
@@ -107,42 +129,91 @@ print $cgi->p(
 print $cgi->start_form( -method => 'POST', -action => 'search.pl' ), "\n";
 
 print $cgi->start_table( { align => 'center' } );
+
+# Search by Site
 print $cgi->Tr(
-	$cgi->td("Host/Label/DNS Shortname: "),
-	$cgi->td( $cgi->textfield( -name => "byname" ) )
+	$cgi->td("Site: "),
+
+	#$cgi->td( $cgi->textfield( -name => "bysite" ) )
+	$cgi->td(
+		$cgi->div( {}, $stab->b_dropdown( {}, undef, 'SITE_CODE', undef, 1 ), )
+	)
   ),
   "\n";
+
+# Search by device name, physical label or dns
+print $cgi->Tr(
+	$cgi->td("Device Name / Physical Label / DNS Name: "),
+	$cgi->td(
+		$cgi->textfield( -name => "byname" ),
+		'<span style="position: absolute; margin-top: 1px; margin-left: 10px;"><i>Supports regular expressions</i></span>'
+	),
+  ),
+  "\n";
+
+# Search by Device ID
+print $cgi->Tr(
+	$cgi->td("Device ID: "),
+	$cgi->td(
+		$cgi->textfield(
+			{
+				-name => "byid",
+				-id   => "byid"
+			}
+		),
+	)
+  ),
+  "\n";
+
+# Search by serial number or host id
+print $cgi->Tr(
+	$cgi->td("Serial Number / HostId: "),
+	$cgi->td(
+		$cgi->textfield( -name => "byserial" ),
+		'<span style="position: absolute; margin-top: 1px; margin-left: 10px;"><i>Supports regular expressions</i></span>'
+	),
+  ),
+  "\n";
+
+# Search by ip or cidr
 print $cgi->Tr(
 	$cgi->td("IP or CIDR: "),
 	$cgi->td( $cgi->textfield( -name => "byip" ) )
   ),
   "\n";
-print $cgi->Tr(
-	$cgi->td("Serial Number/HostId: "),
-	$cgi->td( $cgi->textfield( -name => "byserial" ) )
-  ),
-  "\n";
+
+# Search my mac address
 print $cgi->Tr(
 	$cgi->td("Mac Addr: "),
-	$cgi->td( $cgi->textfield( -name => "bymac" ) )
+	$cgi->td(
+		$cgi->textfield( -name => "bymac" ),
+		'<span style="position: absolute; margin-top: 1px; margin-left: 10px;"><i>Supports regular expressions</i></span>'
+	),
   ),
   "\n";
+
+# Search by device type
 print $cgi->Tr( $cgi->td("Type: "),
 	$cgi->td( $stab->b_dropdown( undef, 'DEVICE_TYPE_ID', undef, 1 ) ) ),
   "\n";
+
+# Search by operating system
 print $cgi->Tr( $cgi->td("OS: "),
 	$cgi->td( $stab->b_dropdown( undef, 'OPERATING_SYSTEM_ID', undef, 1 ) ) ),
   "\n";
+
+# Include removed devices checkbox
 print $cgi->Tr(
 	$cgi->td(
 		{ -colspan => 2, align => 'center' },
 		$stab->build_checkbox(
-			undef, "Include Removed devices",
+			undef, "Include removed devices",
 			'INCLUDE_REMOVED', undef, 0
 		),
 	),
   ),
   "\n";
+
 print $cgi->Tr(
 	$cgi->td( { -colspan => 2, align => 'center' }, $cgi->submit("Search") ) );
 

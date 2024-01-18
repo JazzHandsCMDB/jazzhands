@@ -571,7 +571,7 @@ BEGIN
 				stop.ip_address  >= NEW.ip_address
 			;
 
-			IF _tally != 1 THEN
+			IF _tally > 1 THEN
 				RAISE EXCEPTION 'Netblock changes network range overlap with type % (%)',
 					_vnrt.network_range_type, _tally
 					USING ERRCODE = 'integrity_constraint_violation';
@@ -596,7 +596,7 @@ BEGIN
 		);
 
 		IF _tally > 0 THEN
-			RAISE EXCEPTION 'netblock is part of network_range_type % and creatres % violations',
+			RAISE EXCEPTION 'netblock is part of network_range_type % and creates % violations',
 				_vnrt.network_range_type, _tally
 				USING ERRCODE = 'integrity_constraint_violation';
 		END IF;

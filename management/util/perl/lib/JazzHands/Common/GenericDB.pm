@@ -697,7 +697,7 @@ sub commit {
 	my $self = shift;
 
 	if ( my $dbh = $self->DBHandle ) {
-		return $dbh->commit;
+		my $x = $dbh->commit;
 	}
 }
 

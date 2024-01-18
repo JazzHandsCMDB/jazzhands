@@ -1,3 +1,20 @@
+--
+-- Copyright (c) 2010-2023, Todd M. Kover
+-- All rights reserved.
+--
+-- Licensed under the Apache License, Version 2.0 (the "License");
+-- you may not use this file except in compliance with the License.
+-- You may obtain a copy of the License at
+--
+--       http://www.apache.org/licenses/LICENSE-2.0
+--
+-- Unless required by applicable law or agreed to in writing, software
+-- distributed under the License is distributed on an "AS IS" BASIS,
+-- WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+-- See the License for the specific language governing permissions and
+-- limitations under the License.
+--
+--
 -- Copyright (c) 2005-2010, Vonage Holdings Corp.
 -- All rights reserved.
 --
@@ -19,21 +36,6 @@
 -- ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT
 -- (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS
 -- SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
-
--- Copyright (c) 2010-2021, Todd M. Kover
--- All rights reserved.
---
--- Licensed under the Apache License, Version 2.0 (the "License");
--- you may not use this file except in compliance with the License.
--- You may obtain a copy of the License at
---
---       http://www.apache.org/licenses/LICENSE-2.0
---
--- Unless required by applicable law or agreed to in writing, software
--- distributed under the License is distributed on an "AS IS" BASIS,
--- WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
--- See the License for the specific language governing permissions and
--- limitations under the License.
 
 
 --
@@ -528,9 +530,13 @@ VALUES
 	('Defaults', '_authdns', 'string', true,
 		'Default Nameserver for zone');
 
-insert into val_dns_domain_type (DNS_DOMAIN_TYPE) values ('service');
-insert into val_dns_domain_type (DNS_DOMAIN_TYPE) values ('retired');
-insert into val_dns_domain_type (DNS_DOMAIN_TYPE) values ('vanity');
+insert into val_dns_domain_type (DNS_DOMAIN_TYPE)
+VALUES
+	('service'),
+	('reverse'),
+	('retired'),
+	('vanity')
+;
 
 insert into val_dns_class (dns_class) values ('IN');
 insert into val_dns_class (dns_class) values ('HESOID');
@@ -565,6 +571,7 @@ insert into val_dns_type (dns_type,id_type) values ('PX', 'NON-ID');
 insert into val_dns_type (dns_type,id_type) values ('RP', 'NON-ID');
 insert into val_dns_type (dns_type,id_type) values ('RT', 'NON-ID');
 insert into val_dns_type (dns_type,id_type) values ('SIG', 'NON-ID');
+insert into val_dns_type (dns_type,id_type) values ('SSHFP', 'NON-ID');
 insert into val_dns_type (dns_type,id_type) values ('SOA', 'LINK');
 insert into val_dns_type (dns_type,id_type) values ('SPF', 'NON-ID');
 insert into val_dns_type (dns_type,id_type) values ('SRV', 'NON-ID');
@@ -579,6 +586,12 @@ insert into val_dns_type (dns_type,id_type,description)
 	values ('REVERSE_ZONE_BLOCK_PTR', 'LINK',
 	'not really a type; in-addr backend link');
 
+INSERT INTO val_dns_type (
+        dns_type, description, id_type
+) VALUES (
+        'DEFAULT_DNS_DOMAIN', 'used by integrations to determine associated dns domain', 'LINK'
+);
+
 ----------------------- Misc Property Types
 
 insert into val_property_type (property_type, description,is_multivalue)
@@ -589,6 +602,8 @@ insert into val_property_type (property_type, description,is_multivalue)
 	('HOTPants','define HOTPants behavior', true),
 	('RADIUS','RADIUS properties', true),
 	('ConsoleACL','console access control properties', true),
+	('DeviceProvisioning','properties related to automatic device provisioning', true),
+	('DeviceInventory','properties for device inventory functions', true),
 	('UnixPasswdFileValue','override value set in the Unix passwd file',true),
 	('SystemInstallation','Properties associated with the system loading process',true),
 	('wwwgroup','WWW Group properties',true);
@@ -1009,6 +1024,101 @@ VALUES (
 	'REQUIRED'
 );
 
+--
+-- Device provisioning properties
+--
+--   These need to move to various component_property tables, but we need
+--   company_collection_id and friends in there first
+--
+
+insert into val_company_collection_type
+	(company_collection_type,
+	max_num_members, can_have_hierarchy
+) values (
+	'per-company',
+	1, false
+);
+
+INSERT INTO val_property(
+	property_name, property_type, description, is_multivalue,
+	property_data_type,
+	permit_company_collection_id,
+	company_collection_type
+	)
+VALUES (
+	'DeviceVendorProbeString',
+	'DeviceProvisioning',
+	'Vendor string that may be found during a device probe',
+	true,
+	'string',
+	'REQUIRED',
+	'per-company'
+);
+
+INSERT INTO val_property(
+	property_name, property_type, description, is_multivalue,
+	property_data_type,
+	permit_company_collection_id,
+	company_collection_type
+	)
+VALUES (
+	'DiskVendorProbeString',
+	'DeviceProvisioning',
+	'Vendor string that may be found during a disk probe',
+	true,
+	'string',
+	'REQUIRED',
+	'per-company'
+);
+
+INSERT INTO val_property(
+	property_name, property_type, description, is_multivalue,
+	property_data_type,
+	permit_company_collection_id,
+	company_collection_type
+	)
+VALUES (
+	'CPUVendorProbeString',
+	'DeviceProvisioning',
+	'Vendor string that may be found during a CPU probe',
+	true,
+	'string',
+	'REQUIRED',
+	'per-company'
+);
+
+INSERT INTO val_property(
+	property_name, property_type, description, is_multivalue,
+	property_data_type,
+	permit_company_collection_id,
+	company_collection_type
+	)
+VALUES (
+	'PCIVendorID',
+	'DeviceProvisioning',
+	'numeric PCI Vendor ID',
+	true,
+	'number',
+	'REQUIRED',
+	'per-company'
+);
+
+INSERT INTO val_property(
+	property_name, property_type, description, is_multivalue,
+	property_data_type,
+	permit_company_collection_id,
+	company_collection_type
+	)
+VALUES (
+	'DeviceComponentManagementInterface',
+	'DeviceProvisioning',
+	'Default name of the management interface for a given device component vendor',
+	true,
+	'string',
+	'REQUIRED',
+	'per-company'
+);
+
 -- System installation properties
 
 INSERT INTO val_property(
@@ -1034,15 +1144,6 @@ VALUES (
 	'ALLOWED',
 	'ALLOWED'
 );
-
-insert into val_company_collection_type
-	(company_collection_type,
-	max_num_members, can_have_hierarchy
-	)
-values
-	('per-company',
-	1, false
-	);
 
 -- XXX need to auto-create a Account_Collection all_company_XX
 
@@ -1790,6 +1891,86 @@ INSERT INTO val_property (
 --
 -- End automated properties/colletions
 -------------------------------------------------------------------------
+--
+-- BEGIN encryption information
+
+INSERT into val_cryptographic_hash_algorithm
+	(cryptographic_hash_algorithm, description)
+VALUES
+	('none', 'not hashed'),
+	('sha1', 'SHA1 hash'),
+	('md5', 'MD5 hash'),
+	('sha128', 'SHA128 hash'),
+	('sha256', 'SHA256 hash');
+
+INSERT into val_cipher
+	(cipher, description)
+VALUES
+	('none', NULL),
+	('des', NULL),
+	('des3', NULL),
+	('IDEA', NULL),
+	('Blowfish', NULL),
+	('CAST5', NULL),
+	('AES', 'aka Rijndael'),
+	('Camelia', NULL),
+	('RSA', NULL),
+	('ECC', NULL)
+;
+
+INSERT into val_cipher_padding
+	(cipher_padding, description)
+VALUES
+	('none', NULL),
+	('null', 'pad with zeros'),
+	('Space', 'pad with 0x20'),
+	('PKCS5', 'pads with number of bytes that should be truncated'),
+	('Rijndael_Compat', 'Similar to ones and zeros, no padding on last full block'),
+	('OneAndZeros', 'Pads with 0x80 followed by 0x00s to fill'),
+	('X9.23', 'Zero followed by number of bytes of padding'),
+	('W3C', 'arbitrary byte values ending with number of bytes padded')
+;
+
+INSERT into val_cipher_chain_mode
+	(cipher_chain_mode, description)
+VALUES
+	('none', NULL),
+	('CBC', 'cipher-bock chaining'),
+	('PCBC', 'plaintext cipher-block chaining'),
+	('CFB', 'Cipher Feedback'),
+	('OFB', 'Output Feedbacl'),
+	('CTR', 'Counter')
+;
+
+INSERT INTO val_cipher_permitted_cipher_padding (
+	cipher, cipher_padding
+)
+VALUES
+	('none', 'none'),
+	('AES', 'PKCS5')
+;
+
+INSERT INTO val_cipher_permitted_cipher_chain_mode (
+	cipher, cipher_chain_mode
+)
+VALUES
+	('none', 'none'),
+	('AES', 'CBC')
+;
+
+INSERT INTO val_cipher_permitted_key_size (
+	cipher, key_size
+)
+VALUES
+	('none', 0),
+	('AES', 128),
+	('AES', 192),
+	('AES', 256),
+	('RSA', '1024'),
+	('RSA', '2048'),
+	('RSA', '4096')
+;
+
 
 -------------------------------------------------------------------------
 -- BEGIN certificate
@@ -1800,7 +1981,7 @@ values
 	('certpassphrase', 1, 'SSL Crtificates Key Passphrase');
 
 insert into val_x509_fingerprint_hash_algorithm
-	(x509_fingerprint_hash_algorighm, description)
+	(cryptographic_hash_algorithm, description)
 values
 	('sha1', 'SHA1 hash'),
 	('sha256', 'SHA256 hash');
@@ -1901,13 +2082,31 @@ values
 -------------------------------------------------------------------------
 
 -------------------------------------------------------------------------
--- logical volumes
+-- logical volumes / disks
 
-INSERT INTO val_logical_volume_type (
-	logical_volume_type, description
-) VALUES (
-	'legacy', 'data that predates existance of this table'
-);
+INSERT INTO val_block_storage_device_encryption_system (
+	block_storage_device_encryption_system
+) VALUES
+	('LUKS'),
+	('VeraCrypt'),
+	('ZFS')
+;
+
+INSERT INTO val_block_storage_device_type (
+	block_storage_device_type, permit_logical_volume_id
+) VALUES
+	('disk partition', 'REQUIRED'),
+	('ZFS filesystem', 'REQUIRED'),
+	('ZFS volume', 'REQUIRED'),
+	('LVM volume', 'REQUIRED')
+;
+
+INSERT INTO val_block_storage_device_type (
+	block_storage_device_type, permit_encrypted_block_storage_device_id,
+	is_encrypted
+) VALUES
+	('encrypted_block_storage_device', 'REQUIRED', true)
+;
 
 -- END logical volumes
 -------------------------------------------------------------------------
@@ -1985,12 +2184,6 @@ insert into val_property (
 
 -------------------------------------------------------------------------
 -- BEGIN Device Inventory
-
-INSERT INTO val_property_type (
-	property_type, description
-) VALUES
-	('DeviceInventory', 'properties for device inventory functions')
-;
 
 INSERT INTO val_property (
 	property_type, property_name, property_data_type,

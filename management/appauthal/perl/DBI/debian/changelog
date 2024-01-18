@@ -1,8 +1,15 @@
+perl-jazzhands-dbi (0.96.0) jammy; urgency=medium
+
+  * bump up various debian versions of things to be currentish
+
+ -- Todd M. Kover <kovert@omniscient.com>  Mon, 21 Aug 2023 15:30:00 -0400
+
 perl-jazzhands-dbi (0.95.1) jammy; urgency=medium
 
   * Update to use new JazzHands::Common errstr sub
 
  -- Todd M. Kover <kovert@omniscient.com>  Mon, 20 Jun 2022 17:02:32 -0400
+
 
 perl-jazzhands-dbi (0.90.14) trusty; urgency=medium
 

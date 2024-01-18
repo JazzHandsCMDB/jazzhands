@@ -1,3 +1,9 @@
+jazzhands-account-directory (0.96.0) bionic; urgency=medium
+
+  * bump up various debian versions of things to be currentish
+
+ -- Todd M. Kover <kovert@omniscient.com>  Mon, 21 Aug 2023 15:30:00 -0400
+
 jazzhands-account-directory (0.94.2) bionic; urgency=medium
 
   * adjust join on events to limit to primary account

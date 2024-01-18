@@ -2,10 +2,10 @@ Source: jazzhands-perl-redfish
 Section: System/Management
 Priority: optional
 Maintainer: Matthew Ragan <mdr@sucksless.net>
-Build-Depends: debhelper (>= 8.0.0)
-Standards-Version: 3.9.4
+Build-Depends: debhelper (>= 9.0.0)
+Standards-Version: 4.6.2
 
 Package: jazzhands-perl-redfish
 Architecture: all
-Depends: ${perl:Depends}, jazzhands-perl-common, perl-jazzhands-appauthal, libjson-perl, libwww-perl, libio-socket-ssl-perl
+Depends: ${perl:Depends}, jazzhands-perl-common (>= 0.96.0), perl-jazzhands-appauthal (>= 0.96.0), libjson-perl, libwww-perl, libio-socket-ssl-perl
 Description: Simple management library for Redfish targets

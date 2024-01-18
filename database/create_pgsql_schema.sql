@@ -85,6 +85,7 @@ COMMENT ON SCHEMA jazzhands_cache IS 'cache tables for jazzhands views';
 \ir ddl/schema/pgsql/create_network_range_triggers.sql
 \ir ddl/schema/pgsql/create_per_svc_env_coll_triggers.sql
 \ir ddl/schema/pgsql/create_physical_conection_triggers.sql
+\ir ddl/schema/pgsql/create_physicalish_volume_triggers.sql
 \ir ddl/schema/pgsql/create_property_name_collection_hier_triggers.sql
 \ir ddl/schema/pgsql/create_property_triggers.sql
 \ir ddl/schema/pgsql/create_svcenv_coll_hier_triggers.sql
@@ -112,8 +113,16 @@ COMMENT ON SCHEMA jazzhands_cache IS 'cache tables for jazzhands views';
 \ir ddl/schema/pgsql/create_schema_relationship_triggers.sql
 \ir ddl/schema/pgsql/create_software_artifact_repository_triggers.sql
 \ir ddl/schema/pgsql/create_port_range_triggers.sql
+\ir ddl/schema/pgsql/create_rack_compat_trigger.sql
+\ir ddl/schema/pgsql/create_device_component_virtual_sync.sql
+\ir ddl/schema/pgsql/create_filesystem_triggers.sql
+\ir ddl/schema/pgsql/create_block_storage_device_triggers.sql
+\ir ddl/schema/pgsql/create_filesystem_compat_triggers.sql
 
 \ir ddl/schema/pgsql/create_device_management_controller_triggers.sql
+\ir ddl/schema/pgsql/create_fingerprint_hash_algorithm_misspelling_trigger.sql
+
+\ir ddl/schema/pgsql/logical_volume_property_deprecation_triggers.sql
 
 -- goes with the jazzhands_legacy schema
 \ir ddl/schema/pgsql/create_jazzhands_legacy_triggers-RETIRE.sql
@@ -123,8 +132,8 @@ COMMENT ON SCHEMA jazzhands_cache IS 'cache tables for jazzhands views';
 
 \ir ddl/schema/pgsql/create_person_company_attr_triggers.sql
 \ir ddl/schema/pgsql/create_account_pgnotify_trigger.sql
-
-\ir ddl/schema/pgsql/create_hotpants_view_triggers.sql
+\ir ddl/schema/pgsql/create_encryption_key_triggers.sql
+\ir ddl/schema/pgsql/create_dns_domain_collection_auto_member_triggers.sql
 
 -- This could be done for backwards compatibility but is not.
 -- \ir compat/pgsql/create_location_compatibility_view.sql
@@ -143,7 +152,7 @@ COMMENT ON SCHEMA jazzhands_cache IS 'cache tables for jazzhands views';
 
 -- having to hand maintain this sucks.
 SELECT schema_support.set_schema_version(
-	version := '0.95',
+	version := '0.96',
 	schema := 'jazzhands'
 );
 

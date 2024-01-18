@@ -221,6 +221,275 @@ function mouseout_Search() {
 	this.leaveUp = false;
 }
 
+//
+// A function to display a temporary message at the pointer location
+//
+function blink_message( strMessage, x, y, duration ) {
+	let elementMsg = document.createElement( 'div' );
+	elementMsg.innerHTML = strMessage;
+	elementMsg.style.position = 'absolute';
+	elementMsg.style.backgroundColor = 'black';
+	elementMsg.style.color = 'white';
+	elementMsg.style.border = '1px';
+	document.body.appendChild( elementMsg );
+	// Position the message just above the mouse cursor
+	elementMsg.style.top = ( y - elementMsg.offsetHeight * 2 )  + 'px';
+	elementMsg.style.left = ( x - elementMsg.offsetWidth / 2 ) + 'px';
+	setTimeout( function() { elementMsg.remove(); }, duration );
+}
+
+//
+// Show the device search popup for an Other End input field, creating it if necessary
+//
+//var listener;
+function showOtherEndDeviceSearchPopup( elementDeviceName, strElementDeviceId, portId, strElementPortsId, type, side ) {
+	if( ! elementDeviceName ) return;
+
+	// Build the popup id and check if it already exists for this Other End field
+	const strPopupId = elementDeviceName.id + '_popup';
+	let elementPopup = document.getElementById(strPopupId);
+
+	// Hide all similar popups, we don't want more than one open
+	Array.from( document.querySelectorAll( '.searchPopup' ) ).forEach(( otherPopup ) => {
+		if( otherPopup.id === strPopupId ) return;
+		otherPopup.style.visibility = 'hidden';
+		// We also want to make it clear that the entry has not been validated
+		// Get the input element for this popup
+		let oInputElement = document.getElementById( otherPopup.id.replace( '_popup', '' ) );
+		// Revert the displayed value to the last selected and validated value, or to the original value if nothing was selected
+		if( oInputElement.hasAttribute( 'lastselected' ) ) {
+		  oInputElement.value = oInputElement.getAttribute( 'lastselected' );
+		} else {
+		  oInputElement.value = oInputElement.getAttribute( 'original' );
+		}
+		updateChangeTrackingStatus( oInputElement );
+	});
+
+	// First build ids for the related fields
+	//const strPopupSearchId = elementDeviceName.id + '_popup_search';
+	const strPopupSelectId = elementDeviceName.id + '_popup_select';
+	const strPopupSelectButtonId = elementDeviceName.id + '_popup_button';
+	const strPopupDisconnectButtonId = elementDeviceName.id + '_popup_disconnect_button';
+	const strPopupAjaxId = elementDeviceName.id + '_popup_ajax';
+
+	// Popup exists already, make it visible and set focus to search field again
+	if( elementPopup ) {
+		elementPopup.style.visibility = 'visible';
+		//document.getElementById( strPopupSearchId ).focus();
+		return;
+	}
+
+	// Popup doesn't exist yet, let's create it
+	elementPopup = document.createElement('div');
+
+	elementPopup.id = strPopupId;
+	elementPopup.style.position = 'absolute';
+	elementPopup.className = 'searchPopup';
+
+	elementDeviceName.setAttribute('lastsearch', '' );
+	elementDeviceName.setAttribute('myselect', strPopupSelectId );
+	elementDeviceName.setAttribute('myajax', strPopupAjaxId );
+	elementDeviceName.setAttribute('mybutton', strPopupSelectButtonId );
+	//elementDeviceName.addEventListener( 'blur', function() { hidePopup( strPopupId ); } );
+	elementDeviceName.onkeydown = function( event ) { if( event.keyCode === 27 ) { hidePopup( strPopupId ); } };
+
+	// We could hide the popup when the mouse leaves, but it doesn't feel nice
+	//elementPopup.onmouseleave = function() { hidePopup( strPopupId ); }
+	// Escape key closes the popup
+	elementPopup.onkeydown = function( event ) { if( event.keyCode === 27 ) { hidePopup( strPopupId ); } };
+
+	// Popup title
+	//let strPopupHTML = '<div>Other End Device Selection</div>';
+	// Search field
+	//strPopupHTML += '<div><input id=' + strPopupSearchId + ' type=text value="" original=\'' + elementDeviceName.getAttribute('original') + '\' placeholder="Search for device name..." onInput="delayedGetMatchingDevices( this );" lastsearch="" myselect="' + strPopupSelectId + '" mybutton="' + strPopupSelectButtonId + '" myajax="' + strPopupAjaxId + '"/></div>';
+
+	// Selection list
+	strPopupHTML = '<div><select id=' + strPopupSelectId + ' size=10 style="width:100%" onDblclick="updateOtherEnd( document.getElementById(\'' + strPopupSelectButtonId + '\') );" onKeyDown="if( event.keyCode === 13 ) { event.preventDefault(); updateOtherEnd( document.getElementById(\'' + strPopupSelectButtonId + '\') ); }" onChange="document.getElementById(\''+strPopupSelectButtonId+'\').removeAttribute(\'disabled\');">';
+	//strPopupHTML += '<option value=\'delete\'>Disconnect ' + elementDeviceName.getAttribute( 'original' ) + '</option>';
+	strPopupHTML += '</select></div>';
+
+	// Bottom rows of buttons
+	strPopupHTML += '<div align=right>';
+	// Ajax spinning wheel
+	strPopupHTML += '<span id=' + strPopupAjaxId + ' style=\'float:left\'></span></span>';
+	// Cancel button
+	strPopupHTML += '<input type=button value="Cancel" onclick="hidePopup(\'' + strPopupId + '\' );"/>';
+	// Disconnect button
+	//strPopupHTML += '<input type=button value="Disconnect" onclick="hidePopup(\'' + strPopupId + '\' );"/>';
+	let strDisconnectDisable = elementDeviceName.value === '' ? 'disabled=disabled' : '';
+	strPopupHTML += '<input id=' + strPopupDisconnectButtonId + ' type=button value="Disconnect" onClick="updateOtherEnd( this, true );" ' + strDisconnectDisable + ' mydeviceid="' + strElementDeviceId + '" mypopup="' + strPopupId + '" myselect="' + strPopupSelectId + '" myotherend="' + elementDeviceName.id + '" myportid="' + portId + '" myports="' + strElementPortsId + '" mytype="' + type + '" myside="' + side + '"/>';
+	// Select button
+	strPopupHTML += '<input id=' + strPopupSelectButtonId + ' type=button value="Select" onClick="updateOtherEnd( this );" disabled=disabled mydeviceid="' + strElementDeviceId + '" mypopup="' + strPopupId + '" myselect="' + strPopupSelectId + '" myotherend="' + elementDeviceName.id + '" myportid="' + portId + '" myports="' + strElementPortsId + '" mytype="' + type + '" myside="' + side + '" mydisconnectbutton="' + strPopupDisconnectButtonId + '"/>';
+	strPopupHTML += '</div>';
+
+	elementPopup.innerHTML = strPopupHTML;
+
+	// Position the top left corner of the popup at the bottom left corner of the parent field
+	// And sets its width to match the width of the parent Other End field
+	const inputRect = elementDeviceName.getBoundingClientRect();
+	elementPopup.style.top = inputRect.bottom + window.scrollY;
+	elementPopup.style.left = inputRect.left + window.scrollX;
+	elementPopup.style.minWidth = inputRect.width - 30;
+	elementPopup.style.boxShadow = '2px 2px 3px 2px gray';
+
+	// Show the popup and trigger a first device search from the orgiinal device name
+	document.body.appendChild( elementPopup );
+	//document.getElementById( strPopupSearchId ).focus();
+	elementDeviceName.setAttribute( 'lastsearch', elementDeviceName.value );
+	delayedGetMatchingDevices( elementDeviceName );
+}
+
+//
+// Hide the popup and set focus back to the Other End field
+//
+function hidePopup( strPopupId ) {
+	const elementDeviceName =  document.getElementById( strPopupId.replace( /_popup$/, '' ) );
+	const elementPopup = document.getElementById( strPopupId );
+	document.getElementById( elementDeviceName.getAttribute( 'myajax' ) ).innerHTML = '';
+	//elementDeviceName.value = elementPopup.getAttribute( 'lastselected' );
+	if( elementDeviceName.hasAttribute( 'lastselected' ) ) {
+		elementDeviceName.value = elementDeviceName.getAttribute( 'lastselected' );
+	} else {
+		elementDeviceName.value = elementDeviceName.getAttribute( 'original' );
+	}
+	delayedGetMatchingDevices( elementDeviceName );
+	updateChangeTrackingStatus( elementDeviceName );
+	elementPopup.style.visibility='hidden';
+	elementDeviceName.focus();
+}
+
+//
+// Schedule a fetch of the matching devices
+//
+var timeoutGetMatchingDevices;
+function delayedGetMatchingDevices( elementSearch ) {
+	// If we already have a running timeout, clear it
+        if( timeoutGetMatchingDevices ) {
+	  //console.log( 'Clearing timeout' );
+	  clearTimeout( timeoutGetMatchingDevices );
+	}
+        // Set a new timeout
+	timeoutGetMatchingDevices = setTimeout( function() { getMatchingDevices( elementSearch ); }, 500 );
+}
+
+//
+// Gets a list of devices matching the Other End search pattern
+//
+function getMatchingDevices( elementSearch ) {
+	//console.log( 'Searching for: ' + elementSearch.value );
+	// If the search pattern matches the last one used, ignore the new request
+	if( elementSearch.getAttribute( 'lastrequestedsearch' ) === elementSearch.value ) {
+		//console.log( 'Search pattern equals last search pattern' );
+		return;
+	}
+
+	// If the search pattern is empty, just empty the options list
+        if( elementSearch.value === '' ) {
+		//console.log( 'Empty search value' );
+		document.getElementById( elementSearch.getAttribute( 'myselect' ) ).innerHTML = '';
+		document.getElementById( elementSearch.getAttribute( 'myajax' ) ).innerHTML = '';
+		elementSearch.setAttribute( 'lastsearch', '' );
+		return;
+	}
+
+	elementSearch.setAttribute( 'lastrequestedsearch', elementSearch.value );
+	const url = 'ajax-devsearch.pl?pattern=' + elementSearch.value;
+        const requestDevicesSearch = createRequest();
+        requestDevicesSearch.open("GET", url, true);
+        requestDevicesSearch.onreadystatechange = function() { updateOtherEndDeviceSearchPopup( requestDevicesSearch, elementSearch ); }
+        requestDevicesSearch.send(null);
+	document.getElementById( elementSearch.getAttribute( 'myajax' ) ).innerHTML = ' <img src=\'../../stabcons/progress.gif\'> Getting devices... ';
+}
+
+//
+// Update the Other End device search popup based on the received devices list
+//
+function updateOtherEndDeviceSearchPopup( requestDevicesSearch, elementSearch ) {
+	if( requestDevicesSearch.readyState !== 4 ) return;
+
+        // Since concurrent ajax requests are possible, ignore results not matching the current search pattern
+	let strSearchPattern = requestDevicesSearch.responseURL.replace(/^.*pattern=/,'');
+	if( strSearchPattern !== elementSearch.getAttribute( 'lastrequestedsearch' ) ) {
+		//console.log( 'Result for old pattern, ignoring' );
+		return;
+	}
+
+	// Get the devices array from the ajax request
+	const data = JSON.parse( requestDevicesSearch.responseText );
+	requestDevicesSearch = '';
+	//console.log( data );
+
+	// Empty the options list and disable the Select button
+	const elementSelect = document.getElementById( elementSearch.getAttribute('myselect') );
+	const elementButton = document.getElementById( elementSearch.getAttribute('mybutton') );
+	elementSelect.innerHTML = '';
+	elementButton.setAttribute('disabled','disabled');
+
+	// Add a first option to disconnect the current Other End device
+	//let elementOption = document.createElement( 'option' );
+	//elementOption.text = 'Disconnect ' + elementSearch.getAttribute( 'original' );
+	//elementOption.value = 'delete'
+	//elementSelect.add( elementOption );
+
+	// Build the new list of options from the array of devices
+	for( let i=0; i<data.length; i++) {
+		elementOption = document.createElement( 'option' );
+		//console.log( data[i][0], data[i][1] );
+		elementOption.text = data[i][1];
+		elementOption.value = data[i][0];
+		elementSelect.add( elementOption );
+	}
+
+	// Remember this search pattern
+	elementSearch.setAttribute( 'lastsearch', strSearchPattern );
+
+	// Remove the loading message
+	document.getElementById( elementSearch.getAttribute( 'myajax' ) ).innerHTML = '';
+}
+
+//
+// Function triggered by a the Other End popup Select button
+//
+function updateOtherEnd( buttonSelect, bDisconnect ) {
+	const strElementDeviceId = buttonSelect.getAttribute( 'mydeviceid' );
+	const elementSelect      = document.getElementById( buttonSelect.getAttribute( 'myselect' ) );
+	const elementOtherEnd    = document.getElementById( buttonSelect.getAttribute( 'myotherend' ) );
+	const elementPopup       = document.getElementById( buttonSelect.getAttribute( 'mypopup' ) );
+	const iPortId            = buttonSelect.getAttribute( 'myportid' );
+	const strElementPortsId  = buttonSelect.getAttribute( 'myports' );
+	const strType            = buttonSelect.getAttribute( 'mytype' );
+	const strSide            = buttonSelect.getAttribute( 'myside' );
+
+	// Update the device id value in the hidden field
+	const elementDeviceId = document.getElementById( strElementDeviceId );
+
+	// Check if the user clicked the Disconnect button
+	// And update the device id in the device id field, and the device name in the readonly field
+	if( bDisconnect === true ) {
+		// If the Other End is already empty, nothing to do
+		if( elementOtherEnd.value === '' ) { return; }
+		elementDeviceId.value = '';
+		elementOtherEnd.value = '';
+		buttonSelect.setAttribute( 'disabled', 'disabled' );
+		elementOtherEnd.setAttribute( 'lastselected', '' );
+		elementOtherEnd.setAttribute( 'lastsearch', '' );
+	} else {
+                let selectedOption = elementSelect.options[elementSelect.selectedIndex];
+		if( ! selectedOption ) return;
+		elementDeviceId.value = selectedOption.value;
+		elementOtherEnd.value = selectedOption.text;
+		elementOtherEnd.setAttribute( 'lastselected', elementOtherEnd.value );
+		let strSelectButtonId = buttonSelect.getAttribute( 'mydisconnectbutton' );
+		document.getElementById( strSelectButtonId ).removeAttribute( 'disabled' );
+	}
+	updateChangeTrackingStatus( elementOtherEnd );
+
+	// Get the device link, patch panel link and ports list updated
+	// function showPhysical_ports(devidfld, devnamfld, physportid, portboxname, type, side) {
+	showPhysical_ports( elementDeviceId, elementOtherEnd, iPortId, strElementPortsId, strType, strSide );
+	elementPopup.style.visibility = 'hidden';
+	elementOtherEnd.focus();
+}
 
 //
 // create the div that handles the auto complete search

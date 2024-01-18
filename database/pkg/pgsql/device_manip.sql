@@ -133,6 +133,13 @@ BEGIN
 	;
 
 	--
+	-- Remove service instances
+	--
+	PERFORM service_manip.remove_service_instance(si.service_instance_id)
+		FROM service_instance si
+		WHERE si.device_id = ANY(device_id_list);
+
+	--
 	-- Delete layer3_interfaces
 	--
 	PERFORM device_manip.remove_layer3_interfaces(
@@ -355,10 +362,19 @@ BEGIN
 	RAISE LOG 'Removing logical volume hierarchies...';
 	SET CONSTRAINTS ALL DEFERRED;
 
-	DELETE FROM volume_group_physicalish_volume vgpv WHERE
+	DELETE FROM volume_group_block_storage_device vgpv WHERE
 		vgpv.device_id = ANY (device_id_list);
-	DELETE FROM physicalish_volume pv WHERE
+	DELETE FROM block_storage_device pv WHERE
 		pv.device_id = ANY (device_id_list);
+	DELETE FROM filesystem f WHERE
+		f.device_id = ANY (device_id_list);
+	--- XXXX check this
+	DELETE FROM virtual_component_logical_volume uclv WHERE
+		uclv.logical_volume_id IN (
+			SELECT logical_volume_id
+			FROM logical_volume lv
+			WHERE lv.device_id = ANY (device_id_list)
+		);
 
 	WITH z AS (
 		DELETE FROM volume_group vg
@@ -782,6 +798,74 @@ $$ LANGUAGE plpgsql set search_path=jazzhands SECURITY DEFINER;
 --end device_manip.monitoring_off_in_rack
 -------------------------------------------------------------------
 
+
+-------------------------------------------------------------------
+--begin device_manip.set_operating_system
+-------------------------------------------------------------------
+
+CREATE OR REPLACE FUNCTION device_manip.set_operating_system (
+	device_id						jazzhands.device.device_id%TYPE,
+	operating_system_name			text,
+	operating_system_version		text,
+	operating_system_major_version	text DEFAULT NULL,
+	operating_system_family			text DEFAULT NULL,
+	operating_system_company_name	text DEFAULT NULL
+) RETURNS jazzhands.operating_system.operating_system_id%TYPE AS $$
+DECLARE
+	did		ALIAS FOR device_id;
+	osname	ALIAS FOR operating_system_name;
+	osrec	RECORD;
+	cid		jazzhands.company.company_id%TYPE;
+BEGIN
+	SELECT
+		*
+	FROM
+		operating_system os
+	INTO
+		osrec
+	WHERE
+		os.operating_system_name = osname AND
+		os.version = operating_system_version;
+
+	IF NOT FOUND THEN
+		--
+		-- Don't care if this is NULL
+		--
+		SELECT
+			company_id INTO cid
+		FROM
+			company
+		WHERE
+			company_name = operating_system_company_name;
+
+		INSERT INTO operating_system (
+			operating_system_name,
+			company_id,
+			major_version,
+			version,
+			operating_system_family
+		) VALUES (
+			osname,
+			cid,
+			operating_system_major_version,
+			operating_system_version,
+			operating_system_family
+		) RETURNING * INTO osrec;
+	END IF;
+
+	UPDATE
+		device d
+	SET
+		operating_system_id = osrec.operating_system_id
+	WHERE
+		d.device_id = did;
+
+	RETURN osrec.operating_system_id;
+END;
+$$ LANGUAGE plpgsql set search_path=jazzhands SECURITY DEFINER;
+-------------------------------------------------------------------
+--end device_manip.set_operating_system
+-------------------------------------------------------------------
 REVOKE ALL ON SCHEMA device_manip FROM public;
 REVOKE ALL ON ALL FUNCTIONS IN SCHEMA device_manip FROM public;
 

@@ -39,7 +39,7 @@ INSTALLDIR=/usr/local
 all:
 	@echo Nothing to make. Just run \'$(MAKE) install\'
 
-install: 
+install:
 	rm -rf fakeroot
 	mkdir fakeroot
 	$(INSTALL) -d -o root -g root fakeroot/$(INSTALLDIR)

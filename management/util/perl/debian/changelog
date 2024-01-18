@@ -1,3 +1,22 @@
+jazzhands-perl-common (0.96.1) jammy; urgency=medium
+
+  * fix perl warning issue in logging
+
+ -- Todd M. Kover <kovert@omniscient.com>  Tue, Nov 28 2023 15:36:22 -0500
+
+jazzhands-perl-common (0.96.0) jammy; urgency=medium
+
+  * add additional log4perl style log* interfaces to core logging
+  * bump up various debian compatibility bits
+
+ -- Todd M. Kover <kovert@omniscient.com>  Mon, 31 Jul 2023 17:55:20 -0500
+
+jazzhands-perl-common (0.95.5) jammy; urgency=medium
+
+  * Add JazzHands::Common::Logging and restructure
+
+ -- Todd M. Kover <kovert@omniscient.com>  Fri,  3 Mar 2023 11:50:00 -0400
+
 jazzhands-perl-common (0.95.2) jammy; urgency=medium
 
   * properly export the Connect db function (broke in 0.95.0)
@@ -10,20 +29,17 @@ jazzhands-perl-common (0.95.0) jammy; urgency=medium
 
  -- Todd M. Kover <kovert@omniscient.com>  Tue, 31 May 2022 17:21:00 -0400
 
-
 jazzhands-perl-common (0.94.0) focal; urgency=medium
 
   * make GenericDB truly optional
 
  -- Todd M. Kover <kovert@omniscient.com>  Fri,  1 Apr 2022 14:17:00 -0500
 
-
 jazzhands-perl-common (0.86.0) bionic; urgency=medium
 
   * Update error handling to be smarter
 
  -- Todd M. Kover <kovert@omniscient.com>  Wed,  2 Oct 2019 17:39:00 -0500
-
 
 jazzhands-perl-common (0.73.2) trusty; urgency=medium
 
@@ -37,7 +53,6 @@ jazzhands-perl-common (0.71.5) trusty; urgency=medium
   * initialize debug variable to avoid possible perl warning
 
  -- Todd M. Kover <kovert@omniscient.com>  Wed, 15 Jun 2016 18:05:00 -0500
-
 
 jazzhands-perl-common (0.69.0) unstable; urgency=medium
 
@@ -63,13 +78,11 @@ jazzhands-perl-common (0.66.2) unstable; urgency=medium
 
  -- Todd M. Kover <kovert@omniscient.com>  Tue, 12 Jan 2016 17:12:06 -0500
 
-
 jazzhands-perl-common (0.66.1) unstable; urgency=medium
 
   * add debian bits; make that the default for release generation
 
  -- Todd M. Kover <kovert@omniscient.com>  Tue, 05 Jan 2016 23:02:03 +0000
-
 
 jazzhands-perl-common (0.56.3-1) unstable; urgency=low
 
