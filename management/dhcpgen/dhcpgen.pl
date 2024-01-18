@@ -266,11 +266,11 @@ sub handle_stomp_frames {
 		$log->info("Waiting for STOMP frames");
 
 		my $frame;
-		eval { $frame = $stomp->wait_for_frames; };
+		eval { $frame = $stomp->wait_for_frames( timeout => 300 ); };
 
-		if ($@) {
+		if ($@ || !$frame) {
 			$stomp_error = 1;
-			$log->error( sprintf( "Error waiting for STOMP frame: %s", $@ ) );
+			$log->error( sprintf( "Error waiting for STOMP frame: %s", $@ ) ) if($@);
 			while (1) {
 				$log->debug("Attempting to reconnect to STOMP broker");
 				$stomp = get_stomp_client($stompconf);
