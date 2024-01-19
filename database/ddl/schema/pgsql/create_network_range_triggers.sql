@@ -565,10 +565,10 @@ BEGIN
 				JOIN netblock start ON start.netblock_id = nr.start_netblock_id
 				JOIN netblock stop ON stop.netblock_id = nr.stop_netblock_id
 			WHERE	network_range_type = _vnrt.network_range_type
-			AND
-				start.ip_address <= NEW.ip_address
-			AND
-				stop.ip_address  >= NEW.ip_address
+			AND (
+				start.ip_address <<= NEW.ip_address AND
+				stop.ip_address <<= NEW.ip_address
+			)
 			;
 
 			IF _tally > 1 THEN
