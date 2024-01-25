@@ -333,10 +333,21 @@ sub do_rebuild {
 	my $jh;
 	my $ret;
 
-	$ret = generate_dhcp_configs(
-		conf => $conf,
-		errors => \@errors
-	);
+	my $retry = 5;
+
+	while( $retry ) {
+		$ret = generate_dhcp_configs(
+			conf => $conf,
+			errors => \@errors
+		);
+		$retry = 0 if( $ret eq 1 );
+		if( $retry ) {
+			$log->warn(sprintf("WARN: %s", join ("\n", @errors)));
+			$log->warn( "WARN: Retrying..." );
+			$retry -= 1;
+			sleep( 60 );
+		}
+	}
 
 	if ($ret) {
 		$log->info ("Rebuild completed successfully");
@@ -1141,7 +1152,7 @@ host %s-%d-%d-%d {
 	close $masterfh;
 
 	if (defined(&_LocalHooks::postrun)) {
-		_LocalHooks::postrun(
+		return _LocalHooks::postrun(
 			dbh => $jh,
 			conf => $conf,
 			local_options => $local_options,
