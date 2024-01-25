@@ -331,8 +331,8 @@ sub do_rebuild {
 	my $log = $opt->{'log'};
 
 	my $jh;
-
-	my $ret   = 1;
+	my $ret;
+ 
 	my $retry = 5;
 
 	while( $retry ) {
