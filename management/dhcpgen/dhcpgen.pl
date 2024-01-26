@@ -336,11 +336,24 @@ sub do_rebuild {
 	my $retry = 5;
 
 	while( $retry ) {
+	        my $jh;
+        	if (!($jh = JazzHands::DBI->new->connect(
+                	        application => $authapp,
+                        	cached => 1,
+                        	))) {
+                	$log->error($err,"ERROR: Unable to connect to database: " . $JazzHands::DBI::errstr);
+                	next;
+        	}
+
 		$ret = generate_dhcp_configs(
+			dbh => $jh,
 			conf => $conf,
 			errors => \@errors
 		);
-		$retry = 0 if( $ret eq 1 );
+
+		$jh->disconnect() if($jh);
+
+		$retry = 0 if( $ret && $ret eq 1 );
 		if( $retry ) {
 			$log->warn(sprintf("WARN: %s", join ("\n", @errors)));
 			$log->warn( "WARN: Retrying..." );
@@ -364,7 +377,7 @@ sub do_rebuild {
 
 sub generate_dhcp_configs {
 	my $opt = &_options(@_);
-
+	my $jh = $opt->{dbh};
 	my $conf = $opt->{conf};
 	my $err = $opt->{errors};
 
@@ -372,17 +385,7 @@ sub generate_dhcp_configs {
 		( undef, $conf->{hostname} ) = uname();
 	}
 
-	my $jh;
-	if (!($jh = JazzHands::DBI->new->connect(
-			application => $authapp,
-			cached => 1,
-			))) {
-		SetError($err,
-			"Unable to connect to database: " . $JazzHands::DBI::errstr);
-		return undef;
-	} else {
-		$log->info ("Beginning DHCP rebuild");
-	}
+	$log->info ("Beginning DHCP rebuild");
 
 	my ($q, $sth);
 	
