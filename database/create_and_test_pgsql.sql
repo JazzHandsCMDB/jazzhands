@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2013-2022 Todd Kover
+ * Copyright (c) 2013-2024 Todd Kover
  * All rights reserved.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
@@ -103,6 +103,20 @@ begin;
 \ir tests/pgsql/ct_netblock_collection_tests_ancestor.sql
 \ir tests/pgsql/ct_device_collection_tests_ancestor.sql
 
+\ir tests/pgsql/ct_account_collection_recurse_tests.sql
+\ir tests/pgsql/ct_device_collection_recurse_tests.sql
+\ir tests/pgsql/ct_netblock_collection_recurse_tests.sql
+\ir tests/pgsql/ct_company_collection_recurse_tests.sql
+\ir tests/pgsql/ct_dns_domain_collection_recurse_tests.sql
+\ir tests/pgsql/ct_layer2_network_collection_recurse_tests.sql
+\ir tests/pgsql/ct_layer3_network_collection_recurse_tests.sql
+\ir tests/pgsql/ct_netblock_collection_recurse_tests.sql
+\ir tests/pgsql/ct_service_environment_collection_recurse_tests.sql
+\ir tests/pgsql/ct_service_version_collection_recurse_tests.sql
+\ir tests/pgsql/ct_token_collection_recurse_tests.sql
+
+\ir tests/pgsql/ct_property_name_collection_recurse_tests.sql
+
 \ir tests/pgsql/account_enabled_test.sql
 \ir tests/pgsql/approval_process_regression.sql
 \ir tests/pgsql/port_range_checks.sql
@@ -120,6 +134,7 @@ begin;
 
 \ir tests/pgsql/device_management_controller_regression.sql
 \ir tests/pgsql/scsi_id_compat_regression.sql
+\ir tests/pgsql/service_version_collection_purpose_regresssion.sql
 
 savepoint preplperl;
 DROP SCHEMA IF EXISTS x509_plperl_cert_utils CASCADE;

@@ -97,7 +97,7 @@ BEGIN
 				USING ERRCODE = 'invalid_parameter_value';
 		END IF;
 		IF _parsed IS NULL OR _pubkeyhashes IS NULL THEN
-			RAISE EXCEPTION 'X509 Certificate is invalid or something fundemental was wrong with parsing' 
+			RAISE EXCEPTION 'X509 Certificate is invalid or something fundemental was wrong with parsing'
 				USING ERRCODE = 'data_exception';
 		END IF;
 	EXCEPTION WHEN invalid_schema_name OR undefined_function THEN
@@ -117,7 +117,7 @@ BEGIN
 		'friendly_name',
 		'subject_key_identifier',
 		'is_ca',
-		'valid_from', 
+		'valid_from',
 		'valid_to']
 	LOOP
 		IF NOT _parsed ? field THEN
@@ -151,7 +151,7 @@ BEGIN
 		_ca := NULL;
 		_caserial := NULL;
 	END IF;
-		
+
 
 	FOR _e IN SELECT jsonb_array_elements(_pubkeyhashes)
 	LOOP
@@ -163,7 +163,7 @@ BEGIN
 			LEFT JOIN x509_signed_certificate x509 USING (public_key_hash_id)
 		WHERE cryptographic_hash_algorithm = _e->>'algorithm'
 		AND calculated_hash = _e->>'hash'
-		ORDER BY 
+		ORDER BY
 			CASE WHEN x509.is_active THEN 0 ELSE 1 END,
 			CASE WHEN x509.x509_signed_certificate_id IS NULL THEN 0 ELSE 1 END,
 			pk.data_upd_date desc, pk.data_ins_date desc;
@@ -184,7 +184,7 @@ BEGIN
 			LEFT JOIN x509_signed_certificate x509 USING (public_key_hash_id)
 		WHERE cryptographic_hash_algorithm = _e->>'algorithm'
 		AND calculated_hash = _e->>'hash'
-		ORDER BY 
+		ORDER BY
 			CASE WHEN x509.is_active THEN 0 ELSE 1 END,
 			CASE WHEN x509.x509_signed_certificate_id IS NULL THEN 0 ELSE 1 END,
 			csr.data_upd_date desc, csr.data_ins_date desc;
@@ -195,7 +195,7 @@ BEGIN
 	END LOOP;
 
 	INSERT INTO x509_signed_certificate (
-		x509_certificate_type, subject, friendly_name, 
+		x509_certificate_type, subject, friendly_name,
 		subject_key_identifier,
 		is_certificate_authority,
 		signing_cert_id, x509_ca_cert_serial_number,
@@ -217,13 +217,13 @@ BEGIN
 			--- This is a little wonky.
 			---
 		    INSERT INTO x509_key_usage_attribute (
-			 	x509_signed_certificate_id, x509_key_usage, 
+			 	x509_signed_certificate_id, x509_key_usage,
 				x509_key_usgage_category
 			) SELECT _x509.x509_signed_certificate_id, _e #>>'{}',
 				x509_key_usage_category
 			FROM x509_key_usage_categorization
 			WHERE x509_key_usage_category =  _e #>>'{}'
-			ORDER BY 
+			ORDER BY
 				CASE WHEN x509_key_usage_category = 'ca' THEN 1
 					WHEN x509_key_usage_category = 'revocation' THEN 2
 					WHEN x509_key_usage_category = 'application' THEN 3
@@ -240,7 +240,7 @@ $$ LANGUAGE plpgsql SECURITY DEFINER SET search_path TO jazzhands;
 
 ----------------------------------------------------------------------------
 ---
---- given a PEM style certificate signing request, and optionally a breakdown 
+--- given a PEM style certificate signing request, and optionally a breakdown
 --- of its component prts in json, insert it into the database
 ---
 --- The parsed argument is optional and only needs to be set if pl/perl is not
@@ -280,7 +280,7 @@ BEGIN
 				USING ERRCODE = 'invalid_parameter_value';
 		END IF;
 		IF _parsed IS NULL OR _pubkeyhashes IS NULL THEN
-			RAISE EXCEPTION 'Certificate Signing Request is invalid or something fundemental was wrong with parsing' 
+			RAISE EXCEPTION 'Certificate Signing Request is invalid or something fundemental was wrong with parsing'
 				USING ERRCODE = 'data_exception';
 		END IF;
 	EXCEPTION WHEN invalid_schema_name OR undefined_function THEN
@@ -314,7 +314,7 @@ BEGIN
 			LEFT JOIN x509_signed_certificate x509 USING (public_key_hash_id)
 		WHERE cryptographic_hash_algorithm = _e->>'algorithm'
 		AND calculated_hash = _e->>'hash'
-		ORDER BY 
+		ORDER BY
 			CASE WHEN x509.is_active THEN 0 ELSE 1 END,
 			CASE WHEN x509.x509_signed_certificate_id IS NULL THEN 0 ELSE 1 END,
 			pk.data_upd_date desc, pk.data_ins_date desc;

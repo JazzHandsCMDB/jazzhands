@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2013-2021 Todd Kover
+ * Copyright (c) 2013-2024 Todd Kover
  * All rights reserved.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
@@ -152,7 +152,7 @@ COMMENT ON SCHEMA jazzhands_cache IS 'cache tables for jazzhands views';
 
 -- having to hand maintain this sucks.
 SELECT schema_support.set_schema_version(
-	version := '0.96',
+	version := '0.97',
 	schema := 'jazzhands'
 );
 

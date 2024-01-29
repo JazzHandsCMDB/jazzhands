@@ -1,5 +1,5 @@
--- Copyright (c) 2018, Matthew Ragan
--- Copyright (c) 2019, Todd Kover
+-- Copyright (c) 2018-2024, Matthew Ragan
+-- Copyright (c) 2019-2024, Todd Kover
 -- All rights reserved.
 --
 -- Licensed under the Apache License, Version 2.0 (the "License");
@@ -42,14 +42,17 @@ CREATE OR REPLACE FUNCTION schema_support.create_cache_table (
 	cache_table				text,
 	defining_view_schema	text,
 	defining_view			text,
+	create_options			JSONB DEFAULT NULL,
 	force					BOOLEAN DEFAULT false
 ) RETURNS void AS $$
 DECLARE
-	param_cache_table_schema	ALIAS FOR cache_table_schema;
+	param_cache_table_schema		ALIAS FOR cache_table_schema;
 	param_cache_table			ALIAS FOR cache_table;
-	param_defining_view_schema	ALIAS FOR defining_view_schema;
+	param_defining_view_schema		ALIAS FOR defining_view_schema;
 	param_defining_view			ALIAS FOR defining_view;
-	ct_rec						RECORD;
+	ct_rec					RECORD;
+	column_definition			TEXT;
+	columns_to_copy				TEXT;
 BEGIN
 	--
 	-- Ensure that the defining view exists
@@ -131,22 +134,75 @@ BEGIN
 			cache_table,
 			defining_view_schema,
 			defining_view,
-			updates_enabled
+			updates_enabled,
+			create_options
 		) VALUES (
 			param_cache_table_schema,
 			param_cache_table,
 			param_defining_view_schema,
 			param_defining_view,
-			'true'
+			'true',
+			create_options
 		);
 	END IF;
 
-	EXECUTE format('CREATE TABLE %I.%I AS SELECT * FROM %I.%I',
+	---
+	--- setup the column definitions for passing to the next function.  THis
+	---	allows for tweaking like making a column generated
+	---
+	SELECT  string_agg(def, E',\n') INTO column_definition
+	FROM (
+		SELECT concat(
+			quote_ident(a.attname), ' ',
+			pg_catalog.format_type(a.atttypid, a.atttypmod), ' ', attr)
+		AS def
+	FROM    pg_catalog.pg_attribute a
+			INNER JOIN pg_class c on a.attrelid = c.oid
+			INNER JOIN pg_namespace n on n.oid = c.relnamespace
+			LEFT JOIN jsonb_each_text(create_options->'create_augment')
+				attr(attname, attr)
+				USING (attname)
+	WHERE c.relname = defining_view
+	AND   n.nspname = defining_view_schema
+	AND   a.attnum > 0
+	AND   NOT a.attisdropped
+	ORDER BY a.attnum
+	) i;
+
+	---
+	--- kind of nasty, but ...
+	---
+	SELECT  string_agg(def, E',\n') INTO columns_to_copy
+	FROM (
+		SELECT quote_ident(a.attname)
+		AS def
+	FROM    pg_catalog.pg_attribute a
+			INNER JOIN pg_class c on a.attrelid = c.oid
+			INNER JOIN pg_namespace n on n.oid = c.relnamespace
+			LEFT JOIN jsonb_each_text(create_options->'create_augment')
+				attr(attname, attr) USING (attname)
+	WHERE   c.relname = defining_view
+	AND   n.nspname = defining_view_schema
+	AND   a.attnum > 0
+	AND   NOT a.attisdropped
+	AND   ( attr IS NULL OR regexp_match (attr,'GENERATED', 'i') IS NULL )
+	ORDER BY a.attnum
+	) i;
+
+	EXECUTE format('CREATE TABLE %I.%I ( %s )',
 		cache_table_schema,
 		cache_table,
+		column_definition
+	);
+	EXECUTE format('INSERT INTO %I.%I (%s) SELECT %s FROM %I.%I',
+		cache_table_schema,
+		cache_table,
+		columns_to_copy,
+		columns_to_copy,
 		defining_view_schema,
 		defining_view
 	);
+
 	IF force THEN
 		PERFORM schema_support.replay_object_recreates();
 		PERFORM schema_support.replay_saved_grants();
@@ -165,6 +221,7 @@ DECLARE
 	query			text;
 	inserted_rows	integer;
 	deleted_rows	integer;
+	columns_to_copy	TEXT;
 BEGIN
 	IF cache_table_schema IS NULL THEN
 		IF cache_table IS NOT NULL THEN
@@ -212,13 +269,33 @@ BEGIN
 			quote_ident(ct_rec.cache_table_schema),
 			quote_ident(ct_rec.cache_table);
 
+		---
+		--- kind of nasty, but ...
+		---
+		SELECT  string_agg(def, E',\n') INTO columns_to_copy
+		FROM (
+			SELECT quote_ident(a.attname)
+			AS def
+		FROM    pg_catalog.pg_attribute a
+				INNER JOIN pg_class c on a.attrelid = c.oid
+				INNER JOIN pg_namespace n on n.oid = c.relnamespace
+				LEFT JOIN jsonb_each_text(ct_rec.create_options->'create_augment')
+					attr(attname, attr) USING (attname)
+		WHERE   c.relname = ct_rec.cache_table
+		AND   n.nspname = ct_rec.cache_table_schema
+		AND   a.attnum > 0
+		AND   NOT a.attisdropped
+		AND   ( attr IS NULL OR regexp_match (attr,'GENERATED', 'i') IS NULL )
+		ORDER BY a.attnum
+		) i;
+
 		--
 		-- Insert rows that exist in the view that do not exist in the cache
 		-- table
 		--
 		query := format($query$
-			INSERT INTO %I.%I
-			SELECT * FROM %I.%I z
+			INSERT INTO %I.%I ( %s )
+			SELECT %s FROM %I.%I z
 			WHERE
 				(z) IN
 				(
@@ -231,6 +308,8 @@ BEGIN
 			$query$,
 			ct_rec.cache_table_schema,
 			ct_rec.cache_table,
+			columns_to_copy,
+			columns_to_copy,
 			ct_rec.defining_view_schema,
 			ct_rec.defining_view,
 			ct_rec.defining_view_schema,

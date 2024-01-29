@@ -1,5 +1,5 @@
 --
--- Copyright (c) 2010-2023, Todd M. Kover
+-- Copyright (c) 2010-2024, Todd M. Kover
 -- All rights reserved.
 --
 -- Licensed under the Apache License, Version 2.0 (the "License");
@@ -2561,6 +2561,20 @@ INSERT INTO val_source_repository_protocol (
 ) VALUES
 	('https'),
 	('ssh');
+
+INSERT INTO val_service_version_collection_purpose (
+	service_version_collection_purpose, description
+) VALUES
+	('all', 'all services for a given service'),
+	('current', 'current services for a given service; for when a release does an overhaul from the db perspective')
+;
+
+INSERT INTO val_service_endpoint_x509_certificate_purpose (
+	service_endpoint_x509_certificate_purpose
+) VALUES
+	('service'),
+	('bootstrap')
+;
 
 -------------------------------------------------------------------------
 --

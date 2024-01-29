@@ -112,7 +112,7 @@ BEGIN
 			array_agg(manager_device_id)
 		FROM
 			component_management_controller dmc
-			JOIN (SELECT i.device_id, i.component_id 
+			JOIN (SELECT i.device_id, i.component_id
 				FROM jazzhands.device i) d
 				USING (component_id)
 			JOIN (SELECT i.device_id AS manager_device_id,

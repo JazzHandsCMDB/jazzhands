@@ -1,4 +1,4 @@
--- Copyright (c) 2023 Todd Kover
+-- Copyright (c) 2023-2024 Todd Kover
 -- All rights reserved.
 --
 -- Licensed under the Apache License, Version 2.0 (the "License");
@@ -110,7 +110,7 @@ BEGIN
 			encryption_key_purpose, encryption_key_purpose_version,
 			permit_encryption_key_db_value
 		) VALUES (
-			'jhpurpose', 2, 'REQURIED'
+			'jhpurpose', 2, 'REQUIRED'
 		);
 
 		INSERT INTO encryption_key (
