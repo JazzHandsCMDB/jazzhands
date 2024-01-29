@@ -1,3 +1,9 @@
+jazzhands-dhcpgen (0.96.3) trusty; urgency=medium
+
+  * more dhcpgen retry logic fixes
+
+ -- Nenad Buncic <nenad@buncic.net>  Fri, 26 Jan 2024 19:04:31 +0100
+
 jazzhands-dhcpgen (0.96.2) trusty; urgency=medium
 
   * fix dhcpgen retry logic
