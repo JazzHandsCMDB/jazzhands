@@ -1,3 +1,9 @@
+jazzhands-dhcpgen (0.96.4) trusty; urgency=medium
+
+  * fix dhcpgen error issue
+
+ -- Nenad Buncic <nenad@buncic.net>  Tue, 30 Jan 2024 09:57:44 +0100
+
 jazzhands-dhcpgen (0.96.3) trusty; urgency=medium
 
   * more dhcpgen retry logic fixes

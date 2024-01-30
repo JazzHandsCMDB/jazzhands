@@ -342,7 +342,7 @@ sub do_rebuild {
 				cached      => 1,
 			)))
 		{
-			$log->error( $err, "ERROR: Unable to connect to database: " . $JazzHands::DBI::errstr );
+			$log->error( "ERROR: Unable to connect to database: " . $JazzHands::DBI::errstr );
 			next;
 		}
 
