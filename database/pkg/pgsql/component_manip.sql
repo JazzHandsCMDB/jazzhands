@@ -1132,7 +1132,7 @@ LANGUAGE plpgsql;
 CREATE OR REPLACE FUNCTION component_manip.insert_memory_component(
 	model				text,
 	memory_size			bigint,
-	memory_speed		bigint,
+	memory_speed		bigint DEFAULT NULL,
 	memory_type			text DEFAULT 'DDR3',
 	vendor_name			text DEFAULT NULL,
 	serial_number		text DEFAULT NULL
@@ -1237,8 +1237,20 @@ BEGIN
 			component_type_id,
 			property_value
 		) VALUES
-			('MemorySize', 'memory', ctid, memory_size),
-			('MemorySpeed', 'memory', ctid, memory_speed);
+			('MemorySize', 'memory', ctid, memory_size);
+
+		--
+		-- memory_speed may not be passed, so only insert it if we have it.
+		--
+		IF memory_speed IS NOT NULL THEN
+			INSERT INTO component_property (
+				component_property_name,
+				component_property_type,
+				component_type_id,
+				property_value
+			) VALUES
+				('MemorySpeed', 'memory', ctid, memory_speed);
+		END IF;
 
 		--
 		-- Insert the component functions
