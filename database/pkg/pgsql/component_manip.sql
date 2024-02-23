@@ -1150,14 +1150,18 @@ BEGIN
 
 	IF vendor_name IS NOT NULL THEN
 		SELECT
-			company_id INTO cid
+			comp.company_id INTO cid
 		FROM
-			company c LEFT JOIN
-			property p USING (company_id)
+			company comp JOIN
+			company_collection_company ccc USING (company_id) JOIN
+			property p USING (company_collection_id)
 		WHERE
-			property_type = 'DeviceProvisioning' AND
-			property_name = 'VendorMemoryProbeString' AND
-			property_value = vendor_name;
+			p.property_type = 'DeviceProvisioning' AND
+			p.property_name = 'MemoryVendorProbeString' AND
+			p.property_value = vendor_name
+		ORDER BY
+			p.property_id
+		LIMIT 1;
 	END IF;
 
 	--
@@ -1332,17 +1336,20 @@ BEGIN
 	cid := NULL;
 
 	IF vendor_name IS NOT NULL THEN
+
 		SELECT
-			company.company_id INTO cid
+			comp.company_id INTO cid
 		FROM
-			company JOIN
-			company_collection_company ccc using (company_id) JOIN
-			company_collection cc using (company_collection_id) JOIN
+			company comp JOIN
+			company_collection_company ccc USING (company_id) JOIN
 			property p USING (company_collection_id)
 		WHERE
-			property_type = 'DeviceProvisioning' AND
-			property_name = 'VendorCPUProbeString' AND
-			property_value = vendor_name;
+			p.property_type = 'DeviceProvisioning' AND
+			p.property_name = 'CPUVendorProbeString' AND
+			p.property_value = vendor_name
+		ORDER BY
+			p.property_id
+		LIMIT 1;
 	END IF;
 
 	--
