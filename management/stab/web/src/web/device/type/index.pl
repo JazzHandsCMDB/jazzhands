@@ -55,15 +55,12 @@ sub do_device_type {
 	}
 
 	print $cgi->header('text/html');
-	print $stab->start_html(
-		{
-			-title      => "Device Type",
-			-javascript => 'devicetype',
-		}
-	);
+	print $stab->start_html( {
+		-title      => "Device Type",
+		-javascript => 'devicetype',
+	} );
 
-	print $cgi->start_form(
-		{ -method => 'POST', -action => 'dtsearch.pl' } );
+	print $cgi->start_form( { -method => 'POST', -action => 'dtsearch.pl' } );
 	print $cgi->div(
 		{ -align => 'center' },
 		$cgi->h3( { -align => 'center' }, 'Pick a device type:' ),
@@ -104,7 +101,7 @@ sub do_device_type_edit {
 	};
 
 	my $sth = $dbh->prepare($q) || $stab->return_db_err($dbh);
-	$sth->execute($devtypid) || $stab->return_db_err($sth);
+	$sth->execute($devtypid)    || $stab->return_db_err($sth);
 
 	$dt = $sth->fetchrow_hashref;
 
@@ -115,12 +112,10 @@ sub do_device_type_edit {
 	$model = $dt->{ _dbx('COMPANY_NAME') } . " " . $dt->{ _dbx('MODEL') };
 
 	print $cgi->header('text/html');
-	print $stab->start_html(
-		{
-			-title      => "Device Type $model",
-			-javascript => 'devicetype',
-		}
-	  ),
+	print $stab->start_html( {
+		-title      => "Device Type $model",
+		-javascript => 'devicetype',
+	} ),
 	  "\n";
 
 	device_type_edit_form( $stab, $devtypid, $dt );
@@ -136,10 +131,8 @@ sub device_type_edit_form {
 
 	my $leftbox = $cgi->table(
 		$stab->build_tr(
-			{-company_type => 'hardware provider'},
-			$dt,      "b_dropdown",
-			"Vendor", 'COMPANY_ID',
-			'DEVICE_TYPE_ID'
+			{ -company_type => 'hardware provider' },
+			$dt, "b_dropdown", "Vendor", 'COMPANY_ID', 'DEVICE_TYPE_ID'
 		),
 		$stab->build_tr(
 			$dt,           "b_dropdown",
@@ -147,13 +140,10 @@ sub device_type_edit_form {
 			'DEVICE_TYPE_ID'
 		),
 		$stab->build_tr(
-			$dt,     "b_textfield",
-			"Model", 'MODEL',
-			'DEVICE_TYPE_ID'
+			$dt, "b_textfield", "Model", 'MODEL', 'DEVICE_TYPE_ID'
 		),
 		$stab->build_tr(
-			$dt,           "b_textfield",
-			"Description", 'DESCRIPTION',
+			$dt, "b_textfield", "Description", 'DESCRIPTION',
 			'DEVICE_TYPE_ID'
 		),
 		$stab->build_tr(
@@ -164,41 +154,33 @@ sub device_type_edit_form {
 	);
 
 	my $rightbox = $cgi->table(
-		$cgi->Tr(
-			$cgi->td(
-				{ -colspan => 2 },
-				$stab->build_checkbox(
-					$dt,            "CanSNMP",
-					'SNMP_CAPABLE', 'DEVICE_TYPE_ID'
-				),
-				$stab->build_checkbox(
-					$dt,
-					"802.3",
-					'HAS_802_3_INTERFACE',
-					'DEVICE_TYPE_ID'
-				),
-				$stab->build_checkbox(
-					$dt,
-					"802.11",
-					'HAS_802_11_INTERFACE',
-					'DEVICE_TYPE_ID'
-				),
-			)
-		),
+		$cgi->Tr( $cgi->td(
+			{ -colspan => 2 },
+			$stab->build_checkbox(
+				$dt, "CanSNMP", 'SNMP_CAPABLE', 'DEVICE_TYPE_ID'
+			),
+			$stab->build_checkbox(
+				$dt, "802.3", 'HAS_802_3_INTERFACE', 'DEVICE_TYPE_ID'
+			),
+			$stab->build_checkbox(
+				$dt, "802.11", 'HAS_802_11_INTERFACE', 'DEVICE_TYPE_ID'
+			),
+		) ),
 		$cgi->Tr( $cgi->td( { -colspan => 2 }, $cgi->hr ) ),
 		$stab->build_tr(
-			$dt,          "b_textfield",
-			"Rack Units", 'RACK_UNITS',
+			$dt, "b_textfield", "Rack Units", 'RACK_UNITS',
 			'DEVICE_TYPE_ID'
 		),
 	);
 
-	my($powerbox,$serialbox, $networkbox);
+	my ( $powerbox, $serialbox, $networkbox );
+
 	#my $powerbox = build_power_box( $stab, $devtypid );
 	#my $serialbox  = build_physical_port_box( $stab, $devtypid, 'serial' );
 	#my $networkbox = build_physical_port_box( $stab, $devtypid, 'network' );
 
-	my($poweraddbox,$serialaddbox, $networkaddbox);
+	my ( $poweraddbox, $serialaddbox, $networkaddbox );
+
 	#my $poweraddbox = build_power_add_box( $stab, $devtypid );
 	#my $serialaddbox =
 	#  build_physical_port_add_box( $stab, $devtypid, 'serial' );
@@ -207,10 +189,7 @@ sub device_type_edit_form {
 
 	my $offparams = { -align => 'center' };
 
-	my $addparams = {
-		-style => 'background: lightgrey',
-		-align => 'center'
-	};
+	my $addparams = { -align => 'center' };
 
 	if ( !defined($powerbox) || !length($powerbox) ) {
 		$powerbox = "no power configuration";
@@ -227,7 +206,6 @@ sub device_type_edit_form {
 	my $hdrparam = {
 		-align   => 'center',
 		-colspan => 2,
-		-style   => 'background: lightyellow'
 	};
 
 	if ($dt) {
@@ -235,33 +213,30 @@ sub device_type_edit_form {
 		if ( defined($powerbox) && length($powerbox) ) {
 			$powerbox    = $cgi->td( $offparams, $powerbox );
 			$poweraddbox = $cgi->td( $addparams, $poweraddbox );
-			$powerrow = $cgi->Tr( $powerbox, $poweraddbox );
+			$powerrow    = $cgi->Tr( $powerbox, $poweraddbox );
 		} else {
-			$poweraddbox =
-			  $cgi->td( { -colspan => 2 }, $poweraddbox );
-			$powerrow = $cgi->Tr( $addparams, $poweraddbox );
+			$poweraddbox = $cgi->td( { -colspan => 2 }, $poweraddbox );
+			$powerrow    = $cgi->Tr( $addparams, $poweraddbox );
 		}
 
 		my $serialrow;
 		if ( defined($serialbox) && length($serialbox) ) {
 			$serialbox    = $cgi->td( $offparams, $serialbox );
 			$serialaddbox = $cgi->td( $addparams, $serialaddbox );
-			$serialrow = $cgi->Tr( $serialbox, $serialaddbox );
+			$serialrow    = $cgi->Tr( $serialbox, $serialaddbox );
 		} else {
-			$serialaddbox =
-			  $cgi->td( { -colspan => 2 }, $serialaddbox );
-			$serialrow = $cgi->Tr( $addparams, $serialaddbox );
+			$serialaddbox = $cgi->td( { -colspan => 2 }, $serialaddbox );
+			$serialrow    = $cgi->Tr( $addparams, $serialaddbox );
 		}
 
 		my $networkrow;
 		if ( defined($networkbox) && length($networkbox) ) {
 			$networkbox    = $cgi->td( $offparams, $networkbox );
 			$networkaddbox = $cgi->td( $addparams, $networkaddbox );
-			$networkrow = $cgi->Tr( $networkbox, $networkaddbox );
+			$networkrow    = $cgi->Tr( $networkbox, $networkaddbox );
 		} else {
-			$networkaddbox =
-			  $cgi->td( { -colspan => 2 }, $networkaddbox );
-			$networkrow = $cgi->Tr( $addparams, $networkaddbox );
+			$networkaddbox = $cgi->td( { -colspan => 2 }, $networkaddbox );
+			$networkrow    = $cgi->Tr( $addparams, $networkaddbox );
 		}
 
 		print $cgi->start_form(
@@ -270,27 +245,17 @@ sub device_type_edit_form {
 			{ -align => 'center', -width => '100%', -border => 1 },
 			$cgi->Tr( $cgi->td( $hdrparam, "General" ) ),
 			$cgi->Tr( $cgi->td($leftbox), $cgi->td($rightbox) ),
-			$cgi->Tr(
-				$cgi->td( $hdrparam, "Power Port Template" )
-			),
+			$cgi->Tr( $cgi->td( $hdrparam, "Power Port Template" ) ),
 			$powerrow,
-			$cgi->Tr(
-				$cgi->td( $hdrparam, "Serial Port Template" )
-			),
+			$cgi->Tr( $cgi->td( $hdrparam, "Serial Port Template" ) ),
 			$serialrow,
-			$cgi->Tr(
-				$cgi->td( $hdrparam, "Switch Port Template" )
-			),
+			$cgi->Tr( $cgi->td( $hdrparam, "Switch Port Template" ) ),
 			$networkrow,
-			$cgi->Tr(
-				$cgi->td(
-					$hdrparam,
-					$cgi->hidden(
-						'DEVICE_TYPE_ID', $devtypid
-					),
-					$cgi->submit('Submit Update'),
-				)
-			),
+			$cgi->Tr( $cgi->td(
+				$hdrparam,
+				$cgi->hidden( 'DEVICE_TYPE_ID', $devtypid ),
+				$cgi->submit('Submit Update'),
+			) ),
 		  ),
 		  $cgi->end_form;
 	} else {
@@ -302,22 +267,17 @@ sub device_type_edit_form {
 			$cgi->Tr( $cgi->td($leftbox), $cgi->td($rightbox) ),
 			$cgi->Tr(
 				$cgi->td( $addparams, $poweraddbox ),
-				$cgi->td(
-					$addparams, $serialaddbox,
-					$cgi->hr,   $networkaddbox,
-				)
+				$cgi->td( $addparams, $serialaddbox, $networkaddbox, )
 			),
-			$cgi->Tr(
-				$cgi->td(
-					$hdrparam,
-					$cgi->submit('Add'),
-					$cgi->caption(
-"Vendor, Model and Rack Units are Required.  To add vendors, contact ",
-						$stab->support_email,
-						"\n"
-					)
+			$cgi->Tr( $cgi->td(
+				$hdrparam,
+				$cgi->submit('Add'),
+				$cgi->caption(
+					"Vendor, Model and Rack Units are Required.  To add vendors, contact ",
+					$stab->support_email,
+					"\n"
 				)
-			),
+			) ),
 		  ),
 		  $cgi->end_form;
 	}
@@ -352,7 +312,7 @@ sub build_physical_port_box {
 	#				port_name
 	#	};
 
-	my $sth = $dbh->prepare($q) || $stab->return_db_err($dbh);
+	my $sth = $dbh->prepare($q)       || $stab->return_db_err($dbh);
 	$sth->execute( $devtypid, $type ) || $stab->return_db_err($sth);
 
 	my $numrows  = 0;
@@ -370,12 +330,10 @@ sub build_physical_port_box {
 
 		my $serialxtra = "";
 		if ( $type eq 'serial' ) {
-			$serialxtra = $cgi->td(
-				$stab->b_textfield(
-					{ -textfield_width => 10 }, $hr,
-					'TCP_PORT', \@keys
-				)
-			);
+			$serialxtra = $cgi->td( $stab->b_textfield(
+				{ -textfield_width => 10 },
+				$hr, 'TCP_PORT', \@keys
+			) );
 
 		}
 
@@ -387,78 +345,47 @@ sub build_physical_port_box {
 					-name  => "rm_PORT_NAME_$idx",
 					-label => ''
 				),
-				$cgi->td(
-					$stab->b_textfield(
-						{ -textfield_width => 10 },
-						$hr, 'PORT_NAME', \@keys
-					)
-				),
-				$cgi->td(
-					$stab->b_textfield(
-						{ -textfield_width => 10 },
-						$hr, 'DESCRIPTION', \@keys
-					)
-				),
-				$cgi->td(
-					$stab->b_textfield(
-						{ -textfield_width => 10 },
-						$hr, 'PHYSICAL_LABEL', \@keys
-					)
-				),
-				$cgi->td(
-					$stab->b_dropdown(
-						undef,        $hr,
-						'PORT_SPEED', \@keys
-					)
-				),
-				$cgi->td(
-					$stab->b_dropdown(
-						undef,           $hr,
-						'PORT_PROTOCOL', \@keys
-					)
-				),
-				$cgi->td(
-					$stab->b_dropdown(
-						undef,             $hr,
-						'PORT_PLUG_STYLE', \@keys
-					)
-				),
-				$cgi->td(
-					$stab->b_dropdown(
-						undef,         $hr,
-						'PORT_MEDIUM', \@keys
-					)
-				),
-				$cgi->td(
-					$stab->b_dropdown(
-						undef,          $hr,
-						'PORT_PURPOSE', \@keys
-					)
-				),
+				$cgi->td( $stab->b_textfield(
+					{ -textfield_width => 10 },
+					$hr, 'PORT_NAME', \@keys
+				) ),
+				$cgi->td( $stab->b_textfield(
+					{ -textfield_width => 10 },
+					$hr, 'DESCRIPTION', \@keys
+				) ),
+				$cgi->td( $stab->b_textfield(
+					{ -textfield_width => 10 }, $hr,
+					'PHYSICAL_LABEL',           \@keys
+				) ),
+				$cgi->td( $stab->b_dropdown(
+					undef, $hr, 'PORT_SPEED', \@keys ) ),
+				$cgi->td( $stab->b_dropdown(
+					undef, $hr, 'PORT_PROTOCOL', \@keys ) ),
+				$cgi->td( $stab->b_dropdown(
+					undef, $hr, 'PORT_PLUG_STYLE', \@keys
+				) ),
+				$cgi->td( $stab->b_dropdown(
+					undef, $hr, 'PORT_MEDIUM', \@keys ) ),
+				$cgi->td( $stab->b_dropdown(
+					undef, $hr, 'PORT_PURPOSE', \@keys ) ),
 				$serialxtra,
-				$cgi->td(
-					$stab->build_checkbox(
-						undef, $hr,
-						'',    'IS_OPTIONAL',
-						\@keys
-					)
-				),
+				$cgi->td( $stab->build_checkbox(
+					undef, $hr, '', 'IS_OPTIONAL', \@keys
+				) ),
 
 			),
 		);
 	}
 
-	my $delall = $cgi->checkbox(
-		{
-			-class => "dt_${type}rm dtrmall",
-			-label => '',
-		}
-	) . "Del";
+	my $delall = $cgi->checkbox( {
+		-class => "dt_${type}rm dtrmall",
+		-label => '',
+	} )
+	  . "Del";
 
 	my $headers = [
-		$delall, "Name",     'Descrip', 'Label',
-		'Speed', 'Protocol', 'Plug',    'Medium',
-		'Purpose',
+		$delall, "Name",   'Descrip', 'Label', 'Speed', 'Protocol',
+		'Plug',  'Medium', 'Purpose',
 	];
 
 	if ( $type eq 'serial' ) {
@@ -475,8 +402,7 @@ sub build_physical_port_box {
 			-colspan => $#{$headers} + 1,
 		};
 		$existing =
-		  $cgi->Tr(
-			$cgi->td( $offparams, "no $humantype configuration" ) );
+		  $cgi->Tr( $cgi->td( $offparams, "no $humantype configuration" ) );
 
 	}
 
@@ -514,8 +440,8 @@ sub build_physical_port_add_box {
 	my $portxtra = "";
 	if ( $type eq 'serial' ) {
 		$portxtra = $stab->build_tr(
-			{ -textfield_width => 10 }, undef,
-			"b_textfield",           'Tcp Port Start',
+			{ -textfield_width => 10 },
+			undef, "b_textfield", 'Tcp Port Start',
 			"${pfx}_TCP_PORT_START", 'DEVICE_TYPE_ID'
 		);
 	}
@@ -524,18 +450,18 @@ sub build_physical_port_add_box {
 		$cgi->caption($title),
 		$stab->build_tr(
 			{ -textfield_width => 10 }, undef,
-			"b_textfield",        'NamePrefix',
-			"${pfx}_PORT_PREFIX", 'DEVICE_TYPE_ID',
+			"b_textfield",              'NamePrefix',
+			"${pfx}_PORT_PREFIX",       'DEVICE_TYPE_ID',
 			$devtypid
 		),
 		$stab->build_tr(
-			{ -textfield_width => 10 }, undef,
+			{ -textfield_width => 10 },    undef,
 			"b_textfield",                 'StartPort',
 			"${pfx}_INTERFACE_PORT_START", 'DEVICE_TYPE_ID',
 			$devtypid
 		),
 		$stab->build_tr(
-			{ -textfield_width => 10 }, undef,
+			{ -textfield_width => 10 },    undef,
 			"b_textfield",                 'Count',
 			"${pfx}_INTERFACE_PORT_COUNT", 'DEVICE_TYPE_ID',
 			$devtypid
@@ -543,28 +469,28 @@ sub build_physical_port_add_box {
 		$portxtra,
 		$stab->build_tr(
 			{ -prefix => "${pfx}_", }, undef,
-			"b_dropdown",   "Purpose",
-			'PORT_PURPOSE', 'DEVICE_TYPE_ID'
+			"b_dropdown",              "Purpose",
+			'PORT_PURPOSE',            'DEVICE_TYPE_ID'
 		),
 		$stab->build_tr(
 			{ -prefix => "${pfx}_" }, undef,
-			"b_dropdown", "Port Speed",
-			'PORT_SPEED', 'DEVICE_TYPE_ID'
+			"b_dropdown",             "Port Speed",
+			'PORT_SPEED',             'DEVICE_TYPE_ID'
 		),
 		$stab->build_tr(
 			{ -prefix => "${pfx}_" }, undef,
-			"b_dropdown",    "Protocol",
-			'PORT_PROTOCOL', 'DEVICE_TYPE_ID'
+			"b_dropdown",             "Protocol",
+			'PORT_PROTOCOL',          'DEVICE_TYPE_ID'
 		),
 		$stab->build_tr(
 			{ -prefix => "${pfx}_" }, undef,
-			"b_dropdown",  "Medium",
-			'PORT_MEDIUM', 'DEVICE_TYPE_ID'
+			"b_dropdown",             "Medium",
+			'PORT_MEDIUM',            'DEVICE_TYPE_ID'
 		),
 		$stab->build_tr(
 			{ -prefix => "${pfx}_" }, undef,
-			"b_dropdown",      "Plug Style",
-			'PORT_PLUG_STYLE', 'DEVICE_TYPE_ID'
+			"b_dropdown",             "Plug Style",
+			'PORT_PLUG_STYLE',        'DEVICE_TYPE_ID'
 		),
 	);
 }
@@ -588,7 +514,7 @@ sub build_power_box {
 	#	};
 
 	my $sth = $dbh->prepare($q) || $stab->return_db_err($dbh);
-	$sth->execute($devtypid) || $stab->return_db_err($sth);
+	$sth->execute($devtypid)    || $stab->return_db_err($sth);
 
 	my $numrows  = 0;
 	my $existing = "";
@@ -607,12 +533,10 @@ sub build_power_box {
 		$pstyle =~ tr/A-Z/a-z/;
 		$pstyle =~ s,/.*$,,;
 		$pstyle =~ s,^.+\s+,,;
-		my $plugimg = $cgi->img(
-			{
-				-id  => "power_plug_style_img_$idx",
-				-src => "../../images/electric/$pstyle.png"
-			}
-		);
+		my $plugimg = $cgi->img( {
+			-id  => "power_plug_style_img_$idx",
+			-src => "../../images/electric/$pstyle.png"
+		} );
 
 		$existing .= $cgi->Tr(
 			{ -valign => 'bottom' },
@@ -624,19 +548,15 @@ sub build_power_box {
 					-label => ''
 				)
 			),
+			$cgi->td( $stab->b_textfield(
+				undef, $hr, 'POWER_INTERFACE_PORT', \@keys
+			) ),
 			$cgi->td(
-				$stab->b_textfield(
-					undef,                  $hr,
-					'POWER_INTERFACE_PORT', \@keys
-				)
-			),
-			$cgi->td(
-				$stab->b_dropdown(
-					{
+				$stab->b_dropdown( {
 						-postpend_html => $plugimg,
-						-id => "plug_drop_$idx",
-						-onChange =>
-"tweak_plug_style(power_plug_style_img_$idx, plug_drop_$idx);",
+						-id            => "plug_drop_$idx",
+						-onChange      =>
+						  "tweak_plug_style(power_plug_style_img_$idx, plug_drop_$idx);",
 					},
 					$hr,
 					'POWER_PLUG_STYLE',
@@ -644,30 +564,15 @@ sub build_power_box {
 				),
 				$plugimg
 			),
-			$cgi->td(
-				$stab->b_textfield(
-					undef, $hr, 'VOLTAGE', \@keys
-				)
-			),
-			$cgi->td(
-				$stab->b_textfield(
-					undef, $hr, 'MAX_AMPERAGE', \@keys
-				)
-			),
-			$cgi->td(
-				$stab->build_checkbox(
-					undef, $hr,
-					'',    'PROVIDES_POWER',
-					\@keys
-				)
-			),
-			$cgi->td(
-				$stab->build_checkbox(
-					undef, $hr,
-					'',    'IS_OPTIONAL',
-					\@keys
-				)
-			),
+			$cgi->td( $stab->b_textfield( undef, $hr, 'VOLTAGE', \@keys ) ),
+			$cgi->td( $stab->b_textfield(
+				undef, $hr, 'MAX_AMPERAGE', \@keys ) ),
+			$cgi->td( $stab->build_checkbox(
+				undef, $hr, '', 'PROVIDES_POWER', \@keys
+			) ),
+			$cgi->td( $stab->build_checkbox(
+				undef, $hr, '', 'IS_OPTIONAL', \@keys
+			) ),
 		);
 	}
 
@@ -682,24 +587,19 @@ sub build_power_box {
 		  $cgi->Tr( $cgi->td( $offparams, "no power configuration" ) );
 	}
 
-	my $delall = $cgi->checkbox(
-		{
-			-class => 'dt_powerrm dtrmall',
-			-label => '',
-		}
-	) . "Del";
+	my $delall = $cgi->checkbox( {
+		-class => 'dt_powerrm dtrmall',
+		-label => '',
+	} )
+	  . "Del";
 
 	$rv = $cgi->table(
 		{ -border => 1, -width => '100%' },
 		$cgi->caption("Current Power Port Template"),
-		$cgi->th(
-			[
-				$delall,      'PortName',
-				'Plug Style', 'Voltage',
-				'Max Amp',    'Provides',
-				'Optional',
-			]
-		),
+		$cgi->th( [
+			$delall,   'PortName', 'Plug Style', 'Voltage',
+			'Max Amp', 'Provides', 'Optional',
+		] ),
 		$existing
 	);
 
@@ -719,45 +619,34 @@ sub build_power_add_box {
 		$title = $cgi->b('Power Template');
 	}
 
-	my $plugimg = $cgi->img(
-		{
-			-id  => 'plug_style_img',
-			-src => "../../images/electric/unknown.png"
-		}
-	);
+	my $plugimg = $cgi->img( {
+		-id  => 'plug_style_img',
+		-src => "../../images/electric/unknown.png"
+	} );
 	$cgi->table(
-		$cgi->Tr(
-			$cgi->td(
-				{ -colspan => 2, -align => 'center' }, $title
-			)
-		),
+		$cgi->Tr( $cgi->td( { -colspan => 2, -align => 'center' }, $title ) ),
 		$stab->build_tr(
-			{ -textfield_width => 10, -default => 'power' },
-			undef,
-			"b_textfield",
-			'NamePrefix',
-			'POWER_INTERFACE_PORT_PREFIX',
-			'DEVICE_TYPE_ID',
+			{ -textfield_width => 10, -default => 'power' }, undef,
+			"b_textfield",                                   'NamePrefix',
+			'POWER_INTERFACE_PORT_PREFIX',                   'DEVICE_TYPE_ID',
 			$devtypid
 		),
 		$stab->build_tr(
-			{ -textfield_width => 10 }, undef,
+			{ -textfield_width => 10 },   undef,
 			"b_textfield",                'StartPort',
 			'POWER_INTERFACE_PORT_START', 'DEVICE_TYPE_ID',
 			$devtypid
 		),
 		$stab->build_tr(
-			{ -textfield_width => 10 }, undef,
+			{ -textfield_width => 10 },   undef,
 			"b_textfield",                'Count',
 			'POWER_INTERFACE_PORT_COUNT', 'DEVICE_TYPE_ID',
 			$devtypid
 		),
-		$stab->build_tr(
-			{
+		$stab->build_tr( {
 				-postpend_html => $plugimg,
 				-id            => 'plug_drop',
-				-onChange =>
-'tweak_plug_style(plug_style_img, plug_drop);',
+				-onChange => 'tweak_plug_style(plug_style_img, plug_drop);',
 			},
 			undef,
 			"b_dropdown",
@@ -768,17 +657,13 @@ sub build_power_add_box {
 		),
 		$stab->build_tr(
 			{ -textfield_width => 10, -voltage => 120 },
-			undef,
-			"b_textfield",
-			'Voltage',
-			'VOLTAGE',
-			'DEVICE_TYPE_ID',
+			undef, "b_textfield", 'Voltage', 'VOLTAGE', 'DEVICE_TYPE_ID',
 			$devtypid
 		),
 		$stab->build_tr(
 			{ -textfield_width => 10 }, undef,
-			"b_textfield",  'Max Amp',
-			'MAX_AMPERAGE', 'DEVICE_TYPE_ID',
+			"b_textfield",              'Max Amp',
+			'MAX_AMPERAGE',             'DEVICE_TYPE_ID',
 			$devtypid
 		),
 		$stab->build_tr(

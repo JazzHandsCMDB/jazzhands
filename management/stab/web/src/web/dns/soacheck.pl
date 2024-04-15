@@ -73,7 +73,7 @@ sub dump_soacheck_all {
 	my $showall   = $stab->cgi_parse_param('showall')   || 'no';
 	my $nogenshow = $stab->cgi_parse_param('nogenshow') || 'all';
 
-	print $cgi->header( { -type => 'text/html' } ), "\n";
+	print $cgi->header(      { -type  => 'text/html' } ),              "\n";
 	print $stab->start_html( { -title => "Nameservers: NIC vs DB" } ), "\n";
 
 	{
@@ -123,11 +123,11 @@ sub dump_soacheck_all {
 		order by nb.ip_address, dom.soa_name
 	};
 	my $sth = $stab->prepare($q) || return $stab->return_db_err($dbh);
-	$sth->execute || return $stab->return_db_err($sth);
+	$sth->execute                || return $stab->return_db_err($sth);
 
 	my $maxperrow = 3;
 
-	print $cgi->start_table( { -border => 1, -align => 'center' } ), "\n";
+	print $cgi->start_table( { -class => 'nic-database-container' } ), "\n";
 
 	my $curperrow = 0;
 	my $rowtxt    = "";
@@ -155,15 +155,17 @@ sub dump_soacheck_all {
 		}
 
 		my @jazzhands = get_jazzhands_namservers( $stab, $zone_name );
+
+		# Remove the trailing dot from all the result
+		@jazzhands = map { s/\.$//; $_ } @jazzhands;
 		my @nic = get_nic_ns($zone_name);
 
 		my $problems = 0;
 		my $numauth  = 0;
 		my $numnic   = 0;
 
-		my $nslist =
-		  $cgi->Tr(
-			$cgi->td( { -background => 'green', -align => 'center' }, "NIC" ) );
+		my $nslist = $cgi->Tr( $cgi->td( { -align => 'center' }, "NIC" ) );
+
 		if ( $#nic > -1 ) {
 			foreach my $ns ( sort @nic ) {
 				if ( $#jazzhands > -1
@@ -171,32 +173,20 @@ sub dump_soacheck_all {
 				{
 					$nslist .= $cgi->Tr( $cgi->td($ns) );
 				} else {
-					$nslist .= $cgi->Tr(
-						$cgi->td(
-							{
-								-style => 'color: red'
-							},
-							$ns
-						)
-					);
+					$nslist .=
+					  $cgi->Tr( $cgi->td( { -class => 'mismatch' }, $ns ) );
 					$problems++;
 				}
 			}
 			$numnic++;
+
 		} else {
 			$nslist .= $cgi->Tr(
-				$cgi->td(
-					{
-						-style => 'color: blue',
-						-align => 'center'
-					},
-					'none registered'
-				)
-			);
+				$cgi->td( { -class => 'missing' }, 'none registered' ) );
 		}
-		$nslist .=
-		  $cgi->Tr(
-			$cgi->td( { -background => 'green', -align => 'center' }, "DB" ) );
+
+		$nslist .= $cgi->Tr( $cgi->td( { -align => 'center' }, "DB" ) );
+
 		if ( $#jazzhands > -1 ) {
 			foreach my $ns ( sort @jazzhands ) {
 				if ( $#nic > -1
@@ -204,61 +194,35 @@ sub dump_soacheck_all {
 				{
 					$nslist .= $cgi->Tr( $cgi->td($ns) );
 				} else {
-					$nslist .= $cgi->Tr(
-						$cgi->td(
-							{
-								-style => 'color: red'
-							},
-							$ns
-						)
-					);
+					$nslist .=
+					  $cgi->Tr( $cgi->td( { -class => 'mismatch' }, $ns ) );
 					$problems++;
 				}
 			}
 			$numauth++;
+
 		} else {
-			$nslist .= $cgi->Tr(
-				$cgi->td(
-					{
-						-style => 'color: blue',
-						-align => 'center'
-					},
-					'none set'
-				)
-			);
+			$nslist .=
+			  $cgi->Tr( $cgi->td( { -class => 'missing' }, 'none set' ) );
 		}
+
 		if ( !$numauth || !$numnic || ( $numnic != $numauth ) ) {
 			$problems++;
 		}
 
-		if ($problems) {
-			$rowtxt .= $cgi->td(
-				{ -valign => 'top' },
-				$cgi->table(
-					{ -width => '100%', -valign => 'top' },
-					$cgi->Tr(
-						{
-							-style => 'background: orange',
-							-align => 'center'
+		if ( $problems || $showall eq 'yes' ) {
+			$rowtxt .= $cgi->td( $cgi->table(
+				{ -class => 'nic-database' },
+				$cgi->Tr( $cgi->th(
+					$cgi->a( {
+							-href => "./?dnsdomainid=$domid"
 						},
-						$cgi->td(
-							{ -align => 'center' },
-							$cgi->a(
-								{
-									-href => "./?dnsdomainid=$domid"
-								},
-								$zone_name
-							),
-							(
-								( $gen eq 'Y' )
-								? "(gen)"
-								: ""
-							)
-						)
+						$zone_name
 					),
-					$nslist
-				)
-			);
+					( ( $gen eq 'Y' ) ? "(gen)" : "" )
+				) ),
+				$nslist
+			) );
 			$curperrow++;
 		}
 	}
@@ -282,7 +246,7 @@ sub get_jazzhands_namservers {
 		select  dns.dns_record_id,
 				dns.dns_name,
 				dns.dns_domain_id,
-				dns.dns_ttl,    
+				dns.dns_ttl,
 				dns.dns_class,
 				dns.DNS_TYPE,
 				CASE WHEN dns.dns_value LIKE '%.' THEN dns.dns_value
@@ -307,7 +271,7 @@ sub get_jazzhands_namservers {
 	};
 
 	my $sth = $stab->prepare($q) || $stab->return_db_err($dbh);
-	$sth->execute($zone) || $stab->return_db_err($sth);
+	$sth->execute($zone)         || $stab->return_db_err($sth);
 
 	my (@ns);
 	while ( my $hr = $sth->fetchrow_hashref ) {
@@ -388,19 +352,23 @@ sub get_nic_ns {
 	# every zone, but since its stored locally, or cached, its not
 	# that big of a deal, really...
 	if ( $#ips == -1 ) {
-		my $res = Net::DNS::Resolver->new;
+		my $res = Net::DNS::Resolver->new();
 
-		my $packet = $res->send( ".", "NS" ) || die;
+		my $packet = $res->send( "$zone", "NS" ) || die;
 		foreach my $ans ( $packet->answer ) {
 			next if ( $ans->type ne 'NS' );
-			my $i = Net::DNS::Resolver->new;
-			my $ipp = $i->send( $ans->rdatastr, "A" ) || die;
-			foreach my $a ( $ipp->answer ) {
-				if ( $a->type eq 'A' ) {
-					push( @ips, $a->address );
-				}
-			}
+			push( @ips, $ans->nsdname );
+
+			#my $i = Net::DNS::Resolver->new();
+			#my $ipp = $i->send( $ans->rdatastr, "A" ) || die;
+			#foreach my $a ( $ipp->answer ) {
+			#	if ( $a->type eq 'A' ) {
+			#		#push( @ips, $a->address );
+			#	}
+			#}
 		}
+
+		return @ips;
 	}
 
 	#
@@ -489,7 +457,7 @@ sub get_nic_ns {
 				my $ok = 0;
 			  NSCHECK:
 				foreach my $ns (@ns) {
-					my $i = Net::DNS::Resolver->new;
+					my $i   = Net::DNS::Resolver->new;
 					my $ipp = $i->send( $ns, "A" ) || die;
 					foreach my $a ( $ipp->answer ) {
 						if ( $a->type eq 'A' ) {

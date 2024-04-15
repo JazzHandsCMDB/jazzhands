@@ -79,9 +79,8 @@ sub do_domain_update {
 	}
 
 	if ( defined($resetns) && $domid ) {
-		my $sth = $dbh->prepare_cached(
-			qq{
-			SELECT dns_utils.add_ns_records(?, true)
+		my $sth = $dbh->prepare_cached( qq{
+			SELECT dns_manip.add_ns_records(?, true)
 		}
 		) || $stab->return_db_err($dbh);
 
@@ -98,14 +97,13 @@ sub toggle_domain_autogen {
 	my ( $stab, $domid, $direction ) = @_;
 	my $dbh = $stab->dbh || die "Could not create dbh";
 
-	my $sth = $stab->prepare_cached(
-		qq{
+	my $sth = $stab->prepare_cached( qq{
 		update v_dns_domain_nouniverse
 		   set	should_generate = :direction
 		 where	dns_domain_id = :dom
 	}
 	) || $stab->return_db_err($dbh);
-	$sth->bind_param( ':dom', $domid ) || $stab->return_db_err($dbh);
+	$sth->bind_param( ':dom',       $domid ) || $stab->return_db_err($dbh);
 	$sth->bind_param( ':direction', $direction )
 	  || $stab->return_db_err($dbh);
 	$sth->execute || $stab->return_db_err($dbh);
@@ -143,14 +141,12 @@ sub process_domain_soa_changes {
 
 	if ( !$tally ) {
 		$stab->msg_return( "Nothing to Update", undef, 1 );
-	} elsif (
-		!$stab->DBUpdate(
-			table  => "v_dns_domain_nouniverse",
-			dbkey  => "DNS_DOMAIN_ID",
-			keyval => $domid,
-			hash   => $diffs
-		)
-	  )
+	} elsif ( !$stab->DBUpdate(
+		table  => "v_dns_domain_nouniverse",
+		dbkey  => "DNS_DOMAIN_ID",
+		keyval => $domid,
+		hash   => $diffs
+	) )
 	{
 		$dbh->rollback;
 

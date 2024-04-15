@@ -24,14 +24,9 @@
 # $Id$
 #
 
-STAB_DIR=/prod/www/stab/docs/images/electric
+STAB_DIR=/prod/www/stab/docs/css
 
-IMAGES= 5-15p.png 5-20p.png 5-30p.png 5-50p.png 6-15p.png 6-20p.png \
-	6-30p.png 6-50p.png 9p54u2.png cs8364.png cs8365c.png \
-	iec-60320-c13.png iec-60320-c14.png iec-60320-c19.png \
-	iec-60320-c20.png l14-30p.png l15-30p.png l21-30p.png l5-15p.png \
-	l5-20p.png l5-30p.png l6-15p.png l6-20p.png l6-30p.png \
-	unknown.png dc.png
+STYLESHEETS= stab.css
 
 SUBDIRS=
 
@@ -40,8 +35,8 @@ all:
 
 install:
 	install -d -o root -g bin $(DESTDIR)/$(STAB_DIR)
-	for image in $(IMAGES) ; do \
-		install -o root -g bin -m 755 $$image $(DESTDIR)/$(STAB_DIR)/$$image ;\
+	for stylesheet in $(STYLESHEETS) ; do \
+		install -o root -g bin -m 755 $$stylesheet $(DESTDIR)/$(STAB_DIR)/$$stylesheet ;\
 	done
 
 clean:

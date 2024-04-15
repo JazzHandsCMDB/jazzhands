@@ -47,7 +47,7 @@ exit do_apps();
 #
 sub build_hier {
 	my ( $stab, $tier, $depth ) = @_;
-	my $cgi = $stab->cgi || die "Could not create cgi";
+	my $cgi  = $stab->cgi || die "Could not create cgi";
 	my $root = $stab->guess_stab_root;
 
 	my $t;
@@ -55,8 +55,7 @@ sub build_hier {
 		my $x = $item;
 		my $y = "";
 		if ( exists( $tier->{kids}->{$item} ) ) {
-			$y = build_hier( $stab, $tier->{kids}->{$item},
-				$depth + 1 )
+			$y = build_hier( $stab, $tier->{kids}->{$item}, $depth + 1 )
 			  || "";
 
 		}
@@ -64,15 +63,15 @@ sub build_hier {
 		my $canadd = 0;
 		if (
 			$tier->{hr}->{$item}
-			&& (      !$tier->{hr}->{$item}->{ _dbx('NUM_DEVICES') }
+			&& (  !$tier->{hr}->{$item}->{ _dbx('NUM_DEVICES') }
 				|| $tier->{hr}->{$item}->{ _dbx('NUM_KIDS') } )
 		  )
 		{
 			$canadd = 1;
 		}
 
-	   # FOR NOW - no add functionality written, so that needs to be written
-	   # before this can be flipped on...
+		# FOR NOW - no add functionality written, so that needs to be written
+		# before this can be flipped on...
 		$canadd = 0;
 
 		my $style1 = "";
@@ -96,27 +95,23 @@ sub build_hier {
 			$class = "approle_root";
 			$id1   = $item . "_root";
 
-		     # 20 is hard coded in AddAppChild in app-utils.js, so would
-		     # need to be changed there, too.
-			$style2 .=
-			  "margin-left: " . ( $depth * 20 + 5 ) . "px;";
+			# 20 is hard coded in AddAppChild in app-utils.js, so would
+			# need to be changed there, too.
+			$style2 .= "margin-left: " . ( $depth * 20 + 5 ) . "px;";
 			$style2 .= " display: none;";
 			$img = "expand.jpg";
 		}
 
 		my $id    = $item;
 		my $imgid = $item . "_arrow";
-		my $a     = $cgi->a(
-			{
+		my $a     = $cgi->a( {
 				-href    => 'javascript:void(null)',
 				-onClick => qq{AppTreeManip("$id", "$imgid");},
 			},
-			$cgi->img(
-				{
-					-id  => $imgid,
-					-src => "$root/stabcons/$img"
-				}
-			  )
+			$cgi->img( {
+				-id  => $imgid,
+				-src => "$root/stabcons/$img"
+			} )
 
 			  #"-+>"
 		);
@@ -125,8 +120,7 @@ sub build_hier {
 
 		my $addkids = "";
 		if ($canadd) {
-			$addkids = $cgi->a(
-				{
+			$addkids = $cgi->a( {
 					-href    => "javascript:void(null);",
 					-class   => 'approle_addchild',
 					-onClick => qq{AddAppChild("$id1");},
@@ -138,8 +132,7 @@ sub build_hier {
 		if ($y) {
 			$y = $cgi->div( { -style => $style2, -id => $id }, $y );
 		}
-		$t .= $cgi->div(
-			{
+		$t .= $cgi->div( {
 				-style => $style1,
 				-class => $class,
 				-id    => $id1
@@ -160,22 +153,19 @@ sub do_apps {
 	# my $devtypid = $stab->cgi_parse_param('DEVICE_TYPE_ID');
 
 	print $cgi->header('text/html');
-	print $stab->start_html(
-		{
-			-title      => "Application Roles",
-			-javascript => 'apps',
-		}
-	);
+	print $stab->start_html( {
+		-title      => "Application Roles",
+		-javascript => 'apps',
+	} );
 
 	my $cl = {};
 
-	my $sth = $stab->prepare(
-		qq{
+	my $sth = $stab->prepare( qq{
 		select	x.*,
 				coalesce(devs.tally, 0) as num_devices,
 				coalesce(kids.tally, 0) as num_kids
 		  from (
-				select kids.* from 
+				select kids.* from
 				(
 					select *
 					  from v_application_role
@@ -185,12 +175,12 @@ sub do_apps {
 				-- purposes of adding
 				left join (
 					select role_id, count(*) as tally
-					  from v_application_role_member 
+					  from v_application_role_member
 					group by role_id
 				) devs on devs.role_id = x.role_id
 				left join (
 					select parent_device_collection_id as
-								device_collection_id, 
+								device_collection_id,
 							count(*) as tally
 					  from	v_device_collection_hier_trans
 					  group by parent_device_collection_id
@@ -218,9 +208,9 @@ sub do_apps {
 		my $fullp =
 		  $hr->{ _dbx('ROLE_PATH') } . "/" . $hr->{ _dbx('ROLE_NAME') };
 
-	   # in oracle, ROLE_PATH was just /, did not include the curent one.
-	   # This may make more sense, but the postgresql version does it so the
-	   # path is fully qualified.  Need to rethink.  XXX
+		# in oracle, ROLE_PATH was just /, did not include the curent one.
+		# This may make more sense, but the postgresql version does it so the
+		# path is fully qualified.  Need to rethink.  XXX
 		my $splitem = $hr->{ _dbx('ROLE_PATH') };
 		my $rn      = $hr->{ _dbx('ROLE_NAME') };
 		$splitem =~ s,$rn$,,;
@@ -253,8 +243,7 @@ sub do_apps {
 	# would be uber happy.
 	my $x = build_hier( $stab, $tier, 0 );
 
-	print $cgi->div(
-		{
+	print $cgi->div( {
 			-style => 'text-align: center;',
 			-align => 'center',
 			-class => 'approle'
@@ -263,28 +252,22 @@ sub do_apps {
 				Note that those items in green can be
 				assigned to devices, and they will automatically be
 				assigned everything in the "tree" above them (the elements
-				in black).  Device can be (and often are) assigned 
+				in black).  Device can be (and often are) assigned
 				multiple roles.
 			},
 		$cgi->div(
 			{ -class => 'approle_inside' },
 			$cgi->span(
-				$cgi->a(
-					{
-						-href =>
-						  "javascript:void(null);",
-						-onClick =>
-						  'BalanceTree("collapse")'
+				$cgi->a( {
+						-href    => "javascript:void(null);",
+						-onClick => 'BalanceTree("collapse")'
 					},
 					"collapse all"
 				),
 				'//',
-				$cgi->a(
-					{
-						-href =>
-						  "javascript:void(null);",
-						-onClick =>
-						  'BalanceTree("expand")'
+				$cgi->a( {
+						-href    => "javascript:void(null);",
+						-onClick => 'BalanceTree("expand")'
 					},
 					"expand all"
 				),

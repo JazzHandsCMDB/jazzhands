@@ -61,8 +61,8 @@ sub make_url {
 
 sub dump_all_sites {
 	my ($stab) = @_;
-	my $cgi = $stab->cgi || die "Could not create cgi";
-	my $dbh = $stab->dbh || die "Could not create dbh";
+	my $cgi    = $stab->cgi || die "Could not create cgi";
+	my $dbh    = $stab->dbh || die "Could not create dbh";
 
 	print $cgi->header(      { -type  => 'text/html' } );
 	print $stab->start_html( { -title => 'Site Code List' } );
@@ -82,9 +82,9 @@ sub dump_all_sites {
 	};
 
 	my $sth = $stab->prepare($q) || die;
-	$sth->execute || die;
+	$sth->execute                || die;
 
-	print $cgi->start_table( { -border => 1 } );
+	print $cgi->start_table( { -border => 1, -align => 'center' } );
 
 	print $cgi->Tr(
 		$cgi->th('Site Code'), $cgi->th('Colo Provider'),
@@ -109,12 +109,10 @@ sub dump_site_netblocks {
 	my $dbh = $stab->dbh || die "Could not create dbh";
 
 	print $cgi->header( { -type => 'text/html' } );
-	print $stab->start_html(
-		{
-			-title      => "Site Netblocks for $sitecode",
-			-javascript => 'site_netblock'
-		}
-	);
+	print $stab->start_html( {
+		-title      => "Site Netblocks for $sitecode",
+		-javascript => 'site_netblock'
+	} );
 
 	#my $netblocks = build_site_netblocks( $stab, $sitecode );
 	#my $racks = "";    # build_site_racks($stab, $sitecode);
@@ -132,7 +130,7 @@ sub dump_site_netblocks {
 		 order by ip_address
 	};
 	my $sth = $stab->prepare($q) || die $dbh->errstr;
-	$sth->execute($sitecode) || die $sth->errstr;
+	$sth->execute($sitecode)     || die $sth->errstr;
 
 	print $cgi->start_form(
 		-method => 'POST',
@@ -144,32 +142,20 @@ sub dump_site_netblocks {
 		{ -class => 'networkrange', -border => 1, -align => 'center' } );
 	print $cgi->th( { -class => 'networkrange' },
 		[ 'RM', 'Netblock', 'Description' ] );
-	print $cgi->Tr(
-		$cgi->td(
-			{
-				-class   => 'networkrange',
-				-colspan => '3'
+	print $cgi->Tr( $cgi->td( {
+			-class   => 'networkrange',
+			-colspan => '3'
+		},
+		$cgi->a( {
+				-href    => '#',
+				-class   => 'adddnsrec plusbutton',
+				-onclick =>
+				  "this.style.display = 'none'; document.getElementById('SITE_NETBLOCK_NEW').style.display = '';",
+				-title => 'Add a new Netblock to this Site',
 			},
-			$cgi->a(
-				{
-					-href  => '#',
-					-class => 'adddnsrec',
-					-onclick =>
-					  "this.style.display = 'none'; document.getElementById('SITE_NETBLOCK_NEW').style.display = '';"
-				},
-				$cgi->img(
-					{
-						-src   => '../stabcons/plus.png',
-						-alt   => 'Add',
-						-title => 'Add',
-						-class => 'plusbutton'
-					}
-				)
-			)
 		)
-	);
-	print $cgi->Tr(
-		{
+	) );
+	print $cgi->Tr( {
 			-id    => 'SITE_NETBLOCK_NEW',
 			-style => 'display: none;',
 		},
@@ -177,15 +163,13 @@ sub dump_site_netblocks {
 			{ -class => 'networkrange' },
 			[
 				$cgi->hidden( 'SITE_NETBLOCK_ID', 'NEW' ),
-				$cgi->textfield(
-					{
-						-size     => 10,
-						-name     => 'SITE_NETBLOCK_IP_NEW',
-						-value    => '',
-						-class    => 'tracked',
-						-original => '',
-					}
-				),
+				$cgi->textfield( {
+					-size     => 10,
+					-name     => 'SITE_NETBLOCK_IP_NEW',
+					-value    => '',
+					-class    => 'tracked',
+					-original => '',
+				} ),
 
 				#$cgi->textfield({
 				#	-size => 50,
@@ -202,10 +186,8 @@ sub dump_site_netblocks {
 	while ( my ( $id, $ip, $bits, $desc ) = $sth->fetchrow_array ) {
 		my $link = "../netblock/?nblkid=$id";
 		$link .= "&expand=yes" if ( $bits >= 24 );
-		print $cgi->Tr(
-			{
-				-class => (
-					(
+		print $cgi->Tr( {
+				-class => ( (
 						$stab->cgi_parse_param( 'SITE_NETBLOCK_DELETE_' . $id )
 						  eq 'delete'
 					) ? 'rowrm' : ''
@@ -213,32 +195,22 @@ sub dump_site_netblocks {
 			},
 			$cgi->td(
 				{ -class => 'networkrange' },
-				$cgi->hidden(
-					{
-						-value => $stab->cgi_parse_param(
-							'SITE_NETBLOCK_DELETE_' . $id
-						),
-						-id       => 'SITE_NETBLOCK_DELETE_' . $id,
-						-name     => 'SITE_NETBLOCK_DELETE_' . $id,
-						-class    => 'tracked',
-						-original => '',
-					}
-				  )
-				  . $cgi->a(
-					{
-						-class => 'rmrow',
+				$cgi->hidden( {
+					-value =>
+					  $stab->cgi_parse_param( 'SITE_NETBLOCK_DELETE_' . $id ),
+					-id       => 'SITE_NETBLOCK_DELETE_' . $id,
+					-name     => 'SITE_NETBLOCK_DELETE_' . $id,
+					-class    => 'tracked',
+					-original => '',
+				} )
+				  . $cgi->a( {
+						-class   => 'rmrow',
+						-alt     => "Disassociate this Netblock from the Site",
+						-title   => 'Disassociate this Netblock from the Site',
 						-onclick =>
 						  "let trcl=this.parentElement.parentElement.classList; trcl.toggle('rowrm'); document.getElementById('SITE_NETBLOCK_DELETE_$id').value = trcl.contains('rowrm') ? 'delete' : '';"
 					},
-					$cgi->img(
-						{
-							-src => "../stabcons/redx.jpg",
-							-alt => "Disassociate this Netblock from the Site",
-							-title =>
-							  'Disassociate this Netblock from the Site',
-							-class => 'rmdnsrow button',
-						}
-					)
+					''
 				  )
 			),
 			$cgi->td(
@@ -260,12 +232,13 @@ sub dump_site_netblocks {
 		);
 	}
 	print $cgi->end_table;
-	print $cgi->submit(
-		{
-			-class => 'dnssubmit',
+	print $cgi->div(
+		{ -class => 'centered' },
+		$cgi->submit( {
+			-class => '',
 			-name  => "NetblockSites",
 			-value => "Submit Site Netblock Changes",
-		}
+		} )
 	);
 	print $cgi->end_form, "\n";
 

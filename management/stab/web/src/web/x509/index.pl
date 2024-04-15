@@ -41,9 +41,9 @@ sub do_cert_toplevel {
 	my $crtid = $stab->cgi_parse_param('X509_CERT_ID');
 
 	if ($crtid) {
-		dump_cert($stab, $crtid);
+		dump_cert( $stab, $crtid );
 	} else {
-		show_pending_certs( $stab );
+		show_pending_certs($stab);
 	}
 
 	undef $stab;
@@ -58,7 +58,6 @@ sub show_pending_certs {
 		{ -title => "Certificates", -javascript => 'reporting' } ), "\n";
 
 	print $cgi->h4( { -align => 'center' }, "Active Certificates" );
-
 
 	print $stab->build_table_from_query(
 		query => qq{
@@ -82,25 +81,25 @@ sub show_pending_certs {
 		caption => 'Certificates',
 		class   => 'reporting',
 		tableid => 'approvalreport',
-		hidden	=> [ 'x509_cert_id', 'ca_x509_cert_id' ],
-		urlmap => {
+		hidden  => [ 'x509_cert_id', 'ca_x509_cert_id' ],
+		urlmap  => {
 			"Friendly Name" => "?X509_CERT_ID=%{x509_cert_id}",
-			"Sign" => "?X509_CERT_ID=%{ca_x509_cert_id}",
+			"Sign"          => "?X509_CERT_ID=%{ca_x509_cert_id}",
 		}
 	);
 	print "\n\n", $cgi->end_html, "\n";
 }
 
 sub dump_cert {
-	my ($stab, $crtid) = @_;
+	my ( $stab, $crtid ) = @_;
 	my $cgi = $stab->cgi || die "Could not create cgi";
 
 	print $cgi->header( { -type => 'text/html' } ), "\n";
 	print $stab->start_html(
 		{ -title => "Certificates", -javascript => 'reporting' } ), "\n";
 
-	my $sth = $stab->prepare(qq{
-		select 
+	my $sth = $stab->prepare( qq{
+		select
 			x509_cert_id,
 			friendly_name,
 			is_active,
@@ -119,26 +118,22 @@ sub dump_cert {
 			crl_uri
 		from x509_certificate
 		where x509_cert_id = ?
-	}) || return $stab->return_db_err();
-		
+	} ) || return $stab->return_db_err();
+
 	$sth->execute($crtid) || return $stab->return_db_err();
-	my @cols = @{$sth->{NAME}};
+	my @cols = @{ $sth->{NAME} };
 
 	my @rows = $sth->fetchrow_array;
 	$sth->finish;
 
-
-
 	my $t = "";
-	for(my $i = 0; $i < $#rows; $i++)  {
-		$t .= $cgi->Tr(
-			$cgi->td( [ $cols[$i], $rows[$i]||'' ] )
-		);
+	for ( my $i = 0 ; $i < $#rows ; $i++ ) {
+		$t .= $cgi->Tr( $cgi->td( [ $cols[$i], $rows[$i] || '' ] ) );
 	}
 
 	print $cgi->h4( { -align => 'center' }, "Cert $crtid" );
 
-	print $cgi->table({class=>'reporting'}, $t);
+	print $cgi->table( { class => 'reporting' }, $t );
 	print "\n\n", $cgi->end_html, "\n";
 
 }

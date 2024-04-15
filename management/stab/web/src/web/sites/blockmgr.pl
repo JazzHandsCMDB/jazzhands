@@ -33,7 +33,7 @@ $stab = new JazzHands::STAB || die "Could not create STAB";
 $cgi  = $stab->cgi          || die "Could not create cgi";
 $dbh  = $stab->dbh          || die "Could not create dbh";
 
-print $cgi->header( { -type => 'text/html' } ), "\n";
+print $cgi->header(      { -type  => 'text/html' } ),                  "\n";
 print $stab->start_html( { -title => "Netblock and IP Allocation" } ), "\n";
 
 my $persiteq = qq{
@@ -61,18 +61,17 @@ my $q = qq{
 	order by s.site_code
 };
 my $sth = $stab->prepare($q) || die $dbh->errstr;
-$sth->execute || die $sth->errstr;
+$sth->execute                || die $sth->errstr;
 
 my $maxperrow = 4;
 
-print $cgi->start_table( { -border => 1 } ), "\n";
+print $cgi->start_table( { -class => 'sites' } ), "\n";
 
 print $cgi->h2( { -align => 'center' }, "IP Network Allocation" ), "\n";
 
 my $curperrow = -1;
 my $rowtxt    = "";
-while ( my ( $sitecode, $name, $addr, $status, $desc ) =
-	$sth->fetchrow_array )
+while ( my ( $sitecode, $name, $addr, $status, $desc ) = $sth->fetchrow_array )
 {
 	if ( ++$curperrow == $maxperrow ) {
 		$curperrow = 0;
@@ -85,7 +84,7 @@ while ( my ( $sitecode, $name, $addr, $status, $desc ) =
 	my $netblocks = "";
 	while ( my ( $id, $ip, $bits, $desc ) = $persitesth->fetchrow_array ) {
 		my $link = "../netblock/?nblkid=$id";
-		$link .= "&expand=yes" if ( $bits >= 24 );
+		$link      .= "&expand=yes" if ( $bits >= 24 );
 		$netblocks .= $cgi->Tr(
 			$cgi->td( $cgi->a( { -href => $link }, "$ip/$bits" ) ),
 
@@ -93,38 +92,30 @@ while ( my ( $sitecode, $name, $addr, $status, $desc ) =
 		) . "\n";
 	}
 
-	my $sitelink =
-	  $cgi->a( { -href => "./?SITE_CODE=$sitecode" }, $sitecode );
+	my $sitelink = $cgi->a( { -href => "./?sitecode=$sitecode" }, $sitecode );
 	my $entry =
 
 	  #$cgi->table({-border => 1, -width=>'100%', -align=>'top'},
 	  $cgi->table(
-		{ -width => '100%', -align => 'top' },
-		$cgi->Tr(
-			$cgi->td(
-				{
-					-align => 'center',
-					-style => 'background: yellow'
-				},
-				$cgi->b($sitelink)
-			)
-		),
-		$cgi->b($sitecode),
-		$cgi->Tr(
-			$cgi->td(
-				{
-					-align => 'center',
-					-style => 'background: yellow'
-				},
-				$cgi->b($desc)
-			)
-		),
-		$cgi->Tr(
-			$cgi->td(
-				{ -align => 'center' },
-				$cgi->table( $cgi->hr, $netblocks )
-			)
-		)
+		{ -class => 'site', -width => '100%', -align => 'top' },
+		$cgi->Tr( $cgi->td( {
+				-class => 'site-name',
+				-align => 'center',
+			},
+			$cgi->b($sitelink)
+		) ),
+		$cgi->Tr( $cgi->td( {
+				-class => 'site-description',
+				-align => 'center',
+			},
+			$cgi->b($desc)
+		) ),
+		$cgi->Tr( $cgi->td( {
+				-class => 'site-netblocks',
+				-align => 'center'
+			},
+			$cgi->table($netblocks)
+		) )
 	  ) . "\n";
 
 	$rowtxt .= $cgi->td( { -valign => 'top' }, $entry );

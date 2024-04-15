@@ -26,9 +26,8 @@
 
 STAB_DIR=/prod/www/stab/docs/stabcons
 
-# note that axe and the two X's are used by directory and should be shared
-IMAGES= collapse.jpg expand.jpg progress.gif stab.png \
-	Axe_001.svg Octagon_delete.svg round_red_x_sign_4229.jpg
+IMAGES= collapse.jpg expand.jpg stab.png \
+	Axe_001.svg round_red_x_sign_4229.jpg
 
 SUBDIRS=
 
@@ -37,8 +36,8 @@ all:
 
 install:
 	install -d -o root -g bin $(DESTDIR)/$(STAB_DIR)
-	for script in $(IMAGES) ; do \
-		install -o root -g bin -m 755 $$script $(DESTDIR)/$(STAB_DIR)/$$script ;\
+	for image in $(IMAGES) ; do \
+		install -o root -g bin -m 755 $$image $(DESTDIR)/$(STAB_DIR)/$$image ;\
 	done
 
 clean:

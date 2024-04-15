@@ -31,7 +31,7 @@ do_netcol_ajax();
 sub do_netcol_ajax {
 	my $stab = new JazzHands::STAB( ajax => 'yes' )
 	  || die "Could not create STAB";
-	my $cgi = $stab->cgi || die "Could not create cgi";
+	my $cgi      = $stab->cgi || die "Could not create cgi";
 	my $passedin = $stab->cgi_parse_param('passedin') || undef;
 
 	my $mime = $stab->cgi_parse_param('MIME_TYPE') || 'text';
@@ -58,7 +58,7 @@ sub do_netcol_ajax {
 		print $cgi->header("text/xml");
 		print '<?xml version="1.0" encoding="utf-8" ?>', "\n\n";
 	} elsif ( $mime ne 'json' ) {
-		print $cgi->header("text/json");
+		print $cgi->header("application/json");
 	} else {
 		print $cgi->header("text/html");
 	}
@@ -69,8 +69,7 @@ sub do_netcol_ajax {
 	if ( $what eq 'Collections' ) {
 		my $type = $stab->cgi_parse_param('type');
 		my $r    = {};
-		my $sth  = $stab->prepare(
-			qq{
+		my $sth  = $stab->prepare( qq{
 			select  netblock_collection_id,
 				netblock_collection_name, description
 			  from  netblock_collection
@@ -100,8 +99,7 @@ sub do_netcol_ajax {
 		# Collection Types requested
 	} elsif ( $what eq 'CollectionTypes' ) {
 		my $r   = {};
-		my $sth = $stab->prepare(
-			qq{
+		my $sth = $stab->prepare( qq{
 				select   netblock_collection_type, description
 				from     val_netblock_collection_type
 				order by netblock_collection_type

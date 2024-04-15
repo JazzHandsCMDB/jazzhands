@@ -55,12 +55,12 @@ sub dump_header {
 	print $stab->build_table_from_query(
 		query => qq{
 			WITH tallies AS (
-				SELECT approval_instance_id, 
-						approval_process_chain_name, 
-						aps.is_completed, 
+				SELECT approval_instance_id,
+						approval_process_chain_name,
+						aps.is_completed,
 						count(*) as tally
 				FROM	approval_instance_step aps
-					join approval_process_chain 
+					join approval_process_chain
 						USING (approval_process_chain_id)
 				GROUP by approval_instance_id,
 						approval_process_chain_name, aps.is_completed
@@ -87,11 +87,11 @@ sub dump_header {
 				order by 1,2 desc
 			) select chain as "Chain",
 				coalesce(completed::text, 'none') as "# Completed",
-				case WHEN completed IS NULL THEN 'none' 
+				case WHEN completed IS NULL THEN 'none'
 					WHEN pctcompleted IS NULL THEN '100%'
 					ELSE pctcompleted END as "% Completed",
 				coalesce(uncompleted::text, 'none') as "# Oustanding",
-				case WHEN uncompleted IS NULL THEN 'none' 
+				case WHEN uncompleted IS NULL THEN 'none'
 					WHEN pctuncompleted IS NULL THEN '100%'
 					ELSE pctuncompleted END as "% Outstanding",
 				coalesce(total, coalesce(completed,0)+coalesce(uncompleted,0)) as total
@@ -110,12 +110,12 @@ sub dump_step_state {
 	print $stab->build_table_from_query(
 		query => qq{
 			WITH tallies AS (
-				SELECT approval_instance_id, 
-						approval_process_chain_name, 
-						aps.is_completed, 
+				SELECT approval_instance_id,
+						approval_process_chain_name,
+						aps.is_completed,
 						count(*) as tally
 				FROM	approval_instance_step aps
-					join approval_process_chain 
+					join approval_process_chain
 						USING (approval_process_chain_id)
 				GROUP by approval_instance_id,
 						approval_process_chain_name, aps.is_completed
@@ -135,7 +135,7 @@ sub dump_step_state {
 			) SELECT approval_process_chain_name,
 				completed as "# Completed",
 				round((completed::decimal/total)*100.0, 2) ||'%' as "% Completed",
-				uncompleted as "# Outstanding", 
+				uncompleted as "# Outstanding",
 				round((uncompleted::decimal/total)*100.0, 2) ||'%' as "% Outstanding",
 				total
 			FROM q
@@ -151,9 +151,9 @@ sub dump_steps {
 	print $stab->build_table_from_query(
 		query => qq{
 			SELECT 	approval_instance_step_name as "Step Name",
-					coalesce(vat.description,approval_type) as "Approval Type", 
+					coalesce(vat.description,approval_type) as "Approval Type",
 					is_completed as "Completed",
-					approval_instance_step_start::date || '' as "Start", 
+					approval_instance_step_start::date || '' as "Start",
 					approval_instance_step_end::date || '' as "End",
 					concat (
 						coalesce(preferred_first_name, first_name), ' ',
@@ -169,7 +169,7 @@ sub dump_steps {
 					INNER JOIN approval_process_chain apc
 						USING (approval_process_chain_id)
 					INNER JOIN approval_instance USING (approval_instance_id)
-					INNER JOIN account a ON 
+					INNER JOIN account a ON
 						aps.approver_account_id = a.account_id
 					INNER JOIN person p USING (person_id)
 					INNER JOIN val_approval_type vat USING (approval_type)
@@ -180,8 +180,8 @@ sub dump_steps {
 		caption => 'Detailed Completion Information',
 		class   => 'reporting',
 		tableid => 'approvalreport',
-		urlmap	=> { 'Relevant User' => '../?actas=%{login}' },
-		hidden	=> [ 'login' ],
+		urlmap  => { 'Relevant User' => '../?actas=%{login}' },
+		hidden  => ['login'],
 	);
 }
 
@@ -202,18 +202,18 @@ sub dump_peruser {
 					concat(first_name, ' ', last_name, ' (', login, ')')
 						AS human_name
 				FROM a
-			) SELECT 
+			) SELECT
 				human_name as "Approving User",
 				login,
-				s.approval_instance_step_name as "Outstanding Steps", 
+				s.approval_instance_step_name as "Outstanding Steps",
 				count(*) as "# Items"
-			FROM  v_approval_instance_step_expanded x 
+			FROM  v_approval_instance_step_expanded x
 				inner join approval_instance_step s
-					USING (approval_instance_step_id) 
+					USING (approval_instance_step_id)
 				inner join approval_instance_step rs
 					ON x.root_step_id = rs.approval_instance_step_id
-				inner join h  
-					ON h.account_id = rs.approver_account_id 
+				inner join h
+					ON h.account_id = rs.approver_account_id
 			where s.is_completed = 'N'
 			and is_approved is null
 			and rs.approval_instance_id = ?
@@ -223,8 +223,8 @@ sub dump_peruser {
 		bind    => [$instid],
 		caption => 'State of Each Outstanding Recertification by User',
 		class   => 'reporting',
-		urlmap	=> { 'Approving User' => '../?actas=%{login}' },
-		hidden	=> [ 'login' ],
+		urlmap  => { 'Approving User' => '../?actas=%{login}' },
+		hidden  => ['login'],
 		tableid => 'approvalperuser'
 	);
 }
@@ -234,8 +234,7 @@ sub show_approval_instance {
 
 	my $cgi = $stab->cgi() || die "could not create cgi";
 
-	my $sth = $stab->prepare(
-		qq{
+	my $sth = $stab->prepare( qq{
 		SELECT  *,
 				date_trunc('seconds', approval_start) as start,
 				date_trunc('seconds', approval_end) as end
@@ -261,14 +260,12 @@ sub show_approval_instance {
 	  "\n";
 
 	if ($hr) {
-		print $cgi->div(
-			$cgi->table(
-				{ -class => 'reporting' },
-				$cgi->caption("Time Frames"),
-				$cgi->Tr( $cgi->td( [ 'Start', $hr->{ _dbx('START') } ] ) ),
-				$cgi->Tr( $cgi->td( [ 'End', $hr->{ _dbx('END') } || '' ] ) ),
-			)
-		);
+		print $cgi->div( $cgi->table(
+			{ -class => 'reporting' },
+			$cgi->caption("Time Frames"),
+			$cgi->Tr( $cgi->td( [ 'Start', $hr->{ _dbx('START') } ] ) ),
+			$cgi->Tr( $cgi->td( [ 'End',   $hr->{ _dbx('END') } || '' ] ) ),
+		) );
 	}
 
 	print $cgi->hr();

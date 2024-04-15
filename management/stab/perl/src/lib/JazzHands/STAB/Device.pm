@@ -57,6 +57,7 @@ use warnings;
 
 use JazzHands::DBI;
 use JazzHands::Common::Util qw(_dbx);
+use JSON;
 use Data::Dumper;
 use URI;
 
@@ -104,7 +105,9 @@ sub device_notes_print {
 				{
 					-name    => "DEVICE_NOTE_TEXT_$devid",
 					-rows    => 10,
-					-columns => 80
+					-columns => 80,
+					-class   => 'tracked',
+					-original => '',
 				}
 			)
 		)
@@ -114,7 +117,7 @@ sub device_notes_print {
 		return $cgi->div( { -style => 'text-align: center; padding: 50px' },
 			$cgi->em("no notes.") );
 	} else {
-		return $cgi->table( { -width => '100%', -border => 1 }, $contents );
+		return $cgi->table( { -width => '100%' }, $contents );
 	}
 }
 
@@ -285,11 +288,13 @@ sub device_switch_port {
 		# XXX ORACLE/PGSQL
 		my $sth = $self->prepare(
 			q{
-			select  distinct regexp_replace(port_name, '/.*$', '') as port_name
-			 from   physical_port
-			 where   device_id = ?
-			   and   port_type = ?
-	     -- order by NETWORK_STRINGS.NUMERIC_INTERFACE(port_name)
+			select regexp_replace(port_name, '/.*$', '') as port_name
+				from   physical_port
+				where   device_id = ?
+					and   port_type = ?
+				-- order by NETWORK_STRINGS.NUMERIC_INTERFACE(port_name)
+				group by regexp_replace(port_name,'\d','','g'), regexp_replace(port_name, '/.*$', '')
+				order by regexp_replace(port_name,'\d','','g'), regexp_replace(regexp_replace(port_name, '/.*$', ''),'\D','0','g')::int
 		}
 		);
 
@@ -429,7 +434,7 @@ sub build_switch_drop_tr {
 					: '__unknown__',
 					-portLimit => 'network',
 					-divWrap   => $divwrapid,
-					-deviceid  => $hr->{ _dbx('P2_DEVICE_ID') }
+					-deviceid  => $hr->{ _dbx('P2_DEVICE_ID') },
 				},
 				$hr,
 				'P2_PHYSICAL_PORT_ID',
@@ -608,10 +613,10 @@ sub powerport_device_magic {
 
 	$rv .= $cgi->a(
 		{
-			-style  => 'font-size: 30%;',
 			-target => "stab_device_$pdevid",
 			id      => $devlinkid,
-			-href   => $devlink
+			-href   => $devlink,
+			-class	=> 'goto-link',
 		},
 		">>"
 	);
@@ -703,9 +708,13 @@ sub build_serial_drop_tr {
 		$cgi->td(
 			$self->b_dropdown(
 				{
+					-class    => 'tracked',
+					-original => defined( $hr->{'p2_physical_port_id'} )
+					? $hr->{ _dbx('p2_physical_port_id') }
+					: '__unknown__',
 					-portLimit => 'serial',
 					-divWrap   => $divwrapid,
-					-deviceid  => $hr->{ _dbx('P2_DEVICE_ID') }
+					-deviceid  => $hr->{ _dbx('P2_DEVICE_ID') },
 				},
 				$hr,
 				'P2_PHYSICAL_PORT_ID',
@@ -713,15 +722,29 @@ sub build_serial_drop_tr {
 			)
 		),
 		$cgi->td(
-			$self->b_nondbdropdown( $hr, 'BAUD', 'P1_PHYSICAL_PORT_ID' )
+			$self->b_nondbdropdown(
+				{
+					-class => 'tracked',
+					-value => $hr->{ _dbx('BAUD') } || '__unknown__',
+				},
+				$hr, 'BAUD', 'P1_PHYSICAL_PORT_ID'
+			)
 		),
 		$cgi->td(
 			$self->b_nondbdropdown(
+				{
+					-class => 'tracked',
+					-value => $hr->{ _dbx('SERIAL_PARAMS') } || '__unknown__',
+				},
 				$hr, 'SERIAL_PARAMS', 'P1_PHYSICAL_PORT_ID'
 			)
 		),
 		$cgi->td(
 			$self->b_nondbdropdown(
+				{
+					-class => 'tracked',
+					-value => $hr->{ _dbx('FLOW_CONTROL') } || '__unknown__',
+				},
 				$hr, 'FLOW_CONTROL', 'P1_PHYSICAL_PORT_ID'
 			)
 		),
@@ -1198,7 +1221,7 @@ sub build_physical_port_query {
 		  where	l1.device_id = ?
 			and l1.port_type = ?
 			$parentq
-	     order by s.component_id, s.slot_index
+			order by regexp_replace(l1.port_name,'\\d.*\$','','g'), string_to_array(regexp_replace(l1.port_name,'[^\\d/]+','0','g'),'/')::int[], s.component_id, s.slot_index
 	};
 
 	# order by NETWORK_STRINGS.NUMERIC_INTERFACE(l1.port_name),s.component_id, s.slot_index;
@@ -1355,10 +1378,10 @@ sub physicalport_otherend_device_magic {
 
 	$rv .= $cgi->a(
 		{
-			-style  => 'font-size: 30%;',
 			-target => "stab_device_pp_$pportid",
 			id      => $what . "_devlink_$pportid",
-			-href   => $devlink
+			-href   => $devlink,
+			-class  => 'goto-link',
 		},
 		">>"
 	);
@@ -1406,7 +1429,9 @@ sub dump_advanced_tab {
 				-id    => 'chk_dev_port_reset',
 				-value => 'off',
 				-label =>
-				  'Reset serial port connections to default (This will erase existing connections)'
+				  'Reset serial port connections to default (This will erase existing connections)',
+				-class => 'tracked',
+				-original => '',
 			)
 		),
 		$cgi->li(
@@ -1415,7 +1440,9 @@ sub dump_advanced_tab {
 				-id    => 'chk_dev_retire',
 				-value => 'off',
 				-label =>
-				  'RETIRE THIS DEVICE: Delete all ports, erase name, and if no serial number or device notes, remove device from JazzHands'
+				  'RETIRE THIS DEVICE: Delete all ports, erase name, and if no serial number or device notes, remove device from JazzHands',
+				-class => 'tracked',
+				-original => '',
 			)
 		),
 		$cgi->li(
@@ -1425,6 +1452,8 @@ sub dump_advanced_tab {
 				-checked => undef,
 				-value   => 'off',
 				-label   => 'Add missing power ports from Device Type',
+				-class => 'tracked',
+				-original => '',
 			)
 		),
 		$cgi->li(
@@ -1434,6 +1463,8 @@ sub dump_advanced_tab {
 				-checked => undef,
 				-value   => 'off',
 				-label   => 'Add missing serial from Device Type',
+				-class => 'tracked',
+				-original => '',
 			)
 		),
 		$cgi->li(
@@ -1443,6 +1474,8 @@ sub dump_advanced_tab {
 				-checked => undef,
 				-value   => 'off',
 				-label   => 'Add missing switchports from Device Type',
+				-class => 'tracked',
+				-original => '',
 			)
 		),
 	);
@@ -1474,6 +1507,8 @@ sub dump_advanced_tab {
 	}
 	$rv;
 }
+
+
 
 ##############################################################################
 #
@@ -1803,6 +1838,9 @@ sub dump_interfaces {
 
 	my $rv = $cgi->h3( { -align => 'center' }, "Layer 3 Interfaces" );
 
+	# Call get_netblocks_vlans
+	my $device_netblocks = get_netblocks_vlans( $self, $devid );
+
 	my $q = qq{
 		select	ni.network_interface_id,
 			ni.network_interface_name,
@@ -1874,10 +1912,16 @@ sub dump_interfaces {
 
 			# If we have an ip address (it can be null), remember it
 			if ( $values->{ _dbx('IP') } ) {
-				$hIpAddress{'network_interface_id'} =
-				  $values->{ _dbx('network_interface_id') };
+				$hIpAddress{'network_interface_id'} = $values->{ _dbx('network_interface_id') };
 				$hIpAddress{'netblock_id'} = $values->{ _dbx('netblock_id') };
 				$hIpAddress{'ip'}          = $values->{ _dbx('IP') };
+				# If we have a vlan in the device netblocks, add it, as well as the parent netblock giving us the vlan (vlan_netblock_id), the layer2 id and the layer3 id
+				if ( $device_netblocks->{ $values->{ _dbx('netblock_id') } } ) {
+					$hIpAddress{'encapsulation_domain'} = $device_netblocks->{ $values->{ _dbx('netblock_id') } }->{'encapsulation_domain'};
+					$hIpAddress{'vlan'} = $device_netblocks->{ $values->{ _dbx('netblock_id') } }->{'vlan'};
+					$hIpAddress{'vlan_netblock_id'} = $device_netblocks->{ $values->{ _dbx('netblock_id') } }->{'vlan_netblock_id'};
+					$hIpAddress{'l2id'} = $device_netblocks->{ $values->{ _dbx('netblock_id') } }->{'l2id'};
+				}
 			}
 
 			# This is not the first iteration
@@ -1904,6 +1948,13 @@ sub dump_interfaces {
 					$hIpAddress{'netblock_id'} =
 					  $values->{ _dbx('netblock_id') };
 					$hIpAddress{'ip'} = $values->{ _dbx('IP') };
+					# If we have a vlan in the device netblocks, add it, as well as the parent netblock giving us the vlan (vlan_netblock_id), the layer2 id and the layer3 id
+					if ( $device_netblocks->{ $values->{ _dbx('netblock_id') } } ) {
+						$hIpAddress{'encapsulation_domain'} = $device_netblocks->{ $values->{ _dbx('netblock_id') } }->{'encapsulation_domain'};
+						$hIpAddress{'vlan'} = $device_netblocks->{ $values->{ _dbx('netblock_id') } }->{'vlan'};
+						$hIpAddress{'vlan_netblock_id'} = $device_netblocks->{ $values->{ _dbx('netblock_id') } }->{'vlan_netblock_id'};
+						$hIpAddress{'l2id'} = $device_netblocks->{ $values->{ _dbx('netblock_id') } }->{'l2id'};
+					}
 				}
 			}
 
@@ -1928,13 +1979,17 @@ sub dump_interfaces {
 
 		$last_interface_id = $values->{ _dbx('NETWORK_INTERFACE_ID') };
 		$last_ip_address   = $values->{ _dbx('IP') };
-	}
+	} # End of loop on interfaces
 
-	# Save the last interface
-	if (%hIpAddress) {
-		push( @{ $hInterface{'ip_addresses'} }, {%hIpAddress} );
+	# Save the last interface - if there is one
+	if( %hInterface ) {
+		if (%hIpAddress) {
+			push( @{ $hInterface{'ip_addresses'} }, {%hIpAddress} );
+		}
+		push( @aInterfaces, {%hInterface} );
+	} else {
+		$rv = "<tr><td colspan='7'>This device has no interface.</td></tr>\n";
 	}
-	push( @aInterfaces, {%hInterface} );
 
 	# Loop on preprocessed interfaces
 	foreach my $hrInterface (@aInterfaces) {
@@ -1969,6 +2024,61 @@ sub dump_interfaces {
 	$rv .= "</ul></div></div>\n";
 	$rv;
 }
+
+
+
+#
+# Function used to get the device netblocks and their associated VLAN, if any
+#
+sub get_netblocks_vlans {
+	my ( $self, $devid ) = @_;
+
+	my $cgi = $self->cgi || die "Could not create cgi";
+
+	# Get network interfaces netblocks from the database, including their parent netblocks
+	# as well as the vlan (encapsulation name)
+	my $sth = $self->prepare(
+		q{
+			SELECT
+				n.netblock_id,
+				n.ip_address,
+				l.netblock_id parent_netblock_id,
+				encapsulation_domain,
+				encapsulation_name,
+				layer2_network_id l2id,
+				layer2_network_description description
+			FROM
+				network_interface_netblock
+			LEFT JOIN netblock n USING(netblock_id)
+			LEFT JOIN v_layerx_network_expanded l ON n.parent_netblock_id=l.netblock_id
+			WHERE device_id = ?
+		}
+	);
+
+	$sth->execute($devid) || $self->return_db_err($sth);
+
+	my $device_netblocks = {};
+
+	# Loop on netblocks
+	while ( my $hr = $sth->fetchrow_hashref ) {
+
+		# Collect data in array as device_netblocks[netblock_id] = { 'netblock_id' => 111111, ip_address => '1.2.3.4', parent_netblock_id => 222222, vlan => encapsulation_name }
+		$device_netblocks->{ $hr->{ _dbx('netblock_id') } } = {
+			'netblock_id'          => $hr->{ _dbx('netblock_id') },
+			'ip_address'           => $hr->{ _dbx('ip_address') },
+			'parent_netblock_id'   => $hr->{ _dbx('parent_netblock_id') },
+			'encapsulation_domain' => $hr->{ _dbx('encapsulation_domain') },
+			'vlan'                 => $hr->{ _dbx('encapsulation_name') },
+			'is_single_address'    => $hr->{ _dbx('is_single_address') },
+			'description'          => $hr->{ _dbx('description') },
+			'l2id'                 => $hr->{ _dbx('l2id') },
+		};
+	}
+
+	$device_netblocks;
+}
+
+
 
 #
 # passed a $values (network_interface row ++) and a deviceid , print the
@@ -2104,7 +2214,10 @@ sub build_network_interface_box {
 		{
 			-class =>
 			  "tracked parent_level_none level_network_interface $strClassNetworkInterfaceId",
-			-textfield_width => 10,
+			-placeholder => ( $iNetworkInterfaceId eq 'new' )
+				? 'Enter new name'
+				: '',
+			-textfield_width => 12,
 			-original        => (
 				$iNetworkInterfaceId eq 'new'
 				  or !defined( $values->{ _dbx('NETWORK_INTERFACE_NAME') } )
@@ -2133,6 +2246,9 @@ sub build_network_interface_box {
 		{
 			-class =>
 			  "tracked parent_level_none level_network_interface $strClassNetworkInterfaceId",
+			-placeholder => ( $iNetworkInterfaceId eq 'new' )
+				? 'Enter new MAC'
+				: '',
 			-original => (
 				$iNetworkInterfaceId eq 'new'
 				  or !defined( $values->{ _dbx('MAC_ADDR') } )
@@ -2246,16 +2362,39 @@ sub build_network_interface_box {
 	# And iterate once more at the end for the new ip template
 	my $strNetworkInterface;
 
+  # Add a separator
+	$strNetworkInterface .= $cgi->Tr(
+		{ -class => 'horizontal_separator' },
+		$cgi->td( { -class => 'horizontal_separator', -colspan => 7 }, '' )
+	);
+
 	foreach my $i ( 0 .. ($iNumNetblocks) ) {
 
 		# Get the supplied ip address for the current netblock
 		my $hIPAddress = {};
 		my $iNetblockId;
+		my $strVLAN = '';
 
 		# For all existing netblocks...
 		if ( $i < $iNumNetblocks ) {
 			$hIPAddress  = @{ $values->{'ip_addresses'} }[$i];
 			$iNetblockId = $hIPAddress->{'netblock_id'};
+			# Get ip address VLAN value
+			# Use the l2id field to build a link to the Layer2 network page
+			#print( Dumper( $hIPAddress ));
+			if( $hIPAddress->{'l2id'} ) {
+				$strVLAN = $cgi->a(
+					{
+						-href => "/network/l2/?LAYER2_NETWORK_ID=" . $hIPAddress->{'l2id'},
+						-title => "Go to Layer2 ".$hIPAddress->{'encapsulation_domain'}.':'.$hIPAddress->{'vlan'},
+						-target => "_blank",
+						-class => "goto-link",
+					},
+					'>>'
+				);
+			} else {
+				$strVLAN = '';
+			}
 
 			# ... and for the last iteration of the loop applying to the new ip addition template
 		} else {
@@ -2348,7 +2487,7 @@ sub build_network_interface_box {
 				$cgi->td( { -rowspan => $iRowSpan }, $strNetworkInterfaceMAC ),
 				$cgi->td(
 					{ -class => $strClassNetblockId },
-					$strNetblockButton . $strIP
+					$strNetblockButton . $strIP . $strVLAN
 				),
 				$cgi->td( { -class => $strClassNetblockId }, $strDNS ),
 				$strTdMoreExpand
@@ -2358,7 +2497,7 @@ sub build_network_interface_box {
 		} elsif ( $i == 0 && $iNumNetblocks == 0 ) {
 
 			# Set intadd class if it's the template to add a new network interface
-			my $tr_int_class = 'network_interface_first_line';
+			my $tr_int_class = 'network_interface_first_line network_interface_last_line';
 			$strNetworkInterface .= $cgi->Tr(
 				{
 					-class => $strClassNetworkInterfaceId . ' ' . $tr_int_class,
@@ -2383,16 +2522,16 @@ sub build_network_interface_box {
 				$cgi->td( { -rowspan => $iRowSpan }, $strNetworkInterfaceMAC ),
 				$cgi->td(
 					{ -class => $strClassNetblockId },
-					$strNewNetblockButton . $strIP
+					$strNewNetblockButton . $strIP . $strVLAN
 				),
 				$cgi->td( { -class => $strClassNetblockId }, $strDNS ),
 				$strTdMoreExpand
 			);
 
-			# This is the first line coming just after the last associated netblock has been displayed, so that's the template to add an up address
+			# This is the first line coming just after the last associated netblock has been displayed, so that's the template to add an ip address
 		} elsif ( $i == $iNumNetblocks ) {
 			$strNetworkInterface .= $cgi->Tr(
-				{ -class => $strClassNetworkInterfaceId },
+				{ -class => $strClassNetworkInterfaceId.' network_interface_last_line' },
 				$cgi->td(
 					{ -class => $strClassNetblockId },
 					$strNewNetblockButton . $strIP
@@ -2417,9 +2556,8 @@ sub build_network_interface_box {
 	# Add the More table below its interface as a new table line
 	$strNetworkInterface .= $strTableMore;
 
-	# And add a separator
-	$strNetworkInterface .= $cgi->Tr(
-		$cgi->td( { -class => 'horizontal_separator', -colspan => 7 }, '' ) );
+	# Add a separator
+	#$strNetworkInterface .= $cgi->Tr( $cgi->td( { -class => 'horizontal_separator', -colspan => 7 }, '' ) );
 
 	$strNetworkInterface;
 }
@@ -2532,15 +2670,6 @@ sub build_dns_box {
 				}
 			);
 
-			my $dns_img_bluearrow = $cgi->img(
-				{
-					-src   => "../stabcons/arrow.png",
-					-alt   => "DNS Names",
-					-title => 'DNS Names',
-					-class => 'devdnsref',
-				}
-			);
-
 			my $dns_hidden_recordid = $cgi->hidden(
 				{
 					-class    => 'dnsrecordid',
@@ -2556,7 +2685,7 @@ sub build_dns_box {
 					-href  => 'javascript:void(null)',
 					-style => 'display: inline-flex; width: 30px;'
 				},
-				$dns_img_bluearrow . $dns_hidden_recordid
+				$dns_hidden_recordid
 			);
 
 			$dnsline = $cgi->td(
@@ -3145,6 +3274,8 @@ sub device_location_print {
 		$hidden,
 		$self->build_tr(
 			{
+				-class => 'tracked',
+				-original => $hr->{ _dbx('RACK_SITE_CODE') } || '',
 				-onChange =>
 				  "site_to_rack(\"$racksiteid\", \"$rackdivid\", \"dev\", $locid);"
 			},
@@ -3155,20 +3286,68 @@ sub device_location_print {
 			'RACK_LOCATION_ID'
 		),
 		$self->build_tr(
-			{ -divWrap => $rackdivid, -dolinkUpdate => 'rack' },
+			{
+				-class => 'tracked',
+				-original => $hr->{ _dbx('LOCATION_RACK_ID') } || '__unknown__',
+				-divWrap => $rackdivid, -dolinkUpdate => 'rack'
+			},
 			$hr, "b_dropdown", "Rack", 'LOCATION_RACK_ID', 'RACK_LOCATION_ID'
 		),
+		# Add the RACK_TYPE (layer) as a non editable div
+		# The value will be updated by the setRackLinkRedir javascript function when the rack above is changed
+		$cgi->Tr(
+			$cgi->td(
+				{
+					-valign => 'bottom',
+					-align  => 'right',
+				},
+				'<b>Rack Type</b>' ),
+			$cgi->td(
+				$cgi->div(
+					{
+						-id    => 'location_rack_type',
+					},
+					$hr->{ _dbx('RACK_TYPE') }
+				)
+			)
+		),
 		$self->build_tr(
+			{
+				-class => 'tracked',
+				-original => $hr->{ _dbx('LOCATION_RU_OFFSET') } || '',
+			},
 			$hr,                    "b_textfield",
 			"U Offset of Top Left", 'LOCATION_RU_OFFSET',
 			'RACK_LOCATION_ID'
 		),
 		$self->build_tr(
+			{
+				-class => 'tracked',
+				-original => $hr->{ _dbx('LOCATION_RACK_SIDE') } || '',
+			},
 			$hr,         "b_nondbdropdown",
 			"Rack Side", 'LOCATION_RACK_SIDE',
 			'RACK_LOCATION_ID'
 		),
 		$racklink
+	);
+
+  # Get all rack ids and types by calling $self->get_all_rack_id_and_types()
+	# The data structure is a dictionary like this:
+	# {
+	#   '2096' => { 'rack_type' => 'networking', 'rack_id' => 2096 },
+	#   '1477' => { 'rack_id' => 1477, 'rack_type' => 'layer3' },
+	#   ...
+	# }
+	my $rack_id_and_types = $self->get_all_rack_id_and_types();
+	# Loop on the dictionary and store the data in a javascript variable inside a script tag
+	# The javascript variable will be used to populate the rack type divs
+	$rv .= $cgi->script(
+		{
+			-class => 'deferred',
+			-type => 'text/javascript',
+			"-data-code" => "var rackTypes = " . ( encode_json $rack_id_and_types ) . ";"
+		}
 	);
 
 	$rv;

@@ -80,7 +80,7 @@ function BalanceTree(what) {
 }
 
 //
-// add a child application, and adjust the current one 
+// add a child application, and adjust the current one
 //
 function AddAppChild(id) {
 	var parent, newkid, newdiv;
@@ -96,7 +96,7 @@ function AddAppChild(id) {
 
 		div = document.createElement('div');
 		div.className = 'approle_depth';
-		parent.appendChild(div); 
+		parent.appendChild(div);
 	} else if(parent.className != 'approle_depth' && parent.className != 'approle_root') {
 		// the only things we're actually allowed to change
 		return;

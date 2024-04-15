@@ -46,20 +46,28 @@ use vars qw($stab);
 my $stab = new JazzHands::STAB || die "no stab!";
 my $cgi  = $stab->cgi          || die "no cgi!";
 
+my $support_link  = $stab->support_link();
+my $support_email = $stab->support_email();
+my $support_type;
+
+# If the support link doesn't contain 'support link not set', use it by default
+if ( $support_link !~ /support link not set/ ) {
+	$support_link = $stab->support_link();
+	$support_type = "link";
+} else {
+	$support_link = "mailto:$support_email";
+	$support_type = "email";
+}
+
 print $cgi->header( { -type => 'text/html' } ), "\n";
 print $stab->start_html('STAB: System Tools for Administrative Baselining');
-
-my $email = $stab->support_email();
-
-my $mailto = $cgi->a( { -href => $email }, $email );
 
 print $cgi->div(
 	{ -class => 'description' }, qq{
 	STAB is a web front-end to JazzHands.
 	STAB is used to manage network elements, and related information,
 	ranging from device properties, to network topology to DNS
-	information.  If you have
-	any issues with STAB, please contact  $mailto.
+	information. If you have any issues with STAB, please open a ticket using this <a target='_blank' href="$support_link">$support_type</a>.
 }
 );
 
@@ -75,14 +83,10 @@ if ( $stab->check_permissions('AccountCol') ) {
 
 			#$cgi->li( $cgi->a( { -href => "account/" }, "Account" ) ) . "\n",
 			$cgi->li('Account'),
-			$cgi->ul(
-				$cgi->li(
-					$cgi->a(
-						{ -href => "account/collection" },
-						"Account Collections",
-					)
-				)
-			)
+			$cgi->ul( $cgi->li( $cgi->a(
+				{ -href => "account/collection" },
+				"Account Collections",
+			) ) )
 		)
 	);
 }
@@ -94,12 +98,8 @@ if ( $stab->check_permissions('DNS') ) {
 			"",
 			$cgi->li( $cgi->a( { -href => "dns/" }, "DNS" ) ) . "\n",
 			$cgi->ul(
-				$cgi->li(
-					$cgi->a(
-						{ -href => "dns/soacheck.pl" },
-						"NIC vs JazzHands"
-					)
-				),
+				$cgi->li( $cgi->a(
+					{ -href => "dns/soacheck.pl" }, "NIC vs DB" ) ),
 
 				#		$cgi->li(
 				#			$cgi->a(
@@ -119,18 +119,15 @@ if ( $stab->check_permissions('Device') ) {
 			"",
 			$cgi->li( $cgi->a( { -href => "device/" }, "Device Management" ) )
 			  . "\n",
-			$cgi->li(
-				[
-					$cgi->a(
-						{ -href => "device/type/" },
-						"Device Type Management"
-					),
+			$cgi->li( [
+				$cgi->a(
+					{ -href => "device/type/" }, "Device Type Management"
+				),
 
-					#		$cgi->a(
-					#			{ -href => "device/apps/" }, "Application Management"
-					#		),
-				]
-			  )
+				#		$cgi->a(
+				#			{ -href => "device/apps/" }, "Application Management"
+				#		),
+			] )
 			  . "\n",
 		)
 	);
@@ -145,20 +142,16 @@ if ( $stab->check_permissions('Netblock') ) {
 				$cgi->a( { -href => "netblock/" }, "Netblock Management" )
 			  )
 			  . "\n",
-			$cgi->ul(
-				$cgi->li(
-					[
-						$cgi->a(
-							{ href => "netblock/networkrange.pl" },
-							"Network Ranges (VPN/DHCP/etc)"
-						),
-						$cgi->a(
-							{ href => "netblock/collection/" },
-							"Netblock Collections"
-						),
-					]
-				)
-			),
+			$cgi->ul( $cgi->li( [
+				$cgi->a(
+					{ href => "netblock/networkrange.pl" },
+					"Network Ranges (VPN/DHCP/etc)"
+				),
+				$cgi->a(
+					{ href => "netblock/collection/" },
+					"Netblock Collections"
+				),
+			] ) ),
 		)
 	);
 }
@@ -170,12 +163,10 @@ if ( $stab->check_permissions('Sites') ) {
 			"",
 			$cgi->li( $cgi->a( { -href => "sites/" }, "Sites" ) ) . "\n",
 			$cgi->ul(
-				$cgi->li(
-					$cgi->a(
-						{ -href => "sites/blockmgr.pl" },
-						"IP Space Management by Site"
-					)
-				),
+				$cgi->li( $cgi->a(
+					{ -href => "sites/blockmgr.pl" },
+					"IP Space Management by Site"
+				) ),
 				$cgi->li(
 					$cgi->a( { -href => "sites/rack/" }, "Racks by Site" )
 				)
@@ -192,22 +183,20 @@ if ( $stab->check_permissions('X509') ) {
 			$cgi->li( $cgi->a( { -href => "x509/" }, "X509 Certificates" ) )
 			  . "\n",
 			$cgi->ul(
-				$cgi->li(
-					$cgi->a(
-						{ -href => "x509/expiry.pl" },
-						"Pending Expiration"
-					)
-				  )
+				$cgi->li( $cgi->a(
+					{ -href => "x509/expiry.pl" },
+					"Pending Expiration"
+				) )
 				  . "\n",
 			)
-		  )
+		)
 
 	);
 }
 
 #	$cgi->li( $cgi->a( { -href => "stats/" }, "STAB Statistics" ) ) .
 
-print $cgi->ul(@things);
+print $cgi->ul( { -class => 'main-menu' }, @things );
 print $cgi->end_html, "\n";
 
 undef $stab;

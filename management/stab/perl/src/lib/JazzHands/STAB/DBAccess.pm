@@ -509,7 +509,9 @@ sub get_location_from_devid {
 			l.RACK_ID as LOCATION_RACK_ID,
 			l.RACK_U_OFFSET_OF_DEVICE_TOP as LOCATION_RU_OFFSET,
 			l.RACK_SIDE as LOCATION_RACK_SIDE,
-			r.SITE_CODE as RACK_SITE_CODE
+			r.SITE_CODE as RACK_SITE_CODE,
+			r.RACK_TYPE as RACK_TYPE,
+			r.DESCRIPTION as RACK_DESCRIPTION
 		  from  rack_location l
 			inner join device d
 				using (rack_location_id)
@@ -524,6 +526,21 @@ sub get_location_from_devid {
 	$sth->execute($devid) || $self->return_db_err($sth);
 
 	my $hr = $sth->fetchrow_hashref;
+	$sth->finish;
+	$hr;
+}
+
+sub get_all_rack_id_and_types {
+	my ($self) = @_;
+
+	my $q = qq{
+		select  rack_id, rack_type
+		  from  rack
+	};
+	my $sth = $self->prepare($q) || $self->return_db_err($self);
+	$sth->execute || $self->return_db_err($sth);
+
+	my $hr = $sth->fetchall_hashref('rack_id');
 	$sth->finish;
 	$hr;
 }
@@ -572,15 +589,29 @@ sub get_dns_record_from_id {
 sub get_dns_record_from_name {
 	my ( $self, $shortname, $domid ) = @_;
 
-	my $q = qq{
-		select  *
-		 from   dns_record
-		where   dns_name = ?
-		 and	dns_domain_id = ?
+	my $q;
 
-	};
+	if( $domid ) {
+		$q = qq{
+			select  *
+			from   dns_record
+			where   dns_name = ?
+			and	dns_domain_id = ?
+		};
+	} else {
+		$q = qq{
+			select  *
+			from   dns_record
+			left join dns_domain using(dns_domain_id)
+			where concat(dns_name,'.',soa_name) = ?
+		};
+	}
 	my $sth = $self->prepare($q) || $self->return_db_err($self);
-	$sth->execute( $shortname, $domid ) || $self->return_db_err($sth);
+	if( $domid ) {
+		$sth->execute( $shortname, $domid ) || $self->return_db_err($sth);
+	} else {
+		$sth->execute( $shortname ) || $self->return_db_err($sth);
+	}
 	my $hr = $sth->fetchrow_hashref;
 	$sth->finish;
 	$hr;

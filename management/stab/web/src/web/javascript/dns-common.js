@@ -51,13 +51,9 @@ function add_dns_ref_record_row(button, dnsrecid, resp)
 	);
 
 	$(button).closest('tr').before(
-		$("<tr/>").append(
+		$("<tr/>", { class: 'dnsrefadd'}).append(
 			$("<td>").append(
-				$("<a/>", { class: 'purgerow'}).
-					append( $("<img/>", {
-						class: 'rmdnsrow button',
-						src: '../stabcons/redx.jpg',
-					}))
+				$("<a/>", { class: 'purgerow'}, '' )
 			),
 			$("<td>").append(drop),
 			$("<td>").append(
@@ -84,7 +80,7 @@ function build_dns_ref_table(cell, dnsrecid, resp)
 		var suffix = "_dnsref_" + dnsrecid + "_" + rec['dns_record_id'];
 
 		var s = $('<select/>', {
-			class: 'off',
+			class: 'off tracked',
 			name: 'dnsref_DNS_TYPE' + suffix
 		} );
 		for(var j in resp['types']) {
@@ -98,14 +94,10 @@ function build_dns_ref_table(cell, dnsrecid, resp)
 
 		var r = $('<tr/>', { class: 'dnsroot'} ).append(
 			$("<td>").append(
-				$("<a/>", { class: 'rmrow'}).
-					append( $("<img/>", {
-						class: 'rmdnsrow button',
-						src: '../stabcons/redx.jpg',
-					})),
+				$("<a/>", { class: 'rmrow'}, ''),
 				$("<input/>", {
 					type: 'checkbox',
-					class: 'irrelevant rmrow',
+					class: 'irrelevant rmrow tracked',
 					name: 'Del_' + rec['dns_record_id'],
 				})
 			),
@@ -115,12 +107,12 @@ function build_dns_ref_table(cell, dnsrecid, resp)
 			$("<td/>").append(
 				$('<input/>', {
 					type: 'text',
-					class: 'irrelevant dnsname',
+					class: 'irrelevant dnsname tracked',
 					name: 'dnsref_DNS_NAME'+ suffix,
 					value: rec['dns_name']
 				}),
 				$('<select/>', {
-					class: 'irrelevant dnsdomain',
+					class: 'irrelevant dnsdomain tracked',
 					name: 'dnsref_DNS_DOMAIN_ID'+ suffix,
 				}),
 
@@ -137,29 +129,24 @@ function build_dns_ref_table(cell, dnsrecid, resp)
 						target: 'dns_record_id'+rec['dns_domain_id'],
 						href: '../dns/?DNS_RECORD_ID='+rec['dns_record_id'],
 					}).append( rec['dns_name']+'.'+rec['soa_name'] ),
-				$("<img/>", {
-					src: '../stabcons/e.png',
-					alt: 'Edit',
-					title: 'Edit',
-					class: 'intdnsedit'
-				})
+					$("<a/>", {
+						alt: 'Edit',
+						title: 'Edit',
+						class: 'intdnsedit stabeditbutton'
+					})
 			)
 		);
 		$(tbl).append(r);
 	}
 
 	$(tbl).append(
-		$('<tr/>').append( $('<td/>', { colspan: 4 }).append(
+		$('<tr/>').append( $('<td/>', { colspan: 4, align: 'left'}).append(
 			$('<a/>', {
 					href: '#',
-					class: 'dnsaddref'
+					class: 'dnsaddref plusbutton',
+					title: 'Add a new DNS reference to this record',
+					onclick: 'return false;', // This prevents the page from scrolling to the top
 				}).append(
-				$('<img/>', {
-					src: '../stabcons/plus.png',
-					alt: 'Add',
-					title: 'Add',
-					class: 'plusbutton'
-				}),
 				$('<input/>', {
 					type: 'hidden',
 					class: 'dnsrecordid',
@@ -315,7 +302,7 @@ function create_dns_reference_jquery(baseobj) {
 	// this allows editing of the dns record and is largely used to
 	// populate the domain drop down, which is prohibitive to prepopulate.
 	//
-	$(baseobj).on('click', 'img.intdnsedit', function(event) {
+	$(baseobj).on('click', 'a.intdnsedit.stabeditbutton', function(event) {
 		return make_dnslink_editable(event);
 	});
 	$(baseobj).on('mousedown', 'select.dnsdomain', function(event) {

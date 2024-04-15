@@ -73,8 +73,10 @@ sub do_device_page {
 	} else {
 		$title = "Update Device";
 
-		$subtitle = $cgi->p( { -align => 'center', -style => 'font-size: 8pt' },
-			"[ ", $cgi->a( { -href => "device.pl" }, "Add A Device" ), " ]" );
+		$subtitle = $cgi->p(
+			{ -align => 'center', -style => 'font-size: 8pt' },
+			$cgi->a( { -href => "device.pl" }, "Add A Device" )
+		);
 
 		my $values = $stab->get_dev_from_devid($devid);
 		if ( defined($values) ) {
@@ -94,13 +96,11 @@ sub do_device_page {
 	}
 	my $printdevid = ($devid) ? $devid : "null";
 	print $cgi->header( { -type => 'text/html' } ), "\n";
-	print $stab->start_html(
-		{
-			-title      => $title,
-			-onLoad     => "forcedevtabload(\"__default_tab__\", $printdevid);",
-			-javascript => 'device',
-		}
-	  ),
+	print $stab->start_html( {
+		-title      => $title,
+		-onLoad     => "forcedevtabload(\"__default_tab__\", $printdevid);",
+		-javascript => 'device',
+	} ),
 	  "\n";
 	print $subtitle;
 	print $page;
@@ -246,42 +246,34 @@ sub build_device_box {
 	if ($values) {
 		$left_table .= $cgi->Tr(
 			$cgi->td( { -align => 'right' }, $cgi->b("Parent Device") ),
-			$cgi->td(
-				build_parent_device_box(
-					$stab,
-					$values->{ _dbx('PARENT_DEVICE_ID') },
-					$values->{ _dbx('DEVICE_ID') },
-					$values->{ _dbx('IS_VIRTUAL_DEVICE') },
-				)
-			)
+			$cgi->td( build_parent_device_box(
+				$stab,
+				$values->{ _dbx('PARENT_DEVICE_ID') },
+				$values->{ _dbx('DEVICE_ID') },
+				$values->{ _dbx('IS_VIRTUAL_DEVICE') },
+			) )
 		);
 
 		if ( $values->{ _dbx('IS_VIRTUAL_DEVICE') } eq 'N' ) {
 			$left_table .= $cgi->Tr(
 				$cgi->td( { -align => 'right' }, $cgi->b("Children Devices") ),
-				$cgi->td(
-					build_children_device_list(
-						$stab, $values->{ _dbx('DEVICE_ID') },
-					)
-				)
+				$cgi->td( build_children_device_list(
+					$stab, $values->{ _dbx('DEVICE_ID') },
+				) )
 			);
 			$left_table .= $cgi->Tr(
 				$cgi->td( { -align => 'right' }, $cgi->b("Managed By") ),
-				$cgi->td(
-					build_managed_by_device_list(
-						$stab, $values->{ _dbx('DEVICE_ID') },
-					)
-				)
+				$cgi->td( build_managed_by_device_list(
+					$stab, $values->{ _dbx('DEVICE_ID') },
+				) )
 			);
 
 			$left_table .= $cgi->Tr(
 				$cgi->td( { -align => 'right' }, $cgi->b("Manages") ),
-				$cgi->td(
-					build_manages_device_list(
-						$stab, $values->{ _dbx('DEVICE_ID') },
-						$stab, $values->{ _dbx('DEVICE_ID') },
-					)
-				)
+				$cgi->td( build_manages_device_list(
+					$stab, $values->{ _dbx('DEVICE_ID') },
+					$stab, $values->{ _dbx('DEVICE_ID') },
+				) )
 			);
 		}
 	}
@@ -299,18 +291,14 @@ sub build_device_box {
 
 		my $cnt =
 		  $stab->get_snmpstr_count( $values->{ _dbx('DEVICE_ID') } );
-		$right_table .= $cgi->Tr(
-			$cgi->td(
-				{ -colspan => 2 },
-				$cgi->a(
-					{
-						-href => "snmp/?DEVICE_ID="
-						  . $values->{ _dbx('DEVICE_ID') }
-					},
-					"$cnt SNMP string" . ( ( $cnt == 1 ) ? '' : "s" )
-				)
+		$right_table .= $cgi->Tr( $cgi->td(
+			{ -colspan => 2 },
+			$cgi->a( {
+					-href => "snmp/?DEVICE_ID=" . $values->{ _dbx('DEVICE_ID') }
+				},
+				"$cnt SNMP string" . ( ( $cnt == 1 ) ? '' : "s" )
 			)
-		);
+		) );
 	} else {
 		$right_table .=
 		  $stab->build_tr( $values, "b_textfield", "SNMP Rd", "SNMP_COMMSTR" );
@@ -443,8 +431,7 @@ sub build_page {
 		foreach my $tab (@tablist) {
 			if ( exists( $tablist->{$tab} ) ) {
 				my $tabp = $tablist->{$tab};
-				$intertab .= $cgi->a(
-					{
+				$intertab .= $cgi->a( {
 						-class => 'tabgrouptab',
 						-id    => $tab,
 						-title => 'A double click triggers a reload of the tab',
@@ -459,12 +446,10 @@ sub build_page {
 
 		$maindiv .= "\n\n"
 		  . $cgi->div(
-			$cgi->div(
-				{
-					-id    => 'tabgroup',
-					-class => 'tabgroup'
-				}
-			),
+			$cgi->div( {
+				-id    => 'tabgroup',
+				-class => 'tabgroup'
+			} ),
 			$cgi->hidden(
 				-name    => $opentabid,
 				-id      => $opentabid,
@@ -483,23 +468,19 @@ sub build_page {
 
 	$maindiv .= $cgi->div(
 		{ -width => '100%', -style => 'text-align: center;' },
-		$cgi->submit(
-			{
-				-id     => 'submitdevice',
-				-valign => 'bottom',
-				-name   => 'update' . $pnk,
-				-label  => 'Submit Device Changes'
-			}
-		)
+		$cgi->submit( {
+			-id     => 'submitdevice',
+			-valign => 'bottom',
+			-name   => 'update' . $pnk,
+			-label  => 'Submit Device Changes'
+		} )
 	);
 
-	my $page .= $cgi->start_form(
-		{
-			-id       => 'deviceForm',
-			-onSubmit => "return(verify_device_submission(this));",
-			-action   => $devurl
-		}
-	);
+	my $page .= $cgi->start_form( {
+		-id       => 'deviceForm',
+		-onSubmit => "return(verify_device_submission(this));",
+		-action   => $devurl
+	} );
 	$page .=
 	  $cgi->div( { -id => 'verifybox', -style => 'visibility: hidden' }, "" );
 	$page .= $cgi->div( { -class => 'maindiv' }, $maindiv );
@@ -521,19 +502,16 @@ sub build_children_device_list {
 	} || $stab->return_db_err();
 
 	my $sth = $stab->prepare($q) || $stab->return_db_err();
-	$sth->execute($devid) || $stab->return_db_err();
+	$sth->execute($devid)        || $stab->return_db_err();
 
 	my $list = "";
 	while ( my ( $id, $name ) = $sth->fetchrow_array ) {
-		$list .= $cgi->li(
-			$cgi->a(
-				{
-					-target => "stab_device_$id",
-					-href   => "./device.pl?devid=$id",
-				},
-				$name
-			)
-		);
+		$list .= $cgi->li( $cgi->a( {
+				-target => "stab_device_$id",
+				-href   => "./device.pl?devid=$id",
+			},
+			$name
+		) );
 	}
 	$sth->finish;
 
@@ -557,19 +535,16 @@ sub build_manages_device_list {
 	} || $stab->return_db_err();
 
 	my $sth = $stab->prepare($q) || $stab->return_db_err();
-	$sth->execute($devid) || $stab->return_db_err();
+	$sth->execute($devid)        || $stab->return_db_err();
 
 	my $list = "";
 	while ( my ( $id, $name ) = $sth->fetchrow_array ) {
-		$list .= $cgi->li(
-			$cgi->a(
-				{
-					-target => "stab_device_$id",
-					-href   => "./device.pl?devid=$id",
-				},
-				$name
-			)
-		);
+		$list .= $cgi->li( $cgi->a( {
+				-target => "stab_device_$id",
+				-href   => "./device.pl?devid=$id",
+			},
+			$name
+		) );
 	}
 	$sth->finish;
 
@@ -593,19 +568,16 @@ sub build_managed_by_device_list {
 	} || $stab->return_db_err();
 
 	my $sth = $stab->prepare($q) || $stab->return_db_err();
-	$sth->execute($devid) || $stab->return_db_err();
+	$sth->execute($devid)        || $stab->return_db_err();
 
 	my $list = "";
 	while ( my ( $id, $name ) = $sth->fetchrow_array ) {
-		$list .= $cgi->li(
-			$cgi->a(
-				{
-					-target => "stab_device_$id",
-					-href   => "./device.pl?devid=$id",
-				},
-				$name
-			)
-		);
+		$list .= $cgi->li( $cgi->a( {
+				-target => "stab_device_$id",
+				-href   => "./device.pl?devid=$id",
+			},
+			$name
+		) );
 	}
 	$sth->finish;
 
@@ -643,43 +615,35 @@ sub build_parent_device_box {
 	my $pdid  = "PARENT_DEVICE_ID_" . $devid;
 	my $pdnam = "PARENT_DEVICE_NAME_" . $devid;
 
-	my $style    = "";
 	my $rv       = "";
 	my $linktext = ">>";
 	if ( $isvirt eq 'N' ) {
-		$style = 'font-size: 30%;',
-		  $rv  = $cgi->hidden(
-			{
-				-name    => $pdid,
-				-id      => $pdid,
-				-default => $pdevid
-			}
-		  )
-		  . $cgi->textfield(
-			{
-				-name => $pdnam,
-				-id   => $pdnam,
-				-size => 50,
-				-onInput =>
-				  "inputEvent_Search(this, $pdid, event, \"deviceForm\", function(){updateDeviceParentLink($devid, $pdid);})",
-				-onKeydown =>
-				  "keyprocess_Search(this, $pdid, event, \"deviceForm\", function(){updateDeviceParentLink($devid, $pdid);})",
-				-onBlur   => "hidePopup_Search($pdnam)",
-				-onChange => "updateDeviceParentLink($devid, $pdid
-)",
-				-default => $pname,
-			}
-		  );
+		$rv = $cgi->hidden( {
+			-name    => $pdid,
+			-id      => $pdid,
+			-default => $pdevid
+		} )
+		  . $cgi->textfield( {
+			-name    => $pdnam,
+			-id      => $pdnam,
+			-size    => 50,
+			-onInput =>
+			  "inputEvent_Search(this, $pdid, event, \"deviceForm\", function(){updateDeviceParentLink($devid, $pdid);})",
+			-onKeydown =>
+			  "keyprocess_Search(this, $pdid, event, \"deviceForm\", function(){updateDeviceParentLink($devid, $pdid);})",
+			-onBlur   => "hidePopup_Search($pdnam)",
+			-onChange => "updateDeviceParentLink($devid, $pdid)",
+			-default  => $pname,
+		  } );
 	} else {
 		$linktext = $pname;
 	}
 
-	$rv .= $cgi->a(
-		{
-			-style  => $style,
+	$rv .= $cgi->a( {
 			-target => "stab_device_$devid",
 			id      => "parent_link_$devid",
-			-href   => $devlink
+			-href   => $devlink,
+			-class  => 'goto-link'
 		},
 		$linktext
 	);

@@ -75,7 +75,7 @@ function ShowDevTab( what, devid, bForceReload ) {
 		divElement.className = 'tabcontent active';
 		divElement.style.textAlign = 'center';
 		divElement.style.padding = '50px';
-		divElement.innerHTML = '<img src=\"../stabcons/progress.gif\"> <em>Loading ' + what + ' Tab, Please Wait...</em>';
+		divElement.innerHTML = '<div class="spinner align-middle"></div> <em>Loading ' + what + ' Tab, Please Wait...</em>';
 		// Get the tabgroup div, and bail out if it doesn't exist
 		let tabgroupDiv = document.getElementById( 'tabgroup' );
 		if( ! tabgroupDiv ) return;
@@ -86,7 +86,7 @@ function ShowDevTab( what, devid, bForceReload ) {
 		if( bForceReload ) {
 			divElement.style.textAlign = 'center';
 			divElement.style.padding = '50px';
-			divElement.innerHTML = '<img src=\"../stabcons/progress.gif\"> <em>Loading ' + what + ' Tab, Please Wait...</em>';
+			divElement.innerHTML = '<div class="spinner align-middle"></div> <em>Loading ' + what + ' Tab, Please Wait...</em>';
 		}
 		divElement.classList.add( 'active' );
 	}
@@ -288,7 +288,7 @@ function showPhysical_ports(devidfld, devnamfld, physportid, portboxname, type, 
 	// Replace the Port dropdown by an ajax loaded while it's being updated
 	let obj = document.getElementById( portboxname );
 	let elementSpan = document.createElement( 'span' );
-	elementSpan.innerHTML = '<img src=\'../../stabcons/progress.gif\'/> Updating...';
+	elementSpan.innerHTML = '<div class="spinner align-middle"></div> Updating...';
 	elementSpan.style.display = 'inline-flex';
 	obj.parentElement.appendChild( elementSpan );
 	obj.style.display= 'none';

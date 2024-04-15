@@ -103,7 +103,7 @@ sub build_rack {
 				on c.company_id = dt.company_id
 			left join device pard
 				on d.parent_device_id = pard.device_id
-		WHERE 
+		WHERE
 			l.rack_id = ?
 		AND d.device_id NOT in (
 				select manager_device_id from device_management_controller
@@ -351,12 +351,12 @@ print "Query: <PRE>$sql</PRE>\n";
 			printf ("<TH><A HREF=\"/cgi-bin/rackit.pl?site=%s&room=%s&rack=%s&row=%s\">%s-%s-%s</A></TH>",
 				$input{site},
 				$input{room},
-				$rack, 
+				$rack,
 				$input{row},
 				#
 				$input{room},
 				$input{row},
-				$rack); 
+				$rack);
 	}
 	print "</TR>\n";
 	
@@ -431,7 +431,7 @@ print "Query: <PRE>$sql</PRE>\n";
 						# if this field is already set,
 						# then we have an overlap.
 						# warn, error condition
-						$thisrack{$offset} = 
+						$thisrack{$offset} =
 						"<B>OVERLAP: $thisrack{$offset}, $field</B>";
 						
 					} else {
@@ -533,12 +533,12 @@ print "Query: <PRE>$sql</PRE>\n";
 }
 
 
-# given input{site}, select a room/row 
+# given input{site}, select a room/row
 sub show_site {
 	local(*input)=@_;
 
-	my (@ROWS)=();  
-	my (@ROOMS)=();  
+	my (@ROWS)=();
+	my (@ROOMS)=();
 	my($row);  # a temporry variable
 	my($room);  # a temporry variable
 	print "<H2>Select a Row at $input{site}</H2>\n";

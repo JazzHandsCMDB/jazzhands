@@ -48,6 +48,7 @@ use warnings;
 
 use Storable qw(dclone);
 use CGI;    #qw(-no_xhtml);
+use CGI 'meta';
 
 # use CGI::Pretty;
 use URI;
@@ -61,6 +62,9 @@ use JazzHands::STAB::Device;
 use JazzHands::STAB::Rack;
 use JazzHands::DBI;
 use JazzHands::Common qw(:all);
+
+# This enables debug output for the Apache::DBI module in the Apache error log
+#$Apache::DBI::DEBUG = 2;
 
 our @ISA = qw(
   JazzHands::Mgmt
@@ -262,34 +266,69 @@ sub support_email {
 	$email || '-- email support address not set --';
 }
 
+#
+# fetch support link
+#
+sub support_link {
+	my $self  = shift @_;
+	my $email = $self->fetch_property( 'Defaults', '_supportlink' );
+	$email || '-- support link not set --';
+}
+
+# This function checks if a user has a specific role
+# It uses a internal cache to speed up the checks
 sub check_permissions {
 	my $self = shift;
 	my $role = shift;
 
-	if ( !exists( $self->{_sectionaccess} ) ) {
-		my $q = qq{
-			select	property_value
-			  from	v_property p
-					inner join v_acct_coll_acct_expanded ae
-							using (account_collection_id)
-					inner join v_corp_family_account a
-							on ae.account_id = a.account_id
-			where	a.login = ?
-			 and	p.property_type = 'StabRole'
-			 and	p.property_name = 'PermitStabSection'
-		} || die $self->return_db_err();
-
-		my $sth = $self->prepare($q) || $self->return_db_err;
-
-		$sth->execute( $self->{_username} ) || die $self->return_db_err;
-		while ( my ($r) = $sth->fetchrow_array() ) {
-			push( @{ $self->{_sectionaccess} }, $r );
-		}
-		$sth->finish;
+	# If $self->{_username} is not defined, return 0
+	if ( !defined( $self->{_username} ) ) {
+		return 0;
 	}
 
-	my @r = grep( $_ eq $role, @{ $self->{_sectionaccess} } );
-	( $#r >= 0 ) ? 1 : 0;
+	my $username = $self->{_username};
+
+	# Check if we can get the role permission from the _sectionaccess cache
+	# The _sectionaccess cache is a dictionary, where each role is a key
+	# The value of the role can be 0 (access denied) or 1 (access allowed)
+		if( exists( $self->{_sectionaccess} ) ) {
+		# Check if the role is in the cache
+		if( exists( $self->{_sectionaccess}->{$role} ) ) {
+			# Return its value
+			return $self->{_sectionaccess}->{$role};
+		}
+	}
+
+	# At this point, the role is not in the cache, or the cache doesn't exist
+	# So let's query the database
+	my $q = qq{
+		SELECT authorization_utils.check_property_account_authorization(
+				'{
+						"property_role": "StabRole:PermitStabSection",
+						"login" : "$username",
+						"property_value": "$role"
+				}'
+		)
+	} || die $self->return_db_err();
+
+	my $sth = $self->prepare($q) || $self->return_db_err;
+
+	$sth->execute || die $self->return_db_err;
+
+	# There will always be a single row and a single column, and its value is either true or false
+	my ($r) = $sth->fetchrow_array();
+	$sth->finish;
+
+	# If the cache doesn't exist, create it
+	if( !exists( $self->{_sectionaccess} ) ) {
+		$self->{_sectionaccess} = {};
+	}
+
+	# Add the role to the cache
+	$self->{_sectionaccess}->{$role} = $r;
+
+	# Return the value
+	$r;
 }
 
 sub check_role {
@@ -608,6 +647,14 @@ sub start_html {
 					-language => 'javascript',
 					-src      => "$stabroot/javascript/dns-utils.js"
 				},
+				{
+					-language => 'javascript',
+					-src      => "$stabroot/javascript/paging.js"
+				},
+				{
+					-language => 'javascript',
+					-src      => "$stabroot/javascript/form-tracking.js"
+				},
 			);
 		}
 		if ( $opts->{javascript} eq 'ac' ) {
@@ -663,8 +710,7 @@ sub start_html {
 				},
 				{
 					-language => 'javascript',
-					-src =>
-					  "$root/javascript-common/external/datatables-1.10.9/jquery.dataTables.min.js",
+					-src => "$root/javascript-common/external/datatables/datatables-2.0.3.min.js",
 				},
 				{
 					-language => 'javascript',
@@ -685,8 +731,7 @@ sub start_html {
 				},
 				{
 					-language => 'javascript',
-					-src =>
-					  "$root/javascript-common/external/datatables-1.10.9/jquery.dataTables.min.js",
+					-src => "$root/javascript-common/external/datatables/datatables-2.0.3.min.js",
 				},
 				{
 					-language => 'javascript',
@@ -745,6 +790,9 @@ sub start_html {
 
 	}
 
+	# Define the html tag lang attirbute to "en"
+	$args{ '-lang' } = 'en';
+
 	$args{'-head'} = $cgi->Link(
 		{
 			-rel  => 'icon',
@@ -758,7 +806,22 @@ sub start_html {
 			-href => "$stabroot/stabcons/stab.png",
 			-type => 'image/png'
 		}
-	  );
+	  )
+		# Define the language
+		. meta(
+		{
+			-http_equiv => 'Content-Language',
+			-content => 'en'
+		}
+		)
+		# Disable automatic translation as Microsoft Edge incorrectly identifies
+		# the source language to Portuguese on the dns page
+		. meta(
+		{
+			-name    => 'google',
+			-content => 'notranslate'
+		}
+		);
 
 	if ( $opts->{'onLoad'} ) {
 		$args{'-onLoad'} = $opts->{'onLoad'};
@@ -766,42 +829,40 @@ sub start_html {
 
 	$args{'-meta'} = {
 		'id'        => '$Id$',
-		'Generator' => "STAB!  STAB!  STAB!"
+		'Generator' => "Perl CGI"
 	};
 
-	#
-	# This might get around tabindex issues
-	#
-	$args{'-dtd'} = '-//W3C//DTD HTML 3.2//EN';
-
-	# need to move to this...
-	#$args{'-dtd'} = '-//W3C//DTD HTML 4.01 Transitional//EN';
+  # This might get around tabindex issues
+  #$args{'-dtd'} = '-//W3C//DTD HTML 3.2//EN';
+	# This sets the DOCTYPE to html PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN" "http://www.w3.org/TR/html4/loose.dtd" (Almost Standards / Limited Quirks Mode)
+	# Perl CGI doesn't support the No Quirks mode unfortunately
+	$args{'-dtd'} = ' ';
 
 	if ( defined( $opts->{'title'} ) && length( $opts->{'title'} ) ) {
 		$args{'-title'} = "STAB: " . $opts->{'title'};
-
-		# $args{'-title'} = $opts->{'title'};
 	} else {
 		$args{'-title'} = "STAB";
 	}
 
-	# development.  XXX Probably need to put in a is_dev_instance
-	# function that can be used to discern this throughout the code,
-	# although this is only used in the css for the background and here.
-	if ( $stabroot !~ m,://stab.[^/]+/?$, && $stabroot !~ /dev[^e]/ ) {
+	# If tne environment variable 'production' doesn't exist or is not set to 'true', then it's a development server
+	if ( !exists( $ENV{'production'} ) || $ENV{'production'} ne 'true' ) {
+		# Change the title to indicate it's a development server
 		$args{'-title'} =~ s/STAB:/STAB(D):/;
+		# Add a class to the body tag to indicate it's a development server
+		# The development background image is set in css/stab.css
+		$args{'-class'} = 'development';
 	}
 
 	#
-	# should seriously consider  making case insensitive like CGI
+	# should seriously consider making case insensitive like CGI
 	#
 	if ( defined( $opts->{'style'} ) ) {
 		$args{'-style'} = $opts->{'style'};
 		if ( exists( $opts->{'style'}->{'SRC'} ) ) {
 			$args{'-style'}->{'SRC'} =
-			  [ "$stabroot/style.pl", $opts->{'style'}->{'SRC'} ];
+			  [ "$stabroot/css/stab.css", $opts->{'style'}->{'SRC'} ];
 		} else {
-			$args{'-style'}->{'SRC'} = "$stabroot/style.pl";
+			$args{'-style'}->{'SRC'} = "$stabroot/css/stab.css";
 		}
 	} else {
 		$args{'-style'} = {
@@ -810,8 +871,8 @@ sub start_html {
 				#"$root/javascript-common/external/chosen/docsupport/style.css",
 				#"$root/javascript-common/external/chosen/docsupport/prism.css",
 				"$root/javascript-common/external/chosen/chosen.css",
-				"$root/javascript-common/external/datatables-1.10.9/jquery.dataTables.min.css",
-				"$stabroot/style.pl",
+				"$root/javascript-common/external/datatables/datatables-2.0.3.min.css",
+				"$stabroot/css/stab.css",
 			]
 		};
 	}
@@ -841,12 +902,9 @@ sub start_html {
 		my $navbar = "";
 		foreach my $p ( sort keys %{$map} ) {
 			if ( $self->check_permissions( $map->{$p} ) ) {
-				if ( length($navbar) ) {
-					$navbar .= " - ";
-				}
 				$navbar .= $cgi->a(
 					{
-						-href => "$stabroot/"
+						-href => "$stabroot"
 						  . $self->{_permmap}->{ $map->{$p} },
 					},
 					$p
@@ -856,7 +914,7 @@ sub start_html {
 
 		if ( length($navbar) ) {
 			$inline_title .=
-			  $cgi->div( { -class => 'navbar' }, "[ $navbar ] " ) . "\n";
+			  $cgi->div( { -class => 'navbar' }, "$navbar" ) . "\n";
 		}
 	}
 
@@ -1758,9 +1816,9 @@ sub b_dropdown {
 		$q = qq{
 			select
 				CASE
-     			     WHEN l1.layer1_connection_id is not NULL THEN 1     
-			  	 WHEN pc.physical_connection_id is not NULL THEN 1
-			  	 ELSE NULL
+					WHEN l1.layer1_connection_id is not NULL THEN 1
+					WHEN pc.physical_connection_id is not NULL THEN 1
+					ELSE NULL
 				END as connection_id,
 					p.PHYSICAL_PORT_ID, p.port_name
 			  from	PHYSICAL_PORT p
@@ -1882,7 +1940,7 @@ sub b_dropdown {
 					CASE WHEN ROOM = 'n/a' THEN '' ELSE ROOM || '-' END	as ROOM,
 					CASE WHEN SUB_ROOM = 'n/a' THEN '' ELSE SUB_ROOM || '-' END	as SUN_ROOM,
 					CASE WHEN RACK_ROW = 'n/a' THEN '' ELSE RACK_ROW || '-' END	as RACK_ROW,
-					CASE WHEN RACK_NAME = 'n/a' THEN '' ELSE RACK_NAME || '-' END	as RACK_NAME
+					CASE WHEN RACK_NAME = 'n/a' THEN '' ELSE RACK_NAME || '' END	as RACK_NAME
 			  from  rack
 			where	rack_id > 0
 			$siteclause
@@ -2105,10 +2163,10 @@ sub b_dropdown {
 			}
 			$redir = $cgi->a(
 				{
-					-style  => 'font-size: 30%;',
 					-target => 'TOP',
 					-id     => $redirid,
-					-href   => $devlink
+					-href   => $devlink,
+					-class  => 'goto-link'
 				},
 				">>"
 			);
@@ -2123,10 +2181,10 @@ sub b_dropdown {
 			}
 			$redir = $cgi->a(
 				{
-					-style  => 'font-size: 30%;',
 					-target => 'TOP',
 					-id     => $redirid,
-					-href   => $devlink
+					-href   => $devlink,
+					-class  => 'goto-link'
 				},
 				">>"
 			);
@@ -2339,16 +2397,9 @@ sub b_textfield {
 					-class   => 'stabeditbutton',
 					-href    => '#',
 					-onclick => 'event.preventDefault();',
+					-title   => 'Edit',
+					-alt     => 'Edit',
 				},
-				$cgi->img(
-					{
-						-src   => "../stabcons/e.png",
-						-alt   => "Edit",
-						-title => 'Edit',
-
-						# -class => 'stabeditbutton',
-					}
-				)
 			);
 		}
 		$disabled = 'true';
@@ -2364,14 +2415,6 @@ sub b_textfield {
 					-class => 'stabeditbutton',
 					-href  => '#',
 				},
-				$cgi->img(
-					{
-						-src   => "../stabcons/e.png",
-						-alt   => "Edit",
-						-title => 'Edit',
-						-class => 'stabeditbutton',
-					}
-				)
 			);
 		}
 		$disabled = 'true';
@@ -2863,17 +2906,24 @@ sub zone_header {
 	my $cgi = $self->cgi || die "Could not create cgi";
 	my $dbh = $self->dbh || die "Could not create dbh";
 
+	my $opts = {};
+	$opts->{-class} = 'tracked';
+
 	$self->textfield_sizing(0);
-	my $serial = $self->b_textfield( $hr, 'SOA_SERIAL', 'DNS_DOMAIN_ID', 0 );
-	my $refresh =
-	  $self->b_textfield( $hr, 'SOA_REFRESH', 'DNS_DOMAIN_ID', 21600 );
-	my $retry = $self->b_textfield( $hr, 'SOA_RETRY', 'DNS_DOMAIN_ID', 7200 );
-	my $expire =
-	  $self->b_textfield( $hr, 'SOA_EXPIRE', 'DNS_DOMAIN_ID', 2419200 );
-	my $minimum =
-	  $self->b_textfield( $hr, 'SOA_MINIMUM', 'DNS_DOMAIN_ID', 3600 );
-	my $mname = $self->b_textfield( $hr, 'SOA_MNAME', 'DNS_DOMAIN_ID' );
-	my $rname = $self->b_textfield( $hr, 'SOA_RNAME', 'DNS_DOMAIN_ID' );
+	$opts->{-original} = defined( $hr->{ _dbx('SOA_SERIAL')} ) ? $hr->{ _dbx('SOA_SERIAL')} : '';
+	my $serial  = $self->b_textfield( $opts, $hr, 'SOA_SERIAL', 'DNS_DOMAIN_ID', 0 );
+	$opts->{-original} = defined( $hr->{ _dbx('SOA_REFRESH')} ) ? $hr->{ _dbx('SOA_REFRESH')} : '';
+	my $refresh = $self->b_textfield( $opts, $hr, 'SOA_REFRESH', 'DNS_DOMAIN_ID', 21600 );
+	$opts->{-original} = defined( $hr->{ _dbx('SOA_RETRY')} ) ? $hr->{ _dbx('SOA_RETRY')} : '';
+	my $retry   = $self->b_textfield( $opts, $hr, 'SOA_RETRY', 'DNS_DOMAIN_ID', 7200 );
+	$opts->{-original} = defined( $hr->{ _dbx('SOA_EXPIRE')} ) ? $hr->{ _dbx('SOA_EXPIRE')} : '';
+	my $expire  = $self->b_textfield( $opts, $hr, 'SOA_EXPIRE', 'DNS_DOMAIN_ID', 2419200 );
+	$opts->{-original} = defined( $hr->{ _dbx('SOA_MINIMUM')} ) ? $hr->{ _dbx('SOA_MINIMUM')} : '';
+	my $minimum = $self->b_textfield( $opts, $hr, 'SOA_MINIMUM', 'DNS_DOMAIN_ID', 3600 );
+	$opts->{-original} = defined( $hr->{ _dbx('SOA_MNAME')} ) ? $hr->{ _dbx('SOA_MNAME')} : '';
+	my $mname   = $self->b_textfield( $opts, $hr, 'SOA_MNAME', 'DNS_DOMAIN_ID' );
+	$opts->{-original} = defined( $hr->{ _dbx('SOA_RNAME')} ) ? $hr->{ _dbx('SOA_RNAME')} : '';
+	my $rname   = $self->b_textfield( $opts, $hr, 'SOA_RNAME', 'DNS_DOMAIN_ID' );
 	$self->textfield_sizing(1);
 
 	my $class = 'IN';
@@ -3137,7 +3187,7 @@ sub vendor_logo {
 
 	my %ICOMAP = (
 		'Dot Hill',         'dothill.ico', 'Cisco',            'cisco.ico',
-		'Foundry',          'foundry.ico', 'Dell',             'dell.ico',
+		'Foundry',          'foundry.ico', 'Dell',             'dell.svg',
 		'Force10 Networks', 'force10.ico', 'IBM',              'ibm.ico',
 		'HP',               'hp.ico',      'Sun Microsystems', 'sun.ico',
 		'Juniper',          'juniper.ico',
@@ -3149,6 +3199,7 @@ sub vendor_logo {
 	if ( $vendor && exists( $ICOMAP{$vendor} ) && $ICOMAP{$vendor} ) {
 		$rv = $cgi->img(
 			{
+				-class => 'icon-vendor',
 				-alt   => $vendor,
 				-align => 'left',
 				-src   => $root . '/images/vendors/' . $ICOMAP{$vendor}

@@ -50,10 +50,9 @@ sub dump_l3_network {
 	my $l3netid = shift @_;
 
 	my $cgi = $stab->cgi || die "Could not create cgi";
-	my $sth = $stab->prepare(
-		qq{
-		SELECT l3.*, 
-				concat(encapsulation_type, ' ', 
+	my $sth = $stab->prepare( qq{
+		SELECT l3.*,
+				concat(encapsulation_type, ' ',
 					encapsulation_domain, ':', encapsulation_name) AS
 					layer2_network_name
 		FROM	layer3_network l3
@@ -66,41 +65,32 @@ sub dump_l3_network {
 	my $hr = $sth->fetchrow_hashref;
 	$sth->finish;
 
-	my $l2tr = ( $hr->{ _dbx('LAYER2_NETWORK_ID') } )
-	  ? $cgi->Tr(
-		$cgi->td(
-			[
-				'Layer2 Network',
-				$cgi->a(
-					{
-						-href => '..l2/?LAYER2_NETWORK_ID='
-						  . $hr->{ _dbx('LAYER2_NETWORK_ID') }
-					},
-					$hr->{ _dbx('LAYER2_NETWORK_NAME') }
-				)
-			]
+	my $l2tr =
+	  ( $hr->{ _dbx('LAYER2_NETWORK_ID') } )
+	  ? $cgi->Tr( $cgi->td( [
+		'Layer2 Network',
+		$cgi->a( {
+				-href => '../l2/?LAYER2_NETWORK_ID='
+				  . $hr->{ _dbx('LAYER2_NETWORK_ID') }
+			},
+			$hr->{ _dbx('LAYER2_NETWORK_NAME') }
 		)
-	  )
+	  ] ) )
 	  : "";
 
 	my ( $nbt, $dgwt ) = ( "", "" );
 
 	if ( my $nb = $stab->get_netblock_from_id( $hr->{ _dbx('NETBLOCK_ID') } ) )
 	{
-		$nbt = $cgi->Tr(
-			$cgi->td(
-				[
-					'Network',
-					$cgi->a(
-						{
-							-href => "../../netblock/?nblkid="
-							  . $nb->{ _dbx('NETBLOCK_ID') }
-						},
-						$nb->{ _dbx('IP_ADDRESS') }
-					),
-				]
-			)
-		);
+		$nbt = $cgi->Tr( $cgi->td( [
+			'Network',
+			$cgi->a( {
+					-href => "../../netblock/?nblkid="
+					  . $nb->{ _dbx('NETBLOCK_ID') }
+				},
+				$nb->{ _dbx('IP_ADDRESS') }
+			),
+		] ) );
 	}
 
 	if (
@@ -124,7 +114,7 @@ sub dump_l3_network {
 	);
 
 	print $cgi->header('text/html');
-	print $stab->start_html();
+	print $stab->start_html( -title => 'Layer3 Network' );
 	print $cgi->p($t);
 	print $cgi->end_html;
 
