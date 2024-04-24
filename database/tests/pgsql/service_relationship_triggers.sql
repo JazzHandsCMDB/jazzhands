@@ -1,4 +1,4 @@
--- Copyright (c) 2021 Todd Kover
+-- Copyright (c) 2021-2024 Todd Kover
 -- All rights reserved.
 --
 -- Licensed under the Apache License, Version 2.0 (the "License");
@@ -64,9 +64,6 @@ BEGIN
 	INSERT INTO service_version (service_id, service_version_name)
 		VALUES (_s3.service_id, '3.0.0') RETURNING * INTO _sv3;
 
-	--	EXCEPTION WHEN unique_violation THEN
-	--		RAISE EXCEPTION '%', SQLERRM USING ERRCODE = 'JH999';
-
 	RAISE NOTICE 'Testing if just an unbounded service works...';
 	BEGIN
 		INSERT INTO service_relationship (
@@ -77,25 +74,6 @@ BEGIN
 			_s2.service_id
 		) RETURNING * INTO _r;
 
-		SELECT * INTO _d FROM service_relationship
-			WHERE service_relationship_id = _r.service_relationship_id;
-		IF _d != _r THEN
-			RAISE EXCEPTION 'Weird insert % %', to_jsonb(_r), to_jsonb(_d);
-		END IF;
-		RAISE EXCEPTION 'It worked' USING ERRCODE = 'JH999';
-	EXCEPTION WHEN SQLSTATE 'JH999' THEN
-		RAISE NOTICE '... It did (%)', SQLERRM;
-	END;
-
-	RAISE NOTICE 'Testing if just an unbounded service version works...';
-	BEGIN
-		INSERT INTO service_relationship (
-			service_version_id, service_relationship_type,
-			related_service_version_id
-		) VALUES (
-			_sv1.service_version_id, 'depend',
-			_sv2.service_version_id
-		) RETURNING * INTO _r;
 		SELECT * INTO _d FROM service_relationship
 			WHERE service_relationship_id = _r.service_relationship_id;
 		IF _d != _r THEN
@@ -148,10 +126,10 @@ BEGIN
 		BEGIN
 			INSERT INTO service_relationship (
 				service_version_id, service_relationship_type,
-				related_service_version_id
+				service_version_restriction_service_id, related_service_version_id
 			) VALUES (
 				_sv2.service_version_id, 'depend',
-				_sv2b.service_version_id) RETURNING * INTO _r;
+				_sv2b.service_id, _sv2b.service_version_id) RETURNING * INTO _r;
 		EXCEPTION WHEN invalid_parameter_value THEN
 			RAISE EXCEPTION 'It did (%)', SQLERRM USING ERRCODE = 'JH999';
 		END;

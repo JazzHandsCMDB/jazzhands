@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2010-2023 Todd Kover, Matthew Ragan
+ * Copyright (c) 2010-2024 Todd Kover, Matthew Ragan
  * All rights reserved.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
@@ -102,7 +102,6 @@ BEGIN
 		IF NOT lowerseq AND m < _r.nv  THEN
 			m := _r.nv;
 		END IF;
-		RAISE DEBUG 'resetting to %', m;
 		EXECUTE format('ALTER SEQUENCE %s.%s RESTART WITH %s',
 			quote_ident(_r.seq_namespace),
 			quote_ident(_r.seq_name),

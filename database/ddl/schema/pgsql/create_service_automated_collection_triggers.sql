@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2021-2023 Todd Kover
+ * Copyright (c) 2021-2024 Todd Kover
  * All rights reserved.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
@@ -52,7 +52,7 @@ BEGIN
 			FROM service_version_collection_purpose svcp
 			WHERE svc.service_version_collection_id
 					= svcp.service_version_collection_id
-			AND service_collection_purpose IN ('all', 'current');
+			AND service_version_collection_purpose IN ('all', 'current');
 	ELSIF TG_OP = 'DELETE' THEN
 		DELETE FROM service_version_collection_purpose
 		WHERE service_version_collection_purpose IN ('current', 'all')

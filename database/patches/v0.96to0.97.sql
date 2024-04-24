@@ -1,5 +1,5 @@
 --
--- Copyright (c) 2023 Todd Kover
+-- Copyright (c) 2024 Todd Kover
 -- All rights reserved.
 --
 -- Licensed under the Apache License, Version 2.0 (the "License");
@@ -20,11 +20,42 @@
 Invoked:
 
 	--suffix=v97
+	--skip-cache
 	--scan
 	--final
 	final
 	--pre
 	pre
+	--pre
+	../new/database/ddl/schema/pgsql/create_schema_support_cache_tables.sql
+	--pre
+	../new/database/ddl/cache/pgsql/create_ct_account_collection_hier_recurse.sql
+	--pre
+	../new/database/ddl/cache/pgsql/create_ct_device_collection_hier_recurse.sql
+	--pre
+	../new/database/ddl/cache/pgsql/create_ct_netblock_collection_hier_recurse.sql
+	--pre
+	../new/database/ddl/cache/pgsql/create_ct_company_collection_hier_recurse.sql
+	--pre
+	../new/database/ddl/cache/pgsql/create_ct_dns_domain_collection_hier_recurse.sql
+	--pre
+	../new/database/ddl/cache/pgsql/create_ct_layer2_network_collection_hier_recurse.sql
+	--pre
+	../new/database/ddl/cache/pgsql/create_ct_layer3_network_collection_hier_recurse.sql
+	--pre
+	../new/database/ddl/cache/pgsql/create_ct_netblock_collection_hier_recurse.sql
+	--pre
+	../new/database/ddl/cache/pgsql/create_ct_service_environment_collection_hier_recurse.sql
+	--pre
+	../new/database/ddl/cache/pgsql/create_ct_service_version_collection_hier_recurse.sql
+	--pre
+	../new/database/ddl/cache/pgsql/create_ct_token_collection_hier_recurse.sql
+	--pre
+	../new/database/ddl/cache/pgsql/create_ct_property_name_collection_hier_recurse.sql
+	--skip-table
+	schema_support.cache_table
+	service_version
+	service_relationship
 	--post
 	post
 	--reinsert-dir=i
@@ -38,22 +69,4930 @@ select clock_timestamp(), now(), clock_timestamp() - now() AS len;
 -- BEGIN Misc that does not apply to above
 SET jazzhands.appuser = 'release-0.97';
 
-DROP FUNCTION IF EXISTS netblock_manip.set_layer3_interface_addresses ( 
-	layer3_interface_id integer, 
-	device_id integer, 
-	layer3_interface_name text, 
-	layer3_interface_type text, 
-	ip_address_hash jsonb, 
-	create_layer3_networks boolean, 
-	move_addresses text, 
+DROP FUNCTION IF EXISTS netblock_manip.set_layer3_interface_addresses (
+	layer3_interface_id integer,
+	device_id integer,
+	layer3_interface_name text,
+	layer3_interface_type text,
+	ip_address_hash jsonb,
+	create_layer3_networks boolean,
+	move_addresses text,
 	address_errors text );
+
+SELECT schema_support.save_grants_for_replay('schema_support', 'create_cache_table');
+DROP FUNCTION IF EXISTS schema_support.create_cache_table(
+	cache_table_schema text,
+	cache_table text,
+	defining_view_schema text,
+	defining_view text,
+	force boolean
+);
+
+UPDATE __regrants SET regrant = replace(regrant,
+	'cache_table_schema text, cache_table text, defining_view_schema text, defining_view text, force boolean',
+	'cache_table_schema text, cache_table text, defining_view_schema text, defining_view text, create_options jsonb, force boolean')
+WHERE schema = 'schema_support'
+AND object = 'create_cache_table'
+;
+
+
+ALTER TABLE schema_support.cache_table ADD create_options JSONB;
+
+
+-- END Misc that does not apply to above
+
+
+-- BEGIN Misc that does not apply to above
+-- Copyright (c) 2018-2024, Matthew Ragan
+-- Copyright (c) 2019-2024, Todd Kover
+-- All rights reserved.
+--
+-- Licensed under the Apache License, Version 2.0 (the "License");
+-- you may not use this file except in compliance with the License.
+-- You may obtain a copy of the License at
+--
+--       http://www.apache.org/licenses/LICENSE-2.0
+--
+-- Unless required by applicable law or agreed to in writing, software
+-- distributed under the License is distributed on an "AS IS" BASIS,
+-- WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+-- See the License for the specific language governing permissions and
+-- limitations under the License.
+
+----------------------------------------------------------------------------
+-- BEGIN cache table support
+----------------------------------------------------------------------------
+--
+--
+-- These functions are used to better automate creating and manipulating
+-- cache tables.  Cache tables are conceptually very similar to materialized
+-- views, except the theory is that triggers on the base tables will keep
+-- the views updated.  The functions here ensure that things stay
+-- synchronized when those triggers fail to DTRT, and also to set up and
+-- manage the cache tables from the underlying views
+--
+-- The schema_support.cache_table table contains a list of the cache
+-- tables and underlying views, and an updates_enabled boolean which
+-- controls whether or not calling the schema_support.refresh_cache_tables()
+-- function without specifying a cache table will regenerate that entry
+--
+-- The schema_support.cache_table_update_log will contain rows where
+-- schema_support.refresh_cache_tables() updated any rows, or if the forced
+-- flag was passed.  A log entry is not generated if no actions are performed
+-- unless the forced parameter is set to true.
+--
+
+CREATE OR REPLACE FUNCTION schema_support.create_cache_table (
+	cache_table_schema		text,
+	cache_table				text,
+	defining_view_schema	text,
+	defining_view			text,
+	create_options			JSONB DEFAULT NULL,
+	force					BOOLEAN DEFAULT false
+) RETURNS void AS $$
+DECLARE
+	param_cache_table_schema		ALIAS FOR cache_table_schema;
+	param_cache_table			ALIAS FOR cache_table;
+	param_defining_view_schema		ALIAS FOR defining_view_schema;
+	param_defining_view			ALIAS FOR defining_view;
+	ct_rec					RECORD;
+	column_definition			TEXT;
+	columns_to_copy				TEXT;
+BEGIN
+	--
+	-- Ensure that the defining view exists
+	--
+	PERFORM *
+	FROM
+		information_schema.views
+	WHERE
+		table_schema = defining_view_schema AND
+		table_name = defining_view;
+
+	IF NOT FOUND THEN
+		RAISE 'view %.% does not exist',
+			defining_view_schema,
+			defining_view
+			USING ERRCODE = 'foreign_key_violation';
+	END IF;
+
+	--
+	-- Verify that the cache table does not exist, or if it does that
+	-- we have an entry for it in schema_support.cache_table and
+	-- force is being passed.
+	--
+
+	PERFORM *
+	FROM
+		information_schema.tables
+	WHERE
+		table_schema = cache_table_schema AND
+		table_name = cache_table;
+
+	IF FOUND THEN
+		IF NOT force THEN
+			RAISE 'cache table %.% already exists',
+				cache_table_schema,
+				cache_table
+				USING ERRCODE = 'unique_violation';
+		END IF;
+
+		PERFORM *
+		FROM
+			schema_support.cache_table ct
+		WHERE
+			ct.cache_table_schema = param_cache_table_schema AND
+			ct.cache_table = param_cache_table;
+
+		IF NOT FOUND THEN
+			RAISE '%', concat(
+				'cache table ', cache_table_schema, '.', cache_table,
+				' already exists, but there is no tracking ',
+				'information for it in schema_support.cache_table.  ',
+				'This must be corrected manually.')
+				USING ERRCODE = 'unique_violation';
+		END IF;
+
+		PERFORM schema_support.save_grants_for_replay(
+			cache_table_schema, cache_table
+		);
+
+		PERFORM schema_support.save_dependent_objects_for_replay(
+			cache_table_schema, cache_table
+		);
+
+		EXECUTE 'DROP TABLE '
+			|| quote_ident(cache_table_schema) || '.'
+			|| quote_ident(cache_table);
+	END IF;
+
+	SELECT * INTO ct_rec
+	FROM
+		schema_support.cache_table ct
+	WHERE
+		ct.cache_table_schema = param_cache_table_schema AND
+		ct.cache_table = param_cache_table;
+
+	IF NOT FOUND THEN
+		INSERT INTO schema_support.cache_table(
+			cache_table_schema,
+			cache_table,
+			defining_view_schema,
+			defining_view,
+			updates_enabled,
+			create_options
+		) VALUES (
+			param_cache_table_schema,
+			param_cache_table,
+			param_defining_view_schema,
+			param_defining_view,
+			'true',
+			create_options
+		);
+	END IF;
+
+	---
+	--- setup the column definitions for passing to the next function.  THis
+	---	allows for tweaking like making a column generated
+	---
+	SELECT  string_agg(def, E',\n') INTO column_definition
+	FROM (
+		SELECT concat(
+			quote_ident(a.attname), ' ',
+			pg_catalog.format_type(a.atttypid, a.atttypmod), ' ', attr)
+		AS def
+	FROM    pg_catalog.pg_attribute a
+			INNER JOIN pg_class c on a.attrelid = c.oid
+			INNER JOIN pg_namespace n on n.oid = c.relnamespace
+			LEFT JOIN jsonb_each_text(create_options->'create_augment')
+				attr(attname, attr)
+				USING (attname)
+	WHERE c.relname = defining_view
+	AND   n.nspname = defining_view_schema
+	AND   a.attnum > 0
+	AND   NOT a.attisdropped
+	ORDER BY a.attnum
+	) i;
+
+	---
+	--- kind of nasty, but ...
+	---
+	SELECT  string_agg(def, E',\n') INTO columns_to_copy
+	FROM (
+		SELECT quote_ident(a.attname)
+		AS def
+	FROM    pg_catalog.pg_attribute a
+			INNER JOIN pg_class c on a.attrelid = c.oid
+			INNER JOIN pg_namespace n on n.oid = c.relnamespace
+			LEFT JOIN jsonb_each_text(create_options->'create_augment')
+				attr(attname, attr) USING (attname)
+	WHERE   c.relname = defining_view
+	AND   n.nspname = defining_view_schema
+	AND   a.attnum > 0
+	AND   NOT a.attisdropped
+	AND   ( attr IS NULL OR regexp_match (attr,'GENERATED', 'i') IS NULL )
+	ORDER BY a.attnum
+	) i;
+
+	EXECUTE format('CREATE TABLE %I.%I ( %s )',
+		cache_table_schema,
+		cache_table,
+		column_definition
+	);
+	EXECUTE format('INSERT INTO %I.%I (%s) SELECT %s FROM %I.%I',
+		cache_table_schema,
+		cache_table,
+		columns_to_copy,
+		columns_to_copy,
+		defining_view_schema,
+		defining_view
+	);
+
+	IF force THEN
+		PERFORM schema_support.replay_object_recreates();
+		PERFORM schema_support.replay_saved_grants();
+	END IF;
+END
+$$ LANGUAGE plpgsql
+-- SET search_path=schema_support
+SECURITY INVOKER;
+
+CREATE OR REPLACE FUNCTION schema_support.synchronize_cache_tables (
+	cache_table_schema		text DEFAULT NULL,
+	cache_table				text DEFAULT NULL
+) RETURNS void AS $$
+DECLARE
+	ct_rec			RECORD;
+	query			text;
+	inserted_rows	integer;
+	deleted_rows	integer;
+	columns_to_copy	TEXT;
+BEGIN
+	IF cache_table_schema IS NULL THEN
+		IF cache_table IS NOT NULL THEN
+			RAISE 'Must specify cache_table_schema if cache_table is passed'
+				USING ERRCODE = 'null_value_not_allowed';
+		END IF;
+		query := '
+			SELECT
+				*
+			FROM
+				schema_support.cache_table
+			WHERE
+				updates_enabled = true
+			';
+	ELSE
+		IF cache_table IS NOT NULL THEN
+			query := format($query$
+				SELECT
+					*
+				FROM
+					schema_support.cache_table
+				WHERE
+					quote_ident(cache_table_schema) = '%I' AND
+					quote_ident(cache_table) = '%I'
+				$query$,
+				cache_table_schema,
+				cache_table
+			);
+		ELSE
+			query := format($query$
+				SELECT
+					*
+				FROM
+					schema_support.cache_table
+				WHERE
+					quote_ident(cache_table_schema) = '%I' AND
+					updates_enabled = true
+				$query$,
+				cache_table_schema
+			);
+		END IF;
+	END IF;
+	FOR ct_rec IN EXECUTE query LOOP
+		RAISE DEBUG 'Processing %.%',
+			quote_ident(ct_rec.cache_table_schema),
+			quote_ident(ct_rec.cache_table);
+
+		---
+		--- kind of nasty, but ...
+		---
+		SELECT  string_agg(def, E',\n') INTO columns_to_copy
+		FROM (
+			SELECT quote_ident(a.attname)
+			AS def
+		FROM    pg_catalog.pg_attribute a
+				INNER JOIN pg_class c on a.attrelid = c.oid
+				INNER JOIN pg_namespace n on n.oid = c.relnamespace
+				LEFT JOIN jsonb_each_text(ct_rec.create_options->'create_augment')
+					attr(attname, attr) USING (attname)
+		WHERE   c.relname = ct_rec.cache_table
+		AND   n.nspname = ct_rec.cache_table_schema
+		AND   a.attnum > 0
+		AND   NOT a.attisdropped
+		AND   ( attr IS NULL OR regexp_match (attr,'GENERATED', 'i') IS NULL )
+		ORDER BY a.attnum
+		) i;
+
+		--
+		-- Insert rows that exist in the view that do not exist in the cache
+		-- table
+		--
+		query := format($query$
+			INSERT INTO %I.%I ( %s )
+			SELECT %s FROM %I.%I z
+			WHERE
+				(z) IN
+				(
+					SELECT (x) FROM
+					(
+						SELECT * FROM %I.%I EXCEPT
+						SELECT * FROM %I.%I
+					) x
+				)
+			$query$,
+			ct_rec.cache_table_schema,
+			ct_rec.cache_table,
+			columns_to_copy,
+			columns_to_copy,
+			ct_rec.defining_view_schema,
+			ct_rec.defining_view,
+			ct_rec.defining_view_schema,
+			ct_rec.defining_view,
+			ct_rec.cache_table_schema,
+			ct_rec.cache_table
+		);
+		RAISE DEBUG E'Executing:\n%\n', query;
+		EXECUTE query;
+		GET DIAGNOSTICS inserted_rows := ROW_COUNT;
+
+		--
+		-- Delete rows that exist in the cache table that do not exist in the
+		-- defining view
+		--
+		query := format($query$
+			DELETE FROM %I.%I z
+			WHERE
+				(z) IN
+				(
+					SELECT (x) FROM
+					(
+						SELECT * FROM %I.%I EXCEPT
+						SELECT * FROM %I.%I
+					) x
+				)
+			$query$,
+			ct_rec.cache_table_schema,
+			ct_rec.cache_table,
+			ct_rec.cache_table_schema,
+			ct_rec.cache_table,
+			ct_rec.defining_view_schema,
+			ct_rec.defining_view
+		);
+		RAISE DEBUG E'Executing:\n%\n', query;
+		EXECUTE query;
+		GET DIAGNOSTICS deleted_rows := ROW_COUNT;
+
+		IF (inserted_rows > 0 OR deleted_rows > 0) THEN
+			INSERT INTO schema_support.cache_table_update_log (
+				cache_table_schema,
+				cache_table,
+				update_timestamp,
+				rows_inserted,
+				rows_deleted,
+				forced
+			) VALUES (
+				ct_rec.cache_table_schema,
+				ct_rec.cache_table,
+				current_timestamp,
+				inserted_rows,
+				deleted_rows,
+				false
+			);
+		END IF;
+	END LOOP;
+END
+$$ LANGUAGE plpgsql
+-- SET search_path=schema_support
+SECURITY INVOKER ;
+
+----------------------------------------------------------------------------
+-- END cache table support
+----------------------------------------------------------------------------
+
+REVOKE USAGE ON SCHEMA schema_support FROM public;
+REVOKE ALL ON ALL FUNCTIONS IN SCHEMA schema_support FROM public;
+
+
+-- END Misc that does not apply to above
+
+
+-- BEGIN Misc that does not apply to above
+--
+-- Copyright (c) 2023-2024 Todd M. Kover
+-- All rights reserved.
+--
+-- Licensed under the Apache License, Version 2.0 (the "License");
+-- you may not use this file except in compliance with the License.
+-- You may obtain a copy of the License at
+--
+--      http://www.apache.org/licenses/LICENSE-2.0
+--
+-- Unless required by applicable law or agreed to in writing, software
+-- distributed under the License is distributed on an "AS IS" BASIS,
+-- WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+-- See the License for the specific language governing permissions and
+-- limitations under the License.
+--
+
+\set ON_ERROR_STOP
+
+/*
+ * This is meant to recurse all the descendants of a node or all the ancestors
+ * depending on how it is looked at.  "root" is the "oldest" ancestor,
+ * leaf means "youngest".  Other views have historically used these
+ * interchangably depending on how the newest works.
+ *
+ * NOTE:  path always set by order procssed, which is at the leaf "up" so
+ * the leaf will always be first.
+ *
+ * NOTE:  I figured this all out on a plane.
+ *
+ * start at the _bottom_ and recurse _up_, then in the end swap how they
+ * are presented because the "roto" is the "oldest" ancestor.
+ */
+CREATE OR REPLACE VIEW jazzhands_cache.v_account_collection_hier_recurse
+AS
+WITH RECURSIVE var_recurse (
+	leaf_account_collection_id,
+	account_collection_id,
+	path,
+	cycle
+) as (
+	SELECT
+		b.account_collection_id					AS leaf_account_collection_id,
+		b.account_collection_id					AS account_collection_id,
+		ARRAY[b.account_collection_id]			AS path,
+		false									AS cycle
+	  FROM	account_collection b
+UNION ALL
+	SELECT
+		x.leaf_account_collection_id			AS leaf_account_collection_id,
+		h.account_collection_id					AS account_collection_id,
+		x.path || h.account_collection_id		AS path,
+		h.account_collection_id = ANY(x.path)	AS cycle
+	  FROM	var_recurse x
+		JOIN account_collection_hier h
+			ON x.account_collection_id = h.child_account_collection_id
+	WHERE	NOT x.cycle
+) SELECT
+			leaf_account_collection_id		AS account_collection_id,
+			account_collection_id			AS root_account_collection_id,
+			path,
+			array_length(path, 1)			AS account_collection_level,
+			cycle
+  from			var_recurse
+;
+
+SELECT * FROM schema_support.create_cache_table(
+	cache_table_schema := 'jazzhands_cache',
+	cache_table := 'ct_account_collection_hier_recurse',
+	defining_view_schema := 'jazzhands_cache',
+	defining_view := 'v_account_collection_hier_recurse',
+	create_options := '{
+		"create_augment": {
+			"account_collection_level": "GENERATED ALWAYS AS ( array_length(path, 1) ) STORED"
+		}
+	}',
+	force := true
+);
+
+
+ALTER TABLE jazzhands_cache.ct_account_collection_hier_recurse
+	ADD PRIMARY KEY (path);
+
+CREATE INDEX ix_account_collection_hier_recurse_root_id  ON
+	jazzhands_cache.ct_account_collection_hier_recurse
+	(root_account_collection_id);
+
+CREATE INDEX ix_account_collection_hier_recurse_leaf_Id  ON
+	jazzhands_cache.ct_account_collection_hier_recurse
+	(account_collection_id);
+
+-- Thanks to slackoverflow :
+-- https://stackoverflow.com/questions/4058731/can-postgresql-index-array-columns
+--
+-- note that @> needs to be used instead of ANY to take advangage of this
+-- indexing.
+--
+CREATE INDEX ix_account_collection_hier_recurse_path
+	ON jazzhands_cache.ct_account_collection_hier_recurse USING GIN
+	(path array_ops);
+
+CREATE OR REPLACE FUNCTION
+	jazzhands_cache.ct_account_collection_hier_recurse_base_handler()
+RETURNS TRIGGER AS $$
+BEGIN
+	IF TG_OP = 'DELETE' THEN
+		DELETE FROM jazzhands_cache.ct_account_collection_hier_recurse
+		WHERE root_account_collection_id = OLD.account_collection_id
+		AND account_collection_id = OLD.account_collection_id;
+
+		RETURN OLD;
+	ELSIF TG_OP = 'UPDATE' THEN
+		UPDATE jazzhands_cache.ct_account_collection_hier_recurse
+		SET
+			root_account_collection_id = NEW.account_collection_id,
+			account_collection_id = NEW.account_collection_id
+		WHERE root_account_collection_id = OLD.account_collection_id
+		AND account_collection_id = OLD.account_collection_id;
+	ELSIF TG_OP = 'INSERT' THEN
+		INSERT INTO jazzhands_cache.ct_account_collection_hier_recurse (
+			root_account_collection_id,
+			account_collection_id,
+			path,
+			cycle
+		) VALUES (
+			NEW.account_collection_id,
+			NEW.account_collection_id,
+			ARRAY[NEW.account_collection_id],
+			false
+		);
+	END IF;
+
+	RETURN NEW;
+END
+$$
+LANGUAGE plpgsql
+SET search_path=jazzhands
+SECURITY DEFINER
+;
+
+DROP TRIGGER IF EXISTS aaa_ct_account_collection_hier_recurse_base_handler
+ON jazzhands.account_collection;
+
+
+CREATE TRIGGER aaa_ct_account_collection_hier_recurse_base_handler
+AFTER INSERT OR DELETE OR UPDATE OF account_collection_id
+ON jazzhands.account_collection
+FOR EACH ROW
+EXECUTE PROCEDURE
+	jazzhands_cache.ct_account_collection_hier_recurse_base_handler();
+
+-----------------------------------------------------------------------------
+
+CREATE OR REPLACE FUNCTION jazzhands_cache.account_collection_hier_recurse_handler()
+RETURNS TRIGGER AS $$
+DECLARE
+	_r		RECORD;
+	_d		RECORD;
+	_cnt	INTEGER;
+BEGIN
+	--
+	-- Delete any rows that are invalidated due to a parent change.
+	--
+	IF
+		(TG_OP = 'DELETE' OR TG_OP = 'UPDATE')
+	THEN
+		--
+		-- This convoluted statement deletes anything where the path has the
+		-- parent and child consective in the path array.  This is nasty.
+		FOR _r IN
+		DELETE FROM jazzhands_cache.ct_account_collection_hier_recurse
+			WHERE path IN  (
+				SELECT path FROM (
+					SELECT * FROM (
+						SELECT path, unnest(path) as first,
+							unnest(pathplus) as second
+							--, row_number() over () as rn
+							FROM (
+								SELECT path, path[2:array_length(path, 1)] AS pathplus
+								FROM jazzhands_cache.ct_account_collection_hier_recurse
+							) i
+					) rmme WHERE second = OLD.account_collection_id
+					AND first = OLD.child_account_collection_id
+				) rmpath
+			)
+			RETURNING *
+		LOOP
+			RAISE DEBUG '-> achd rm %', to_json(_r);
+		END LOOP
+		;
+		get diagnostics _cnt = row_count;
+		RAISE DEBUG 'Deleting upstream references to accol %/% from cache == %',
+			OLD.account_collection_id, OLD.child_account_collection_id, _cnt;
+	END IF;
+
+	--
+	-- Insert any new rows to correspond with a new parent
+	--
+	IF TG_OP = 'INSERT' OR TG_OP = 'UPDATE' THEN
+		RAISE DEBUG 'achd %%Insert: %', to_json(NEW);
+
+		--- @> should use the GIN index.  ANY, not so much
+		FOR _r IN
+			SELECT DISTINCT
+				p.path as parent_path, c.path as child_path,
+				c.account_collection_id AS account_collection_id,
+				p.root_account_collection_id AS root_account_collection_id,
+				c.path || p.path as path,
+				p.path @> ARRAY[NEW.child_account_collection_id]  OR
+					c.path @> ARRAY[NEW.account_collection_id] AS cycle
+			FROM	jazzhands_cache.ct_account_collection_hier_recurse p,
+				jazzhands_cache.ct_account_collection_hier_recurse c
+			WHERE p.account_collection_id = NEW.account_collection_id
+			AND c.root_account_collection_id = NEW.child_account_collection_id
+		LOOP
+			RAISE DEBUG 'achd: i/dsmash:%', to_json(_r);
+			IF _r.cycle THEN
+				RAISE EXCEPTION 'This creates an infite loop'
+					USING ERRCODE = 'invalid_parameter_value';
+			END IF;
+			INSERT INTO jazzhands_cache.ct_account_collection_hier_recurse (
+					root_account_collection_id,
+					account_collection_id,
+					path,
+					cycle
+				) VALUES (
+					_r.root_account_collection_id,
+					_r.account_collection_id,
+					_r.path,
+					_r.cycle
+				) RETURNING * INTO _d ;
+		END LOOP;
+	END IF;
+
+	RETURN NULL;
+END
+$$
+LANGUAGE plpgsql
+SET search_path=jazzhands
+SECURITY DEFINER
+;
+
+DROP TRIGGER IF EXISTS aaa_account_collection_hier_recurse_handler
+ON jazzhands.account_collection_hier;
+
+CREATE TRIGGER aaa_account_collection_hier_recurse_handler
+AFTER INSERT OR DELETE OR
+	UPDATE OF account_collection_id, child_account_collection_id
+ON jazzhands.account_collection_hier
+FOR EACH ROW
+EXECUTE PROCEDURE jazzhands_cache.account_collection_hier_recurse_handler();
+
+CREATE OR REPLACE VIEW jazzhands.v_account_collection_hier_descendent  AS
+SELECT account_collection_id, descendent_account_collection_id, account_collection_level
+FROM (
+	SELECT
+		root_account_collection_id	AS  account_collection_id,
+		account_collection_id		AS  descendent_account_collection_id,
+		array_length(path, 1)		AS  account_collection_level,
+		path						AS  account_collection_path,
+		row_number() OVER (PARTITION BY
+			root_account_collection_id, account_collection_id
+			ORDER BY array_length(path,1)) AS rnk
+	FROM jazzhands_cache.ct_account_collection_hier_recurse
+) h
+WHERE rnk = 1;
+
+COMMENT ON VIEW jazzhands.v_account_collection_hier_descendent IS
+	'All descendent account collections of a given account collection';
+
+CREATE OR REPLACE VIEW jazzhands.v_account_collection_hier_ancestor  AS
+SELECT account_collection_id,
+	ancestor_account_collection_id,
+	account_collection_level,
+	account_collection_path
+FROM (
+	SELECT
+		account_collection_id			AS  account_collection_id,
+		root_account_collection_id		AS  ancestor_account_collection_id,
+		array_length(path, 1)			AS  account_collection_level,
+		path							AS	account_collection_path,
+		row_number() OVER (PARTITION BY
+			account_collection_id, root_account_collection_id
+			ORDER BY array_length(path,1)) AS rnk
+	FROM jazzhands_cache.ct_account_collection_hier_recurse
+) h
+WHERE rnk = 1;
+
+COMMENT ON VIEW jazzhands.v_account_collection_hier_ancestor IS
+	'All ancestors of a given account collection';
+
+CREATE OR REPLACE VIEW jazzhands.v_account_collection_account_descendent AS
+SELECT
+	account_collection_id,
+	account_id,
+	account_collection_level,
+	account_collection_path
+FROM (
+	SELECT
+		root_account_collection_id	AS	account_collection_id,
+		account_id,
+		account_collection_level,
+		path AS account_collection_path,
+		row_number() OVER (PARTITION BY root_account_collection_id,  account_id
+			ORDER BY account_collection_level) AS rnk
+	FROM jazzhands_cache.ct_account_collection_hier_recurse
+			JOIN jazzhands.account_collection_account cm
+				USING (account_collection_id)
+) i
+WHERE rnk = 1;
+
+COMMENT ON VIEW jazzhands.v_account_collection_account_descendent IS
+	'All accounts that are part of an account collection and (it''s descendent account collections, which is behind the scenes)';
+
+CREATE OR REPLACE VIEW jazzhands.v_account_collection_account_ancestor AS
+SELECT
+	account_collection_id,
+	account_id,
+	account_collection_level,
+	account_collection_path
+FROM (
+	SELECT
+		r.account_collection_id	AS	account_collection_id,
+		account_id, account_collection_level, path AS account_collection_path,
+		row_number() OVER (PARTITION BY r.account_collection_id,  account_id
+			ORDER BY account_collection_level) AS rnk
+	FROM jazzhands_cache.ct_account_collection_hier_recurse r
+			JOIN jazzhands.account_collection_account cm
+				ON r.root_account_collection_id = cm.account_collection_id
+) i
+WHERE rnk = 1;
+
+COMMENT ON VIEW jazzhands.v_account_collection_account_ancestor IS
+	'All accounts that are part of an account collection and (it''s ancestor account collections, which is behind the scenes)';
+
+
+-- END Misc that does not apply to above
+
+
+-- BEGIN Misc that does not apply to above
+--
+-- Copyright (c) 2023-2024 Todd M. Kover
+-- All rights reserved.
+--
+-- Licensed under the Apache License, Version 2.0 (the "License");
+-- you may not use this file except in compliance with the License.
+-- You may obtain a copy of the License at
+--
+--      http://www.apache.org/licenses/LICENSE-2.0
+--
+-- Unless required by applicable law or agreed to in writing, software
+-- distributed under the License is distributed on an "AS IS" BASIS,
+-- WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+-- See the License for the specific language governing permissions and
+-- limitations under the License.
+--
+
+\set ON_ERROR_STOP
+
+/*
+ * This is meant to recurse all the descendants of a node or all the ancestors
+ * depending on how it is looked at.  "root" is the "oldest" ancestor,
+ * leaf means "youngest".  Other views have historically used these
+ * interchangably depending on how the newest works.
+ *
+ * NOTE:  path always set by order procssed, which is at the leaf "up" so
+ * the leaf will always be first.
+ *
+ * NOTE:  I figured this all out on a plane.
+ *
+ * start at the _bottom_ and recurse _up_, then in the end swap how they
+ * are presented because the "roto" is the "oldest" ancestor.
+ */
+CREATE OR REPLACE VIEW jazzhands_cache.v_device_collection_hier_recurse
+AS
+WITH RECURSIVE var_recurse (
+	leaf_device_collection_id,
+	device_collection_id,
+	path,
+	cycle
+) as (
+	SELECT
+		b.device_collection_id					AS leaf_device_collection_id,
+		b.device_collection_id					AS device_collection_id,
+		ARRAY[b.device_collection_id]			AS path,
+		false									AS cycle
+	  FROM	device_collection b
+UNION ALL
+	SELECT
+		x.leaf_device_collection_id				AS leaf_device_collection_id,
+		h.device_collection_id					AS device_collection_id,
+			x.path || h.device_collection_id	AS path,
+		h.device_collection_id = ANY(x.path)	AS cycle
+	  FROM	var_recurse x
+		JOIN device_collection_hier h
+			ON x.device_collection_id = h.child_device_collection_id
+	WHERE	NOT x.cycle
+) SELECT
+			leaf_device_collection_id		AS device_collection_id,
+			device_collection_id			AS root_device_collection_id,
+			path,
+			array_length(path, 1)			AS device_collection_level,
+			cycle
+  from			var_recurse
+;
+
+SELECT * FROM schema_support.create_cache_table(
+	cache_table_schema := 'jazzhands_cache',
+	cache_table := 'ct_device_collection_hier_recurse',
+	defining_view_schema := 'jazzhands_cache',
+	defining_view := 'v_device_collection_hier_recurse',
+	create_options := '{
+		"create_augment": {
+			"device_collection_level": "GENERATED ALWAYS AS ( array_length(path, 1) ) STORED"
+		}
+	}',
+	force := true
+);
+
+
+ALTER TABLE jazzhands_cache.ct_device_collection_hier_recurse
+	ADD PRIMARY KEY (path);
+
+CREATE INDEX ix_device_collection_hier_recurse_root_id  ON
+	jazzhands_cache.ct_device_collection_hier_recurse
+	(root_device_collection_id);
+
+CREATE INDEX ix_device_collection_hier_recurse_leaf_Id  ON
+	jazzhands_cache.ct_device_collection_hier_recurse
+	(device_collection_id);
+
+-- Thanks to slackoverflow :
+-- https://stackoverflow.com/questions/4058731/can-postgresql-index-array-columns
+--
+-- note that @> needs to be used instead of ANY to take advangage of this
+-- indexing.
+--
+CREATE INDEX ix_device_collection_hier_recurse_path
+	ON jazzhands_cache.ct_device_collection_hier_recurse USING GIN
+	(path array_ops);
+
+CREATE OR REPLACE FUNCTION
+	jazzhands_cache.ct_device_collection_hier_recurse_base_handler()
+RETURNS TRIGGER AS $$
+BEGIN
+	IF TG_OP = 'DELETE' THEN
+		DELETE FROM jazzhands_cache.ct_device_collection_hier_recurse
+		WHERE root_device_collection_id = OLD.device_collection_id
+		AND device_collection_id = OLD.device_collection_id;
+
+		RETURN OLD;
+	ELSIF TG_OP = 'UPDATE' THEN
+		UPDATE jazzhands_cache.ct_device_collection_hier_recurse
+		SET
+			root_device_collection_id = NEW.device_collection_id,
+			device_collection_id = NEW.device_collection_id
+		WHERE root_device_collection_id = OLD.device_collection_id
+		AND device_collection_id = OLD.device_collection_id;
+	ELSIF TG_OP = 'INSERT' THEN
+		INSERT INTO jazzhands_cache.ct_device_collection_hier_recurse (
+			root_device_collection_id,
+			device_collection_id,
+			path,
+			cycle
+		) VALUES (
+			NEW.device_collection_id,
+			NEW.device_collection_id,
+			ARRAY[NEW.device_collection_id],
+			false
+		);
+	END IF;
+
+	RETURN NEW;
+END
+$$
+LANGUAGE plpgsql
+SET search_path=jazzhands
+SECURITY DEFINER
+;
+
+DROP TRIGGER IF EXISTS aaa_ct_device_collection_hier_recurse_base_handler
+ON jazzhands.device_collection;
+
+
+CREATE TRIGGER aaa_ct_device_collection_hier_recurse_base_handler
+AFTER INSERT OR DELETE OR UPDATE OF device_collection_id
+ON jazzhands.device_collection
+FOR EACH ROW
+EXECUTE PROCEDURE
+	jazzhands_cache.ct_device_collection_hier_recurse_base_handler();
+
+-----------------------------------------------------------------------------
+
+CREATE OR REPLACE FUNCTION jazzhands_cache.device_collection_hier_recurse_handler()
+RETURNS TRIGGER AS $$
+DECLARE
+	_r		RECORD;
+	_d		RECORD;
+	_cnt	INTEGER;
+BEGIN
+	--
+	-- Delete any rows that are invalidated due to a parent change.
+	--
+	IF
+		(TG_OP = 'DELETE' OR TG_OP = 'UPDATE')
+	THEN
+		--
+		-- This convoluted statement deletes anything where the path has the
+		-- parent and child consective in the path array.  This is nasty.
+		FOR _r IN
+		DELETE FROM jazzhands_cache.ct_device_collection_hier_recurse
+			WHERE path IN  (
+				SELECT path FROM (
+					SELECT * FROM (
+						SELECT path, unnest(path) as first,
+							unnest(pathplus) as second
+							--, row_number() over () as rn
+						FROM (
+							SELECT path, path[2:array_length(path, 1)] AS pathplus
+							FROM jazzhands_cache.ct_device_collection_hier_recurse
+						) i
+					) rmme WHERE second = OLD.device_collection_id
+					AND first = OLD.child_device_collection_id
+				) rmpath
+			)
+			RETURNING *
+		LOOP
+			RAISE DEBUG '-> dchd rm %', to_json(_r);
+		END LOOP
+		;
+		get diagnostics _cnt = row_count;
+		RAISE DEBUG 'Deleting upstream references to accol %/% from cache == %',
+			OLD.device_collection_id, OLD.child_device_collection_id, _cnt;
+	END IF;
+
+	--
+	-- Insert any new rows to correspond with a new parent
+	--
+	IF TG_OP = 'INSERT' OR TG_OP = 'UPDATE' THEN
+		RAISE DEBUG 'dchd %%Insert: %', to_json(NEW);
+
+		--- @> should use the GIN index.  ANY, not so much
+		FOR _r IN
+			SELECT DISTINCT
+				p.path as parent_path, c.path as child_path,
+				c.device_collection_id AS device_collection_id,
+				p.root_device_collection_id AS root_device_collection_id,
+				c.path || p.path as path,
+				p.path @> ARRAY[NEW.child_device_collection_id]  OR
+					c.path @> ARRAY[NEW.device_collection_id] AS cycle
+			FROM	jazzhands_cache.ct_device_collection_hier_recurse p,
+				jazzhands_cache.ct_device_collection_hier_recurse c
+			WHERE p.device_collection_id = NEW.device_collection_id
+			AND c.root_device_collection_id = NEW.child_device_collection_id
+		LOOP
+			RAISE DEBUG 'dchd: i/dsmash:%', to_json(_r);
+			IF _r.cycle THEN
+				RAISE EXCEPTION 'This creates an infite loop'
+					USING ERRCODE = 'invalid_parameter_value';
+			END IF;
+			INSERT INTO jazzhands_cache.ct_device_collection_hier_recurse (
+					root_device_collection_id,
+					device_collection_id,
+					path,
+					cycle
+				) VALUES (
+					_r.root_device_collection_id,
+					_r.device_collection_id,
+					_r.path,
+					_r.cycle
+				) RETURNING * INTO _d ;
+		END LOOP;
+	END IF;
+
+	RETURN NULL;
+END
+$$
+LANGUAGE plpgsql
+SET search_path=jazzhands
+SECURITY DEFINER
+;
+
+DROP TRIGGER IF EXISTS aaa_device_collection_hier_recurse_handler
+ON jazzhands.device_collection_hier;
+
+CREATE TRIGGER aaa_device_collection_hier_recurse_handler
+AFTER INSERT OR DELETE OR
+	UPDATE OF device_collection_id, child_device_collection_id
+ON jazzhands.device_collection_hier
+FOR EACH ROW
+EXECUTE PROCEDURE jazzhands_cache.device_collection_hier_recurse_handler();
+
+CREATE OR REPLACE VIEW jazzhands.v_device_collection_hier_descendent  AS
+SELECT device_collection_id, descendent_device_collection_id, device_collection_level
+FROM (
+	SELECT
+		root_device_collection_id	AS  device_collection_id,
+		device_collection_id		AS  descendent_device_collection_id,
+		array_length(path, 1)		AS  device_collection_level,
+		path						AS  device_collection_path,
+		row_number() OVER (PARTITION BY
+			root_device_collection_id, device_collection_id
+			ORDER BY array_length(path,1)) AS rnk
+	FROM jazzhands_cache.ct_device_collection_hier_recurse
+) h
+WHERE rnk = 1;
+
+COMMENT ON VIEW jazzhands.v_device_collection_hier_descendent IS
+	'All descendent device collections of a given device collection';
+
+CREATE OR REPLACE VIEW jazzhands.v_device_collection_hier_ancestor  AS
+SELECT device_collection_id,
+	ancestor_device_collection_id,
+	device_collection_level,
+	device_collection_path
+FROM (
+	SELECT
+		device_collection_id			AS  device_collection_id,
+		root_device_collection_id		AS  ancestor_device_collection_id,
+		array_length(path, 1)			AS  device_collection_level,
+		path							AS	device_collection_path,
+		row_number() OVER (PARTITION BY
+			device_collection_id, root_device_collection_id
+			ORDER BY array_length(path,1)) AS rnk
+	FROM jazzhands_cache.ct_device_collection_hier_recurse
+) h
+WHERE rnk = 1;
+
+COMMENT ON VIEW jazzhands.v_device_collection_hier_ancestor IS
+	'All ancestors of a given device collection';
+
+CREATE OR REPLACE VIEW jazzhands.v_device_collection_device_descendent AS
+SELECT
+	device_collection_id,
+	device_id,
+	device_collection_level,
+	device_collection_path
+FROM (
+	SELECT
+		root_device_collection_id	AS	device_collection_id,
+		device_id,
+		device_collection_level,
+		path AS device_collection_path,
+		row_number() OVER (PARTITION BY root_device_collection_id,  device_id
+			ORDER BY device_collection_level) AS rnk
+	FROM jazzhands_cache.ct_device_collection_hier_recurse
+			JOIN jazzhands.device_collection_device cm
+				USING (device_collection_id)
+) i
+WHERE rnk = 1;
+
+COMMENT ON VIEW jazzhands.v_device_collection_device_descendent IS
+	'All devices that are part of an device collection and (it''s descendent device collections, which is behind the scenes)';
+
+CREATE OR REPLACE VIEW jazzhands.v_device_collection_device_ancestor AS
+SELECT
+	device_collection_id,
+	device_id,
+	device_collection_level,
+	device_collection_path
+FROM (
+	SELECT
+		r.device_collection_id	AS	device_collection_id,
+		device_id, device_collection_level, path AS device_collection_path,
+		row_number() OVER (PARTITION BY r.device_collection_id,  device_id
+			ORDER BY device_collection_level) AS rnk
+	FROM jazzhands_cache.ct_device_collection_hier_recurse r
+			JOIN jazzhands.device_collection_device cm
+				ON r.root_device_collection_id = cm.device_collection_id
+) i
+WHERE rnk = 1;
+
+COMMENT ON VIEW jazzhands.v_device_collection_device_ancestor IS
+	'All devices that are part of an device collection and (it''s ancestor device collections, which is behind the scenes)';
+
+
+-- END Misc that does not apply to above
+
+
+-- BEGIN Misc that does not apply to above
+--
+-- Copyright (c) 2023-2024 Todd M. Kover
+-- All rights reserved.
+--
+-- Licensed under the Apache License, Version 2.0 (the "License");
+-- you may not use this file except in compliance with the License.
+-- You may obtain a copy of the License at
+--
+--      http://www.apache.org/licenses/LICENSE-2.0
+--
+-- Unless required by applicable law or agreed to in writing, software
+-- distributed under the License is distributed on an "AS IS" BASIS,
+-- WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+-- See the License for the specific language governing permissions and
+-- limitations under the License.
+--
+
+\set ON_ERROR_STOP
+
+/*
+ * This is meant to recurse all the descendants of a node or all the ancestors
+ * depending on how it is looked at.  "root" is the "oldest" ancestor,
+ * leaf means "youngest".  Other views have historically used these
+ * interchangably depending on how the newest works.
+ *
+ * NOTE:  path always set by order procssed, which is at the leaf "up" so
+ * the leaf will always be first.
+ *
+ * NOTE:  I figured this all out on a plane.
+ *
+ * start at the _bottom_ and recurse _up_, then in the end swap how they
+ * are presented because the "roto" is the "oldest" ancestor.
+ */
+CREATE OR REPLACE VIEW jazzhands_cache.v_netblock_collection_hier_recurse
+AS
+WITH RECURSIVE var_recurse (
+	leaf_netblock_collection_id,
+	netblock_collection_id,
+	path,
+	cycle
+) as (
+	SELECT
+		b.netblock_collection_id				AS leaf_netblock_collection_id,
+		b.netblock_collection_id				AS netblock_collection_id,
+		ARRAY[b.netblock_collection_id]			AS path,
+		false									AS cycle
+	  FROM	netblock_collection b
+UNION ALL
+	SELECT
+		x.leaf_netblock_collection_id			AS leaf_netblock_collection_id,
+		h.netblock_collection_id				AS netblock_collection_id,
+		x.path || h.netblock_collection_id		AS path,
+		h.netblock_collection_id = ANY(x.path)	AS cycle
+	  FROM	var_recurse x
+		JOIN netblock_collection_hier h
+			ON x.netblock_collection_id = h.child_netblock_collection_id
+	WHERE	NOT x.cycle
+) SELECT
+			leaf_netblock_collection_id		AS netblock_collection_id,
+			netblock_collection_id			AS root_netblock_collection_id,
+			path,
+			array_length(path, 1)			AS netblock_collection_level,
+			cycle
+  from		var_recurse
+;
+
+SELECT * FROM schema_support.create_cache_table(
+	cache_table_schema := 'jazzhands_cache',
+	cache_table := 'ct_netblock_collection_hier_recurse',
+	defining_view_schema := 'jazzhands_cache',
+	defining_view := 'v_netblock_collection_hier_recurse',
+	create_options := '{
+		"create_augment": {
+			"netblock_collection_level": "GENERATED ALWAYS AS ( array_length(path, 1) ) STORED"
+		}
+	}',
+	force := true
+);
+
+
+ALTER TABLE jazzhands_cache.ct_netblock_collection_hier_recurse
+	ADD PRIMARY KEY (path);
+
+CREATE INDEX ix_netblock_collection_hier_recurse_root_id  ON
+	jazzhands_cache.ct_netblock_collection_hier_recurse
+	(root_netblock_collection_id);
+
+CREATE INDEX ix_netblock_collection_hier_recurse_leaf_Id  ON
+	jazzhands_cache.ct_netblock_collection_hier_recurse
+	(netblock_collection_id);
+
+-- Thanks to slackoverflow :
+-- https://stackoverflow.com/questions/4058731/can-postgresql-index-array-columns
+--
+-- note that @> needs to be used instead of ANY to take advangage of this
+-- indexing.
+--
+CREATE INDEX ix_netblock_collection_hier_recurse_path
+	ON jazzhands_cache.ct_netblock_collection_hier_recurse USING GIN
+	(path array_ops);
+
+CREATE OR REPLACE FUNCTION
+	jazzhands_cache.ct_netblock_collection_hier_recurse_base_handler()
+RETURNS TRIGGER AS $$
+BEGIN
+	IF TG_OP = 'DELETE' THEN
+		DELETE FROM jazzhands_cache.ct_netblock_collection_hier_recurse
+		WHERE root_netblock_collection_id = OLD.netblock_collection_id
+		AND netblock_collection_id = OLD.netblock_collection_id;
+
+		RETURN OLD;
+	ELSIF TG_OP = 'UPDATE' THEN
+		UPDATE jazzhands_cache.ct_netblock_collection_hier_recurse
+		SET
+			root_netblock_collection_id = NEW.netblock_collection_id,
+			netblock_collection_id = NEW.netblock_collection_id
+		WHERE root_netblock_collection_id = OLD.netblock_collection_id
+		AND netblock_collection_id = OLD.netblock_collection_id;
+	ELSIF TG_OP = 'INSERT' THEN
+		INSERT INTO jazzhands_cache.ct_netblock_collection_hier_recurse (
+			root_netblock_collection_id,
+			netblock_collection_id,
+			path,
+			cycle
+		) VALUES (
+			NEW.netblock_collection_id,
+			NEW.netblock_collection_id,
+			ARRAY[NEW.netblock_collection_id],
+			false
+		);
+	END IF;
+
+	RETURN NEW;
+END
+$$
+LANGUAGE plpgsql
+SET search_path=jazzhands
+SECURITY DEFINER
+;
+
+DROP TRIGGER IF EXISTS aaa_ct_netblock_collection_hier_recurse_base_handler
+ON jazzhands.netblock_collection;
+
+
+CREATE TRIGGER aaa_ct_netblock_collection_hier_recurse_base_handler
+AFTER INSERT OR DELETE OR UPDATE OF netblock_collection_id
+ON jazzhands.netblock_collection
+FOR EACH ROW
+EXECUTE PROCEDURE
+	jazzhands_cache.ct_netblock_collection_hier_recurse_base_handler();
+
+-----------------------------------------------------------------------------
+
+CREATE OR REPLACE FUNCTION jazzhands_cache.netblock_collection_hier_recurse_handler()
+RETURNS TRIGGER AS $$
+DECLARE
+	_r		RECORD;
+	_d		RECORD;
+	_cnt	INTEGER;
+BEGIN
+	--
+	-- Delete any rows that are invalidated due to a parent change.
+	--
+	IF
+		(TG_OP = 'DELETE' OR TG_OP = 'UPDATE')
+	THEN
+		--
+		-- This convoluted statement delets anything where the path has the
+		-- parent and child consective in the path array.  This is nasty.
+		FOR _r IN
+		DELETE FROM jazzhands_cache.ct_netblock_collection_hier_recurse
+			WHERE path IN  (
+				SELECT path FROM (
+					SELECT * FROM (
+						SELECT path, unnest(path) as first,
+							unnest(pathplus) as second
+							--, row_number() over () as rn
+						FROM (
+							SELECT path, path[2:array_length(path, 1)] AS pathplus
+							FROM jazzhands_cache.ct_netblock_collection_hier_recurse
+						) i
+					) rmme WHERE second = OLD.netblock_collection_id
+					AND first = OLD.child_netblock_collection_id
+				) rmpath
+			)
+			RETURNING *
+		LOOP
+			RAISE DEBUG '-> nchd rm %', to_json(_r);
+		END LOOP
+		;
+		get diagnostics _cnt = row_count;
+		RAISE DEBUG 'Deleting upstream references to accol %/% from cache == %',
+			OLD.netblock_collection_id, OLD.child_netblock_collection_id, _cnt;
+	END IF;
+
+	--
+	-- Insert any new rows to correspond with a new parent
+	--
+	IF TG_OP = 'INSERT' OR TG_OP = 'UPDATE' THEN
+		RAISE DEBUG 'nchd %%Insert: %', to_json(NEW);
+
+		--- @> should use the GIN index.  ANY, not so much
+		FOR _r IN
+			SELECT DISTINCT
+				p.path as parent_path, c.path as child_path,
+				c.netblock_collection_id AS netblock_collection_id,
+				p.root_netblock_collection_id AS root_netblock_collection_id,
+				c.path || p.path as path,
+				p.path @> ARRAY[NEW.child_netblock_collection_id]  OR
+					c.path @> ARRAY[NEW.netblock_collection_id] AS cycle
+			FROM	jazzhands_cache.ct_netblock_collection_hier_recurse p,
+				jazzhands_cache.ct_netblock_collection_hier_recurse c
+			WHERE p.netblock_collection_id = NEW.netblock_collection_id
+			AND c.root_netblock_collection_id = NEW.child_netblock_collection_id
+		LOOP
+			RAISE DEBUG 'nchd: i/dsmash:%', to_json(_r);
+			IF _r.cycle THEN
+				RAISE EXCEPTION 'This creates an infite loop'
+					USING ERRCODE = 'invalid_parameter_value';
+			END IF;
+			INSERT INTO jazzhands_cache.ct_netblock_collection_hier_recurse (
+					root_netblock_collection_id,
+					netblock_collection_id,
+					path,
+					cycle
+				) VALUES (
+					_r.root_netblock_collection_id,
+					_r.netblock_collection_id,
+					_r.path,
+					_r.cycle
+				) RETURNING * INTO _d ;
+		END LOOP;
+	END IF;
+
+	RETURN NULL;
+END
+$$
+LANGUAGE plpgsql
+SET search_path=jazzhands
+SECURITY DEFINER
+;
+
+DROP TRIGGER IF EXISTS aaa_netblock_collection_hier_recurse_handler
+ON jazzhands.netblock_collection_hier;
+
+CREATE TRIGGER aaa_netblock_collection_hier_recurse_handler
+AFTER INSERT OR DELETE OR
+	UPDATE OF netblock_collection_id, child_netblock_collection_id
+ON jazzhands.netblock_collection_hier
+FOR EACH ROW
+EXECUTE PROCEDURE jazzhands_cache.netblock_collection_hier_recurse_handler();
+
+CREATE OR REPLACE VIEW jazzhands.v_netblock_collection_hier_descendent  AS
+SELECT netblock_collection_id, descendent_netblock_collection_id, netblock_collection_level
+FROM (
+	SELECT
+		root_netblock_collection_id	AS  netblock_collection_id,
+		netblock_collection_id		AS  descendent_netblock_collection_id,
+		array_length(path, 1)		AS  netblock_collection_level,
+		path						AS  netblock_collection_path,
+		row_number() OVER (PARTITION BY
+			root_netblock_collection_id, netblock_collection_id
+			ORDER BY array_length(path,1)) AS rnk
+	FROM jazzhands_cache.ct_netblock_collection_hier_recurse
+) h
+WHERE rnk = 1;
+
+COMMENT ON VIEW jazzhands.v_netblock_collection_hier_descendent IS
+	'All descendent netblock collections of a given netblock collection';
+
+CREATE OR REPLACE VIEW jazzhands.v_netblock_collection_hier_ancestor  AS
+SELECT netblock_collection_id,
+	ancestor_netblock_collection_id,
+	netblock_collection_level,
+	netblock_collection_path
+FROM (
+	SELECT
+		netblock_collection_id			AS  netblock_collection_id,
+		root_netblock_collection_id		AS  ancestor_netblock_collection_id,
+		array_length(path, 1)			AS  netblock_collection_level,
+		path							AS	netblock_collection_path,
+		row_number() OVER (PARTITION BY
+			netblock_collection_id, root_netblock_collection_id
+			ORDER BY array_length(path,1)) AS rnk
+	FROM jazzhands_cache.ct_netblock_collection_hier_recurse
+) h
+WHERE rnk = 1;
+
+COMMENT ON VIEW jazzhands.v_netblock_collection_hier_ancestor IS
+	'All ancestors of a given netblock collection';
+
+CREATE OR REPLACE VIEW jazzhands.v_netblock_collection_netblock_descendent AS
+SELECT
+	netblock_collection_id,
+	netblock_id,
+	netblock_collection_level,
+	netblock_collection_path
+FROM (
+	SELECT
+		root_netblock_collection_id	AS	netblock_collection_id,
+		netblock_id,
+		netblock_collection_level,
+		path AS netblock_collection_path,
+		row_number() OVER (PARTITION BY root_netblock_collection_id,  netblock_id
+			ORDER BY netblock_collection_level) AS rnk
+	FROM jazzhands_cache.ct_netblock_collection_hier_recurse
+			JOIN jazzhands.netblock_collection_netblock cm
+				USING (netblock_collection_id)
+) i
+WHERE rnk = 1;
+
+COMMENT ON VIEW jazzhands.v_netblock_collection_netblock_descendent IS
+	'All netblocks that are part of an netblock collection and (it''s descendent netblock collections, which is behind the scenes)';
+
+CREATE OR REPLACE VIEW jazzhands.v_netblock_collection_netblock_ancestor AS
+SELECT
+	netblock_collection_id,
+	netblock_id,
+	netblock_collection_level,
+	netblock_collection_path
+FROM (
+	SELECT
+		r.netblock_collection_id	AS	netblock_collection_id,
+		netblock_id, netblock_collection_level, path AS netblock_collection_path,
+		row_number() OVER (PARTITION BY r.netblock_collection_id,  netblock_id
+			ORDER BY netblock_collection_level) AS rnk
+	FROM jazzhands_cache.ct_netblock_collection_hier_recurse r
+			JOIN jazzhands.netblock_collection_netblock cm
+				ON r.root_netblock_collection_id = cm.netblock_collection_id
+) i
+WHERE rnk = 1;
+
+COMMENT ON VIEW jazzhands.v_netblock_collection_netblock_ancestor IS
+	'All netblocks that are part of an netblock collection and (it''s ancestor netblock collections, which is behind the scenes)';
+
+
+-- END Misc that does not apply to above
+
+
+-- BEGIN Misc that does not apply to above
+--
+-- Copyright (c) 2023-2024 Todd M. Kover
+-- All rights reserved.
+--
+-- Licensed under the Apache License, Version 2.0 (the "License");
+-- you may not use this file except in compliance with the License.
+-- You may obtain a copy of the License at
+--
+--      http://www.apache.org/licenses/LICENSE-2.0
+--
+-- Unless required by applicable law or agreed to in writing, software
+-- distributed under the License is distributed on an "AS IS" BASIS,
+-- WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+-- See the License for the specific language governing permissions and
+-- limitations under the License.
+--
+
+\set ON_ERROR_STOP
+
+/*
+ * This is meant to recurse all the descendants of a node or all the ancestors
+ * depending on how it is looked at.  "root" is the "oldest" ancestor,
+ * leaf means "youngest".  Other views have historically used these
+ * interchangably depending on how the newest works.
+ *
+ * NOTE:  path always set by order procssed, which is at the leaf "up" so
+ * the leaf will always be first.
+ *
+ * NOTE:  I figured this all out on a plane.
+ *
+ * start at the _bottom_ and recurse _up_, then in the end swap how they
+ * are presented because the "roto" is the "oldest" ancestor.
+ */
+CREATE OR REPLACE VIEW jazzhands_cache.v_company_collection_hier_recurse
+AS
+WITH RECURSIVE var_recurse (
+	leaf_company_collection_id,
+	company_collection_id,
+	path,
+	cycle
+) as (
+	SELECT
+		b.company_collection_id					AS leaf_company_collection_id,
+		b.company_collection_id					AS company_collection_id,
+		ARRAY[b.company_collection_id]			AS path,
+		false									AS cycle
+	  FROM	company_collection b
+UNION ALL
+	SELECT
+		x.leaf_company_collection_id			AS leaf_company_collection_id,
+		h.company_collection_id					AS company_collection_id,
+			x.path || h.company_collection_id	AS path,
+		h.company_collection_id = ANY(x.path)	AS cycle
+	  FROM	var_recurse x
+		JOIN company_collection_hier h
+			ON x.company_collection_id = h.child_company_collection_id
+	WHERE	NOT x.cycle
+) SELECT
+			leaf_company_collection_id		AS company_collection_id,
+			company_collection_id			AS root_company_collection_id,
+			path,
+			array_length(path, 1)			AS company_collection_level,
+			cycle
+  from			var_recurse
+;
+
+SELECT * FROM schema_support.create_cache_table(
+	cache_table_schema := 'jazzhands_cache',
+	cache_table := 'ct_company_collection_hier_recurse',
+	defining_view_schema := 'jazzhands_cache',
+	defining_view := 'v_company_collection_hier_recurse',
+	create_options := '{
+		"create_augment": {
+			"company_collection_level": "GENERATED ALWAYS AS ( array_length(path, 1) ) STORED"
+		}
+	}',
+	force := true
+);
+
+
+ALTER TABLE jazzhands_cache.ct_company_collection_hier_recurse
+	ADD PRIMARY KEY (path);
+
+CREATE INDEX ix_company_collection_hier_recurse_root_id  ON
+	jazzhands_cache.ct_company_collection_hier_recurse
+	(root_company_collection_id);
+
+CREATE INDEX ix_company_collection_hier_recurse_leaf_Id  ON
+	jazzhands_cache.ct_company_collection_hier_recurse
+	(company_collection_id);
+
+-- Thanks to slackoverflow :
+-- https://stackoverflow.com/questions/4058731/can-postgresql-index-array-columns
+--
+-- note that @> needs to be used instead of ANY to take advangage of this
+-- indexing.
+--
+CREATE INDEX ix_company_collection_hier_recurse_path
+	ON jazzhands_cache.ct_company_collection_hier_recurse USING GIN
+	(path array_ops);
+
+CREATE OR REPLACE FUNCTION
+	jazzhands_cache.ct_company_collection_hier_recurse_base_handler()
+RETURNS TRIGGER AS $$
+BEGIN
+	IF TG_OP = 'DELETE' THEN
+		DELETE FROM jazzhands_cache.ct_company_collection_hier_recurse
+		WHERE root_company_collection_id = OLD.company_collection_id
+		AND company_collection_id = OLD.company_collection_id;
+
+		RETURN OLD;
+	ELSIF TG_OP = 'UPDATE' THEN
+		UPDATE jazzhands_cache.ct_company_collection_hier_recurse
+		SET
+			root_company_collection_id = NEW.company_collection_id,
+			company_collection_id = NEW.company_collection_id
+		WHERE root_company_collection_id = OLD.company_collection_id
+		AND company_collection_id = OLD.company_collection_id;
+	ELSIF TG_OP = 'INSERT' THEN
+		INSERT INTO jazzhands_cache.ct_company_collection_hier_recurse (
+			root_company_collection_id,
+			company_collection_id,
+			path,
+			cycle
+		) VALUES (
+			NEW.company_collection_id,
+			NEW.company_collection_id,
+			ARRAY[NEW.company_collection_id],
+			false
+		);
+	END IF;
+
+	RETURN NEW;
+END
+$$
+LANGUAGE plpgsql
+SET search_path=jazzhands
+SECURITY DEFINER
+;
+
+DROP TRIGGER IF EXISTS aaa_ct_company_collection_hier_recurse_base_handler
+ON jazzhands.company_collection;
+
+
+CREATE TRIGGER aaa_ct_company_collection_hier_recurse_base_handler
+AFTER INSERT OR DELETE OR UPDATE OF company_collection_id
+ON jazzhands.company_collection
+FOR EACH ROW
+EXECUTE PROCEDURE
+	jazzhands_cache.ct_company_collection_hier_recurse_base_handler();
+
+-----------------------------------------------------------------------------
+
+CREATE OR REPLACE FUNCTION jazzhands_cache.company_collection_hier_recurse_handler()
+RETURNS TRIGGER AS $$
+DECLARE
+	_r		RECORD;
+	_d		RECORD;
+	_cnt	INTEGER;
+BEGIN
+	--
+	-- Delete any rows that are invalidated due to a parent change.
+	--
+	IF
+		(TG_OP = 'DELETE' OR TG_OP = 'UPDATE')
+	THEN
+		--
+		-- This convoluted statement deletes anything where the path has the
+		-- parent and child consective in the path array.  This is nasty.
+		FOR _r IN
+		DELETE FROM jazzhands_cache.ct_company_collection_hier_recurse
+			WHERE path IN  (
+				SELECT path FROM (
+					SELECT * FROM (
+						SELECT path, unnest(path) as first,
+							unnest(pathplus) as second
+							--, row_number() over () as rn
+						FROM (
+							SELECT path, path[2:array_length(path, 1)] AS pathplus
+							FROM jazzhands_cache.ct_company_collection_hier_recurse
+						) i
+					) rmme WHERE second = OLD.company_collection_id
+					AND first = OLD.child_company_collection_id
+				) rmpath
+			)
+			RETURNING *
+		LOOP
+			RAISE DEBUG '-> cchd rm %', to_json(_r);
+		END LOOP
+		;
+		get diagnostics _cnt = row_count;
+		RAISE DEBUG 'Deleting upstream references to accol %/% from cache == %',
+			OLD.company_collection_id, OLD.child_company_collection_id, _cnt;
+	END IF;
+
+	--
+	-- Insert any new rows to correspond with a new parent
+	--
+	IF TG_OP = 'INSERT' OR TG_OP = 'UPDATE' THEN
+		RAISE DEBUG 'cchd %%Insert: %', to_json(NEW);
+
+		--- @> should use the GIN index.  ANY, not so much
+		FOR _r IN
+			SELECT DISTINCT
+				p.path as parent_path, c.path as child_path,
+				c.company_collection_id AS company_collection_id,
+				p.root_company_collection_id AS root_company_collection_id,
+				c.path || p.path as path,
+				p.path @> ARRAY[NEW.child_company_collection_id]  OR
+					c.path @> ARRAY[NEW.company_collection_id] AS cycle
+			FROM	jazzhands_cache.ct_company_collection_hier_recurse p,
+				jazzhands_cache.ct_company_collection_hier_recurse c
+			WHERE p.company_collection_id = NEW.company_collection_id
+			AND c.root_company_collection_id = NEW.child_company_collection_id
+		LOOP
+			RAISE DEBUG 'cchd: i/dsmash:%', to_json(_r);
+			IF _r.cycle THEN
+				RAISE EXCEPTION 'This creates an infite loop'
+					USING ERRCODE = 'invalid_parameter_value';
+			END IF;
+			INSERT INTO jazzhands_cache.ct_company_collection_hier_recurse (
+					root_company_collection_id,
+					company_collection_id,
+					path,
+					cycle
+				) VALUES (
+					_r.root_company_collection_id,
+					_r.company_collection_id,
+					_r.path,
+					_r.cycle
+				) RETURNING * INTO _d ;
+		END LOOP;
+	END IF;
+
+	RETURN NULL;
+END
+$$
+LANGUAGE plpgsql
+SET search_path=jazzhands
+SECURITY DEFINER
+;
+
+DROP TRIGGER IF EXISTS aaa_company_collection_hier_recurse_handler
+ON jazzhands.company_collection_hier;
+
+CREATE TRIGGER aaa_company_collection_hier_recurse_handler
+AFTER INSERT OR DELETE OR
+	UPDATE OF company_collection_id, child_company_collection_id
+ON jazzhands.company_collection_hier
+FOR EACH ROW
+EXECUTE PROCEDURE jazzhands_cache.company_collection_hier_recurse_handler();
+
+CREATE OR REPLACE VIEW jazzhands.v_company_collection_hier_descendent  AS
+SELECT company_collection_id, descendent_company_collection_id, company_collection_level
+FROM (
+	SELECT
+		root_company_collection_id	AS  company_collection_id,
+		company_collection_id		AS  descendent_company_collection_id,
+		array_length(path, 1)		AS  company_collection_level,
+		path						AS  company_collection_path,
+		row_number() OVER (PARTITION BY
+			root_company_collection_id, company_collection_id
+			ORDER BY array_length(path,1)) AS rnk
+	FROM jazzhands_cache.ct_company_collection_hier_recurse
+) h
+WHERE rnk = 1;
+
+COMMENT ON VIEW jazzhands.v_company_collection_hier_descendent IS
+	'All descendent company collections of a given company collection';
+
+CREATE OR REPLACE VIEW jazzhands.v_company_collection_hier_ancestor  AS
+SELECT company_collection_id,
+	ancestor_company_collection_id,
+	company_collection_level,
+	company_collection_path
+FROM (
+	SELECT
+		company_collection_id			AS  company_collection_id,
+		root_company_collection_id		AS  ancestor_company_collection_id,
+		array_length(path, 1)			AS  company_collection_level,
+		path							AS	company_collection_path,
+		row_number() OVER (PARTITION BY
+			company_collection_id, root_company_collection_id
+			ORDER BY array_length(path,1)) AS rnk
+	FROM jazzhands_cache.ct_company_collection_hier_recurse
+) h
+WHERE rnk = 1;
+
+COMMENT ON VIEW jazzhands.v_company_collection_hier_ancestor IS
+	'All ancestors of a given company collection';
+
+CREATE OR REPLACE VIEW jazzhands.v_company_collection_company_descendent AS
+SELECT
+	company_collection_id,
+	company_id,
+	company_collection_level,
+	company_collection_path
+FROM (
+	SELECT
+		root_company_collection_id	AS	company_collection_id,
+		company_id,
+		company_collection_level,
+		path AS company_collection_path,
+		row_number() OVER (PARTITION BY root_company_collection_id,  company_id
+			ORDER BY company_collection_level) AS rnk
+	FROM jazzhands_cache.ct_company_collection_hier_recurse
+			JOIN jazzhands.company_collection_company cm
+				USING (company_collection_id)
+) i
+WHERE rnk = 1;
+
+COMMENT ON VIEW jazzhands.v_company_collection_company_descendent IS
+	'All companys that are part of an company collection and (it''s descendent company collections, which is behind the scenes)';
+
+CREATE OR REPLACE VIEW jazzhands.v_company_collection_company_ancestor AS
+SELECT
+	company_collection_id,
+	company_id,
+	company_collection_level,
+	company_collection_path
+FROM (
+	SELECT
+		r.company_collection_id	AS	company_collection_id,
+		company_id, company_collection_level, path AS company_collection_path,
+		row_number() OVER (PARTITION BY r.company_collection_id,  company_id
+			ORDER BY company_collection_level) AS rnk
+	FROM jazzhands_cache.ct_company_collection_hier_recurse r
+			JOIN jazzhands.company_collection_company cm
+				ON r.root_company_collection_id = cm.company_collection_id
+) i
+WHERE rnk = 1;
+
+COMMENT ON VIEW jazzhands.v_company_collection_company_ancestor IS
+	'All companys that are part of an company collection and (it''s ancestor company collections, which is behind the scenes)';
+
+
+-- END Misc that does not apply to above
+
+
+-- BEGIN Misc that does not apply to above
+--
+-- Copyright (c) 2023-2024 Todd M. Kover
+-- All rights reserved.
+--
+-- Licensed under the Apache License, Version 2.0 (the "License");
+-- you may not use this file except in compliance with the License.
+-- You may obtain a copy of the License at
+--
+--      http://www.apache.org/licenses/LICENSE-2.0
+--
+-- Unless required by applicable law or agreed to in writing, software
+-- distributed under the License is distributed on an "AS IS" BASIS,
+-- WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+-- See the License for the specific language governing permissions and
+-- limitations under the License.
+--
+
+\set ON_ERROR_STOP
+
+/*
+ * This is meant to recurse all the descendants of a node or all the ancestors
+ * depending on how it is looked at.  "root" is the "oldest" ancestor,
+ * leaf means "youngest".  Other views have historically used these
+ * interchangably depending on how the newest works.
+ *
+ * NOTE:  path always set by order procssed, which is at the leaf "up" so
+ * the leaf will always be first.
+ *
+ * NOTE:  I figured this all out on a plane.
+ *
+ * start at the _bottom_ and recurse _up_, then in the end swap how they
+ * are presented because the "roto" is the "oldest" ancestor.
+ */
+CREATE OR REPLACE VIEW jazzhands_cache.v_dns_domain_collection_hier_recurse
+AS
+WITH RECURSIVE var_recurse (
+	leaf_dns_domain_collection_id,
+	dns_domain_collection_id,
+	path,
+	cycle
+) as (
+	SELECT
+		b.dns_domain_collection_id				AS leaf_dns_domain_collection_id,
+		b.dns_domain_collection_id				AS dns_domain_collection_id,
+		ARRAY[b.dns_domain_collection_id]		AS path,
+		false									AS cycle
+	  FROM	dns_domain_collection b
+UNION ALL
+	SELECT
+		x.leaf_dns_domain_collection_id				AS leaf_dns_domain_collection_id,
+		h.dns_domain_collection_id					AS dns_domain_collection_id,
+		x.path || h.dns_domain_collection_id		AS path,
+		h.dns_domain_collection_id = ANY(x.path)	AS cycle
+	  FROM	var_recurse x
+		JOIN dns_domain_collection_hier h
+			ON x.dns_domain_collection_id = h.child_dns_domain_collection_id
+	WHERE	NOT x.cycle
+) SELECT
+			leaf_dns_domain_collection_id	AS dns_domain_collection_id,
+			dns_domain_collection_id		AS root_dns_domain_collection_id,
+			path,
+			array_length(path, 1)			AS dns_domain_collection_level,
+			cycle
+  from		var_recurse
+;
+
+SELECT * FROM schema_support.create_cache_table(
+	cache_table_schema := 'jazzhands_cache',
+	cache_table := 'ct_dns_domain_collection_hier_recurse',
+	defining_view_schema := 'jazzhands_cache',
+	defining_view := 'v_dns_domain_collection_hier_recurse',
+	create_options := '{
+		"create_augment": {
+			"dns_domain_collection_level": "GENERATED ALWAYS AS ( array_length(path, 1) ) STORED"
+		}
+	}',
+	force := true
+);
+
+
+ALTER TABLE jazzhands_cache.ct_dns_domain_collection_hier_recurse
+	ADD PRIMARY KEY (path);
+
+CREATE INDEX ix_dns_domain_collection_hier_recurse_root_id  ON
+	jazzhands_cache.ct_dns_domain_collection_hier_recurse
+	(root_dns_domain_collection_id);
+
+CREATE INDEX ix_dns_domain_collection_hier_recurse_leaf_Id  ON
+	jazzhands_cache.ct_dns_domain_collection_hier_recurse
+	(dns_domain_collection_id);
+
+-- Thanks to slackoverflow :
+-- https://stackoverflow.com/questions/4058731/can-postgresql-index-array-columns
+--
+-- note that @> needs to be used instead of ANY to take advangage of this
+-- indexing.
+--
+CREATE INDEX ix_dns_domain_collection_hier_recurse_path
+	ON jazzhands_cache.ct_dns_domain_collection_hier_recurse USING GIN
+	(path array_ops);
+
+CREATE OR REPLACE FUNCTION
+	jazzhands_cache.ct_dns_domain_collection_hier_recurse_base_handler()
+RETURNS TRIGGER AS $$
+BEGIN
+	IF TG_OP = 'DELETE' THEN
+		DELETE FROM jazzhands_cache.ct_dns_domain_collection_hier_recurse
+		WHERE root_dns_domain_collection_id = OLD.dns_domain_collection_id
+		AND dns_domain_collection_id = OLD.dns_domain_collection_id;
+
+		RETURN OLD;
+	ELSIF TG_OP = 'UPDATE' THEN
+		UPDATE jazzhands_cache.ct_dns_domain_collection_hier_recurse
+		SET
+			root_dns_domain_collection_id = NEW.dns_domain_collection_id,
+			dns_domain_collection_id = NEW.dns_domain_collection_id
+		WHERE root_dns_domain_collection_id = OLD.dns_domain_collection_id
+		AND dns_domain_collection_id = OLD.dns_domain_collection_id;
+	ELSIF TG_OP = 'INSERT' THEN
+		INSERT INTO jazzhands_cache.ct_dns_domain_collection_hier_recurse (
+			root_dns_domain_collection_id,
+			dns_domain_collection_id,
+			path,
+			cycle
+		) VALUES (
+			NEW.dns_domain_collection_id,
+			NEW.dns_domain_collection_id,
+			ARRAY[NEW.dns_domain_collection_id],
+			false
+		);
+	END IF;
+
+	RETURN NEW;
+END
+$$
+LANGUAGE plpgsql
+SET search_path=jazzhands
+SECURITY DEFINER
+;
+
+DROP TRIGGER IF EXISTS aaa_ct_dns_domain_collection_hier_recurse_base_handler
+ON jazzhands.dns_domain_collection;
+
+
+CREATE TRIGGER aaa_ct_dns_domain_collection_hier_recurse_base_handler
+AFTER INSERT OR DELETE OR UPDATE OF dns_domain_collection_id
+ON jazzhands.dns_domain_collection
+FOR EACH ROW
+EXECUTE PROCEDURE
+	jazzhands_cache.ct_dns_domain_collection_hier_recurse_base_handler();
+
+-----------------------------------------------------------------------------
+
+CREATE OR REPLACE FUNCTION jazzhands_cache.dns_domain_collection_hier_recurse_handler()
+RETURNS TRIGGER AS $$
+DECLARE
+	_r		RECORD;
+	_d		RECORD;
+	_cnt	INTEGER;
+BEGIN
+	--
+	-- Delete any rows that are invalidated due to a parent change.
+	--
+	IF
+		(TG_OP = 'DELETE' OR TG_OP = 'UPDATE')
+	THEN
+		--
+		-- This convoluted statement deletes anything where the path has the
+		-- parent and child consective in the path array.  This is nasty.
+		FOR _r IN
+		DELETE FROM jazzhands_cache.ct_dns_domain_collection_hier_recurse
+			WHERE path IN  (
+				SELECT path FROM (
+					SELECT * FROM (
+						SELECT path, unnest(path) as first,
+							unnest(pathplus) as second
+							--, row_number() over () as rn
+						FROM (
+							SELECT path, path[2:array_length(path, 1)] AS pathplus
+							FROM jazzhands_cache.ct_dns_domain_collection_hier_recurse
+						) i
+					) rmme WHERE second = OLD.dns_domain_collection_id
+					AND first = OLD.child_dns_domain_collection_id
+				) rmpath
+			)
+			RETURNING *
+		LOOP
+			RAISE DEBUG '-> ddchd rm %', to_json(_r);
+		END LOOP
+		;
+		get diagnostics _cnt = row_count;
+		RAISE DEBUG 'Deleting upstream references to accol %/% from cache == %',
+			OLD.dns_domain_collection_id, OLD.child_dns_domain_collection_id, _cnt;
+	END IF;
+
+	--
+	-- Insert any new rows to correspond with a new parent
+	--
+	IF TG_OP = 'INSERT' OR TG_OP = 'UPDATE' THEN
+		RAISE DEBUG 'ddchd %%Insert: %', to_json(NEW);
+
+		--- @> should use the GIN index.  ANY, not so much
+		FOR _r IN
+			SELECT DISTINCT
+				p.path as parent_path, c.path as child_path,
+				c.dns_domain_collection_id AS dns_domain_collection_id,
+				p.root_dns_domain_collection_id AS root_dns_domain_collection_id,
+				c.path || p.path as path,
+				p.path @> ARRAY[NEW.child_dns_domain_collection_id]  OR
+					c.path @> ARRAY[NEW.dns_domain_collection_id] AS cycle
+			FROM	jazzhands_cache.ct_dns_domain_collection_hier_recurse p,
+				jazzhands_cache.ct_dns_domain_collection_hier_recurse c
+			WHERE p.dns_domain_collection_id = NEW.dns_domain_collection_id
+			AND c.root_dns_domain_collection_id = NEW.child_dns_domain_collection_id
+		LOOP
+			RAISE DEBUG 'ddchd: i/dsmash:%', to_json(_r);
+			IF _r.cycle THEN
+				RAISE EXCEPTION 'This creates an infite loop'
+					USING ERRCODE = 'invalid_parameter_value';
+			END IF;
+			INSERT INTO jazzhands_cache.ct_dns_domain_collection_hier_recurse (
+					root_dns_domain_collection_id,
+					dns_domain_collection_id,
+					path,
+					cycle
+				) VALUES (
+					_r.root_dns_domain_collection_id,
+					_r.dns_domain_collection_id,
+					_r.path,
+					_r.cycle
+				) RETURNING * INTO _d ;
+		END LOOP;
+	END IF;
+
+	RETURN NULL;
+END
+$$
+LANGUAGE plpgsql
+SET search_path=jazzhands
+SECURITY DEFINER
+;
+
+DROP TRIGGER IF EXISTS aaa_dns_domain_collection_hier_recurse_handler
+ON jazzhands.dns_domain_collection_hier;
+
+CREATE TRIGGER aaa_dns_domain_collection_hier_recurse_handler
+AFTER INSERT OR DELETE OR
+	UPDATE OF dns_domain_collection_id, child_dns_domain_collection_id
+ON jazzhands.dns_domain_collection_hier
+FOR EACH ROW
+EXECUTE PROCEDURE jazzhands_cache.dns_domain_collection_hier_recurse_handler();
+
+CREATE OR REPLACE VIEW jazzhands.v_dns_domain_collection_hier_descendent  AS
+SELECT dns_domain_collection_id, descendent_dns_domain_collection_id, dns_domain_collection_level
+FROM (
+	SELECT
+		root_dns_domain_collection_id	AS  dns_domain_collection_id,
+		dns_domain_collection_id		AS  descendent_dns_domain_collection_id,
+		array_length(path, 1)			AS  dns_domain_collection_level,
+		path							AS  dns_domain_collection_path,
+		row_number() OVER (PARTITION BY
+			root_dns_domain_collection_id, dns_domain_collection_id
+			ORDER BY array_length(path,1)) AS rnk
+	FROM jazzhands_cache.ct_dns_domain_collection_hier_recurse
+) h
+WHERE rnk = 1;
+
+COMMENT ON VIEW jazzhands.v_dns_domain_collection_hier_descendent IS
+	'All descendent dns_domain collections of a given dns_domain collection';
+
+CREATE OR REPLACE VIEW jazzhands.v_dns_domain_collection_hier_ancestor  AS
+SELECT dns_domain_collection_id,
+	ancestor_dns_domain_collection_id,
+	dns_domain_collection_level,
+	dns_domain_collection_path
+FROM (
+	SELECT
+		dns_domain_collection_id			AS  dns_domain_collection_id,
+		root_dns_domain_collection_id		AS  ancestor_dns_domain_collection_id,
+		array_length(path, 1)				AS  dns_domain_collection_level,
+		path								AS	dns_domain_collection_path,
+		row_number() OVER (PARTITION BY
+			dns_domain_collection_id, root_dns_domain_collection_id
+			ORDER BY array_length(path,1)) AS rnk
+	FROM jazzhands_cache.ct_dns_domain_collection_hier_recurse
+) h
+WHERE rnk = 1;
+
+COMMENT ON VIEW jazzhands.v_dns_domain_collection_hier_ancestor IS
+	'All ancestors of a given dns_domain collection';
+
+CREATE OR REPLACE VIEW jazzhands.v_dns_domain_collection_dns_domain_descendent AS
+SELECT
+	dns_domain_collection_id,
+	dns_domain_id,
+	dns_domain_collection_level,
+	dns_domain_collection_path
+FROM (
+	SELECT
+		root_dns_domain_collection_id	AS	dns_domain_collection_id,
+		dns_domain_id,
+		dns_domain_collection_level,
+		path AS dns_domain_collection_path,
+		row_number() OVER (PARTITION BY root_dns_domain_collection_id,  dns_domain_id
+			ORDER BY dns_domain_collection_level) AS rnk
+	FROM jazzhands_cache.ct_dns_domain_collection_hier_recurse
+			JOIN jazzhands.dns_domain_collection_dns_domain cm
+				USING (dns_domain_collection_id)
+) i
+WHERE rnk = 1;
+
+COMMENT ON VIEW jazzhands.v_dns_domain_collection_dns_domain_descendent IS
+	'All dns_domains that are part of an dns_domain collection and (it''s descendent dns_domain collections, which is behind the scenes)';
+
+CREATE OR REPLACE VIEW jazzhands.v_dns_domain_collection_dns_domain_ancestor AS
+SELECT
+	dns_domain_collection_id,
+	dns_domain_id,
+	dns_domain_collection_level,
+	dns_domain_collection_path
+FROM (
+	SELECT
+		r.dns_domain_collection_id	AS	dns_domain_collection_id,
+		dns_domain_id, dns_domain_collection_level, path AS dns_domain_collection_path,
+		row_number() OVER (PARTITION BY r.dns_domain_collection_id,  dns_domain_id
+			ORDER BY dns_domain_collection_level) AS rnk
+	FROM jazzhands_cache.ct_dns_domain_collection_hier_recurse r
+			JOIN jazzhands.dns_domain_collection_dns_domain cm
+				ON r.root_dns_domain_collection_id = cm.dns_domain_collection_id
+) i
+WHERE rnk = 1;
+
+COMMENT ON VIEW jazzhands.v_dns_domain_collection_dns_domain_ancestor IS
+	'All dns_domains that are part of an dns_domain collection and (it''s ancestor dns_domain collections, which is behind the scenes)';
+
+
+-- END Misc that does not apply to above
+
+
+-- BEGIN Misc that does not apply to above
+--
+-- Copyright (c) 2023-2024 Todd M. Kover
+-- All rights reserved.
+--
+-- Licensed under the Apache License, Version 2.0 (the "License");
+-- you may not use this file except in compliance with the License.
+-- You may obtain a copy of the License at
+--
+--      http://www.apache.org/licenses/LICENSE-2.0
+--
+-- Unless required by applicable law or agreed to in writing, software
+-- distributed under the License is distributed on an "AS IS" BASIS,
+-- WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+-- See the License for the specific language governing permissions and
+-- limitations under the License.
+--
+
+\set ON_ERROR_STOP
+
+/*
+ * This is meant to recurse all the descendants of a node or all the ancestors
+ * depending on how it is looked at.  "root" is the "oldest" ancestor,
+ * leaf means "youngest".  Other views have historically used these
+ * interchangably depending on how the newest works.
+ *
+ * NOTE:  path always set by order procssed, which is at the leaf "up" so
+ * the leaf will always be first.
+ *
+ * NOTE:  I figured this all out on a plane.
+ *
+ * start at the _bottom_ and recurse _up_, then in the end swap how they
+ * are presented because the "roto" is the "oldest" ancestor.
+ */
+CREATE OR REPLACE VIEW jazzhands_cache.v_layer2_network_collection_hier_recurse
+AS
+WITH RECURSIVE var_recurse (
+	leaf_layer2_network_collection_id,
+	layer2_network_collection_id,
+	path,
+	cycle
+) as (
+	SELECT
+		b.layer2_network_collection_id			AS leaf_layer2_network_collection_id,
+		b.layer2_network_collection_id			AS layer2_network_collection_id,
+		ARRAY[b.layer2_network_collection_id]	AS path,
+		false									AS cycle
+	  FROM	layer2_network_collection b
+UNION ALL
+	SELECT
+		x.leaf_layer2_network_collection_id				AS leaf_layer2_network_collection_id,
+		h.layer2_network_collection_id					AS layer2_network_collection_id,
+			x.path || h.layer2_network_collection_id	AS path,
+		h.layer2_network_collection_id = ANY(x.path)	AS cycle
+	  FROM	var_recurse x
+		JOIN layer2_network_collection_hier h
+			ON x.layer2_network_collection_id = h.child_layer2_network_collection_id
+	WHERE	NOT x.cycle
+) SELECT
+			leaf_layer2_network_collection_id	AS layer2_network_collection_id,
+			layer2_network_collection_id		AS root_layer2_network_collection_id,
+			path,
+			array_length(path, 1)				AS layer2_network_collection_level,
+			cycle
+  from			var_recurse
+;
+
+SELECT * FROM schema_support.create_cache_table(
+	cache_table_schema := 'jazzhands_cache',
+	cache_table := 'ct_layer2_network_collection_hier_recurse',
+	defining_view_schema := 'jazzhands_cache',
+	defining_view := 'v_layer2_network_collection_hier_recurse',
+	create_options := '{
+		"create_augment": {
+			"layer2_network_collection_level": "GENERATED ALWAYS AS ( array_length(path, 1) ) STORED"
+		}
+	}',
+	force := true
+);
+
+
+ALTER TABLE jazzhands_cache.ct_layer2_network_collection_hier_recurse
+	ADD PRIMARY KEY (path);
+
+CREATE INDEX ix_layer2_network_collection_hier_recurse_root_id  ON
+	jazzhands_cache.ct_layer2_network_collection_hier_recurse
+	(root_layer2_network_collection_id);
+
+CREATE INDEX ix_layer2_network_collection_hier_recurse_leaf_Id  ON
+	jazzhands_cache.ct_layer2_network_collection_hier_recurse
+	(layer2_network_collection_id);
+
+-- Thanks to slackoverflow :
+-- https://stackoverflow.com/questions/4058731/can-postgresql-index-array-columns
+--
+-- note that @> needs to be used instead of ANY to take advangage of this
+-- indexing.
+--
+CREATE INDEX ix_layer2_network_collection_hier_recurse_path
+	ON jazzhands_cache.ct_layer2_network_collection_hier_recurse USING GIN
+	(path array_ops);
+
+CREATE OR REPLACE FUNCTION
+	jazzhands_cache.ct_layer2_network_collection_hier_recurse_base_handler()
+RETURNS TRIGGER AS $$
+BEGIN
+	IF TG_OP = 'DELETE' THEN
+		DELETE FROM jazzhands_cache.ct_layer2_network_collection_hier_recurse
+		WHERE root_layer2_network_collection_id = OLD.layer2_network_collection_id
+		AND layer2_network_collection_id = OLD.layer2_network_collection_id;
+
+		RETURN OLD;
+	ELSIF TG_OP = 'UPDATE' THEN
+		UPDATE jazzhands_cache.ct_layer2_network_collection_hier_recurse
+		SET
+			root_layer2_network_collection_id = NEW.layer2_network_collection_id,
+			layer2_network_collection_id = NEW.layer2_network_collection_id
+		WHERE root_layer2_network_collection_id = OLD.layer2_network_collection_id
+		AND layer2_network_collection_id = OLD.layer2_network_collection_id;
+	ELSIF TG_OP = 'INSERT' THEN
+		INSERT INTO jazzhands_cache.ct_layer2_network_collection_hier_recurse (
+			root_layer2_network_collection_id,
+			layer2_network_collection_id,
+			path,
+			cycle
+		) VALUES (
+			NEW.layer2_network_collection_id,
+			NEW.layer2_network_collection_id,
+			ARRAY[NEW.layer2_network_collection_id],
+			false
+		);
+	END IF;
+
+	RETURN NEW;
+END
+$$
+LANGUAGE plpgsql
+SET search_path=jazzhands
+SECURITY DEFINER
+;
+
+DROP TRIGGER IF EXISTS aaa_ct_layer2_network_collection_hier_recurse_base_handler
+ON jazzhands.layer2_network_collection;
+
+
+CREATE TRIGGER aaa_ct_layer2_network_collection_hier_recurse_base_handler
+AFTER INSERT OR DELETE OR UPDATE OF layer2_network_collection_id
+ON jazzhands.layer2_network_collection
+FOR EACH ROW
+EXECUTE PROCEDURE
+	jazzhands_cache.ct_layer2_network_collection_hier_recurse_base_handler();
+
+-----------------------------------------------------------------------------
+
+CREATE OR REPLACE FUNCTION jazzhands_cache.layer2_network_collection_hier_recurse_handler()
+RETURNS TRIGGER AS $$
+DECLARE
+	_r		RECORD;
+	_d		RECORD;
+	_cnt	INTEGER;
+BEGIN
+	--
+	-- Delete any rows that are invalidated due to a parent change.
+	--
+	IF
+		(TG_OP = 'DELETE' OR TG_OP = 'UPDATE')
+	THEN
+		--
+		-- This convoluted statement deletes anything where the path has the
+		-- parent and child consective in the path array.  This is nasty.
+		FOR _r IN
+		DELETE FROM jazzhands_cache.ct_layer2_network_collection_hier_recurse
+			WHERE path IN  (
+				SELECT path FROM (
+					SELECT * FROM (
+						SELECT path, unnest(path) as first,
+							unnest(pathplus) as second
+							--, row_number() over () as rn
+						FROM (
+							SELECT path, path[2:array_length(path, 1)] AS pathplus
+							FROM jazzhands_cache.ct_layer2_network_collection_hier_recurse
+						) i
+					) rmme WHERE second = OLD.layer2_network_collection_id
+					AND first = OLD.child_layer2_network_collection_id
+				) rmpath
+			)
+			RETURNING *
+		LOOP
+			RAISE DEBUG '-> l2nchd rm %', to_json(_r);
+		END LOOP
+		;
+		get diagnostics _cnt = row_count;
+		RAISE DEBUG 'Deleting upstream references to accol %/% from cache == %',
+			OLD.layer2_network_collection_id, OLD.child_layer2_network_collection_id, _cnt;
+	END IF;
+
+	--
+	-- Insert any new rows to correspond with a new parent
+	--
+	IF TG_OP = 'INSERT' OR TG_OP = 'UPDATE' THEN
+		RAISE DEBUG 'l2nchd %%Insert: %', to_json(NEW);
+
+		--- @> should use the GIN index.  ANY, not so much
+		FOR _r IN
+			SELECT DISTINCT
+				p.path as parent_path, c.path as child_path,
+				c.layer2_network_collection_id AS layer2_network_collection_id,
+				p.root_layer2_network_collection_id AS root_layer2_network_collection_id,
+				c.path || p.path as path,
+				p.path @> ARRAY[NEW.child_layer2_network_collection_id]  OR
+					c.path @> ARRAY[NEW.layer2_network_collection_id] AS cycle
+			FROM	jazzhands_cache.ct_layer2_network_collection_hier_recurse p,
+				jazzhands_cache.ct_layer2_network_collection_hier_recurse c
+			WHERE p.layer2_network_collection_id = NEW.layer2_network_collection_id
+			AND c.root_layer2_network_collection_id = NEW.child_layer2_network_collection_id
+		LOOP
+			RAISE DEBUG 'l2nchd: i/dsmash:%', to_json(_r);
+			IF _r.cycle THEN
+				RAISE EXCEPTION 'This creates an infite loop'
+					USING ERRCODE = 'invalid_parameter_value';
+			END IF;
+			INSERT INTO jazzhands_cache.ct_layer2_network_collection_hier_recurse (
+					root_layer2_network_collection_id,
+					layer2_network_collection_id,
+					path,
+					cycle
+				) VALUES (
+					_r.root_layer2_network_collection_id,
+					_r.layer2_network_collection_id,
+					_r.path,
+					_r.cycle
+				) RETURNING * INTO _d ;
+		END LOOP;
+	END IF;
+
+	RETURN NULL;
+END
+$$
+LANGUAGE plpgsql
+SET search_path=jazzhands
+SECURITY DEFINER
+;
+
+DROP TRIGGER IF EXISTS aaa_layer2_network_collection_hier_recurse_handler
+ON jazzhands.layer2_network_collection_hier;
+
+CREATE TRIGGER aaa_layer2_network_collection_hier_recurse_handler
+AFTER INSERT OR DELETE OR
+	UPDATE OF layer2_network_collection_id, child_layer2_network_collection_id
+ON jazzhands.layer2_network_collection_hier
+FOR EACH ROW
+EXECUTE PROCEDURE jazzhands_cache.layer2_network_collection_hier_recurse_handler();
+
+CREATE OR REPLACE VIEW jazzhands.v_layer2_network_collection_hier_descendent  AS
+SELECT layer2_network_collection_id, descendent_layer2_network_collection_id, layer2_network_collection_level
+FROM (
+	SELECT
+		root_layer2_network_collection_id	AS  layer2_network_collection_id,
+		layer2_network_collection_id		AS  descendent_layer2_network_collection_id,
+		array_length(path, 1)				AS  layer2_network_collection_level,
+		path								AS  layer2_network_collection_path,
+		row_number() OVER (PARTITION BY
+			root_layer2_network_collection_id, layer2_network_collection_id
+			ORDER BY array_length(path,1)) AS rnk
+	FROM jazzhands_cache.ct_layer2_network_collection_hier_recurse
+) h
+WHERE rnk = 1;
+
+COMMENT ON VIEW jazzhands.v_layer2_network_collection_hier_descendent IS
+	'All descendent layer2_network collections of a given layer2_network collection';
+
+CREATE OR REPLACE VIEW jazzhands.v_layer2_network_collection_hier_ancestor  AS
+SELECT layer2_network_collection_id,
+	ancestor_layer2_network_collection_id,
+	layer2_network_collection_level,
+	layer2_network_collection_path
+FROM (
+	SELECT
+		layer2_network_collection_id			AS  layer2_network_collection_id,
+		root_layer2_network_collection_id		AS  ancestor_layer2_network_collection_id,
+		array_length(path, 1)					AS  layer2_network_collection_level,
+		path									AS	layer2_network_collection_path,
+		row_number() OVER (PARTITION BY
+			layer2_network_collection_id, root_layer2_network_collection_id
+			ORDER BY array_length(path,1)) AS rnk
+	FROM jazzhands_cache.ct_layer2_network_collection_hier_recurse
+) h
+WHERE rnk = 1;
+
+COMMENT ON VIEW jazzhands.v_layer2_network_collection_hier_ancestor IS
+	'All ancestors of a given layer2_network collection';
+
+CREATE OR REPLACE VIEW jazzhands.v_layer2_network_collection_layer2_network_descendent AS
+SELECT
+	layer2_network_collection_id,
+	layer2_network_id,
+	layer2_network_collection_level,
+	layer2_network_collection_path
+FROM (
+	SELECT
+		root_layer2_network_collection_id	AS	layer2_network_collection_id,
+		layer2_network_id,
+		layer2_network_collection_level,
+		path AS layer2_network_collection_path,
+		row_number() OVER (PARTITION BY root_layer2_network_collection_id,  layer2_network_id
+			ORDER BY layer2_network_collection_level) AS rnk
+	FROM jazzhands_cache.ct_layer2_network_collection_hier_recurse
+			JOIN jazzhands.layer2_network_collection_layer2_network cm
+				USING (layer2_network_collection_id)
+) i
+WHERE rnk = 1;
+
+COMMENT ON VIEW jazzhands.v_layer2_network_collection_layer2_network_descendent IS
+	'All layer2_networks that are part of an layer2_network collection and (it''s descendent layer2_network collections, which is behind the scenes)';
+
+CREATE OR REPLACE VIEW jazzhands.v_layer2_network_collection_layer2_network_ancestor AS
+SELECT
+	layer2_network_collection_id,
+	layer2_network_id,
+	layer2_network_collection_level,
+	layer2_network_collection_path
+FROM (
+	SELECT
+		r.layer2_network_collection_id	AS	layer2_network_collection_id,
+		layer2_network_id, layer2_network_collection_level, path AS layer2_network_collection_path,
+		row_number() OVER (PARTITION BY r.layer2_network_collection_id,  layer2_network_id
+			ORDER BY layer2_network_collection_level) AS rnk
+	FROM jazzhands_cache.ct_layer2_network_collection_hier_recurse r
+			JOIN jazzhands.layer2_network_collection_layer2_network cm
+				ON r.root_layer2_network_collection_id = cm.layer2_network_collection_id
+) i
+WHERE rnk = 1;
+
+COMMENT ON VIEW jazzhands.v_layer2_network_collection_layer2_network_ancestor IS
+	'All layer2_networks that are part of an layer2_network collection and (it''s ancestor layer2_network collections, which is behind the scenes)';
+
+
+-- END Misc that does not apply to above
+
+
+-- BEGIN Misc that does not apply to above
+--
+-- Copyright (c) 2023-2024 Todd M. Kover
+-- All rights reserved.
+--
+-- Licensed under the Apache License, Version 2.0 (the "License");
+-- you may not use this file except in compliance with the License.
+-- You may obtain a copy of the License at
+--
+--      http://www.apache.org/licenses/LICENSE-2.0
+--
+-- Unless required by applicable law or agreed to in writing, software
+-- distributed under the License is distributed on an "AS IS" BASIS,
+-- WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+-- See the License for the specific language governing permissions and
+-- limitations under the License.
+--
+
+\set ON_ERROR_STOP
+
+/*
+ * This is meant to recurse all the descendants of a node or all the ancestors
+ * depending on how it is looked at.  "root" is the "oldest" ancestor,
+ * leaf means "youngest".  Other views have historically used these
+ * interchangably depending on how the newest works.
+ *
+ * NOTE:  path always set by order procssed, which is at the leaf "up" so
+ * the leaf will always be first.
+ *
+ * NOTE:  I figured this all out on a plane.
+ *
+ * start at the _bottom_ and recurse _up_, then in the end swap how they
+ * are presented because the "roto" is the "oldest" ancestor.
+ */
+CREATE OR REPLACE VIEW jazzhands_cache.v_layer3_network_collection_hier_recurse
+AS
+WITH RECURSIVE var_recurse (
+	leaf_layer3_network_collection_id,
+	layer3_network_collection_id,
+	path,
+	cycle
+) as (
+	SELECT
+		b.layer3_network_collection_id			AS leaf_layer3_network_collection_id,
+		b.layer3_network_collection_id			AS layer3_network_collection_id,
+		ARRAY[b.layer3_network_collection_id]	AS path,
+		false									AS cycle
+	  FROM	layer3_network_collection b
+UNION ALL
+	SELECT
+		x.leaf_layer3_network_collection_id				AS leaf_layer3_network_collection_id,
+		h.layer3_network_collection_id					AS layer3_network_collection_id,
+			x.path || h.layer3_network_collection_id	AS path,
+		h.layer3_network_collection_id = ANY(x.path)	AS cycle
+	  FROM	var_recurse x
+		JOIN layer3_network_collection_hier h
+			ON x.layer3_network_collection_id = h.child_layer3_network_collection_id
+	WHERE	NOT x.cycle
+) SELECT
+			leaf_layer3_network_collection_id		AS layer3_network_collection_id,
+			layer3_network_collection_id			AS root_layer3_network_collection_id,
+			path,
+			array_length(path, 1)		AS layer3_network_collection_level,
+			cycle
+  from			var_recurse
+;
+
+SELECT * FROM schema_support.create_cache_table(
+	cache_table_schema := 'jazzhands_cache',
+	cache_table := 'ct_layer3_network_collection_hier_recurse',
+	defining_view_schema := 'jazzhands_cache',
+	defining_view := 'v_layer3_network_collection_hier_recurse',
+	create_options := '{
+		"create_augment": {
+			"layer3_network_collection_level": "GENERATED ALWAYS AS ( array_length(path, 1) ) STORED"
+		}
+	}',
+	force := true
+);
+
+
+ALTER TABLE jazzhands_cache.ct_layer3_network_collection_hier_recurse
+	ADD PRIMARY KEY (path);
+
+CREATE INDEX ix_layer3_network_collection_hier_recurse_root_id  ON
+	jazzhands_cache.ct_layer3_network_collection_hier_recurse
+	(root_layer3_network_collection_id);
+
+CREATE INDEX ix_layer3_network_collection_hier_recurse_leaf_Id  ON
+	jazzhands_cache.ct_layer3_network_collection_hier_recurse
+	(layer3_network_collection_id);
+
+-- Thanks to slackoverflow :
+-- https://stackoverflow.com/questions/4058731/can-postgresql-index-array-columns
+--
+-- note that @> needs to be used instead of ANY to take advangage of this
+-- indexing.
+--
+CREATE INDEX ix_layer3_network_collection_hier_recurse_path
+	ON jazzhands_cache.ct_layer3_network_collection_hier_recurse USING GIN
+	(path array_ops);
+
+CREATE OR REPLACE FUNCTION
+	jazzhands_cache.ct_layer3_network_collection_hier_recurse_base_handler()
+RETURNS TRIGGER AS $$
+BEGIN
+	IF TG_OP = 'DELETE' THEN
+		DELETE FROM jazzhands_cache.ct_layer3_network_collection_hier_recurse
+		WHERE root_layer3_network_collection_id = OLD.layer3_network_collection_id
+		AND layer3_network_collection_id = OLD.layer3_network_collection_id;
+
+		RETURN OLD;
+	ELSIF TG_OP = 'UPDATE' THEN
+		UPDATE jazzhands_cache.ct_layer3_network_collection_hier_recurse
+		SET
+			root_layer3_network_collection_id = NEW.layer3_network_collection_id,
+			layer3_network_collection_id = NEW.layer3_network_collection_id
+		WHERE root_layer3_network_collection_id = OLD.layer3_network_collection_id
+		AND layer3_network_collection_id = OLD.layer3_network_collection_id;
+	ELSIF TG_OP = 'INSERT' THEN
+		INSERT INTO jazzhands_cache.ct_layer3_network_collection_hier_recurse (
+			root_layer3_network_collection_id,
+			layer3_network_collection_id,
+			path,
+			cycle
+		) VALUES (
+			NEW.layer3_network_collection_id,
+			NEW.layer3_network_collection_id,
+			ARRAY[NEW.layer3_network_collection_id],
+			false
+		);
+	END IF;
+
+	RETURN NEW;
+END
+$$
+LANGUAGE plpgsql
+SET search_path=jazzhands
+SECURITY DEFINER
+;
+
+DROP TRIGGER IF EXISTS aaa_ct_layer3_network_collection_hier_recurse_base_handler
+ON jazzhands.layer3_network_collection;
+
+
+CREATE TRIGGER aaa_ct_layer3_network_collection_hier_recurse_base_handler
+AFTER INSERT OR DELETE OR UPDATE OF layer3_network_collection_id
+ON jazzhands.layer3_network_collection
+FOR EACH ROW
+EXECUTE PROCEDURE
+	jazzhands_cache.ct_layer3_network_collection_hier_recurse_base_handler();
+
+-----------------------------------------------------------------------------
+
+CREATE OR REPLACE FUNCTION jazzhands_cache.layer3_network_collection_hier_recurse_handler()
+RETURNS TRIGGER AS $$
+DECLARE
+	_r		RECORD;
+	_d		RECORD;
+	_cnt	INTEGER;
+BEGIN
+	--
+	-- Delete any rows that are invalidated due to a parent change.
+	--
+	IF
+		(TG_OP = 'DELETE' OR TG_OP = 'UPDATE')
+	THEN
+		--
+		-- This convoluted statement delets anything where the path has the
+		-- parent and child consective in the path array.  This is nasty.
+		FOR _r IN
+		DELETE FROM jazzhands_cache.ct_layer3_network_collection_hier_recurse
+			WHERE path IN  (
+				SELECT path FROM (
+					SELECT * FROM (
+						SELECT path, unnest(path) as first,
+							unnest(pathplus) as second
+							--, row_number() over () as rn
+						FROM (
+							SELECT path, path[2:array_length(path, 1)] AS pathplus
+							FROM jazzhands_cache.ct_layer3_network_collection_hier_recurse
+						) i
+					) rmme WHERE second = OLD.layer3_network_collection_id
+					AND first = OLD.child_layer3_network_collection_id
+				) rmpath
+			)
+			RETURNING *
+		LOOP
+			RAISE DEBUG '-> l3nchd rm %', to_json(_r);
+		END LOOP
+		;
+		get diagnostics _cnt = row_count;
+		RAISE DEBUG 'Deleting upstream references to accol %/% from cache == %',
+			OLD.layer3_network_collection_id, OLD.child_layer3_network_collection_id, _cnt;
+	END IF;
+
+	--
+	-- Insert any new rows to correspond with a new parent
+	--
+	IF TG_OP = 'INSERT' OR TG_OP = 'UPDATE' THEN
+		RAISE DEBUG 'l3nchd %%Insert: %', to_json(NEW);
+
+		--- @> should use the GIN index.  ANY, not so much
+		FOR _r IN
+			SELECT DISTINCT
+				p.path as parent_path, c.path as child_path,
+				c.layer3_network_collection_id AS layer3_network_collection_id,
+				p.root_layer3_network_collection_id AS root_layer3_network_collection_id,
+				c.path || p.path as path,
+				p.path @> ARRAY[NEW.child_layer3_network_collection_id]  OR
+					c.path @> ARRAY[NEW.layer3_network_collection_id] AS cycle
+			FROM	jazzhands_cache.ct_layer3_network_collection_hier_recurse p,
+				jazzhands_cache.ct_layer3_network_collection_hier_recurse c
+			WHERE p.layer3_network_collection_id = NEW.layer3_network_collection_id
+			AND c.root_layer3_network_collection_id = NEW.child_layer3_network_collection_id
+		LOOP
+			RAISE DEBUG 'l3nchd: i/dsmash:%', to_json(_r);
+			IF _r.cycle THEN
+				RAISE EXCEPTION 'This creates an infite loop'
+					USING ERRCODE = 'invalid_parameter_value';
+			END IF;
+			INSERT INTO jazzhands_cache.ct_layer3_network_collection_hier_recurse (
+					root_layer3_network_collection_id,
+					layer3_network_collection_id,
+					path,
+					cycle
+				) VALUES (
+					_r.root_layer3_network_collection_id,
+					_r.layer3_network_collection_id,
+					_r.path,
+					_r.cycle
+				) RETURNING * INTO _d ;
+		END LOOP;
+	END IF;
+
+	RETURN NULL;
+END
+$$
+LANGUAGE plpgsql
+SET search_path=jazzhands
+SECURITY DEFINER
+;
+
+DROP TRIGGER IF EXISTS aaa_layer3_network_collection_hier_recurse_handler
+ON jazzhands.layer3_network_collection_hier;
+
+CREATE TRIGGER aaa_layer3_network_collection_hier_recurse_handler
+AFTER INSERT OR DELETE OR
+	UPDATE OF layer3_network_collection_id, child_layer3_network_collection_id
+ON jazzhands.layer3_network_collection_hier
+FOR EACH ROW
+EXECUTE PROCEDURE jazzhands_cache.layer3_network_collection_hier_recurse_handler();
+
+CREATE OR REPLACE VIEW jazzhands.v_layer3_network_collection_hier_descendent  AS
+SELECT layer3_network_collection_id, descendent_layer3_network_collection_id, layer3_network_collection_level
+FROM (
+	SELECT
+		root_layer3_network_collection_id	AS  layer3_network_collection_id,
+		layer3_network_collection_id		AS  descendent_layer3_network_collection_id,
+		array_length(path, 1)				AS  layer3_network_collection_level,
+		path								AS  layer3_network_collection_path,
+		row_number() OVER (PARTITION BY
+			root_layer3_network_collection_id, layer3_network_collection_id
+			ORDER BY array_length(path,1)) AS rnk
+	FROM jazzhands_cache.ct_layer3_network_collection_hier_recurse
+) h
+WHERE rnk = 1;
+
+COMMENT ON VIEW jazzhands.v_layer3_network_collection_hier_descendent IS
+	'All descendent layer3_network collections of a given layer3_network collection';
+
+CREATE OR REPLACE VIEW jazzhands.v_layer3_network_collection_hier_ancestor  AS
+SELECT layer3_network_collection_id,
+	ancestor_layer3_network_collection_id,
+	layer3_network_collection_level,
+	layer3_network_collection_path
+FROM (
+	SELECT
+		layer3_network_collection_id			AS  layer3_network_collection_id,
+		root_layer3_network_collection_id		AS  ancestor_layer3_network_collection_id,
+		array_length(path, 1)					AS  layer3_network_collection_level,
+		path									AS	layer3_network_collection_path,
+		row_number() OVER (PARTITION BY
+			layer3_network_collection_id, root_layer3_network_collection_id
+			ORDER BY array_length(path,1)) AS rnk
+	FROM jazzhands_cache.ct_layer3_network_collection_hier_recurse
+) h
+WHERE rnk = 1;
+
+COMMENT ON VIEW jazzhands.v_layer3_network_collection_hier_ancestor IS
+	'All ancestors of a given layer3_network collection';
+
+CREATE OR REPLACE VIEW jazzhands.v_layer3_network_collection_layer3_network_descendent AS
+SELECT
+	layer3_network_collection_id,
+	layer3_network_id,
+	layer3_network_collection_level,
+	layer3_network_collection_path
+FROM (
+	SELECT
+		root_layer3_network_collection_id	AS	layer3_network_collection_id,
+		layer3_network_id,
+		layer3_network_collection_level,
+		path AS layer3_network_collection_path,
+		row_number() OVER (PARTITION BY root_layer3_network_collection_id,  layer3_network_id
+			ORDER BY layer3_network_collection_level) AS rnk
+	FROM jazzhands_cache.ct_layer3_network_collection_hier_recurse
+			JOIN jazzhands.layer3_network_collection_layer3_network cm
+				USING (layer3_network_collection_id)
+) i
+WHERE rnk = 1;
+
+COMMENT ON VIEW jazzhands.v_layer3_network_collection_layer3_network_descendent IS
+	'All layer3_networks that are part of an layer3_network collection and (it''s descendent layer3_network collections, which is behind the scenes)';
+
+CREATE OR REPLACE VIEW jazzhands.v_layer3_network_collection_layer3_network_ancestor AS
+SELECT
+	layer3_network_collection_id,
+	layer3_network_id,
+	layer3_network_collection_level,
+	layer3_network_collection_path
+FROM (
+	SELECT
+		r.layer3_network_collection_id	AS	layer3_network_collection_id,
+		layer3_network_id, layer3_network_collection_level, path AS layer3_network_collection_path,
+		row_number() OVER (PARTITION BY r.layer3_network_collection_id,  layer3_network_id
+			ORDER BY layer3_network_collection_level) AS rnk
+	FROM jazzhands_cache.ct_layer3_network_collection_hier_recurse r
+			JOIN jazzhands.layer3_network_collection_layer3_network cm
+				ON r.root_layer3_network_collection_id = cm.layer3_network_collection_id
+) i
+WHERE rnk = 1;
+
+COMMENT ON VIEW jazzhands.v_layer3_network_collection_layer3_network_ancestor IS
+	'All layer3_networks that are part of an layer3_network collection and (it''s ancestor layer3_network collections, which is behind the scenes)';
+
+
+-- END Misc that does not apply to above
+
+
+-- BEGIN Misc that does not apply to above
+--
+-- Copyright (c) 2023-2024 Todd M. Kover
+-- All rights reserved.
+--
+-- Licensed under the Apache License, Version 2.0 (the "License");
+-- you may not use this file except in compliance with the License.
+-- You may obtain a copy of the License at
+--
+--      http://www.apache.org/licenses/LICENSE-2.0
+--
+-- Unless required by applicable law or agreed to in writing, software
+-- distributed under the License is distributed on an "AS IS" BASIS,
+-- WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+-- See the License for the specific language governing permissions and
+-- limitations under the License.
+--
+
+\set ON_ERROR_STOP
+
+/*
+ * This is meant to recurse all the descendants of a node or all the ancestors
+ * depending on how it is looked at.  "root" is the "oldest" ancestor,
+ * leaf means "youngest".  Other views have historically used these
+ * interchangably depending on how the newest works.
+ *
+ * NOTE:  path always set by order procssed, which is at the leaf "up" so
+ * the leaf will always be first.
+ *
+ * NOTE:  I figured this all out on a plane.
+ *
+ * start at the _bottom_ and recurse _up_, then in the end swap how they
+ * are presented because the "roto" is the "oldest" ancestor.
+ */
+CREATE OR REPLACE VIEW jazzhands_cache.v_netblock_collection_hier_recurse
+AS
+WITH RECURSIVE var_recurse (
+	leaf_netblock_collection_id,
+	netblock_collection_id,
+	path,
+	cycle
+) as (
+	SELECT
+		b.netblock_collection_id				AS leaf_netblock_collection_id,
+		b.netblock_collection_id				AS netblock_collection_id,
+		ARRAY[b.netblock_collection_id]			AS path,
+		false									AS cycle
+	  FROM	netblock_collection b
+UNION ALL
+	SELECT
+		x.leaf_netblock_collection_id			AS leaf_netblock_collection_id,
+		h.netblock_collection_id				AS netblock_collection_id,
+		x.path || h.netblock_collection_id		AS path,
+		h.netblock_collection_id = ANY(x.path)	AS cycle
+	  FROM	var_recurse x
+		JOIN netblock_collection_hier h
+			ON x.netblock_collection_id = h.child_netblock_collection_id
+	WHERE	NOT x.cycle
+) SELECT
+			leaf_netblock_collection_id		AS netblock_collection_id,
+			netblock_collection_id			AS root_netblock_collection_id,
+			path,
+			array_length(path, 1)			AS netblock_collection_level,
+			cycle
+  from		var_recurse
+;
+
+SELECT * FROM schema_support.create_cache_table(
+	cache_table_schema := 'jazzhands_cache',
+	cache_table := 'ct_netblock_collection_hier_recurse',
+	defining_view_schema := 'jazzhands_cache',
+	defining_view := 'v_netblock_collection_hier_recurse',
+	create_options := '{
+		"create_augment": {
+			"netblock_collection_level": "GENERATED ALWAYS AS ( array_length(path, 1) ) STORED"
+		}
+	}',
+	force := true
+);
+
+
+ALTER TABLE jazzhands_cache.ct_netblock_collection_hier_recurse
+	ADD PRIMARY KEY (path);
+
+CREATE INDEX ix_netblock_collection_hier_recurse_root_id  ON
+	jazzhands_cache.ct_netblock_collection_hier_recurse
+	(root_netblock_collection_id);
+
+CREATE INDEX ix_netblock_collection_hier_recurse_leaf_Id  ON
+	jazzhands_cache.ct_netblock_collection_hier_recurse
+	(netblock_collection_id);
+
+-- Thanks to slackoverflow :
+-- https://stackoverflow.com/questions/4058731/can-postgresql-index-array-columns
+--
+-- note that @> needs to be used instead of ANY to take advangage of this
+-- indexing.
+--
+CREATE INDEX ix_netblock_collection_hier_recurse_path
+	ON jazzhands_cache.ct_netblock_collection_hier_recurse USING GIN
+	(path array_ops);
+
+CREATE OR REPLACE FUNCTION
+	jazzhands_cache.ct_netblock_collection_hier_recurse_base_handler()
+RETURNS TRIGGER AS $$
+BEGIN
+	IF TG_OP = 'DELETE' THEN
+		DELETE FROM jazzhands_cache.ct_netblock_collection_hier_recurse
+		WHERE root_netblock_collection_id = OLD.netblock_collection_id
+		AND netblock_collection_id = OLD.netblock_collection_id;
+
+		RETURN OLD;
+	ELSIF TG_OP = 'UPDATE' THEN
+		UPDATE jazzhands_cache.ct_netblock_collection_hier_recurse
+		SET
+			root_netblock_collection_id = NEW.netblock_collection_id,
+			netblock_collection_id = NEW.netblock_collection_id
+		WHERE root_netblock_collection_id = OLD.netblock_collection_id
+		AND netblock_collection_id = OLD.netblock_collection_id;
+	ELSIF TG_OP = 'INSERT' THEN
+		INSERT INTO jazzhands_cache.ct_netblock_collection_hier_recurse (
+			root_netblock_collection_id,
+			netblock_collection_id,
+			path,
+			cycle
+		) VALUES (
+			NEW.netblock_collection_id,
+			NEW.netblock_collection_id,
+			ARRAY[NEW.netblock_collection_id],
+			false
+		);
+	END IF;
+
+	RETURN NEW;
+END
+$$
+LANGUAGE plpgsql
+SET search_path=jazzhands
+SECURITY DEFINER
+;
+
+DROP TRIGGER IF EXISTS aaa_ct_netblock_collection_hier_recurse_base_handler
+ON jazzhands.netblock_collection;
+
+
+CREATE TRIGGER aaa_ct_netblock_collection_hier_recurse_base_handler
+AFTER INSERT OR DELETE OR UPDATE OF netblock_collection_id
+ON jazzhands.netblock_collection
+FOR EACH ROW
+EXECUTE PROCEDURE
+	jazzhands_cache.ct_netblock_collection_hier_recurse_base_handler();
+
+-----------------------------------------------------------------------------
+
+CREATE OR REPLACE FUNCTION jazzhands_cache.netblock_collection_hier_recurse_handler()
+RETURNS TRIGGER AS $$
+DECLARE
+	_r		RECORD;
+	_d		RECORD;
+	_cnt	INTEGER;
+BEGIN
+	--
+	-- Delete any rows that are invalidated due to a parent change.
+	--
+	IF
+		(TG_OP = 'DELETE' OR TG_OP = 'UPDATE')
+	THEN
+		--
+		-- This convoluted statement delets anything where the path has the
+		-- parent and child consective in the path array.  This is nasty.
+		FOR _r IN
+		DELETE FROM jazzhands_cache.ct_netblock_collection_hier_recurse
+			WHERE path IN  (
+				SELECT path FROM (
+					SELECT * FROM (
+						SELECT path, unnest(path) as first,
+							unnest(pathplus) as second
+							--, row_number() over () as rn
+						FROM (
+							SELECT path, path[2:array_length(path, 1)] AS pathplus
+							FROM jazzhands_cache.ct_netblock_collection_hier_recurse
+						) i
+					) rmme WHERE second = OLD.netblock_collection_id
+					AND first = OLD.child_netblock_collection_id
+				) rmpath
+			)
+			RETURNING *
+		LOOP
+			RAISE DEBUG '-> nchd rm %', to_json(_r);
+		END LOOP
+		;
+		get diagnostics _cnt = row_count;
+		RAISE DEBUG 'Deleting upstream references to accol %/% from cache == %',
+			OLD.netblock_collection_id, OLD.child_netblock_collection_id, _cnt;
+	END IF;
+
+	--
+	-- Insert any new rows to correspond with a new parent
+	--
+	IF TG_OP = 'INSERT' OR TG_OP = 'UPDATE' THEN
+		RAISE DEBUG 'nchd %%Insert: %', to_json(NEW);
+
+		--- @> should use the GIN index.  ANY, not so much
+		FOR _r IN
+			SELECT DISTINCT
+				p.path as parent_path, c.path as child_path,
+				c.netblock_collection_id AS netblock_collection_id,
+				p.root_netblock_collection_id AS root_netblock_collection_id,
+				c.path || p.path as path,
+				p.path @> ARRAY[NEW.child_netblock_collection_id]  OR
+					c.path @> ARRAY[NEW.netblock_collection_id] AS cycle
+			FROM	jazzhands_cache.ct_netblock_collection_hier_recurse p,
+				jazzhands_cache.ct_netblock_collection_hier_recurse c
+			WHERE p.netblock_collection_id = NEW.netblock_collection_id
+			AND c.root_netblock_collection_id = NEW.child_netblock_collection_id
+		LOOP
+			RAISE DEBUG 'nchd: i/dsmash:%', to_json(_r);
+			IF _r.cycle THEN
+				RAISE EXCEPTION 'This creates an infite loop'
+					USING ERRCODE = 'invalid_parameter_value';
+			END IF;
+			INSERT INTO jazzhands_cache.ct_netblock_collection_hier_recurse (
+					root_netblock_collection_id,
+					netblock_collection_id,
+					path,
+					cycle
+				) VALUES (
+					_r.root_netblock_collection_id,
+					_r.netblock_collection_id,
+					_r.path,
+					_r.cycle
+				) RETURNING * INTO _d ;
+		END LOOP;
+	END IF;
+
+	RETURN NULL;
+END
+$$
+LANGUAGE plpgsql
+SET search_path=jazzhands
+SECURITY DEFINER
+;
+
+DROP TRIGGER IF EXISTS aaa_netblock_collection_hier_recurse_handler
+ON jazzhands.netblock_collection_hier;
+
+CREATE TRIGGER aaa_netblock_collection_hier_recurse_handler
+AFTER INSERT OR DELETE OR
+	UPDATE OF netblock_collection_id, child_netblock_collection_id
+ON jazzhands.netblock_collection_hier
+FOR EACH ROW
+EXECUTE PROCEDURE jazzhands_cache.netblock_collection_hier_recurse_handler();
+
+CREATE OR REPLACE VIEW jazzhands.v_netblock_collection_hier_descendent  AS
+SELECT netblock_collection_id, descendent_netblock_collection_id, netblock_collection_level
+FROM (
+	SELECT
+		root_netblock_collection_id	AS  netblock_collection_id,
+		netblock_collection_id		AS  descendent_netblock_collection_id,
+		array_length(path, 1)		AS  netblock_collection_level,
+		path						AS  netblock_collection_path,
+		row_number() OVER (PARTITION BY
+			root_netblock_collection_id, netblock_collection_id
+			ORDER BY array_length(path,1)) AS rnk
+	FROM jazzhands_cache.ct_netblock_collection_hier_recurse
+) h
+WHERE rnk = 1;
+
+COMMENT ON VIEW jazzhands.v_netblock_collection_hier_descendent IS
+	'All descendent netblock collections of a given netblock collection';
+
+CREATE OR REPLACE VIEW jazzhands.v_netblock_collection_hier_ancestor  AS
+SELECT netblock_collection_id,
+	ancestor_netblock_collection_id,
+	netblock_collection_level,
+	netblock_collection_path
+FROM (
+	SELECT
+		netblock_collection_id			AS  netblock_collection_id,
+		root_netblock_collection_id		AS  ancestor_netblock_collection_id,
+		array_length(path, 1)			AS  netblock_collection_level,
+		path							AS	netblock_collection_path,
+		row_number() OVER (PARTITION BY
+			netblock_collection_id, root_netblock_collection_id
+			ORDER BY array_length(path,1)) AS rnk
+	FROM jazzhands_cache.ct_netblock_collection_hier_recurse
+) h
+WHERE rnk = 1;
+
+COMMENT ON VIEW jazzhands.v_netblock_collection_hier_ancestor IS
+	'All ancestors of a given netblock collection';
+
+CREATE OR REPLACE VIEW jazzhands.v_netblock_collection_netblock_descendent AS
+SELECT
+	netblock_collection_id,
+	netblock_id,
+	netblock_collection_level,
+	netblock_collection_path
+FROM (
+	SELECT
+		root_netblock_collection_id	AS	netblock_collection_id,
+		netblock_id,
+		netblock_collection_level,
+		path AS netblock_collection_path,
+		row_number() OVER (PARTITION BY root_netblock_collection_id,  netblock_id
+			ORDER BY netblock_collection_level) AS rnk
+	FROM jazzhands_cache.ct_netblock_collection_hier_recurse
+			JOIN jazzhands.netblock_collection_netblock cm
+				USING (netblock_collection_id)
+) i
+WHERE rnk = 1;
+
+COMMENT ON VIEW jazzhands.v_netblock_collection_netblock_descendent IS
+	'All netblocks that are part of an netblock collection and (it''s descendent netblock collections, which is behind the scenes)';
+
+CREATE OR REPLACE VIEW jazzhands.v_netblock_collection_netblock_ancestor AS
+SELECT
+	netblock_collection_id,
+	netblock_id,
+	netblock_collection_level,
+	netblock_collection_path
+FROM (
+	SELECT
+		r.netblock_collection_id	AS	netblock_collection_id,
+		netblock_id, netblock_collection_level, path AS netblock_collection_path,
+		row_number() OVER (PARTITION BY r.netblock_collection_id,  netblock_id
+			ORDER BY netblock_collection_level) AS rnk
+	FROM jazzhands_cache.ct_netblock_collection_hier_recurse r
+			JOIN jazzhands.netblock_collection_netblock cm
+				ON r.root_netblock_collection_id = cm.netblock_collection_id
+) i
+WHERE rnk = 1;
+
+COMMENT ON VIEW jazzhands.v_netblock_collection_netblock_ancestor IS
+	'All netblocks that are part of an netblock collection and (it''s ancestor netblock collections, which is behind the scenes)';
+
+
+-- END Misc that does not apply to above
+
+
+-- BEGIN Misc that does not apply to above
+--
+-- Copyright (c) 2023-2024 Todd M. Kover
+-- All rights reserved.
+--
+-- Licensed under the Apache License, Version 2.0 (the "License");
+-- you may not use this file except in compliance with the License.
+-- You may obtain a copy of the License at
+--
+--      http://www.apache.org/licenses/LICENSE-2.0
+--
+-- Unless required by applicable law or agreed to in writing, software
+-- distributed under the License is distributed on an "AS IS" BASIS,
+-- WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+-- See the License for the specific language governing permissions and
+-- limitations under the License.
+--
+
+\set ON_ERROR_STOP
+
+/*
+ * This is meant to recurse all the descendants of a node or all the ancestors
+ * depending on how it is looked at.  "root" is the "oldest" ancestor,
+ * leaf means "youngest".  Other views have historically used these
+ * interchangably depending on how the newest works.
+ *
+ * NOTE:  path always set by order procssed, which is at the leaf "up" so
+ * the leaf will always be first.
+ *
+ * NOTE:  I figured this all out on a plane.
+ *
+ * start at the _bottom_ and recurse _up_, then in the end swap how they
+ * are presented because the "roto" is the "oldest" ancestor.
+ */
+CREATE OR REPLACE VIEW jazzhands_cache.v_service_environment_collection_hier_recurse
+AS
+WITH RECURSIVE var_recurse (
+	leaf_service_environment_collection_id,
+	service_environment_collection_id,
+	path,
+	cycle
+) as (
+	SELECT
+		b.service_environment_collection_id					AS leaf_service_environment_collection_id,
+		b.service_environment_collection_id					AS service_environment_collection_id,
+		ARRAY[b.service_environment_collection_id]			AS path,
+		false												AS cycle
+	  FROM	service_environment_collection b
+UNION ALL
+	SELECT
+		x.leaf_service_environment_collection_id			AS leaf_service_environment_collection_id,
+		h.service_environment_collection_id					AS service_environment_collection_id,
+		x.path || h.service_environment_collection_id		AS path,
+		h.service_environment_collection_id = ANY(x.path)	AS cycle
+	  FROM	var_recurse x
+		JOIN service_environment_collection_hier h
+			ON x.service_environment_collection_id = h.child_service_environment_collection_id
+	WHERE	NOT x.cycle
+) SELECT
+			leaf_service_environment_collection_id		AS service_environment_collection_id,
+			service_environment_collection_id			AS root_service_environment_collection_id,
+			path,
+			array_length(path, 1)						AS service_environment_collection_level,
+			cycle
+  from			var_recurse
+;
+
+SELECT * FROM schema_support.create_cache_table(
+	cache_table_schema := 'jazzhands_cache',
+	cache_table := 'ct_service_environment_collection_hier_recurse',
+	defining_view_schema := 'jazzhands_cache',
+	defining_view := 'v_service_environment_collection_hier_recurse',
+	create_options := '{
+		"create_augment": {
+			"service_environment_collection_level": "GENERATED ALWAYS AS ( array_length(path, 1) ) STORED"
+		}
+	}',
+	force := true
+);
+
+
+ALTER TABLE jazzhands_cache.ct_service_environment_collection_hier_recurse
+	ADD PRIMARY KEY (path);
+
+CREATE INDEX ix_service_environment_collection_hier_recurse_root_id  ON
+	jazzhands_cache.ct_service_environment_collection_hier_recurse
+	(root_service_environment_collection_id);
+
+CREATE INDEX ix_service_environment_collection_hier_recurse_leaf_Id  ON
+	jazzhands_cache.ct_service_environment_collection_hier_recurse
+	(service_environment_collection_id);
+
+-- Thanks to slackoverflow :
+-- https://stackoverflow.com/questions/4058731/can-postgresql-index-array-columns
+--
+-- note that @> needs to be used instead of ANY to take advangage of this
+-- indexing.
+--
+CREATE INDEX ix_service_environment_collection_hier_recurse_path
+	ON jazzhands_cache.ct_service_environment_collection_hier_recurse USING GIN
+	(path array_ops);
+
+CREATE OR REPLACE FUNCTION
+	jazzhands_cache.ct_service_environment_collection_hier_recurse_base_handler()
+RETURNS TRIGGER AS $$
+BEGIN
+	IF TG_OP = 'DELETE' THEN
+		DELETE FROM jazzhands_cache.ct_service_environment_collection_hier_recurse
+		WHERE root_service_environment_collection_id = OLD.service_environment_collection_id
+		AND service_environment_collection_id = OLD.service_environment_collection_id;
+
+		RETURN OLD;
+	ELSIF TG_OP = 'UPDATE' THEN
+		UPDATE jazzhands_cache.ct_service_environment_collection_hier_recurse
+		SET
+			root_service_environment_collection_id = NEW.service_environment_collection_id,
+			service_environment_collection_id = NEW.service_environment_collection_id
+		WHERE root_service_environment_collection_id = OLD.service_environment_collection_id
+		AND service_environment_collection_id = OLD.service_environment_collection_id;
+	ELSIF TG_OP = 'INSERT' THEN
+		INSERT INTO jazzhands_cache.ct_service_environment_collection_hier_recurse (
+			root_service_environment_collection_id,
+			service_environment_collection_id,
+			path,
+			cycle
+		) VALUES (
+			NEW.service_environment_collection_id,
+			NEW.service_environment_collection_id,
+			ARRAY[NEW.service_environment_collection_id],
+			false
+		);
+	END IF;
+
+	RETURN NEW;
+END
+$$
+LANGUAGE plpgsql
+SET search_path=jazzhands
+SECURITY DEFINER
+;
+
+DROP TRIGGER IF EXISTS aaa_ct_service_environment_collection_hier_recurse_base_handler
+ON jazzhands.service_environment_collection;
+
+
+CREATE TRIGGER aaa_ct_service_environment_collection_hier_recurse_base_handler
+AFTER INSERT OR DELETE OR UPDATE OF service_environment_collection_id
+ON jazzhands.service_environment_collection
+FOR EACH ROW
+EXECUTE PROCEDURE
+	jazzhands_cache.ct_service_environment_collection_hier_recurse_base_handler();
+
+-----------------------------------------------------------------------------
+
+CREATE OR REPLACE FUNCTION jazzhands_cache.service_environment_collection_hier_recurse_handler()
+RETURNS TRIGGER AS $$
+DECLARE
+	_r		RECORD;
+	_d		RECORD;
+	_cnt	INTEGER;
+BEGIN
+	--
+	-- Delete any rows that are invalidated due to a parent change.
+	--
+	IF
+		(TG_OP = 'DELETE' OR TG_OP = 'UPDATE')
+	THEN
+		--
+		-- This convoluted statement delets anything where the path has the
+		-- parent and child consective in the path array.  This is nasty.
+		FOR _r IN
+		DELETE FROM jazzhands_cache.ct_service_environment_collection_hier_recurse
+			WHERE path IN  (
+				SELECT path FROM (
+					SELECT * FROM (
+						SELECT path, unnest(path) as first,
+							unnest(pathplus) as second
+							--, row_number() over () as rn
+						FROM (
+							SELECT path, path[2:array_length(path, 1)] AS pathplus
+							FROM jazzhands_cache.ct_service_environment_collection_hier_recurse
+						) i
+					) rmme WHERE second = OLD.service_environment_collection_id
+					AND first = OLD.child_service_environment_collection_id
+				) rmpath
+			)
+			RETURNING *
+		LOOP
+			RAISE DEBUG '-> sechd rm %', to_json(_r);
+		END LOOP
+		;
+		get diagnostics _cnt = row_count;
+		RAISE DEBUG 'Deleting upstream references to accol %/% from cache == %',
+			OLD.service_environment_collection_id, OLD.child_service_environment_collection_id, _cnt;
+	END IF;
+
+	--
+	-- Insert any new rows to correspond with a new parent
+	--
+	IF TG_OP = 'INSERT' OR TG_OP = 'UPDATE' THEN
+		RAISE DEBUG 'sechd %%Insert: %', to_json(NEW);
+
+		--- @> should use the GIN index.  ANY, not so much
+		FOR _r IN
+			SELECT DISTINCT
+				p.path as parent_path, c.path as child_path,
+				c.service_environment_collection_id AS service_environment_collection_id,
+				p.root_service_environment_collection_id AS root_service_environment_collection_id,
+				c.path || p.path as path,
+				p.path @> ARRAY[NEW.child_service_environment_collection_id]  OR
+					c.path @> ARRAY[NEW.service_environment_collection_id] AS cycle
+			FROM	jazzhands_cache.ct_service_environment_collection_hier_recurse p,
+				jazzhands_cache.ct_service_environment_collection_hier_recurse c
+			WHERE p.service_environment_collection_id = NEW.service_environment_collection_id
+			AND c.root_service_environment_collection_id = NEW.child_service_environment_collection_id
+		LOOP
+			RAISE DEBUG 'sechd: i/dsmash:%', to_json(_r);
+			IF _r.cycle THEN
+				RAISE EXCEPTION 'This creates an infite loop'
+					USING ERRCODE = 'invalid_parameter_value';
+			END IF;
+			INSERT INTO jazzhands_cache.ct_service_environment_collection_hier_recurse (
+					root_service_environment_collection_id,
+					service_environment_collection_id,
+					path,
+					cycle
+				) VALUES (
+					_r.root_service_environment_collection_id,
+					_r.service_environment_collection_id,
+					_r.path,
+					_r.cycle
+				) RETURNING * INTO _d ;
+		END LOOP;
+	END IF;
+
+	RETURN NULL;
+END
+$$
+LANGUAGE plpgsql
+SET search_path=jazzhands
+SECURITY DEFINER
+;
+
+DROP TRIGGER IF EXISTS aaa_service_environment_collection_hier_recurse_handler
+ON jazzhands.service_environment_collection_hier;
+
+CREATE TRIGGER aaa_service_environment_collection_hier_recurse_handler
+AFTER INSERT OR DELETE OR
+	UPDATE OF service_environment_collection_id, child_service_environment_collection_id
+ON jazzhands.service_environment_collection_hier
+FOR EACH ROW
+EXECUTE PROCEDURE jazzhands_cache.service_environment_collection_hier_recurse_handler();
+
+CREATE OR REPLACE VIEW jazzhands.v_service_environment_collection_hier_descendent  AS
+SELECT service_environment_collection_id, descendent_service_environment_collection_id, service_environment_collection_level
+FROM (
+	SELECT
+		root_service_environment_collection_id	AS  service_environment_collection_id,
+		service_environment_collection_id		AS  descendent_service_environment_collection_id,
+		array_length(path, 1)					AS  service_environment_collection_level,
+		path									AS  service_environment_collection_path,
+		row_number() OVER (PARTITION BY
+			root_service_environment_collection_id, service_environment_collection_id
+			ORDER BY array_length(path,1)) AS rnk
+	FROM jazzhands_cache.ct_service_environment_collection_hier_recurse
+) h
+WHERE rnk = 1;
+
+COMMENT ON VIEW jazzhands.v_service_environment_collection_hier_descendent IS
+	'All descendent service_environment collections of a given service_environment collection';
+
+CREATE OR REPLACE VIEW jazzhands.v_service_environment_collection_hier_ancestor  AS
+SELECT service_environment_collection_id,
+	ancestor_service_environment_collection_id,
+	service_environment_collection_level,
+	service_environment_collection_path
+FROM (
+	SELECT
+		service_environment_collection_id			AS  service_environment_collection_id,
+		root_service_environment_collection_id		AS  ancestor_service_environment_collection_id,
+		array_length(path, 1)						AS  service_environment_collection_level,
+		path										AS	service_environment_collection_path,
+		row_number() OVER (PARTITION BY
+			service_environment_collection_id, root_service_environment_collection_id
+			ORDER BY array_length(path,1))				AS rnk
+	FROM jazzhands_cache.ct_service_environment_collection_hier_recurse
+) h
+WHERE rnk = 1;
+
+COMMENT ON VIEW jazzhands.v_service_environment_collection_hier_ancestor IS
+	'All ancestors of a given service_environment collection';
+
+CREATE OR REPLACE VIEW jazzhands.v_service_environment_collection_service_environment_descendent AS
+SELECT
+	service_environment_collection_id,
+	service_environment_id,
+	service_environment_collection_level,
+	service_environment_collection_path
+FROM (
+	SELECT
+		root_service_environment_collection_id	AS	service_environment_collection_id,
+		service_environment_id,
+		service_environment_collection_level,
+		path AS service_environment_collection_path,
+		row_number() OVER (PARTITION BY root_service_environment_collection_id,  service_environment_id
+			ORDER BY service_environment_collection_level) AS rnk
+	FROM jazzhands_cache.ct_service_environment_collection_hier_recurse
+			JOIN jazzhands.service_environment_collection_service_environment cm
+				USING (service_environment_collection_id)
+) i
+WHERE rnk = 1;
+
+COMMENT ON VIEW jazzhands.v_service_environment_collection_service_environment_descendent IS
+	'All service_environments that are part of an service_environment collection and (it''s descendent service_environment collections, which is behind the scenes)';
+
+CREATE OR REPLACE VIEW jazzhands.v_service_environment_collection_service_environment_ancestor AS
+SELECT
+	service_environment_collection_id,
+	service_environment_id,
+	service_environment_collection_level,
+	service_environment_collection_path
+FROM (
+	SELECT
+		r.service_environment_collection_id	AS	service_environment_collection_id,
+		service_environment_id, service_environment_collection_level, path AS service_environment_collection_path,
+		row_number() OVER (PARTITION BY r.service_environment_collection_id,  service_environment_id
+			ORDER BY service_environment_collection_level) AS rnk
+	FROM jazzhands_cache.ct_service_environment_collection_hier_recurse r
+			JOIN jazzhands.service_environment_collection_service_environment cm
+				ON r.root_service_environment_collection_id = cm.service_environment_collection_id
+) i
+WHERE rnk = 1;
+
+COMMENT ON VIEW jazzhands.v_service_environment_collection_service_environment_ancestor IS
+	'All service_environments that are part of an service_environment collection and (it''s ancestor service_environment collections, which is behind the scenes)';
+
+
+-- END Misc that does not apply to above
+
+
+-- BEGIN Misc that does not apply to above
+--
+-- Copyright (c) 2023-2024 Todd M. Kover
+-- All rights reserved.
+--
+-- Licensed under the Apache License, Version 2.0 (the "License");
+-- you may not use this file except in compliance with the License.
+-- You may obtain a copy of the License at
+--
+--      http://www.apache.org/licenses/LICENSE-2.0
+--
+-- Unless required by applicable law or agreed to in writing, software
+-- distributed under the License is distributed on an "AS IS" BASIS,
+-- WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+-- See the License for the specific language governing permissions and
+-- limitations under the License.
+--
+
+\set ON_ERROR_STOP
+
+/*
+ * This is meant to recurse all the descendants of a node or all the ancestors
+ * depending on how it is looked at.  "root" is the "oldest" ancestor,
+ * leaf means "youngest".  Other views have historically used these
+ * interchangably depending on how the newest works.
+ *
+ * NOTE:  path always set by order procssed, which is at the leaf "up" so
+ * the leaf will always be first.
+ *
+ * NOTE:  I figured this all out on a plane.
+ *
+ * start at the _bottom_ and recurse _up_, then in the end swap how they
+ * are presented because the "roto" is the "oldest" ancestor.
+ */
+CREATE OR REPLACE VIEW jazzhands_cache.v_service_version_collection_hier_recurse
+AS
+WITH RECURSIVE var_recurse (
+	leaf_service_version_collection_id,
+	service_version_collection_id,
+	path,
+	cycle
+) as (
+	SELECT
+		b.service_version_collection_id					AS leaf_service_version_collection_id,
+		b.service_version_collection_id					AS service_version_collection_id,
+		ARRAY[b.service_version_collection_id]			AS path,
+		false											AS cycle
+	  FROM	service_version_collection b
+UNION ALL
+	SELECT
+		x.leaf_service_version_collection_id			AS leaf_service_version_collection_id,
+		h.service_version_collection_id					AS service_version_collection_id,
+			x.path || h.service_version_collection_id	AS path,
+		h.service_version_collection_id = ANY(x.path)	AS cycle
+	  FROM	var_recurse x
+		JOIN service_version_collection_hier h
+			ON x.service_version_collection_id = h.child_service_version_collection_id
+	WHERE	NOT x.cycle
+) SELECT
+			leaf_service_version_collection_id		AS service_version_collection_id,
+			service_version_collection_id			AS root_service_version_collection_id,
+			path,
+			array_length(path, 1)		AS service_version_collection_level,
+			cycle
+  from			var_recurse
+;
+
+SELECT * FROM schema_support.create_cache_table(
+	cache_table_schema := 'jazzhands_cache',
+	cache_table := 'ct_service_version_collection_hier_recurse',
+	defining_view_schema := 'jazzhands_cache',
+	defining_view := 'v_service_version_collection_hier_recurse',
+	create_options := '{
+		"create_augment": {
+			"service_version_collection_level": "GENERATED ALWAYS AS ( array_length(path, 1) ) STORED"
+		}
+	}',
+	force := true
+);
+
+
+ALTER TABLE jazzhands_cache.ct_service_version_collection_hier_recurse
+	ADD PRIMARY KEY (path);
+
+CREATE INDEX ix_service_version_collection_hier_recurse_root_id  ON
+	jazzhands_cache.ct_service_version_collection_hier_recurse
+	(root_service_version_collection_id);
+
+CREATE INDEX ix_service_version_collection_hier_recurse_leaf_Id  ON
+	jazzhands_cache.ct_service_version_collection_hier_recurse
+	(service_version_collection_id);
+
+-- Thanks to slackoverflow :
+-- https://stackoverflow.com/questions/4058731/can-postgresql-index-array-columns
+--
+-- note that @> needs to be used instead of ANY to take advangage of this
+-- indexing.
+--
+CREATE INDEX ix_service_version_collection_hier_recurse_path
+	ON jazzhands_cache.ct_service_version_collection_hier_recurse USING GIN
+	(path array_ops);
+
+CREATE OR REPLACE FUNCTION
+	jazzhands_cache.ct_service_version_collection_hier_recurse_base_handler()
+RETURNS TRIGGER AS $$
+BEGIN
+	IF TG_OP = 'DELETE' THEN
+		DELETE FROM jazzhands_cache.ct_service_version_collection_hier_recurse
+		WHERE root_service_version_collection_id = OLD.service_version_collection_id
+		AND service_version_collection_id = OLD.service_version_collection_id;
+
+		RETURN OLD;
+	ELSIF TG_OP = 'UPDATE' THEN
+		UPDATE jazzhands_cache.ct_service_version_collection_hier_recurse
+		SET
+			root_service_version_collection_id = NEW.service_version_collection_id,
+			service_version_collection_id = NEW.service_version_collection_id
+		WHERE root_service_version_collection_id = OLD.service_version_collection_id
+		AND service_version_collection_id = OLD.service_version_collection_id;
+	ELSIF TG_OP = 'INSERT' THEN
+		INSERT INTO jazzhands_cache.ct_service_version_collection_hier_recurse (
+			root_service_version_collection_id,
+			service_version_collection_id,
+			path,
+			cycle
+		) VALUES (
+			NEW.service_version_collection_id,
+			NEW.service_version_collection_id,
+			ARRAY[NEW.service_version_collection_id],
+			false
+		);
+	END IF;
+
+	RETURN NEW;
+END
+$$
+LANGUAGE plpgsql
+SET search_path=jazzhands
+SECURITY DEFINER
+;
+
+DROP TRIGGER IF EXISTS aaa_ct_service_version_collection_hier_recurse_base_handler
+ON jazzhands.service_version_collection;
+
+
+CREATE TRIGGER aaa_ct_service_version_collection_hier_recurse_base_handler
+AFTER INSERT OR DELETE OR UPDATE OF service_version_collection_id
+ON jazzhands.service_version_collection
+FOR EACH ROW
+EXECUTE PROCEDURE
+	jazzhands_cache.ct_service_version_collection_hier_recurse_base_handler();
+
+-----------------------------------------------------------------------------
+
+CREATE OR REPLACE FUNCTION jazzhands_cache.service_version_collection_hier_recurse_handler()
+RETURNS TRIGGER AS $$
+DECLARE
+	_r		RECORD;
+	_d		RECORD;
+	_cnt	INTEGER;
+BEGIN
+	--
+	-- Delete any rows that are invalidated due to a parent change.
+	--
+	IF
+		(TG_OP = 'DELETE' OR TG_OP = 'UPDATE')
+	THEN
+		--
+		-- This convoluted statement delets anything where the path has the
+		-- parent and child consective in the path array.  This is nasty.
+		FOR _r IN
+		DELETE FROM jazzhands_cache.ct_service_version_collection_hier_recurse
+			WHERE path IN  (
+				SELECT path FROM (
+					SELECT * FROM (
+						SELECT path, unnest(path) as first,
+							unnest(pathplus) as second
+							--, row_number() over () as rn
+						FROM (
+							SELECT path, path[2:array_length(path, 1)] AS pathplus
+							FROM jazzhands_cache.ct_service_version_collection_hier_recurse
+						) i
+					) rmme WHERE second = OLD.service_version_collection_id
+					AND first = OLD.child_service_version_collection_id
+				) rmpath
+			)
+			RETURNING *
+		LOOP
+			RAISE DEBUG '-> svchd rm %', to_json(_r);
+		END LOOP
+		;
+		get diagnostics _cnt = row_count;
+		RAISE DEBUG 'Deleting upstream references to accol %/% from cache == %',
+			OLD.service_version_collection_id, OLD.child_service_version_collection_id, _cnt;
+	END IF;
+
+	--
+	-- Insert any new rows to correspond with a new parent
+	--
+	IF TG_OP = 'INSERT' OR TG_OP = 'UPDATE' THEN
+		RAISE DEBUG 'svchd %%Insert: %', to_json(NEW);
+
+		--- @> should use the GIN index.  ANY, not so much
+		FOR _r IN
+			SELECT DISTINCT
+				p.path as parent_path, c.path as child_path,
+				c.service_version_collection_id AS service_version_collection_id,
+				p.root_service_version_collection_id AS root_service_version_collection_id,
+				c.path || p.path as path,
+				p.path @> ARRAY[NEW.child_service_version_collection_id]  OR
+					c.path @> ARRAY[NEW.service_version_collection_id] AS cycle
+			FROM	jazzhands_cache.ct_service_version_collection_hier_recurse p,
+				jazzhands_cache.ct_service_version_collection_hier_recurse c
+			WHERE p.service_version_collection_id = NEW.service_version_collection_id
+			AND c.root_service_version_collection_id = NEW.child_service_version_collection_id
+		LOOP
+			RAISE DEBUG 'svchd: i/dsmash:%', to_json(_r);
+			IF _r.cycle THEN
+				RAISE EXCEPTION 'This creates an infite loop'
+					USING ERRCODE = 'invalid_parameter_value';
+			END IF;
+			INSERT INTO jazzhands_cache.ct_service_version_collection_hier_recurse (
+					root_service_version_collection_id,
+					service_version_collection_id,
+					path,
+					cycle
+				) VALUES (
+					_r.root_service_version_collection_id,
+					_r.service_version_collection_id,
+					_r.path,
+					_r.cycle
+				) RETURNING * INTO _d ;
+		END LOOP;
+	END IF;
+
+	RETURN NULL;
+END
+$$
+LANGUAGE plpgsql
+SET search_path=jazzhands
+SECURITY DEFINER
+;
+
+DROP TRIGGER IF EXISTS aaa_service_version_collection_hier_recurse_handler
+ON jazzhands.service_version_collection_hier;
+
+CREATE TRIGGER aaa_service_version_collection_hier_recurse_handler
+AFTER INSERT OR DELETE OR
+	UPDATE OF service_version_collection_id, child_service_version_collection_id
+ON jazzhands.service_version_collection_hier
+FOR EACH ROW
+EXECUTE PROCEDURE jazzhands_cache.service_version_collection_hier_recurse_handler();
+
+CREATE OR REPLACE VIEW jazzhands.v_service_version_collection_hier_descendent  AS
+SELECT service_version_collection_id, descendent_service_version_collection_id, service_version_collection_level
+FROM (
+	SELECT
+		root_service_version_collection_id	AS  service_version_collection_id,
+		service_version_collection_id		AS  descendent_service_version_collection_id,
+		array_length(path, 1)				AS  service_version_collection_level,
+		path								AS  service_version_collection_path,
+		row_number() OVER (PARTITION BY
+			root_service_version_collection_id, service_version_collection_id
+			ORDER BY array_length(path,1)) AS rnk
+	FROM jazzhands_cache.ct_service_version_collection_hier_recurse
+) h
+WHERE rnk = 1;
+
+COMMENT ON VIEW jazzhands.v_service_version_collection_hier_descendent IS
+	'All descendent service_version collections of a given service_version collection';
+
+CREATE OR REPLACE VIEW jazzhands.v_service_version_collection_hier_ancestor  AS
+SELECT service_version_collection_id,
+	ancestor_service_version_collection_id,
+	service_version_collection_level,
+	service_version_collection_path
+FROM (
+	SELECT
+		service_version_collection_id		AS  service_version_collection_id,
+		root_service_version_collection_id	AS  ancestor_service_version_collection_id,
+		array_length(path, 1)				AS  service_version_collection_level,
+		path								AS	service_version_collection_path,
+		row_number() OVER (PARTITION BY
+			service_version_collection_id, root_service_version_collection_id
+			ORDER BY array_length(path,1)) AS rnk
+	FROM jazzhands_cache.ct_service_version_collection_hier_recurse
+) h
+WHERE rnk = 1;
+
+COMMENT ON VIEW jazzhands.v_service_version_collection_hier_ancestor IS
+	'All ancestors of a given service_version collection';
+
+CREATE OR REPLACE VIEW jazzhands.v_service_version_collection_service_version_descendent AS
+SELECT
+	service_version_collection_id,
+	service_version_id,
+	service_version_collection_level,
+	service_version_collection_path
+FROM (
+	SELECT
+		root_service_version_collection_id	AS	service_version_collection_id,
+		service_version_id,
+		service_version_collection_level,
+		path AS service_version_collection_path,
+		row_number() OVER (PARTITION BY root_service_version_collection_id,  service_version_id
+			ORDER BY service_version_collection_level) AS rnk
+	FROM jazzhands_cache.ct_service_version_collection_hier_recurse
+			JOIN jazzhands.service_version_collection_service_version cm
+				USING (service_version_collection_id)
+) i
+WHERE rnk = 1;
+
+COMMENT ON VIEW jazzhands.v_service_version_collection_service_version_descendent IS
+	'All service_versions that are part of an service_version collection and (it''s descendent service_version collections, which is behind the scenes)';
+
+CREATE OR REPLACE VIEW jazzhands.v_service_version_collection_service_version_ancestor AS
+SELECT
+	service_version_collection_id,
+	service_version_id,
+	service_version_collection_level,
+	service_version_collection_path
+FROM (
+	SELECT
+		r.service_version_collection_id	AS	service_version_collection_id,
+		service_version_id, service_version_collection_level, path AS service_version_collection_path,
+		row_number() OVER (PARTITION BY r.service_version_collection_id,  service_version_id
+			ORDER BY service_version_collection_level) AS rnk
+	FROM jazzhands_cache.ct_service_version_collection_hier_recurse r
+			JOIN jazzhands.service_version_collection_service_version cm
+				ON r.root_service_version_collection_id = cm.service_version_collection_id
+) i
+WHERE rnk = 1;
+
+COMMENT ON VIEW jazzhands.v_service_version_collection_service_version_ancestor IS
+	'All service_versions that are part of an service_version collection and (it''s ancestor service_version collections, which is behind the scenes)';
+
+
+-- END Misc that does not apply to above
+
+
+-- BEGIN Misc that does not apply to above
+--
+-- Copyright (c) 2023-2024 Todd M. Kover
+-- All rights reserved.
+--
+-- Licensed under the Apache License, Version 2.0 (the "License");
+-- you may not use this file except in compliance with the License.
+-- You may obtain a copy of the License at
+--
+--      http://www.apache.org/licenses/LICENSE-2.0
+--
+-- Unless required by applicable law or agreed to in writing, software
+-- distributed under the License is distributed on an "AS IS" BASIS,
+-- WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+-- See the License for the specific language governing permissions and
+-- limitations under the License.
+--
+
+\set ON_ERROR_STOP
+
+/*
+ * This is meant to recurse all the descendants of a node or all the ancestors
+ * depending on how it is looked at.  "root" is the "oldest" ancestor,
+ * leaf means "youngest".  Other views have historically used these
+ * interchangably depending on how the newest works.
+ *
+ * NOTE:  path always set by order procssed, which is at the leaf "up" so
+ * the leaf will always be first.
+ *
+ * NOTE:  I figured this all out on a plane.
+ *
+ * start at the _bottom_ and recurse _up_, then in the end swap how they
+ * are presented because the "roto" is the "oldest" ancestor.
+ */
+CREATE OR REPLACE VIEW jazzhands_cache.v_token_collection_hier_recurse
+AS
+WITH RECURSIVE var_recurse (
+	leaf_token_collection_id,
+	token_collection_id,
+	path,
+	cycle
+) as (
+	SELECT
+		b.token_collection_id					AS leaf_token_collection_id,
+		b.token_collection_id					AS token_collection_id,
+		ARRAY[b.token_collection_id]			AS path,
+		false									AS cycle
+	  FROM	token_collection b
+UNION ALL
+	SELECT
+		x.leaf_token_collection_id				AS leaf_token_collection_id,
+		h.token_collection_id					AS token_collection_id,
+			x.path || h.token_collection_id		AS path,
+		h.token_collection_id = ANY(x.path)		AS cycle
+	  FROM	var_recurse x
+		JOIN token_collection_hier h
+			ON x.token_collection_id = h.child_token_collection_id
+	WHERE	NOT x.cycle
+) SELECT
+			leaf_token_collection_id	AS token_collection_id,
+			token_collection_id			AS root_token_collection_id,
+			path,
+			array_length(path, 1)		AS token_collection_level,
+			cycle
+  from			var_recurse
+;
+
+SELECT * FROM schema_support.create_cache_table(
+	cache_table_schema := 'jazzhands_cache',
+	cache_table := 'ct_token_collection_hier_recurse',
+	defining_view_schema := 'jazzhands_cache',
+	defining_view := 'v_token_collection_hier_recurse',
+	create_options := '{
+		"create_augment": {
+			"token_collection_level": "GENERATED ALWAYS AS ( array_length(path, 1) ) STORED"
+		}
+	}',
+	force := true
+);
+
+
+ALTER TABLE jazzhands_cache.ct_token_collection_hier_recurse
+	ADD PRIMARY KEY (path);
+
+CREATE INDEX ix_token_collection_hier_recurse_root_id  ON
+	jazzhands_cache.ct_token_collection_hier_recurse
+	(root_token_collection_id);
+
+CREATE INDEX ix_token_collection_hier_recurse_leaf_Id  ON
+	jazzhands_cache.ct_token_collection_hier_recurse
+	(token_collection_id);
+
+-- Thanks to slackoverflow :
+-- https://stackoverflow.com/questions/4058731/can-postgresql-index-array-columns
+--
+-- note that @> needs to be used instead of ANY to take advangage of this
+-- indexing.
+--
+CREATE INDEX ix_token_collection_hier_recurse_path
+	ON jazzhands_cache.ct_token_collection_hier_recurse USING GIN
+	(path array_ops);
+
+CREATE OR REPLACE FUNCTION
+	jazzhands_cache.ct_token_collection_hier_recurse_base_handler()
+RETURNS TRIGGER AS $$
+BEGIN
+	IF TG_OP = 'DELETE' THEN
+		DELETE FROM jazzhands_cache.ct_token_collection_hier_recurse
+		WHERE root_token_collection_id = OLD.token_collection_id
+		AND token_collection_id = OLD.token_collection_id;
+
+		RETURN OLD;
+	ELSIF TG_OP = 'UPDATE' THEN
+		UPDATE jazzhands_cache.ct_token_collection_hier_recurse
+		SET
+			root_token_collection_id = NEW.token_collection_id,
+			token_collection_id = NEW.token_collection_id
+		WHERE root_token_collection_id = OLD.token_collection_id
+		AND token_collection_id = OLD.token_collection_id;
+	ELSIF TG_OP = 'INSERT' THEN
+		INSERT INTO jazzhands_cache.ct_token_collection_hier_recurse (
+			root_token_collection_id,
+			token_collection_id,
+			path,
+			cycle
+		) VALUES (
+			NEW.token_collection_id,
+			NEW.token_collection_id,
+			ARRAY[NEW.token_collection_id],
+			false
+		);
+	END IF;
+
+	RETURN NEW;
+END
+$$
+LANGUAGE plpgsql
+SET search_path=jazzhands
+SECURITY DEFINER
+;
+
+DROP TRIGGER IF EXISTS aaa_ct_token_collection_hier_recurse_base_handler
+ON jazzhands.token_collection;
+
+
+CREATE TRIGGER aaa_ct_token_collection_hier_recurse_base_handler
+AFTER INSERT OR DELETE OR UPDATE OF token_collection_id
+ON jazzhands.token_collection
+FOR EACH ROW
+EXECUTE PROCEDURE
+	jazzhands_cache.ct_token_collection_hier_recurse_base_handler();
+
+-----------------------------------------------------------------------------
+
+CREATE OR REPLACE FUNCTION jazzhands_cache.token_collection_hier_recurse_handler()
+RETURNS TRIGGER AS $$
+DECLARE
+	_r		RECORD;
+	_d		RECORD;
+	_cnt	INTEGER;
+BEGIN
+	--
+	-- Delete any rows that are invalidated due to a parent change.
+	--
+	IF
+		(TG_OP = 'DELETE' OR TG_OP = 'UPDATE')
+	THEN
+		--
+		-- This convoluted statement delets anything where the path has the
+		-- parent and child consective in the path array.  This is nasty.
+		FOR _r IN
+		DELETE FROM jazzhands_cache.ct_token_collection_hier_recurse
+			WHERE path IN  (
+				SELECT path FROM (
+					SELECT * FROM (
+						SELECT path, unnest(path) as first,
+							unnest(pathplus) as second
+							--, row_number() over () as rn
+						FROM (
+							SELECT path, path[2:array_length(path, 1)] AS pathplus
+							FROM jazzhands_cache.ct_token_collection_hier_recurse
+						) i
+					) rmme WHERE second = OLD.token_collection_id
+					AND first = OLD.child_token_collection_id
+				) rmpath
+			)
+			RETURNING *
+		LOOP
+			RAISE DEBUG '-> tchd rm %', to_json(_r);
+		END LOOP
+		;
+		get diagnostics _cnt = row_count;
+		RAISE DEBUG 'Deleting upstream references to accol %/% from cache == %',
+			OLD.token_collection_id, OLD.child_token_collection_id, _cnt;
+	END IF;
+
+	--
+	-- Insert any new rows to correspond with a new parent
+	--
+	IF TG_OP = 'INSERT' OR TG_OP = 'UPDATE' THEN
+		RAISE DEBUG 'tchd %%Insert: %', to_json(NEW);
+
+		--- @> should use the GIN index.  ANY, not so much
+		FOR _r IN
+			SELECT DISTINCT
+				p.path as parent_path, c.path as child_path,
+				c.token_collection_id AS token_collection_id,
+				p.root_token_collection_id AS root_token_collection_id,
+				c.path || p.path as path,
+				p.path @> ARRAY[NEW.child_token_collection_id]  OR
+					c.path @> ARRAY[NEW.token_collection_id] AS cycle
+			FROM	jazzhands_cache.ct_token_collection_hier_recurse p,
+				jazzhands_cache.ct_token_collection_hier_recurse c
+			WHERE p.token_collection_id = NEW.token_collection_id
+			AND c.root_token_collection_id = NEW.child_token_collection_id
+		LOOP
+			RAISE DEBUG 'tchd: i/dsmash:%', to_json(_r);
+			IF _r.cycle THEN
+				RAISE EXCEPTION 'This creates an infite loop'
+					USING ERRCODE = 'invalid_parameter_value';
+			END IF;
+			INSERT INTO jazzhands_cache.ct_token_collection_hier_recurse (
+					root_token_collection_id,
+					token_collection_id,
+					path,
+					cycle
+				) VALUES (
+					_r.root_token_collection_id,
+					_r.token_collection_id,
+					_r.path,
+					_r.cycle
+				) RETURNING * INTO _d ;
+		END LOOP;
+	END IF;
+
+	RETURN NULL;
+END
+$$
+LANGUAGE plpgsql
+SET search_path=jazzhands
+SECURITY DEFINER
+;
+
+DROP TRIGGER IF EXISTS aaa_token_collection_hier_recurse_handler
+ON jazzhands.token_collection_hier;
+
+CREATE TRIGGER aaa_token_collection_hier_recurse_handler
+AFTER INSERT OR DELETE OR
+	UPDATE OF token_collection_id, child_token_collection_id
+ON jazzhands.token_collection_hier
+FOR EACH ROW
+EXECUTE PROCEDURE jazzhands_cache.token_collection_hier_recurse_handler();
+
+CREATE OR REPLACE VIEW jazzhands.v_token_collection_hier_descendent  AS
+SELECT token_collection_id, descendent_token_collection_id, token_collection_level
+FROM (
+	SELECT
+		root_token_collection_id	AS  token_collection_id,
+		token_collection_id			AS  descendent_token_collection_id,
+		array_length(path, 1)		AS  token_collection_level,
+		path						AS  token_collection_path,
+		row_number() OVER (PARTITION BY
+			root_token_collection_id, token_collection_id
+			ORDER BY array_length(path,1)) AS rnk
+	FROM jazzhands_cache.ct_token_collection_hier_recurse
+) h
+WHERE rnk = 1;
+
+COMMENT ON VIEW jazzhands.v_token_collection_hier_descendent IS
+	'All descendent token collections of a given token collection';
+
+CREATE OR REPLACE VIEW jazzhands.v_token_collection_hier_ancestor  AS
+SELECT token_collection_id,
+	ancestor_token_collection_id,
+	token_collection_level,
+	token_collection_path
+FROM (
+	SELECT
+		token_collection_id					AS  token_collection_id,
+		root_token_collection_id			AS  ancestor_token_collection_id,
+		array_length(path, 1)				AS  token_collection_level,
+		path								AS	token_collection_path,
+		row_number() OVER (PARTITION BY
+			token_collection_id, root_token_collection_id
+			ORDER BY array_length(path,1))	AS rnk
+	FROM jazzhands_cache.ct_token_collection_hier_recurse
+) h
+WHERE rnk = 1;
+
+COMMENT ON VIEW jazzhands.v_token_collection_hier_ancestor IS
+	'All ancestors of a given token collection';
+
+CREATE OR REPLACE VIEW jazzhands.v_token_collection_token_descendent AS
+SELECT
+	token_collection_id,
+	token_id,
+	token_collection_level,
+	token_collection_path
+FROM (
+	SELECT
+		root_token_collection_id	AS	token_collection_id,
+		token_id,
+		token_collection_level,
+		path AS token_collection_path,
+		row_number() OVER (PARTITION BY root_token_collection_id,  token_id
+			ORDER BY token_collection_level) AS rnk
+	FROM jazzhands_cache.ct_token_collection_hier_recurse
+			JOIN jazzhands.token_collection_token cm
+				USING (token_collection_id)
+) i
+WHERE rnk = 1;
+
+COMMENT ON VIEW jazzhands.v_token_collection_token_descendent IS
+	'All tokens that are part of an token collection and (it''s descendent token collections, which is behind the scenes)';
+
+CREATE OR REPLACE VIEW jazzhands.v_token_collection_token_ancestor AS
+SELECT
+	token_collection_id,
+	token_id,
+	token_collection_level,
+	token_collection_path
+FROM (
+	SELECT
+		r.token_collection_id	AS	token_collection_id,
+		token_id, token_collection_level, path AS token_collection_path,
+		row_number() OVER (PARTITION BY r.token_collection_id,  token_id
+			ORDER BY token_collection_level) AS rnk
+	FROM jazzhands_cache.ct_token_collection_hier_recurse r
+			JOIN jazzhands.token_collection_token cm
+				ON r.root_token_collection_id = cm.token_collection_id
+) i
+WHERE rnk = 1;
+
+COMMENT ON VIEW jazzhands.v_token_collection_token_ancestor IS
+	'All tokens that are part of an token collection and (it''s ancestor token collections, which is behind the scenes)';
+
+
+-- END Misc that does not apply to above
+
+
+-- BEGIN Misc that does not apply to above
+--
+-- Copyright (c) 2023-2024 Todd M. Kover
+-- All rights reserved.
+--
+-- Licensed under the Apache License, Version 2.0 (the "License");
+-- you may not use this file except in compliance with the License.
+-- You may obtain a copy of the License at
+--
+--      http://www.apache.org/licenses/LICENSE-2.0
+--
+-- Unless required by applicable law or agreed to in writing, software
+-- distributed under the License is distributed on an "AS IS" BASIS,
+-- WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+-- See the License for the specific language governing permissions and
+-- limitations under the License.
+--
+
+\set ON_ERROR_STOP
+
+/*
+ * This is meant to recurse all the descendants of a node or all the ancestors
+ * depending on how it is looked at.  "root" is the "oldest" ancestor,
+ * leaf means "youngest".  Other views have historically used these
+ * interchangably depending on how the newest works.
+ *
+ * NOTE:  path always set by order procssed, which is at the leaf "up" so
+ * the leaf will always be first.
+ *
+ * NOTE:  I figured this all out on a plane.
+ *
+ * start at the _bottom_ and recurse _up_, then in the end swap how they
+ * are presented because the "roto" is the "oldest" ancestor.
+ */
+CREATE OR REPLACE VIEW jazzhands_cache.v_property_name_collection_hier_recurse
+AS
+WITH RECURSIVE var_recurse (
+	leaf_property_name_collection_id,
+	property_name_collection_id,
+	path,
+	cycle
+) as (
+	SELECT
+		b.property_name_collection_id			AS leaf_property_name_collection_id,
+		b.property_name_collection_id			AS property_name_collection_id,
+		ARRAY[b.property_name_collection_id]	AS path,
+		false									AS cycle
+	  FROM	property_name_collection b
+UNION ALL
+	SELECT
+		x.leaf_property_name_collection_id		AS leaf_property_name_collection_id,
+		h.property_name_collection_id			AS property_name_collection_id,
+		x.path || h.property_name_collection_id AS path,
+		h.property_name_collection_id = ANY(x.path)	AS cycle
+	  FROM	var_recurse x
+		JOIN property_name_collection_hier h
+			ON x.property_name_collection_id = h.child_property_name_collection_id
+	WHERE	NOT x.cycle
+) SELECT
+			leaf_property_name_collection_id	AS property_name_collection_id,
+			property_name_collection_id			AS root_property_name_collection_id,
+			path,
+			array_length(path, 1)				AS property_name_collection_level,
+			cycle
+  from		var_recurse
+;
+
+SELECT * FROM schema_support.create_cache_table(
+	cache_table_schema := 'jazzhands_cache',
+	cache_table := 'ct_property_name_collection_hier_recurse',
+	defining_view_schema := 'jazzhands_cache',
+	defining_view := 'v_property_name_collection_hier_recurse',
+	create_options := '{
+		"create_augment": {
+			"property_name_collection_level": "GENERATED ALWAYS AS ( array_length(path, 1) ) STORED"
+		}
+	}',
+	force := true
+);
+
+
+ALTER TABLE jazzhands_cache.ct_property_name_collection_hier_recurse
+	ADD PRIMARY KEY (path);
+
+CREATE INDEX ix_property_name_collection_hier_recurse_root_id  ON
+	jazzhands_cache.ct_property_name_collection_hier_recurse
+	(root_property_name_collection_id);
+
+CREATE INDEX ix_property_name_collection_hier_recurse_leaf_Id  ON
+	jazzhands_cache.ct_property_name_collection_hier_recurse
+	(property_name_collection_id);
+
+-- Thanks to slackoverflow :
+-- https://stackoverflow.com/questions/4058731/can-postgresql-index-array-columns
+--
+-- note that @> needs to be used instead of ANY to take advangage of this
+-- indexing.
+--
+CREATE INDEX ix_property_name_collection_hier_recurse_path
+	ON jazzhands_cache.ct_property_name_collection_hier_recurse USING GIN
+	(path array_ops);
+
+CREATE OR REPLACE FUNCTION
+	jazzhands_cache.ct_property_name_collection_hier_recurse_base_handler()
+RETURNS TRIGGER AS $$
+BEGIN
+	IF TG_OP = 'DELETE' THEN
+		DELETE FROM jazzhands_cache.ct_property_name_collection_hier_recurse
+		WHERE root_property_name_collection_id = OLD.property_name_collection_id
+		AND property_name_collection_id = OLD.property_name_collection_id;
+
+		RETURN OLD;
+	ELSIF TG_OP = 'UPDATE' THEN
+		UPDATE jazzhands_cache.ct_property_name_collection_hier_recurse
+		SET
+			root_property_name_collection_id = NEW.property_name_collection_id,
+			property_name_collection_id = NEW.property_name_collection_id
+		WHERE root_property_name_collection_id = OLD.property_name_collection_id
+		AND property_name_collection_id = OLD.property_name_collection_id;
+	ELSIF TG_OP = 'INSERT' THEN
+		INSERT INTO jazzhands_cache.ct_property_name_collection_hier_recurse (
+			root_property_name_collection_id,
+			property_name_collection_id,
+			path,
+			cycle
+		) VALUES (
+			NEW.property_name_collection_id,
+			NEW.property_name_collection_id,
+			ARRAY[NEW.property_name_collection_id],
+			false
+		);
+	END IF;
+
+	RETURN NEW;
+END
+$$
+LANGUAGE plpgsql
+SET search_path=jazzhands
+SECURITY DEFINER
+;
+
+DROP TRIGGER IF EXISTS aaa_ct_property_name_collection_hier_recurse_base_handler
+ON jazzhands.property_name_collection;
+
+
+CREATE TRIGGER aaa_ct_property_name_collection_hier_recurse_base_handler
+AFTER INSERT OR DELETE OR UPDATE OF property_name_collection_id
+ON jazzhands.property_name_collection
+FOR EACH ROW
+EXECUTE PROCEDURE
+	jazzhands_cache.ct_property_name_collection_hier_recurse_base_handler();
+
+-----------------------------------------------------------------------------
+
+CREATE OR REPLACE FUNCTION jazzhands_cache.property_name_collection_hier_recurse_handler()
+RETURNS TRIGGER AS $$
+DECLARE
+	_r		RECORD;
+	_d		RECORD;
+	_cnt	INTEGER;
+BEGIN
+	--
+	-- Delete any rows that are invalidated due to a parent change.
+	--
+	IF
+		(TG_OP = 'DELETE' OR TG_OP = 'UPDATE')
+	THEN
+		--
+		-- This convoluted statement delets anything where the path has the
+		-- parent and child consective in the path array.  This is nasty.
+		FOR _r IN
+		DELETE FROM jazzhands_cache.ct_property_name_collection_hier_recurse
+			WHERE path IN  (
+				SELECT path FROM (
+					SELECT * FROM (
+						SELECT path, unnest(path) as first,
+							unnest(pathplus) as second
+							--, row_number() over () as rn
+						FROM (
+							SELECT path, path[2:array_length(path, 1)] AS pathplus
+							FROM jazzhands_cache.ct_property_name_collection_hier_recurse
+						) i
+					) rmme WHERE second = OLD.property_name_collection_id
+					AND first = OLD.child_property_name_collection_id
+				) rmpath
+			)
+			RETURNING *
+		LOOP
+			RAISE DEBUG '-> pnchd rm %', to_json(_r);
+		END LOOP
+		;
+		get diagnostics _cnt = row_count;
+		RAISE DEBUG 'Deleting upstream references to accol %/% from cache == %',
+			OLD.property_name_collection_id, OLD.child_property_name_collection_id, _cnt;
+	END IF;
+
+	--
+	-- Insert any new rows to correspond with a new parent
+	--
+	IF TG_OP = 'INSERT' OR TG_OP = 'UPDATE' THEN
+		RAISE DEBUG 'pnchd %%Insert: %', to_json(NEW);
+
+		--- @> should use the GIN index.  ANY, not so much
+		FOR _r IN
+			SELECT DISTINCT
+				p.path as parent_path, c.path as child_path,
+				c.property_name_collection_id AS property_name_collection_id,
+				p.root_property_name_collection_id AS root_property_name_collection_id,
+				c.path || p.path as path,
+				p.path @> ARRAY[NEW.child_property_name_collection_id]  OR
+					c.path @> ARRAY[NEW.property_name_collection_id] AS cycle
+			FROM	jazzhands_cache.ct_property_name_collection_hier_recurse p,
+				jazzhands_cache.ct_property_name_collection_hier_recurse c
+			WHERE p.property_name_collection_id = NEW.property_name_collection_id
+			AND c.root_property_name_collection_id = NEW.child_property_name_collection_id
+		LOOP
+			RAISE DEBUG 'pnchd: i/dsmash:%', to_json(_r);
+			IF _r.cycle THEN
+				RAISE EXCEPTION 'This creates an infite loop'
+					USING ERRCODE = 'invalid_parameter_value';
+			END IF;
+			INSERT INTO jazzhands_cache.ct_property_name_collection_hier_recurse (
+					root_property_name_collection_id,
+					property_name_collection_id,
+					path,
+					cycle
+				) VALUES (
+					_r.root_property_name_collection_id,
+					_r.property_name_collection_id,
+					_r.path,
+					_r.cycle
+				) RETURNING * INTO _d ;
+		END LOOP;
+	END IF;
+
+	RETURN NULL;
+END
+$$
+LANGUAGE plpgsql
+SET search_path=jazzhands
+SECURITY DEFINER
+;
+
+DROP TRIGGER IF EXISTS aaa_property_name_collection_hier_recurse_handler
+ON jazzhands.property_name_collection_hier;
+
+CREATE TRIGGER aaa_property_name_collection_hier_recurse_handler
+AFTER INSERT OR DELETE OR
+	UPDATE OF property_name_collection_id, child_property_name_collection_id
+ON jazzhands.property_name_collection_hier
+FOR EACH ROW
+EXECUTE PROCEDURE jazzhands_cache.property_name_collection_hier_recurse_handler();
+
+CREATE OR REPLACE VIEW jazzhands.v_property_name_collection_hier_descendent  AS
+SELECT property_name_collection_id, descendent_property_name_collection_id, property_name_collection_level
+FROM (
+	SELECT
+		root_property_name_collection_id	AS  property_name_collection_id,
+		property_name_collection_id			AS  descendent_property_name_collection_id,
+		array_length(path, 1)				AS  property_name_collection_level,
+		path								AS  property_name_collection_path,
+		row_number() OVER (PARTITION BY
+			root_property_name_collection_id, property_name_collection_id
+			ORDER BY array_length(path,1)) AS rnk
+	FROM jazzhands_cache.ct_property_name_collection_hier_recurse
+) h
+WHERE rnk = 1;
+
+COMMENT ON VIEW jazzhands.v_property_name_collection_hier_descendent IS
+	'All descendent property_name collections of a given property_name collection';
+
+CREATE OR REPLACE VIEW jazzhands.v_property_name_collection_hier_ancestor  AS
+SELECT property_name_collection_id,
+	ancestor_property_name_collection_id,
+	property_name_collection_level,
+	property_name_collection_path
+FROM (
+	SELECT
+		property_name_collection_id			AS  property_name_collection_id,
+		root_property_name_collection_id		AS  ancestor_property_name_collection_id,
+		array_length(path, 1)			AS  property_name_collection_level,
+		path							AS	property_name_collection_path,
+		row_number() OVER (PARTITION BY
+			property_name_collection_id, root_property_name_collection_id
+			ORDER BY array_length(path,1)) AS rnk
+	FROM jazzhands_cache.ct_property_name_collection_hier_recurse
+) h
+WHERE rnk = 1;
+
+COMMENT ON VIEW jazzhands.v_property_name_collection_hier_ancestor IS
+	'All ancestors of a given property_name collection';
+
+CREATE OR REPLACE VIEW jazzhands.v_property_name_collection_property_name_descendent AS
+SELECT
+	property_name_collection_id,
+	property_type, property_name,
+	property_name_collection_level,
+	property_name_collection_path
+FROM (
+	SELECT
+		root_property_name_collection_id	AS	property_name_collection_id,
+		property_type, property_name,
+		property_name_collection_level,
+		path AS property_name_collection_path,
+		row_number() OVER (PARTITION BY root_property_name_collection_id,  property_type, property_name
+			ORDER BY property_name_collection_level) AS rnk
+	FROM jazzhands_cache.ct_property_name_collection_hier_recurse
+			JOIN jazzhands.property_name_collection_property_name cm
+				USING (property_name_collection_id)
+) i
+WHERE rnk = 1;
+
+COMMENT ON VIEW jazzhands.v_property_name_collection_property_name_descendent IS
+	'All property_names that are part of an property_name collection and (it''s descendent property_name collections, which is behind the scenes)';
+
+CREATE OR REPLACE VIEW jazzhands.v_property_name_collection_property_name_ancestor AS
+SELECT
+	property_name_collection_id,
+	property_type, property_name,
+	property_name_collection_level,
+	property_name_collection_path
+FROM (
+	SELECT
+		r.property_name_collection_id	AS	property_name_collection_id,
+		property_type, property_name,
+		 property_name_collection_level,
+		path							AS property_name_collection_path,
+		row_number() OVER (PARTITION BY r.property_name_collection_id,  property_type, property_name
+			ORDER BY property_name_collection_level) AS rnk
+	FROM jazzhands_cache.ct_property_name_collection_hier_recurse r
+			JOIN jazzhands.property_name_collection_property_name cm
+				ON r.root_property_name_collection_id = cm.property_name_collection_id
+) i
+WHERE rnk = 1;
+
+COMMENT ON VIEW jazzhands.v_property_name_collection_property_name_ancestor IS
+	'All property_names that are part of an property_name collection and (it''s ancestor property_name collections, which is behind the scenes)';
 
 
 -- END Misc that does not apply to above
 --
 -- BEGIN: process_ancillary_schema(schema_support)
 --
+-- =============================================
+DO $$
+BEGIN
+-- ... skipping schema_support.cache_table in the old skiplist
+EXCEPTION WHEN duplicate_table
+	THEN NULL;
+END;
+$$;
+
+-- =============================================
+SELECT schema_support.save_dependent_objects_for_replay(schema := 'schema_support'::text, object := 'create_cache_table ( text,text,text,text,boolean )'::text, tags := ARRAY['process_all_procs_in_schema_schema_support'::text]);
+DROP FUNCTION IF EXISTS schema_support.create_cache_table ( text,text,text,text,boolean );
+-- Changed function
+SELECT schema_support.save_dependent_objects_for_replay('schema_support', 'reset_table_sequence');
+SELECT schema_support.save_grants_for_replay('schema_support', 'reset_table_sequence');
+-- Dropped in case type changes.
+DROP FUNCTION IF EXISTS schema_support.reset_table_sequence ( character varying,character varying,boolean );
+CREATE OR REPLACE FUNCTION schema_support.reset_table_sequence(schema character varying, table_name character varying, lowerseq boolean DEFAULT true)
+ RETURNS void
+ LANGUAGE plpgsql
+ SET search_path TO 'schema_support'
+AS $function$
+DECLARE
+	_r	RECORD;
+	m	BIGINT;
+BEGIN
+	FOR _r IN
+		SELECT attname AS column, seq_namespace, seq_name,
+			nextval(concat_ws('.', quote_ident(seq_namespace), quote_ident(seq_name))) AS nv
+		FROM
+			pg_attribute a
+			JOIN pg_class c ON c.oid = a.attrelid
+			JOIN pg_namespace n ON n.oid = c.relnamespace
+			INNER JOIN (
+				SELECT
+					refobjid AS attrelid, refobjsubid AS attnum,
+					c.oid AS seq_id, c.relname AS seq_name,
+					n.oid AS seq_nspid, n.nspname AS seq_namespace,
+					deptype
+				FROM
+					pg_depend d
+					JOIN pg_class c ON c.oid = d.objid
+					JOIN pg_namespace n ON n.oid = c.relnamespace
+				WHERE c.relkind = 'S'
+			) seq USING (attrelid, attnum)
+		WHERE nspname = reset_table_sequence.schema
+		AND relname = reset_table_sequence.table_name
+		AND NOT a.attisdropped
+	LOOP
+		EXECUTE  format('SELECT coalesce(max(%s), 0)+1 FROM %s.%s',
+			quote_ident(_r.column),
+			quote_ident(schema),
+			quote_ident(table_name)
+		) INTO m;
+
+		IF NOT lowerseq AND m < _r.nv  THEN
+			m := _r.nv;
+		END IF;
+		EXECUTE format('ALTER SEQUENCE %s.%s RESTART WITH %s',
+			quote_ident(_r.seq_namespace),
+			quote_ident(_r.seq_name),
+			m
+		);
+	END LOOP;
+END;
+$function$
+;
+
+DO $$
+-- not dropping regrants here.
+BEGIN
+	DELETE FROM __recreate WHERE schema = 'schema_support' AND type = 'function' AND object IN ('reset_table_sequence');
+EXCEPTION WHEN undefined_table THEN
+	RAISE NOTICE 'Drop of proc reset_table_sequence failed but that is ok';
+	NULL;
+END;
+$$;
+
+-- Changed function
+SELECT schema_support.save_dependent_objects_for_replay('schema_support', 'synchronize_cache_tables');
+SELECT schema_support.save_grants_for_replay('schema_support', 'synchronize_cache_tables');
+-- Dropped in case type changes.
+DROP FUNCTION IF EXISTS schema_support.synchronize_cache_tables ( text,text );
+CREATE OR REPLACE FUNCTION schema_support.synchronize_cache_tables(cache_table_schema text DEFAULT NULL::text, cache_table text DEFAULT NULL::text)
+ RETURNS void
+ LANGUAGE plpgsql
+AS $function$
+DECLARE
+	ct_rec			RECORD;
+	query			text;
+	inserted_rows	integer;
+	deleted_rows	integer;
+	columns_to_copy	TEXT;
+BEGIN
+	IF cache_table_schema IS NULL THEN
+		IF cache_table IS NOT NULL THEN
+			RAISE 'Must specify cache_table_schema if cache_table is passed'
+				USING ERRCODE = 'null_value_not_allowed';
+		END IF;
+		query := '
+			SELECT
+				*
+			FROM
+				schema_support.cache_table
+			WHERE
+				updates_enabled = true
+			';
+	ELSE
+		IF cache_table IS NOT NULL THEN
+			query := format($query$
+				SELECT
+					*
+				FROM
+					schema_support.cache_table
+				WHERE
+					quote_ident(cache_table_schema) = '%I' AND
+					quote_ident(cache_table) = '%I'
+				$query$,
+				cache_table_schema,
+				cache_table
+			);
+		ELSE
+			query := format($query$
+				SELECT
+					*
+				FROM
+					schema_support.cache_table
+				WHERE
+					quote_ident(cache_table_schema) = '%I' AND
+					updates_enabled = true
+				$query$,
+				cache_table_schema
+			);
+		END IF;
+	END IF;
+	FOR ct_rec IN EXECUTE query LOOP
+		RAISE DEBUG 'Processing %.%',
+			quote_ident(ct_rec.cache_table_schema),
+			quote_ident(ct_rec.cache_table);
+
+		---
+		--- kind of nasty, but ...
+		---
+		SELECT  string_agg(def, E',\n') INTO columns_to_copy
+		FROM (
+			SELECT quote_ident(a.attname)
+			AS def
+		FROM    pg_catalog.pg_attribute a
+				INNER JOIN pg_class c on a.attrelid = c.oid
+				INNER JOIN pg_namespace n on n.oid = c.relnamespace
+				LEFT JOIN jsonb_each_text(ct_rec.create_options->'create_augment')
+					attr(attname, attr) USING (attname)
+		WHERE   c.relname = ct_rec.cache_table
+		AND   n.nspname = ct_rec.cache_table_schema
+		AND   a.attnum > 0
+		AND   NOT a.attisdropped
+		AND   ( attr IS NULL OR regexp_match (attr,'GENERATED', 'i') IS NULL )
+		ORDER BY a.attnum
+		) i;
+
+		--
+		-- Insert rows that exist in the view that do not exist in the cache
+		-- table
+		--
+		query := format($query$
+			INSERT INTO %I.%I ( %s )
+			SELECT %s FROM %I.%I z
+			WHERE
+				(z) IN
+				(
+					SELECT (x) FROM
+					(
+						SELECT * FROM %I.%I EXCEPT
+						SELECT * FROM %I.%I
+					) x
+				)
+			$query$,
+			ct_rec.cache_table_schema,
+			ct_rec.cache_table,
+			columns_to_copy,
+			columns_to_copy,
+			ct_rec.defining_view_schema,
+			ct_rec.defining_view,
+			ct_rec.defining_view_schema,
+			ct_rec.defining_view,
+			ct_rec.cache_table_schema,
+			ct_rec.cache_table
+		);
+		RAISE DEBUG E'Executing:\n%\n', query;
+		EXECUTE query;
+		GET DIAGNOSTICS inserted_rows := ROW_COUNT;
+
+		--
+		-- Delete rows that exist in the cache table that do not exist in the
+		-- defining view
+		--
+		query := format($query$
+			DELETE FROM %I.%I z
+			WHERE
+				(z) IN
+				(
+					SELECT (x) FROM
+					(
+						SELECT * FROM %I.%I EXCEPT
+						SELECT * FROM %I.%I
+					) x
+				)
+			$query$,
+			ct_rec.cache_table_schema,
+			ct_rec.cache_table,
+			ct_rec.cache_table_schema,
+			ct_rec.cache_table,
+			ct_rec.defining_view_schema,
+			ct_rec.defining_view
+		);
+		RAISE DEBUG E'Executing:\n%\n', query;
+		EXECUTE query;
+		GET DIAGNOSTICS deleted_rows := ROW_COUNT;
+
+		IF (inserted_rows > 0 OR deleted_rows > 0) THEN
+			INSERT INTO schema_support.cache_table_update_log (
+				cache_table_schema,
+				cache_table,
+				update_timestamp,
+				rows_inserted,
+				rows_deleted,
+				forced
+			) VALUES (
+				ct_rec.cache_table_schema,
+				ct_rec.cache_table,
+				current_timestamp,
+				inserted_rows,
+				deleted_rows,
+				false
+			);
+		END IF;
+	END LOOP;
+END
+$function$
+;
+
+DO $$
+-- not dropping regrants here.
+BEGIN
+	DELETE FROM __recreate WHERE schema = 'schema_support' AND type = 'function' AND object IN ('synchronize_cache_tables');
+EXCEPTION WHEN undefined_table THEN
+	RAISE NOTICE 'Drop of proc synchronize_cache_tables failed but that is ok';
+	NULL;
+END;
+$$;
+
 SELECT schema_support.replay_object_recreates(tags := ARRAY['process_all_procs_in_schema_schema_support']);
+-- New function; dropping in case it returned because of type change
+CREATE OR REPLACE FUNCTION schema_support.create_cache_table(cache_table_schema text, cache_table text, defining_view_schema text, defining_view text, create_options jsonb DEFAULT NULL::jsonb, force boolean DEFAULT false)
+ RETURNS void
+ LANGUAGE plpgsql
+AS $function$
+DECLARE
+	param_cache_table_schema		ALIAS FOR cache_table_schema;
+	param_cache_table			ALIAS FOR cache_table;
+	param_defining_view_schema		ALIAS FOR defining_view_schema;
+	param_defining_view			ALIAS FOR defining_view;
+	ct_rec					RECORD;
+	column_definition			TEXT;
+	columns_to_copy				TEXT;
+BEGIN
+	--
+	-- Ensure that the defining view exists
+	--
+	PERFORM *
+	FROM
+		information_schema.views
+	WHERE
+		table_schema = defining_view_schema AND
+		table_name = defining_view;
+
+	IF NOT FOUND THEN
+		RAISE 'view %.% does not exist',
+			defining_view_schema,
+			defining_view
+			USING ERRCODE = 'foreign_key_violation';
+	END IF;
+
+	--
+	-- Verify that the cache table does not exist, or if it does that
+	-- we have an entry for it in schema_support.cache_table and
+	-- force is being passed.
+	--
+
+	PERFORM *
+	FROM
+		information_schema.tables
+	WHERE
+		table_schema = cache_table_schema AND
+		table_name = cache_table;
+
+	IF FOUND THEN
+		IF NOT force THEN
+			RAISE 'cache table %.% already exists',
+				cache_table_schema,
+				cache_table
+				USING ERRCODE = 'unique_violation';
+		END IF;
+
+		PERFORM *
+		FROM
+			schema_support.cache_table ct
+		WHERE
+			ct.cache_table_schema = param_cache_table_schema AND
+			ct.cache_table = param_cache_table;
+
+		IF NOT FOUND THEN
+			RAISE '%', concat(
+				'cache table ', cache_table_schema, '.', cache_table,
+				' already exists, but there is no tracking ',
+				'information for it in schema_support.cache_table.  ',
+				'This must be corrected manually.')
+				USING ERRCODE = 'unique_violation';
+		END IF;
+
+		PERFORM schema_support.save_grants_for_replay(
+			cache_table_schema, cache_table
+		);
+
+		PERFORM schema_support.save_dependent_objects_for_replay(
+			cache_table_schema, cache_table
+		);
+
+		EXECUTE 'DROP TABLE '
+			|| quote_ident(cache_table_schema) || '.'
+			|| quote_ident(cache_table);
+	END IF;
+
+	SELECT * INTO ct_rec
+	FROM
+		schema_support.cache_table ct
+	WHERE
+		ct.cache_table_schema = param_cache_table_schema AND
+		ct.cache_table = param_cache_table;
+
+	IF NOT FOUND THEN
+		INSERT INTO schema_support.cache_table(
+			cache_table_schema,
+			cache_table,
+			defining_view_schema,
+			defining_view,
+			updates_enabled,
+			create_options
+		) VALUES (
+			param_cache_table_schema,
+			param_cache_table,
+			param_defining_view_schema,
+			param_defining_view,
+			'true',
+			create_options
+		);
+	END IF;
+
+	---
+	--- setup the column definitions for passing to the next function.  THis
+	---	allows for tweaking like making a column generated
+	---
+	SELECT  string_agg(def, E',\n') INTO column_definition
+	FROM (
+		SELECT concat(
+			quote_ident(a.attname), ' ',
+			pg_catalog.format_type(a.atttypid, a.atttypmod), ' ', attr)
+		AS def
+	FROM    pg_catalog.pg_attribute a
+			INNER JOIN pg_class c on a.attrelid = c.oid
+			INNER JOIN pg_namespace n on n.oid = c.relnamespace
+			LEFT JOIN jsonb_each_text(create_options->'create_augment')
+				attr(attname, attr)
+				USING (attname)
+	WHERE c.relname = defining_view
+	AND   n.nspname = defining_view_schema
+	AND   a.attnum > 0
+	AND   NOT a.attisdropped
+	ORDER BY a.attnum
+	) i;
+
+	---
+	--- kind of nasty, but ...
+	---
+	SELECT  string_agg(def, E',\n') INTO columns_to_copy
+	FROM (
+		SELECT quote_ident(a.attname)
+		AS def
+	FROM    pg_catalog.pg_attribute a
+			INNER JOIN pg_class c on a.attrelid = c.oid
+			INNER JOIN pg_namespace n on n.oid = c.relnamespace
+			LEFT JOIN jsonb_each_text(create_options->'create_augment')
+				attr(attname, attr) USING (attname)
+	WHERE   c.relname = defining_view
+	AND   n.nspname = defining_view_schema
+	AND   a.attnum > 0
+	AND   NOT a.attisdropped
+	AND   ( attr IS NULL OR regexp_match (attr,'GENERATED', 'i') IS NULL )
+	ORDER BY a.attnum
+	) i;
+
+	EXECUTE format('CREATE TABLE %I.%I ( %s )',
+		cache_table_schema,
+		cache_table,
+		column_definition
+	);
+	EXECUTE format('INSERT INTO %I.%I (%s) SELECT %s FROM %I.%I',
+		cache_table_schema,
+		cache_table,
+		columns_to_copy,
+		columns_to_copy,
+		defining_view_schema,
+		defining_view
+	);
+
+	IF force THEN
+		PERFORM schema_support.replay_object_recreates();
+		PERFORM schema_support.replay_saved_grants();
+	END IF;
+END
+$function$
+;
+
 -- DONE: process_ancillary_schema(schema_support)
 DO $$
 DECLARE
@@ -1334,7 +6273,7 @@ BEGIN
 			array_agg(manager_device_id)
 		FROM
 			component_management_controller dmc
-			JOIN (SELECT i.device_id, i.component_id 
+			JOIN (SELECT i.device_id, i.component_id
 				FROM jazzhands.device i) d
 				USING (component_id)
 			JOIN (SELECT i.device_id AS manager_device_id,
@@ -2141,17 +7080,17 @@ BEGIN
 		logical_volume_property lvp
 	WHERE
 		lvp.logical_volume_id = ANY(logical_volume_list);
-	
+
 	DELETE FROM
 		logical_volume_purpose lvp
 	WHERE
 		lvp.logical_volume_id = ANY(logical_volume_list);
-	
+
 	DELETE FROM
 		block_storage_device bsd
 	WHERE
 		bsd.logical_volume_id = ANY(logical_volume_list);
-	
+
 	DELETE FROM
 		logical_volume lv
 	WHERE
@@ -2189,7 +7128,7 @@ BEGIN
 	SET CONSTRAINTS ALL DEFERRED;
 
 	SELECT ARRAY(
-		SELECT 
+		SELECT
 			DISTINCT child_pv_id
 		FROM
 			v_lv_hier lh
@@ -2210,7 +7149,7 @@ BEGIN
 	) INTO pv_list;
 
 	SELECT ARRAY(
-		SELECT 
+		SELECT
 			DISTINCT child_vg_id
 		FROM
 			v_lv_hier lh
@@ -2231,7 +7170,7 @@ BEGIN
 	) INTO vg_list;
 
 	SELECT ARRAY(
-		SELECT 
+		SELECT
 			DISTINCT child_lv_id
 		FROM
 			v_lv_hier lh
@@ -2258,6 +7197,112 @@ BEGIN
 	DELETE FROM volume_group_purpose WHERE volume_group_id = ANY(vg_list);
 	DELETE FROM volume_group WHERE volume_group_id = ANY(vg_list);
 	DELETE FROM physicalish_volume WHERE physicalish_volume_id = ANY(pv_list);
+END;
+$function$
+;
+
+DO $$
+-- not dropping regrants here.
+BEGIN
+	DELETE FROM __recreate WHERE schema = 'lv_manip' AND type = 'function' AND object IN ('delete_lv_hier');
+EXCEPTION WHEN undefined_table THEN
+	RAISE NOTICE 'Drop of proc delete_lv_hier failed but that is ok';
+	NULL;
+END;
+$$;
+
+-- Changed function
+SELECT schema_support.save_dependent_objects_for_replay('lv_manip', 'delete_lv_hier');
+SELECT schema_support.save_grants_for_replay('lv_manip', 'delete_lv_hier');
+-- Dropped in case type changes.
+DROP FUNCTION IF EXISTS lv_manip.delete_lv_hier ( integer[],integer[],integer[] );
+CREATE OR REPLACE FUNCTION lv_manip.delete_lv_hier(INOUT physicalish_volume_list integer[] DEFAULT NULL::integer[], INOUT volume_group_list integer[] DEFAULT NULL::integer[], INOUT logical_volume_list integer[] DEFAULT NULL::integer[])
+ RETURNS record
+ LANGUAGE plpgsql
+ SECURITY DEFINER
+ SET search_path TO 'jazzhands'
+AS $function$
+DECLARE
+	pv_list	integer[];
+	vg_list	integer[];
+	lv_list	integer[];
+BEGIN
+	SET CONSTRAINTS ALL DEFERRED;
+
+	SELECT ARRAY(
+		SELECT
+			DISTINCT child_pv_id
+		FROM
+			v_lv_hier lh
+		WHERE
+			(CASE WHEN physicalish_volume_list IS NULL
+				THEN false
+				ELSE lh.physicalish_volume_id = ANY (physicalish_volume_list)
+			END OR
+			CASE WHEN volume_group_list  IS NULL
+				THEN false
+				ELSE lh.volume_group_id = ANY (volume_group_list)
+			END OR
+			CASE WHEN logical_volume_list IS NULL
+				THEN false
+				ELSE lh.logical_volume_id = ANY (logical_volume_list)
+			END)
+			AND child_pv_id IS NOT NULL
+	) INTO pv_list;
+
+	SELECT ARRAY(
+		SELECT
+			DISTINCT child_vg_id
+		FROM
+			v_lv_hier lh
+		WHERE
+			(CASE WHEN pv_list IS NULL
+				THEN false
+				ELSE lh.physicalish_volume_id = ANY (physicalish_volume_list)
+			END OR
+			CASE WHEN vg_list IS NULL
+				THEN false
+				ELSE lh.volume_group_id = ANY (volume_group_list)
+			END OR
+			CASE WHEN lv_list IS NULL
+				THEN false
+				ELSE lh.logical_volume_id = ANY (logical_volume_list)
+			END)
+			AND child_vg_id IS NOT NULL
+	) INTO vg_list;
+
+	SELECT ARRAY(
+		SELECT
+			DISTINCT child_lv_id
+		FROM
+			v_lv_hier lh
+		WHERE
+			(CASE WHEN pv_list IS NULL
+				THEN false
+				ELSE lh.physicalish_volume_id = ANY (physicalish_volume_list)
+			END OR
+			CASE WHEN vg_list IS NULL
+				THEN false
+				ELSE lh.volume_group_id = ANY (volume_group_list)
+			END OR
+			CASE WHEN lv_list IS NULL
+				THEN false
+				ELSE lh.logical_volume_id = ANY (logical_volume_list)
+			END)
+			AND child_lv_id IS NOT NULL
+	) INTO lv_list;
+
+	DELETE FROM logical_volume_property WHERE logical_volume_id = ANY(lv_list);
+	DELETE FROM logical_volume_purpose WHERE logical_volume_id = ANY(lv_list);
+	DELETE FROM logical_volume WHERE logical_volume_id = ANY(lv_list);
+	DELETE FROM volume_group_physicalish_volume WHERE physicalish_volume_id = ANY(pv_list);
+	DELETE FROM volume_group_physicalish_volume WHERE volume_group_id = ANY(vg_list);
+	DELETE FROM volume_group WHERE volume_group_id = ANY(vg_list);
+	DELETE FROM physicalish_volume WHERE physicalish_volume_id = ANY(pv_list);
+
+	physicalish_volume_list := pv_list;
+	volume_group_list := vg_list;
+	logical_volume_list := lv_list;
 END;
 $function$
 ;
@@ -2313,7 +7358,7 @@ BEGIN
 		volume_group_physicalish_volume vgpv
 	WHERE
 		vgpv.volume_group_id = ANY(volume_group_list);
-	
+
 	DELETE FROM
 		volume_group_purpose vgp
 	WHERE
@@ -2328,17 +7373,17 @@ BEGIN
 		logical_volume_purpose
 	WHERE
 		logical_volume_id = ANY(lvids);
-	
+
 	DELETE FROM
 		block_storage_device
 	WHERE
 		logical_volume_id = ANY(lvids);
-	
+
 	DELETE FROM
 		logical_volume
 	WHERE
 		logical_volume_id = ANY(lvids);
-	
+
 	DELETE FROM
 		volume_group vg
 	WHERE
@@ -2353,6 +7398,60 @@ BEGIN
 	DELETE FROM __recreate WHERE schema = 'lv_manip' AND type = 'function' AND object IN ('delete_vg');
 EXCEPTION WHEN undefined_table THEN
 	RAISE NOTICE 'Drop of proc delete_vg failed but that is ok';
+	NULL;
+END;
+$$;
+
+-- Changed function
+SELECT schema_support.save_dependent_objects_for_replay('lv_manip', 'remove_pv_membership');
+SELECT schema_support.save_grants_for_replay('lv_manip', 'remove_pv_membership');
+-- Dropped in case type changes.
+DROP FUNCTION IF EXISTS lv_manip.remove_pv_membership ( integer[],boolean );
+CREATE OR REPLACE FUNCTION lv_manip.remove_pv_membership(physicalish_volume_list integer[], purge_orphans boolean DEFAULT false)
+ RETURNS void
+ LANGUAGE plpgsql
+ SECURITY DEFINER
+ SET search_path TO 'jazzhands'
+AS $function$
+DECLARE
+	pvid integer;
+	vgid integer;
+BEGIN
+	SET CONSTRAINTS ALL DEFERRED;
+
+	FOREACH pvid IN ARRAY physicalish_volume_list LOOP
+		DELETE FROM
+			volume_group_physicalish_volume vgpv
+		WHERE
+			vgpv.physicalish_volume_id = pvid
+		RETURNING
+			volume_group_id INTO vgid;
+
+		IF FOUND AND purge_orphans THEN
+			PERFORM * FROM
+				volume_group_physicalish_volume vgpv
+			WHERE
+				volume_group_id = vgid;
+
+			IF NOT FOUND THEN
+				PERFORM lv_manip.delete_vg(
+					volume_group_id := vgid,
+					purge_orphans := purge_orphans
+				);
+			END IF;
+		END IF;
+
+	END LOOP;
+END;
+$function$
+;
+
+DO $$
+-- not dropping regrants here.
+BEGIN
+	DELETE FROM __recreate WHERE schema = 'lv_manip' AND type = 'function' AND object IN ('remove_pv_membership');
+EXCEPTION WHEN undefined_table THEN
+	RAISE NOTICE 'Drop of proc remove_pv_membership failed but that is ok';
 	NULL;
 END;
 $$;
@@ -4374,7 +9473,419 @@ SELECT schema_support.replay_object_recreates(tags := ARRAY['process_all_procs_i
 --
 -- Process middle (non-trigger) schema schema_support
 --
+SELECT schema_support.save_dependent_objects_for_replay(schema := 'schema_support'::text, object := 'create_cache_table ( text,text,text,text,boolean )'::text, tags := ARRAY['process_all_procs_in_schema_schema_support'::text]);
+DROP FUNCTION IF EXISTS schema_support.create_cache_table ( text,text,text,text,boolean );
+-- Changed function
+SELECT schema_support.save_dependent_objects_for_replay('schema_support', 'reset_table_sequence');
+SELECT schema_support.save_grants_for_replay('schema_support', 'reset_table_sequence');
+-- Dropped in case type changes.
+DROP FUNCTION IF EXISTS schema_support.reset_table_sequence ( character varying,character varying,boolean );
+CREATE OR REPLACE FUNCTION schema_support.reset_table_sequence(schema character varying, table_name character varying, lowerseq boolean DEFAULT true)
+ RETURNS void
+ LANGUAGE plpgsql
+ SET search_path TO 'schema_support'
+AS $function$
+DECLARE
+	_r	RECORD;
+	m	BIGINT;
+BEGIN
+	FOR _r IN
+		SELECT attname AS column, seq_namespace, seq_name,
+			nextval(concat_ws('.', quote_ident(seq_namespace), quote_ident(seq_name))) AS nv
+		FROM
+			pg_attribute a
+			JOIN pg_class c ON c.oid = a.attrelid
+			JOIN pg_namespace n ON n.oid = c.relnamespace
+			INNER JOIN (
+				SELECT
+					refobjid AS attrelid, refobjsubid AS attnum,
+					c.oid AS seq_id, c.relname AS seq_name,
+					n.oid AS seq_nspid, n.nspname AS seq_namespace,
+					deptype
+				FROM
+					pg_depend d
+					JOIN pg_class c ON c.oid = d.objid
+					JOIN pg_namespace n ON n.oid = c.relnamespace
+				WHERE c.relkind = 'S'
+			) seq USING (attrelid, attnum)
+		WHERE nspname = reset_table_sequence.schema
+		AND relname = reset_table_sequence.table_name
+		AND NOT a.attisdropped
+	LOOP
+		EXECUTE  format('SELECT coalesce(max(%s), 0)+1 FROM %s.%s',
+			quote_ident(_r.column),
+			quote_ident(schema),
+			quote_ident(table_name)
+		) INTO m;
+
+		IF NOT lowerseq AND m < _r.nv  THEN
+			m := _r.nv;
+		END IF;
+		EXECUTE format('ALTER SEQUENCE %s.%s RESTART WITH %s',
+			quote_ident(_r.seq_namespace),
+			quote_ident(_r.seq_name),
+			m
+		);
+	END LOOP;
+END;
+$function$
+;
+
+DO $$
+-- not dropping regrants here.
+BEGIN
+	DELETE FROM __recreate WHERE schema = 'schema_support' AND type = 'function' AND object IN ('reset_table_sequence');
+EXCEPTION WHEN undefined_table THEN
+	RAISE NOTICE 'Drop of proc reset_table_sequence failed but that is ok';
+	NULL;
+END;
+$$;
+
+-- Changed function
+SELECT schema_support.save_dependent_objects_for_replay('schema_support', 'synchronize_cache_tables');
+SELECT schema_support.save_grants_for_replay('schema_support', 'synchronize_cache_tables');
+-- Dropped in case type changes.
+DROP FUNCTION IF EXISTS schema_support.synchronize_cache_tables ( text,text );
+CREATE OR REPLACE FUNCTION schema_support.synchronize_cache_tables(cache_table_schema text DEFAULT NULL::text, cache_table text DEFAULT NULL::text)
+ RETURNS void
+ LANGUAGE plpgsql
+AS $function$
+DECLARE
+	ct_rec			RECORD;
+	query			text;
+	inserted_rows	integer;
+	deleted_rows	integer;
+	columns_to_copy	TEXT;
+BEGIN
+	IF cache_table_schema IS NULL THEN
+		IF cache_table IS NOT NULL THEN
+			RAISE 'Must specify cache_table_schema if cache_table is passed'
+				USING ERRCODE = 'null_value_not_allowed';
+		END IF;
+		query := '
+			SELECT
+				*
+			FROM
+				schema_support.cache_table
+			WHERE
+				updates_enabled = true
+			';
+	ELSE
+		IF cache_table IS NOT NULL THEN
+			query := format($query$
+				SELECT
+					*
+				FROM
+					schema_support.cache_table
+				WHERE
+					quote_ident(cache_table_schema) = '%I' AND
+					quote_ident(cache_table) = '%I'
+				$query$,
+				cache_table_schema,
+				cache_table
+			);
+		ELSE
+			query := format($query$
+				SELECT
+					*
+				FROM
+					schema_support.cache_table
+				WHERE
+					quote_ident(cache_table_schema) = '%I' AND
+					updates_enabled = true
+				$query$,
+				cache_table_schema
+			);
+		END IF;
+	END IF;
+	FOR ct_rec IN EXECUTE query LOOP
+		RAISE DEBUG 'Processing %.%',
+			quote_ident(ct_rec.cache_table_schema),
+			quote_ident(ct_rec.cache_table);
+
+		---
+		--- kind of nasty, but ...
+		---
+		SELECT  string_agg(def, E',\n') INTO columns_to_copy
+		FROM (
+			SELECT quote_ident(a.attname)
+			AS def
+		FROM    pg_catalog.pg_attribute a
+				INNER JOIN pg_class c on a.attrelid = c.oid
+				INNER JOIN pg_namespace n on n.oid = c.relnamespace
+				LEFT JOIN jsonb_each_text(ct_rec.create_options->'create_augment')
+					attr(attname, attr) USING (attname)
+		WHERE   c.relname = ct_rec.cache_table
+		AND   n.nspname = ct_rec.cache_table_schema
+		AND   a.attnum > 0
+		AND   NOT a.attisdropped
+		AND   ( attr IS NULL OR regexp_match (attr,'GENERATED', 'i') IS NULL )
+		ORDER BY a.attnum
+		) i;
+
+		--
+		-- Insert rows that exist in the view that do not exist in the cache
+		-- table
+		--
+		query := format($query$
+			INSERT INTO %I.%I ( %s )
+			SELECT %s FROM %I.%I z
+			WHERE
+				(z) IN
+				(
+					SELECT (x) FROM
+					(
+						SELECT * FROM %I.%I EXCEPT
+						SELECT * FROM %I.%I
+					) x
+				)
+			$query$,
+			ct_rec.cache_table_schema,
+			ct_rec.cache_table,
+			columns_to_copy,
+			columns_to_copy,
+			ct_rec.defining_view_schema,
+			ct_rec.defining_view,
+			ct_rec.defining_view_schema,
+			ct_rec.defining_view,
+			ct_rec.cache_table_schema,
+			ct_rec.cache_table
+		);
+		RAISE DEBUG E'Executing:\n%\n', query;
+		EXECUTE query;
+		GET DIAGNOSTICS inserted_rows := ROW_COUNT;
+
+		--
+		-- Delete rows that exist in the cache table that do not exist in the
+		-- defining view
+		--
+		query := format($query$
+			DELETE FROM %I.%I z
+			WHERE
+				(z) IN
+				(
+					SELECT (x) FROM
+					(
+						SELECT * FROM %I.%I EXCEPT
+						SELECT * FROM %I.%I
+					) x
+				)
+			$query$,
+			ct_rec.cache_table_schema,
+			ct_rec.cache_table,
+			ct_rec.cache_table_schema,
+			ct_rec.cache_table,
+			ct_rec.defining_view_schema,
+			ct_rec.defining_view
+		);
+		RAISE DEBUG E'Executing:\n%\n', query;
+		EXECUTE query;
+		GET DIAGNOSTICS deleted_rows := ROW_COUNT;
+
+		IF (inserted_rows > 0 OR deleted_rows > 0) THEN
+			INSERT INTO schema_support.cache_table_update_log (
+				cache_table_schema,
+				cache_table,
+				update_timestamp,
+				rows_inserted,
+				rows_deleted,
+				forced
+			) VALUES (
+				ct_rec.cache_table_schema,
+				ct_rec.cache_table,
+				current_timestamp,
+				inserted_rows,
+				deleted_rows,
+				false
+			);
+		END IF;
+	END LOOP;
+END
+$function$
+;
+
+DO $$
+-- not dropping regrants here.
+BEGIN
+	DELETE FROM __recreate WHERE schema = 'schema_support' AND type = 'function' AND object IN ('synchronize_cache_tables');
+EXCEPTION WHEN undefined_table THEN
+	RAISE NOTICE 'Drop of proc synchronize_cache_tables failed but that is ok';
+	NULL;
+END;
+$$;
+
 SELECT schema_support.replay_object_recreates(tags := ARRAY['process_all_procs_in_schema_schema_support']);
+-- New function; dropping in case it returned because of type change
+CREATE OR REPLACE FUNCTION schema_support.create_cache_table(cache_table_schema text, cache_table text, defining_view_schema text, defining_view text, create_options jsonb DEFAULT NULL::jsonb, force boolean DEFAULT false)
+ RETURNS void
+ LANGUAGE plpgsql
+AS $function$
+DECLARE
+	param_cache_table_schema		ALIAS FOR cache_table_schema;
+	param_cache_table			ALIAS FOR cache_table;
+	param_defining_view_schema		ALIAS FOR defining_view_schema;
+	param_defining_view			ALIAS FOR defining_view;
+	ct_rec					RECORD;
+	column_definition			TEXT;
+	columns_to_copy				TEXT;
+BEGIN
+	--
+	-- Ensure that the defining view exists
+	--
+	PERFORM *
+	FROM
+		information_schema.views
+	WHERE
+		table_schema = defining_view_schema AND
+		table_name = defining_view;
+
+	IF NOT FOUND THEN
+		RAISE 'view %.% does not exist',
+			defining_view_schema,
+			defining_view
+			USING ERRCODE = 'foreign_key_violation';
+	END IF;
+
+	--
+	-- Verify that the cache table does not exist, or if it does that
+	-- we have an entry for it in schema_support.cache_table and
+	-- force is being passed.
+	--
+
+	PERFORM *
+	FROM
+		information_schema.tables
+	WHERE
+		table_schema = cache_table_schema AND
+		table_name = cache_table;
+
+	IF FOUND THEN
+		IF NOT force THEN
+			RAISE 'cache table %.% already exists',
+				cache_table_schema,
+				cache_table
+				USING ERRCODE = 'unique_violation';
+		END IF;
+
+		PERFORM *
+		FROM
+			schema_support.cache_table ct
+		WHERE
+			ct.cache_table_schema = param_cache_table_schema AND
+			ct.cache_table = param_cache_table;
+
+		IF NOT FOUND THEN
+			RAISE '%', concat(
+				'cache table ', cache_table_schema, '.', cache_table,
+				' already exists, but there is no tracking ',
+				'information for it in schema_support.cache_table.  ',
+				'This must be corrected manually.')
+				USING ERRCODE = 'unique_violation';
+		END IF;
+
+		PERFORM schema_support.save_grants_for_replay(
+			cache_table_schema, cache_table
+		);
+
+		PERFORM schema_support.save_dependent_objects_for_replay(
+			cache_table_schema, cache_table
+		);
+
+		EXECUTE 'DROP TABLE '
+			|| quote_ident(cache_table_schema) || '.'
+			|| quote_ident(cache_table);
+	END IF;
+
+	SELECT * INTO ct_rec
+	FROM
+		schema_support.cache_table ct
+	WHERE
+		ct.cache_table_schema = param_cache_table_schema AND
+		ct.cache_table = param_cache_table;
+
+	IF NOT FOUND THEN
+		INSERT INTO schema_support.cache_table(
+			cache_table_schema,
+			cache_table,
+			defining_view_schema,
+			defining_view,
+			updates_enabled,
+			create_options
+		) VALUES (
+			param_cache_table_schema,
+			param_cache_table,
+			param_defining_view_schema,
+			param_defining_view,
+			'true',
+			create_options
+		);
+	END IF;
+
+	---
+	--- setup the column definitions for passing to the next function.  THis
+	---	allows for tweaking like making a column generated
+	---
+	SELECT  string_agg(def, E',\n') INTO column_definition
+	FROM (
+		SELECT concat(
+			quote_ident(a.attname), ' ',
+			pg_catalog.format_type(a.atttypid, a.atttypmod), ' ', attr)
+		AS def
+	FROM    pg_catalog.pg_attribute a
+			INNER JOIN pg_class c on a.attrelid = c.oid
+			INNER JOIN pg_namespace n on n.oid = c.relnamespace
+			LEFT JOIN jsonb_each_text(create_options->'create_augment')
+				attr(attname, attr)
+				USING (attname)
+	WHERE c.relname = defining_view
+	AND   n.nspname = defining_view_schema
+	AND   a.attnum > 0
+	AND   NOT a.attisdropped
+	ORDER BY a.attnum
+	) i;
+
+	---
+	--- kind of nasty, but ...
+	---
+	SELECT  string_agg(def, E',\n') INTO columns_to_copy
+	FROM (
+		SELECT quote_ident(a.attname)
+		AS def
+	FROM    pg_catalog.pg_attribute a
+			INNER JOIN pg_class c on a.attrelid = c.oid
+			INNER JOIN pg_namespace n on n.oid = c.relnamespace
+			LEFT JOIN jsonb_each_text(create_options->'create_augment')
+				attr(attname, attr) USING (attname)
+	WHERE   c.relname = defining_view
+	AND   n.nspname = defining_view_schema
+	AND   a.attnum > 0
+	AND   NOT a.attisdropped
+	AND   ( attr IS NULL OR regexp_match (attr,'GENERATED', 'i') IS NULL )
+	ORDER BY a.attnum
+	) i;
+
+	EXECUTE format('CREATE TABLE %I.%I ( %s )',
+		cache_table_schema,
+		cache_table,
+		column_definition
+	);
+	EXECUTE format('INSERT INTO %I.%I (%s) SELECT %s FROM %I.%I',
+		cache_table_schema,
+		cache_table,
+		columns_to_copy,
+		columns_to_copy,
+		defining_view_schema,
+		defining_view
+	);
+
+	IF force THEN
+		PERFORM schema_support.replay_object_recreates();
+		PERFORM schema_support.replay_saved_grants();
+	END IF;
+END
+$function$
+;
+
 --
 -- Process middle (non-trigger) schema script_hooks
 --
@@ -4770,7 +10281,7 @@ BEGIN
 				USING ERRCODE = 'invalid_parameter_value';
 		END IF;
 		IF _parsed IS NULL OR _pubkeyhashes IS NULL THEN
-			RAISE EXCEPTION 'Certificate Signing Request is invalid or something fundemental was wrong with parsing' 
+			RAISE EXCEPTION 'Certificate Signing Request is invalid or something fundemental was wrong with parsing'
 				USING ERRCODE = 'data_exception';
 		END IF;
 	EXCEPTION WHEN invalid_schema_name OR undefined_function THEN
@@ -4804,7 +10315,7 @@ BEGIN
 			LEFT JOIN x509_signed_certificate x509 USING (public_key_hash_id)
 		WHERE cryptographic_hash_algorithm = _e->>'algorithm'
 		AND calculated_hash = _e->>'hash'
-		ORDER BY 
+		ORDER BY
 			CASE WHEN x509.is_active THEN 0 ELSE 1 END,
 			CASE WHEN x509.x509_signed_certificate_id IS NULL THEN 0 ELSE 1 END,
 			pk.data_upd_date desc, pk.data_ins_date desc;
@@ -4870,7 +10381,7 @@ BEGIN
 				USING ERRCODE = 'invalid_parameter_value';
 		END IF;
 		IF _parsed IS NULL OR _pubkeyhashes IS NULL THEN
-			RAISE EXCEPTION 'X509 Certificate is invalid or something fundemental was wrong with parsing' 
+			RAISE EXCEPTION 'X509 Certificate is invalid or something fundemental was wrong with parsing'
 				USING ERRCODE = 'data_exception';
 		END IF;
 	EXCEPTION WHEN invalid_schema_name OR undefined_function THEN
@@ -4890,7 +10401,7 @@ BEGIN
 		'friendly_name',
 		'subject_key_identifier',
 		'is_ca',
-		'valid_from', 
+		'valid_from',
 		'valid_to']
 	LOOP
 		IF NOT _parsed ? field THEN
@@ -4924,7 +10435,7 @@ BEGIN
 		_ca := NULL;
 		_caserial := NULL;
 	END IF;
-		
+
 
 	FOR _e IN SELECT jsonb_array_elements(_pubkeyhashes)
 	LOOP
@@ -4936,7 +10447,7 @@ BEGIN
 			LEFT JOIN x509_signed_certificate x509 USING (public_key_hash_id)
 		WHERE cryptographic_hash_algorithm = _e->>'algorithm'
 		AND calculated_hash = _e->>'hash'
-		ORDER BY 
+		ORDER BY
 			CASE WHEN x509.is_active THEN 0 ELSE 1 END,
 			CASE WHEN x509.x509_signed_certificate_id IS NULL THEN 0 ELSE 1 END,
 			pk.data_upd_date desc, pk.data_ins_date desc;
@@ -4957,7 +10468,7 @@ BEGIN
 			LEFT JOIN x509_signed_certificate x509 USING (public_key_hash_id)
 		WHERE cryptographic_hash_algorithm = _e->>'algorithm'
 		AND calculated_hash = _e->>'hash'
-		ORDER BY 
+		ORDER BY
 			CASE WHEN x509.is_active THEN 0 ELSE 1 END,
 			CASE WHEN x509.x509_signed_certificate_id IS NULL THEN 0 ELSE 1 END,
 			csr.data_upd_date desc, csr.data_ins_date desc;
@@ -4968,7 +10479,7 @@ BEGIN
 	END LOOP;
 
 	INSERT INTO x509_signed_certificate (
-		x509_certificate_type, subject, friendly_name, 
+		x509_certificate_type, subject, friendly_name,
 		subject_key_identifier,
 		is_certificate_authority,
 		signing_cert_id, x509_ca_cert_serial_number,
@@ -4990,13 +10501,13 @@ BEGIN
 			--- This is a little wonky.
 			---
 		    INSERT INTO x509_key_usage_attribute (
-			 	x509_signed_certificate_id, x509_key_usage, 
+			 	x509_signed_certificate_id, x509_key_usage,
 				x509_key_usgage_category
 			) SELECT _x509.x509_signed_certificate_id, _e #>>'{}',
 				x509_key_usage_category
 			FROM x509_key_usage_categorization
 			WHERE x509_key_usage_category =  _e #>>'{}'
-			ORDER BY 
+			ORDER BY
 				CASE WHEN x509_key_usage_category = 'ca' THEN 1
 					WHEN x509_key_usage_category = 'revocation' THEN 2
 					WHEN x509_key_usage_category = 'application' THEN 3
@@ -5299,6 +10810,570 @@ $function$
 
 -- Processing tables in main schema...
 select clock_timestamp(), clock_timestamp() - now() AS len;
+select clock_timestamp(), clock_timestamp() - now() AS len;
+-- Processing minor changes to service_version
+SELECT schema_support.save_dependent_objects_for_replay(schema := 'jazzhands', object := 'service_version');
+SELECT schema_support.save_dependent_objects_for_replay(schema := 'jazzhands_audit', object := 'service_version');
+ALTER TABLE service_version DROP CONSTRAINT IF EXISTS ak_service_version_id_service_id;
+ALTER TABLE service_version
+	ADD CONSTRAINT ak_service_version_id_service_id
+	UNIQUE (service_version_id, service_id);
+
+ALTER TABLE val_block_storage_device_type
+	DROP CONSTRAINT IF EXISTS check_prp_prmt_1312273807;
+ALTER TABLE val_block_storage_device_type
+ADD CONSTRAINT check_prp_prmt_1312273807
+	CHECK ((permit_component_id = ANY (ARRAY['REQUIRED'::bpchar, 'PROHIBITED'::bpchar, 'ALLOWED'::bpchar])));
+
+ALTER TABLE val_block_storage_device_type
+	DROP CONSTRAINT IF EXISTS check_prp_prmt_1709045498;
+ALTER TABLE val_block_storage_device_type
+ADD CONSTRAINT check_prp_prmt_1709045498
+	CHECK ((permit_logical_volume_id = ANY (ARRAY['REQUIRED'::bpchar, 'PROHIBITED'::bpchar, 'ALLOWED'::bpchar])));
+
+ALTER TABLE val_encryption_key_purpose
+	DROP CONSTRAINT IF EXISTS check_prp_prmt_790339211;
+ALTER TABLE val_encryption_key_purpose
+ADD CONSTRAINT check_prp_prmt_790339211
+	CHECK ((permit_encryption_key_db_value = ANY (ARRAY['REQUIRED'::bpchar, 'PROHIBITED'::bpchar, 'ALLOWED'::bpchar])));
+
+ALTER TABLE val_filesystem_type
+	DROP CONSTRAINT IF EXISTS check_prp_prmt_202454059;
+ALTER TABLE val_filesystem_type
+ADD CONSTRAINT check_prp_prmt_202454059
+	CHECK ((permit_filesystem_label = ANY (ARRAY['REQUIRED'::bpchar, 'PROHIBITED'::bpchar, 'ALLOWED'::bpchar])));
+
+ALTER TABLE val_filesystem_type
+	DROP CONSTRAINT IF EXISTS check_prp_prmt_354720359;
+ALTER TABLE val_filesystem_type
+ADD CONSTRAINT check_prp_prmt_354720359
+	CHECK ((permit_mountpoint = ANY (ARRAY['REQUIRED'::bpchar, 'PROHIBITED'::bpchar, 'ALLOWED'::bpchar])));
+
+ALTER TABLE val_filesystem_type
+	DROP CONSTRAINT IF EXISTS check_prp_prmt_388499636;
+ALTER TABLE val_filesystem_type
+ADD CONSTRAINT check_prp_prmt_388499636
+	CHECK ((permit_filesystem_serial = ANY (ARRAY['REQUIRED'::bpchar, 'PROHIBITED'::bpchar, 'ALLOWED'::bpchar])));
+
+DROP INDEX IF EXISTS "jazzhands_audit"."aud_service_version_ak_service_version_id_service_id";
+CREATE INDEX aud_service_version_ak_service_version_id_service_id ON jazzhands_audit.service_version USING btree (service_version_id, service_id);
+select clock_timestamp(), clock_timestamp() - now() AS len;
+--------------------------------------------------------------------
+-- BEGIN: DEALING WITH TABLE service_relationship
+-- Save grants for later reapplication
+SELECT schema_support.save_grants_for_replay('jazzhands', 'service_relationship', 'service_relationship');
+
+-- FOREIGN KEYS FROM
+ALTER TABLE service_layer3_acl DROP CONSTRAINT IF EXISTS fk_service_l3acl_relationship_id;
+ALTER TABLE service_relationship_service_feature DROP CONSTRAINT IF EXISTS fk_svc_relationship_service_feature_service_relationship_id;
+
+-- FOREIGN KEYS TO
+ALTER TABLE jazzhands.service_relationship DROP CONSTRAINT IF EXISTS fk_service_relationship_related_service_version_id;
+ALTER TABLE jazzhands.service_relationship DROP CONSTRAINT IF EXISTS fk_service_relationship_relationship_type;
+ALTER TABLE jazzhands.service_relationship DROP CONSTRAINT IF EXISTS fk_service_relationship_service_endpoint_provider_id;
+ALTER TABLE jazzhands.service_relationship DROP CONSTRAINT IF EXISTS fk_service_relationship_service_id;
+ALTER TABLE jazzhands.service_relationship DROP CONSTRAINT IF EXISTS fk_service_relationship_service_sla_id;
+ALTER TABLE jazzhands.service_relationship DROP CONSTRAINT IF EXISTS fk_service_relationship_service_version_id;
+
+-- EXTRA-SCHEMA constraints
+SELECT schema_support.save_constraint_for_replay(schema := 'jazzhands', object := 'service_relationship', newobject := 'service_relationship', newmap := '{"ak_serv_ice_relationship_id_version":{"columns":["service_relationship_id","service_version_id"],"def":"UNIQUE (service_relationship_id, service_version_id)","deferrable":false,"deferred":false,"name":"ak_serv_ice_relationship_id_version","type":"u"},"ak_svc_relationship_pair":{"columns":["service_relationship_id","service_version_id","service_version_restriction_service_id"],"def":"UNIQUE (service_relationship_id, service_version_id, service_version_restriction_service_id)","deferrable":false,"deferred":false,"name":"ak_svc_relationship_pair","type":"u"},"ak_svc_relship_vers_svc_sla":{"columns":["service_relationship_id","service_version_id","service_version_restriction_service_id","service_sla_id"],"def":"UNIQUE (service_relationship_id, service_version_id, service_version_restriction_service_id, service_sla_id)","deferrable":false,"deferred":false,"name":"ak_svc_relship_vers_svc_sla","type":"u"},"pk_service_relationship":{"columns":["service_relationship_id"],"def":"PRIMARY KEY (service_relationship_id)","deferrable":false,"deferred":false,"name":"pk_service_relationship","type":"p"}}');
+
+-- PRIMARY and ALTERNATE KEYS
+ALTER TABLE jazzhands.service_relationship DROP CONSTRAINT IF EXISTS ak_svc_relship_vers_svc_sla;
+ALTER TABLE jazzhands.service_relationship DROP CONSTRAINT IF EXISTS pk_service_relationship;
+-- INDEXES
+DROP INDEX IF EXISTS "jazzhands"."xifservice_relationship_related_service_version_id";
+DROP INDEX IF EXISTS "jazzhands"."xifservice_relationship_relationship_type";
+DROP INDEX IF EXISTS "jazzhands"."xifservice_relationship_service_endpoint_provider_id";
+DROP INDEX IF EXISTS "jazzhands"."xifservice_relationship_service_id";
+DROP INDEX IF EXISTS "jazzhands"."xifservice_relationship_service_sla_id";
+DROP INDEX IF EXISTS "jazzhands"."xifservice_relationship_service_version_id";
+-- CHECK CONSTRAINTS, etc
+-- TRIGGERS, etc
+DROP TRIGGER IF EXISTS trig_userlog_service_relationship ON jazzhands.service_relationship;
+DROP TRIGGER IF EXISTS trigger_audit_service_relationship ON jazzhands.service_relationship;
+DROP FUNCTION IF EXISTS perform_audit_service_relationship();
+DROP TRIGGER IF EXISTS trigger_check_service_relationship_rhs ON jazzhands.service_relationship;
+-- default sequences associations and sequences (values rebuilt at end, if needed)
+-- The value of this sequence is restored based on the column at migration end
+ALTER TABLE jazzhands.service_relationship ALTER COLUMN "service_relationship_id" DROP IDENTITY;
+SELECT schema_support.save_dependent_objects_for_replay(schema := 'jazzhands', object := 'service_relationship', tags := ARRAY['table_service_relationship']);
+---- BEGIN jazzhands_audit.service_relationship TEARDOWN
+SELECT schema_support.save_dependent_objects_for_replay(schema := 'jazzhands_audit', object := 'service_relationship', tags := ARRAY['table_service_relationship']);
+-- Save grants for later reapplication
+SELECT schema_support.save_grants_for_replay('jazzhands_audit', 'service_relationship', 'service_relationship');
+
+-- FOREIGN KEYS FROM
+
+-- FOREIGN KEYS TO
+
+-- EXTRA-SCHEMA constraints
+SELECT schema_support.save_constraint_for_replay(schema := 'jazzhands_audit',  object := 'service_relationship');
+
+-- PRIMARY and ALTERNATE KEYS
+ALTER TABLE jazzhands_audit.service_relationship DROP CONSTRAINT IF EXISTS service_relationship_pkey;
+-- INDEXES
+DROP INDEX IF EXISTS "jazzhands_audit"."aud_service_relationship_ak_svc_relship_vers_svc_sla";
+DROP INDEX IF EXISTS "jazzhands_audit"."aud_service_relationship_pk_service_relationship";
+DROP INDEX IF EXISTS "jazzhands_audit"."service_relationship_aud#realtime_idx";
+DROP INDEX IF EXISTS "jazzhands_audit"."service_relationship_aud#timestamp_idx";
+DROP INDEX IF EXISTS "jazzhands_audit"."service_relationship_aud#txid_idx";
+-- CHECK CONSTRAINTS, etc
+-- TRIGGERS, etc
+-- default sequences associations and sequences (values rebuilt at end, if needed)
+-- The value of this sequence is restored based on the column at migration end
+ALTER TABLE jazzhands_audit.service_relationship ALTER COLUMN "aud#seq" DROP IDENTITY;
+---- DONE jazzhands_audit.service_relationship TEARDOWN
+
+
+ALTER TABLE service_relationship RENAME TO service_relationship_v97;
+ALTER TABLE jazzhands_audit.service_relationship RENAME TO service_relationship_v97;
+
+CREATE TABLE jazzhands.service_relationship
+(
+	service_relationship_id	integer NOT NULL,
+	service_version_id	integer NOT NULL,
+	service_relationship_type	varchar(255) NOT NULL,
+	service_version_restriction_service_id	integer NOT NULL,
+	service_version_restriction	varchar(255)  NULL,
+	related_service_version_id	integer  NULL,
+	is_calculated	boolean NOT NULL,
+	service_sla_id	integer  NULL,
+	data_ins_user	varchar(255)  NULL,
+	data_ins_date	timestamp with time zone  NULL,
+	data_upd_user	varchar(255)  NULL,
+	data_upd_date	timestamp with time zone  NULL
+);
+SELECT schema_support.build_audit_table('jazzhands_audit', 'jazzhands', 'service_relationship', false);
+ALTER TABLE service_relationship
+	ALTER COLUMN service_relationship_id
+	ADD GENERATED BY DEFAULT AS IDENTITY;
+ALTER TABLE service_relationship
+	ALTER is_calculated
+	SET DEFAULT false;
+
+INSERT INTO service_relationship (
+	service_relationship_id,
+	service_version_id,
+	service_relationship_type,
+	service_version_restriction_service_id,
+	service_version_restriction,
+	related_service_version_id,
+	is_calculated,
+	service_sla_id,
+	data_ins_user,
+	data_ins_date,
+	data_upd_user,
+	data_upd_date
+) SELECT
+	service_relationship_id,
+	service_version_id,
+	service_relationship_type,
+	service_version_restriction_service_id,
+	service_version_restriction,
+	related_service_version_id,
+	is_calculated,
+	service_sla_id,
+	data_ins_user,
+	data_ins_date,
+	data_upd_user,
+	data_upd_date
+FROM service_relationship_v97;
+
+
+INSERT INTO jazzhands_audit.service_relationship (
+	service_relationship_id,
+	service_version_id,
+	service_relationship_type,
+	service_version_restriction_service_id,
+	service_version_restriction,
+	related_service_version_id,
+	is_calculated,
+	service_sla_id,
+	data_ins_user,
+	data_ins_date,
+	data_upd_user,
+	data_upd_date,
+	"aud#action",
+	"aud#timestamp",
+	"aud#realtime",
+	"aud#txid",
+	"aud#user",
+	"aud#actor",
+	"aud#seq"
+) SELECT
+	service_relationship_id,
+	service_version_id,
+	service_relationship_type,
+	service_version_restriction_service_id,
+	service_version_restriction,
+	related_service_version_id,
+	is_calculated,
+	service_sla_id,
+	data_ins_user,
+	data_ins_date,
+	data_upd_user,
+	data_upd_date,
+	"aud#action",
+	"aud#timestamp",
+	"aud#realtime",
+	"aud#txid",
+	"aud#user",
+	"aud#actor",
+	"aud#seq"
+FROM jazzhands_audit.service_relationship_v97;
+
+ALTER TABLE jazzhands.service_relationship
+	ALTER is_calculated
+	SET DEFAULT false;
+
+-- PRIMARY AND ALTERNATE KEYS
+ALTER TABLE jazzhands.service_relationship ADD CONSTRAINT ak_serv_ice_relationship_id_version UNIQUE (service_relationship_id, service_version_id);
+ALTER TABLE jazzhands.service_relationship ADD CONSTRAINT ak_svc_relationship_pair UNIQUE (service_relationship_id, service_version_id, service_version_restriction_service_id);
+ALTER TABLE jazzhands.service_relationship ADD CONSTRAINT ak_svc_relship_vers_svc_sla UNIQUE (service_relationship_id, service_version_id, service_version_restriction_service_id, service_sla_id);
+ALTER TABLE jazzhands.service_relationship ADD CONSTRAINT pk_service_relationship PRIMARY KEY (service_relationship_id);
+
+-- Table/Column Comments
+COMMENT ON TABLE jazzhands.service_relationship IS 'Required relationships between services.  These are not explicit mappings, rather indicates of what is required to make things work to be resolved at runtime.';
+COMMENT ON COLUMN jazzhands.service_relationship.service_version_id IS 'The dependee';
+COMMENT ON COLUMN jazzhands.service_relationship.service_version_restriction_service_id IS 'Dependee which is potentially limited by service_version_restriction.   If  related_service_version_id is set, they must point to the same service.';
+COMMENT ON COLUMN jazzhands.service_relationship.service_version_restriction IS 'Funny version related version that froms a relationship.  This is not enforced but informational.  service_id indicates what service it applies to.';
+COMMENT ON COLUMN jazzhands.service_relationship.related_service_version_id IS 'Specific version related version that froms a relationship.  This sets an explicit relationship if needed.  service_id/service_version_restriction sets a fuzzy one.  If setmust match service_version_restriction_service_id';
+COMMENT ON COLUMN jazzhands.service_relationship.service_sla_id IS 'Servie Level Agreement required to fufill the dependency (to be fleshed out)';
+-- INDEXES
+CREATE INDEX xif8service_relationship ON jazzhands.service_relationship USING btree (related_service_version_id, service_version_restriction_service_id);
+CREATE INDEX xifservice_relationship_relationship_type ON jazzhands.service_relationship USING btree (service_relationship_type);
+CREATE INDEX xifservice_relationship_service_id ON jazzhands.service_relationship USING btree (service_version_restriction_service_id);
+CREATE INDEX xifservice_relationship_service_sla_id ON jazzhands.service_relationship USING btree (service_sla_id);
+CREATE INDEX xifservice_relationship_service_version_id ON jazzhands.service_relationship USING btree (service_version_id);
+
+-- CHECK CONSTRAINTS
+
+-- FOREIGN KEYS FROM
+-- consider FK between service_relationship and jazzhands.service_layer3_acl
+ALTER TABLE jazzhands.service_layer3_acl
+	ADD CONSTRAINT fk_service_l3acl_relationship_id
+	FOREIGN KEY (service_relationship_id) REFERENCES jazzhands.service_relationship(service_relationship_id);
+-- consider FK between service_relationship and jazzhands.service_relationship_manager
+-- Skipping this FK since column does not exist yet
+--ALTER TABLE jazzhands.jazzhands.service_relationship_manager
+--	ADD CONSTRAINT fk_svc_rel_mgr_svc_relationshop_id
+--	FOREIGN KEY (service_relationship_id, service_version_id, related_service_id) REFERENCES jazzhands.service_relationship(service_relationship_id, service_version_id, service_version_restriction_service_id);
+
+-- consider FK between service_relationship and jazzhands.service_relationship_service_feature
+ALTER TABLE jazzhands.service_relationship_service_feature
+	ADD CONSTRAINT fk_svc_relationship_service_feature_service_relationship_id
+	FOREIGN KEY (service_relationship_id) REFERENCES jazzhands.service_relationship(service_relationship_id);
+-- consider FK between service_relationship and jazzhands.service_relationship_manager
+-- Skipping this FK since column does not exist yet
+--ALTER TABLE jazzhands.jazzhands.service_relationship_manager
+--	ADD CONSTRAINT fk_svc_version_mgr_svc_relationsship_id_version_id
+--	FOREIGN KEY (service_relationship_id, service_version_id) REFERENCES jazzhands.service_relationship(service_relationship_id, service_version_id);
+
+
+-- FOREIGN KEYS TO
+-- consider FK service_relationship and service_version
+ALTER TABLE jazzhands.service_relationship
+	ADD CONSTRAINT fk_service_relationship_related_service_version_id
+	FOREIGN KEY (related_service_version_id, service_version_restriction_service_id) REFERENCES jazzhands.service_version(service_version_id, service_id);
+-- consider FK service_relationship and val_service_relationship_type
+ALTER TABLE jazzhands.service_relationship
+	ADD CONSTRAINT fk_service_relationship_relationship_type
+	FOREIGN KEY (service_relationship_type) REFERENCES jazzhands.val_service_relationship_type(service_relationship_type);
+-- consider FK service_relationship and service
+ALTER TABLE jazzhands.service_relationship
+	ADD CONSTRAINT fk_service_relationship_service_id
+	FOREIGN KEY (service_version_restriction_service_id) REFERENCES jazzhands.service(service_id);
+-- consider FK service_relationship and service_sla
+ALTER TABLE jazzhands.service_relationship
+	ADD CONSTRAINT fk_service_relationship_service_sla_id
+	FOREIGN KEY (service_sla_id) REFERENCES jazzhands.service_sla(service_sla_id);
+-- consider FK service_relationship and service_version
+ALTER TABLE jazzhands.service_relationship
+	ADD CONSTRAINT fk_service_relationship_service_version_id
+	FOREIGN KEY (service_version_id) REFERENCES jazzhands.service_version(service_version_id);
+
+-- TRIGGERS
+-- considering NEW jazzhands.check_service_relationship_rhs
+CREATE OR REPLACE FUNCTION jazzhands.check_service_relationship_rhs()
+ RETURNS trigger
+ LANGUAGE plpgsql
+ SECURITY DEFINER
+ SET search_path TO 'jazzhands'
+AS $function$
+DECLARE
+	_t	BOOLEAN;
+	_id	INTEGER;
+	_re	TEXT;
+BEGIN
+	IF NEW.service_version_restriction IS NOT NULL THEN
+		IF NEW.service_version_restriction_service_id IS NULL THEN
+			RAISE EXCEPTION 'If service_version_restriction is set, service_version_restriction_service_id must also be set'
+				USING ERRCODE = 'not_null_violation';
+		END IF;
+
+		--
+		-- Either use the user specified regex or the default one and
+		-- check the relationship against it
+		--
+
+		SELECT st.service_version_restriction_regular_expression
+		INTO _re
+		FROM val_service_type st
+		JOIN service USING (service_type)
+		JOIn service_version USING (service_id)
+		WHERE service_version_id = NEW.service_version_id;
+
+		IF _re IS NULL THEN
+			_re := '^((<=? [-_\.a-z0-9]+) (>=? [-_\.a-z0-9]+)|(([<>]=?|=) [-_\.a-z0-9]+))$';
+		END IF;
+
+		IF NEW.service_version_restriction !~_re THEN
+			RAISE EXCEPTION 'restriction must match rules for this service type'
+				USING ERRCODE = 'invalid_parameter_value',
+				HINT = format('Using regexp %s', _re);
+		END IF;
+	END IF;
+
+	IF NEW.related_service_version_id IS NOT NULL THEN
+		IF NEW.related_service_version_id IS NOT NULL THEN
+			SELECT v1.service_id = v2.service_id INTO _t
+			FROM service_version v1, service_version v2
+			WHERE v1.service_version_id = NEW.service_version_id
+			AND v2.service_version_id = NEW.related_service_version_id;
+			IF _t THEN
+				RAISE EXCEPTION 'service_version_restriction_service_id and '
+					USING ERRCODE = 'invalid_parameter_value';
+			END IF;
+		END IF;
+	END IF;
+
+	IF NEW.service_version_restriction_service_id IS NOT NULL THEN
+		IF NEW.related_service_version_id IS NOT NULL  THEN
+			IF NEW.service_version_restriction IS NULL THEN
+				RAISE EXCEPTION 'If service_version_restriction_service_id and related_service_version_id is set, service_version_restriction must also be set'
+					USING ERRCODE = 'not_null_violation';
+			END IF;
+
+			--
+			-- make sure service_version_restriction_service_id points to
+			-- the same service as related_service_version_id
+			--
+			SELECT service_id
+			INTO _id
+			FROM service_version
+			WHERE service_version_id = NEW.related_service_version_id;
+
+			IF _id != NEW.service_version_restriction_service_id THEN
+				RAISE EXCEPTION 'service_version_restriction_service_id and related_service_version_id must point to the same services.'
+					USING ERRCODE = 'invalid_parameter_value';
+			END IF;
+		END IF;
+
+		SELECT service_id
+		INTO _id
+		FROM service_version
+		WHERE service_version_id = NEW.service_version_id;
+
+		IF _id = NEW.service_version_restriction_service_id THEN
+			RAISE EXCEPTION 'May not relate to oneself'
+					USING ERRCODE = 'invalid_parameter_value';
+		END IF;
+	ELSE
+		IF NEW.related_service_version_id IS NULL THEN
+			RAISE EXCEPTION 'One of service_version_restriction_service_id and related_service_version_id must be set.'
+				USING ERRCODE = 'not_null_violation';
+		END IF;
+	END IF;
+
+	RETURN NEW;
+END;
+$function$
+;
+REVOKE ALL ON FUNCTION jazzhands.check_service_relationship_rhs() FROM public;
+CREATE CONSTRAINT TRIGGER trigger_check_service_relationship_rhs AFTER INSERT OR UPDATE OF related_service_version_id, service_version_restriction_service_id, service_version_restriction ON jazzhands.service_relationship NOT DEFERRABLE INITIALLY IMMEDIATE FOR EACH ROW EXECUTE FUNCTION jazzhands.check_service_relationship_rhs();
+
+DO $$
+BEGIN
+		DELETE FROM __recreate WHERE schema = 'jazzhands' AND object IN ('service_relationship');
+	EXCEPTION WHEN undefined_table THEN
+		RAISE NOTICE 'Drop of triggers for service_relationship  failed but that is ok';
+		NULL;
+END;
+$$;
+
+SELECT schema_support.rebuild_stamp_trigger('jazzhands', 'service_relationship');
+SELECT schema_support.build_audit_table_pkak_indexes('jazzhands_audit', 'jazzhands', 'service_relationship');
+SELECT schema_support.rebuild_audit_trigger('jazzhands_audit', 'jazzhands', 'service_relationship');
+DROP TABLE IF EXISTS service_relationship_v97;
+DROP TABLE IF EXISTS jazzhands_audit.service_relationship_v97;
+-- DONE DEALING WITH TABLE service_relationship (jazzhands)
+--------------------------------------------------------------------
+DO $$
+BEGIN
+	DELETE FROM __recreate WHERE schema IN ('jazzhands', 'jazzhands_audit') AND object IN ('service_relationship');
+EXCEPTION WHEN undefined_table THEN
+	RAISE NOTICE 'Removal of old service_relationship failed but that is ok';
+	NULL;
+END;
+$$;
+
+DO $$
+BEGIN
+	DELETE FROM __recreate WHERE schema IN ('jazzhands', 'jazzhands_audit') AND object IN ('service_relationship');
+EXCEPTION WHEN undefined_table THEN
+	RAISE NOTICE 'Removal of new service_relationship failed but that is ok';
+	NULL;
+END;
+$$;
+
+select clock_timestamp(), clock_timestamp() - now() AS len;
+--------------------------------------------------------------------
+-- DEALING WITH NEW TABLE val_service_endpoint_purpose (jazzhands)
+CREATE TABLE jazzhands.val_service_endpoint_purpose
+(
+	service_endpoint_purpose	varchar(50) NOT NULL,
+	description	varchar(50)  NULL,
+	data_ins_user	varchar(255)  NULL,
+	data_ins_date	timestamp with time zone  NULL,
+	data_upd_user	varchar(255)  NULL,
+	data_upd_date	timestamp with time zone  NULL
+);
+SELECT schema_support.build_audit_table('jazzhands_audit', 'jazzhands', 'val_service_endpoint_purpose', true);
+
+-- PRIMARY AND ALTERNATE KEYS
+ALTER TABLE jazzhands.val_service_endpoint_purpose ADD CONSTRAINT pk_val_service_endpoint_purpose PRIMARY KEY (service_endpoint_purpose);
+
+-- Table/Column Comments
+-- INDEXES
+
+-- CHECK CONSTRAINTS
+
+-- FOREIGN KEYS FROM
+-- consider FK between val_service_endpoint_purpose and jazzhands.service_endpoint_purpose
+-- Skipping this FK since column does not exist yet
+--ALTER TABLE jazzhands.jazzhands.service_endpoint_purpose
+--	ADD CONSTRAINT fk_svc_endpoint_purpose_val_purpose
+--	FOREIGN KEY (service_endpoint_purpose) REFERENCES jazzhands.val_service_endpoint_purpose(service_endpoint_purpose);
+
+
+-- FOREIGN KEYS TO
+
+-- TRIGGERS
+DO $$
+BEGIN
+		DELETE FROM __recreate WHERE schema = 'jazzhands' AND object IN ('val_service_endpoint_purpose');
+	EXCEPTION WHEN undefined_table THEN
+		RAISE NOTICE 'Drop of triggers for val_service_endpoint_purpose  failed but that is ok';
+		NULL;
+END;
+$$;
+
+SELECT schema_support.rebuild_stamp_trigger('jazzhands', 'val_service_endpoint_purpose');
+SELECT schema_support.build_audit_table_pkak_indexes('jazzhands_audit', 'jazzhands', 'val_service_endpoint_purpose');
+SELECT schema_support.rebuild_audit_trigger('jazzhands_audit', 'jazzhands', 'val_service_endpoint_purpose');
+-- DONE DEALING WITH TABLE val_service_endpoint_purpose (jazzhands)
+--------------------------------------------------------------------
+DO $$
+BEGIN
+	DELETE FROM __recreate WHERE schema IN ('jazzhands', 'jazzhands_audit') AND object IN ('val_service_endpoint_purpose');
+EXCEPTION WHEN undefined_table THEN
+	RAISE NOTICE 'Removal of old val_service_endpoint_purpose failed but that is ok';
+	NULL;
+END;
+$$;
+
+DO $$
+BEGIN
+	DELETE FROM __recreate WHERE schema IN ('jazzhands', 'jazzhands_audit') AND object IN ('val_service_endpoint_purpose');
+EXCEPTION WHEN undefined_table THEN
+	RAISE NOTICE 'Removal of new val_service_endpoint_purpose failed but that is ok';
+	NULL;
+END;
+$$;
+
+select clock_timestamp(), clock_timestamp() - now() AS len;
+--------------------------------------------------------------------
+-- DEALING WITH NEW TABLE val_service_endpoint_x509_certificate_purpose (jazzhands)
+CREATE TABLE jazzhands.val_service_endpoint_x509_certificate_purpose
+(
+	service_endpoint_x509_certificate_purpose	varchar(50) NOT NULL,
+	description	varchar(50)  NULL,
+	data_ins_user	varchar(255)  NULL,
+	data_ins_date	timestamp with time zone  NULL,
+	data_upd_user	varchar(255)  NULL,
+	data_upd_date	timestamp with time zone  NULL
+);
+SELECT schema_support.build_audit_table('jazzhands_audit', 'jazzhands', 'val_service_endpoint_x509_certificate_purpose', true);
+
+-- PRIMARY AND ALTERNATE KEYS
+ALTER TABLE jazzhands.val_service_endpoint_x509_certificate_purpose ADD CONSTRAINT pk_val_service_endpoint_x509_certificate_purpose PRIMARY KEY (service_endpoint_x509_certificate_purpose);
+
+-- Table/Column Comments
+-- INDEXES
+
+-- CHECK CONSTRAINTS
+
+-- FOREIGN KEYS FROM
+-- consider FK between val_service_endpoint_x509_certificate_purpose and jazzhands.service_endpoint_certificate_signing_request
+-- Skipping this FK since column does not exist yet
+--ALTER TABLE jazzhands.jazzhands.service_endpoint_certificate_signing_request
+--	ADD CONSTRAINT fk_service_endpoint_csr_x509_cerrtificate_purpose
+--	FOREIGN KEY (service_endpoint_x509_certificate_purpose) REFERENCES jazzhands.val_service_endpoint_x509_certificate_purpose(service_endpoint_x509_certificate_purpose);
+
+-- consider FK between val_service_endpoint_x509_certificate_purpose and jazzhands.service_endpoint_x509_certificate
+-- Skipping this FK since column does not exist yet
+--ALTER TABLE jazzhands.service_endpoint_x509_certificate
+--	ADD CONSTRAINT fk_service_endpoint_x509_certificate_purpose
+--	FOREIGN KEY (service_endpoint_x509_certificate_purpose) REFERENCES jazzhands.val_service_endpoint_x509_certificate_purpose(service_endpoint_x509_certificate_purpose);
+
+
+-- FOREIGN KEYS TO
+
+-- TRIGGERS
+DO $$
+BEGIN
+		DELETE FROM __recreate WHERE schema = 'jazzhands' AND object IN ('val_service_endpoint_x509_certificate_purpose');
+	EXCEPTION WHEN undefined_table THEN
+		RAISE NOTICE 'Drop of triggers for val_service_endpoint_x509_certificate_purpose  failed but that is ok';
+		NULL;
+END;
+$$;
+
+SELECT schema_support.rebuild_stamp_trigger('jazzhands', 'val_service_endpoint_x509_certificate_purpose');
+SELECT schema_support.build_audit_table_pkak_indexes('jazzhands_audit', 'jazzhands', 'val_service_endpoint_x509_certificate_purpose');
+SELECT schema_support.rebuild_audit_trigger('jazzhands_audit', 'jazzhands', 'val_service_endpoint_x509_certificate_purpose');
+--
+-- Copying initialization data
+--
+
+INSERT INTO val_service_endpoint_x509_certificate_purpose (
+service_endpoint_x509_certificate_purpose,description
+) VALUES
+	('service',NULL),
+	('bootstrap',NULL)
+;
+-- DONE DEALING WITH TABLE val_service_endpoint_x509_certificate_purpose (jazzhands)
+--------------------------------------------------------------------
+DO $$
+BEGIN
+	DELETE FROM __recreate WHERE schema IN ('jazzhands', 'jazzhands_audit') AND object IN ('val_service_endpoint_x509_certificate_purpose');
+EXCEPTION WHEN undefined_table THEN
+	RAISE NOTICE 'Removal of old val_service_endpoint_x509_certificate_purpose failed but that is ok';
+	NULL;
+END;
+$$;
+
+DO $$
+BEGIN
+	DELETE FROM __recreate WHERE schema IN ('jazzhands', 'jazzhands_audit') AND object IN ('val_service_endpoint_x509_certificate_purpose');
+EXCEPTION WHEN undefined_table THEN
+	RAISE NOTICE 'Removal of new val_service_endpoint_x509_certificate_purpose failed but that is ok';
+	NULL;
+END;
+$$;
+
+select clock_timestamp(), clock_timestamp() - now() AS len;
 --------------------------------------------------------------------
 -- DEALING WITH NEW TABLE val_service_version_collection_purpose (jazzhands)
 CREATE TABLE jazzhands.val_service_version_collection_purpose
@@ -5450,6 +11525,815 @@ $$;
 
 select clock_timestamp(), clock_timestamp() - now() AS len;
 --------------------------------------------------------------------
+-- BEGIN: DEALING WITH TABLE service_endpoint
+-- Save grants for later reapplication
+SELECT schema_support.save_grants_for_replay('jazzhands', 'service_endpoint', 'service_endpoint');
+
+-- FOREIGN KEYS FROM
+ALTER TABLE service_endpoint_health_check DROP CONSTRAINT IF EXISTS fk_service_endpoint_health_check_svc_endpoint_id;
+ALTER TABLE service_endpoint_service_sla DROP CONSTRAINT IF EXISTS fk_service_endpoint_service_sla_endpoint_id;
+ALTER TABLE service_endpoint_x509_certificate DROP CONSTRAINT IF EXISTS fk_service_endpoint_x509_certificate_seid;
+ALTER TABLE software_artifact_repository_uri DROP CONSTRAINT IF EXISTS fk_svc_art_repo_uri_svc_endpoint_id;
+ALTER TABLE source_repository_provider_uri_template DROP CONSTRAINT IF EXISTS fk_svc_endpoint_source_repo_uri;
+ALTER TABLE service_endpoint_service_endpoint_provider_collection DROP CONSTRAINT IF EXISTS fk_svc_endpoint_svc_endpoint_prov_collection_endpoint_id;
+
+-- FOREIGN KEYS TO
+ALTER TABLE jazzhands.service_endpoint DROP CONSTRAINT IF EXISTS fk_service_endpoint_dns_rec_id;
+ALTER TABLE jazzhands.service_endpoint DROP CONSTRAINT IF EXISTS fk_service_endpoint_svc;
+ALTER TABLE jazzhands.service_endpoint DROP CONSTRAINT IF EXISTS fk_svc_endpoint_port_range_id;
+
+-- EXTRA-SCHEMA constraints
+SELECT schema_support.save_constraint_for_replay(schema := 'jazzhands', object := 'service_endpoint', newobject := 'service_endpoint', newmap := '{"pk_service_endpoint":{"columns":["service_endpoint_id"],"def":"PRIMARY KEY (service_endpoint_id)","deferrable":false,"deferred":false,"name":"pk_service_endpoint","type":"p"}}');
+
+-- PRIMARY and ALTERNATE KEYS
+ALTER TABLE jazzhands.service_endpoint DROP CONSTRAINT IF EXISTS pk_service_endpoint;
+-- INDEXES
+DROP INDEX IF EXISTS "jazzhands"."xifservice_endpoint_dns_rec_id";
+DROP INDEX IF EXISTS "jazzhands"."xifservice_endpoint_svc";
+DROP INDEX IF EXISTS "jazzhands"."xifsvc_endpoint_port_range_id";
+-- CHECK CONSTRAINTS, etc
+-- TRIGGERS, etc
+DROP TRIGGER IF EXISTS trig_userlog_service_endpoint ON jazzhands.service_endpoint;
+DROP TRIGGER IF EXISTS trigger_audit_service_endpoint ON jazzhands.service_endpoint;
+DROP FUNCTION IF EXISTS perform_audit_service_endpoint();
+DROP TRIGGER IF EXISTS trigger_service_endpoint_direct_check ON jazzhands.service_endpoint;
+DROP TRIGGER IF EXISTS trigger_validate_service_endpoint_fksets ON jazzhands.service_endpoint;
+-- default sequences associations and sequences (values rebuilt at end, if needed)
+-- The value of this sequence is restored based on the column at migration end
+ALTER TABLE jazzhands.service_endpoint ALTER COLUMN "service_endpoint_id" DROP IDENTITY;
+SELECT schema_support.save_dependent_objects_for_replay(schema := 'jazzhands', object := 'service_endpoint', tags := ARRAY['table_service_endpoint']);
+---- BEGIN jazzhands_audit.service_endpoint TEARDOWN
+SELECT schema_support.save_dependent_objects_for_replay(schema := 'jazzhands_audit', object := 'service_endpoint', tags := ARRAY['table_service_endpoint']);
+-- Save grants for later reapplication
+SELECT schema_support.save_grants_for_replay('jazzhands_audit', 'service_endpoint', 'service_endpoint');
+
+-- FOREIGN KEYS FROM
+
+-- FOREIGN KEYS TO
+
+-- EXTRA-SCHEMA constraints
+SELECT schema_support.save_constraint_for_replay(schema := 'jazzhands_audit',  object := 'service_endpoint');
+
+-- PRIMARY and ALTERNATE KEYS
+ALTER TABLE jazzhands_audit.service_endpoint DROP CONSTRAINT IF EXISTS service_endpoint_pkey;
+-- INDEXES
+DROP INDEX IF EXISTS "jazzhands_audit"."aud_service_endpoint_pk_service_endpoint";
+DROP INDEX IF EXISTS "jazzhands_audit"."service_endpoint_aud#realtime_idx";
+DROP INDEX IF EXISTS "jazzhands_audit"."service_endpoint_aud#timestamp_idx";
+DROP INDEX IF EXISTS "jazzhands_audit"."service_endpoint_aud#txid_idx";
+-- CHECK CONSTRAINTS, etc
+-- TRIGGERS, etc
+-- default sequences associations and sequences (values rebuilt at end, if needed)
+-- The value of this sequence is restored based on the column at migration end
+ALTER TABLE jazzhands_audit.service_endpoint ALTER COLUMN "aud#seq" DROP IDENTITY;
+---- DONE jazzhands_audit.service_endpoint TEARDOWN
+
+
+ALTER TABLE service_endpoint RENAME TO service_endpoint_v97;
+ALTER TABLE jazzhands_audit.service_endpoint RENAME TO service_endpoint_v97;
+
+CREATE TABLE jazzhands.service_endpoint
+(
+	service_endpoint_id	integer NOT NULL,
+	service_id	integer NOT NULL,
+	dns_record_id	integer  NULL,
+	port_range_id	integer  NULL,
+	service_endpoint_uri_fragment	varchar(512)  NULL,
+	service_environment_id	integer  NULL,
+	description	varchar(4096)  NULL,
+	is_synthesized	boolean NOT NULL,
+	data_ins_user	varchar(255)  NULL,
+	data_ins_date	timestamp with time zone  NULL,
+	data_upd_user	varchar(255)  NULL,
+	data_upd_date	timestamp with time zone  NULL
+);
+SELECT schema_support.build_audit_table('jazzhands_audit', 'jazzhands', 'service_endpoint', false);
+ALTER TABLE service_endpoint
+	ALTER COLUMN service_endpoint_id
+	ADD GENERATED BY DEFAULT AS IDENTITY;
+ALTER TABLE service_endpoint
+	ALTER is_synthesized
+	SET DEFAULT false;
+
+INSERT INTO service_endpoint (
+	service_endpoint_id,
+	service_id,
+	dns_record_id,
+	port_range_id,
+	service_endpoint_uri_fragment,
+	service_environment_id,		-- new column (service_environment_id)
+	description,
+	is_synthesized,
+	data_ins_user,
+	data_ins_date,
+	data_upd_user,
+	data_upd_date
+) SELECT
+	service_endpoint_id,
+	service_id,
+	dns_record_id,
+	port_range_id,
+	service_endpoint_uri_fragment,
+	NULL,		-- new column (service_environment_id)
+	description,
+	is_synthesized,
+	data_ins_user,
+	data_ins_date,
+	data_upd_user,
+	data_upd_date
+FROM service_endpoint_v97;
+
+
+INSERT INTO jazzhands_audit.service_endpoint (
+	service_endpoint_id,
+	service_id,
+	dns_record_id,
+	port_range_id,
+	service_endpoint_uri_fragment,
+	service_environment_id,		-- new column (service_environment_id)
+	description,
+	is_synthesized,
+	data_ins_user,
+	data_ins_date,
+	data_upd_user,
+	data_upd_date,
+	"aud#action",
+	"aud#timestamp",
+	"aud#realtime",
+	"aud#txid",
+	"aud#user",
+	"aud#actor",
+	"aud#seq"
+) SELECT
+	service_endpoint_id,
+	service_id,
+	dns_record_id,
+	port_range_id,
+	service_endpoint_uri_fragment,
+	NULL,		-- new column (service_environment_id)
+	description,
+	is_synthesized,
+	data_ins_user,
+	data_ins_date,
+	data_upd_user,
+	data_upd_date,
+	"aud#action",
+	"aud#timestamp",
+	"aud#realtime",
+	"aud#txid",
+	"aud#user",
+	"aud#actor",
+	"aud#seq"
+FROM jazzhands_audit.service_endpoint_v97;
+
+ALTER TABLE jazzhands.service_endpoint
+	ALTER is_synthesized
+	SET DEFAULT false;
+
+-- PRIMARY AND ALTERNATE KEYS
+ALTER TABLE jazzhands.service_endpoint ADD CONSTRAINT pk_service_endpoint PRIMARY KEY (service_endpoint_id);
+
+-- Table/Column Comments
+COMMENT ON TABLE jazzhands.service_endpoint IS 'Models the thing that gets talked to for a service usually a DNS name+port or could be path inside a name+portion a dns name.';
+COMMENT ON COLUMN jazzhands.service_endpoint.dns_record_id IS 'For network services, the DNS name that is used to refer to this service endpoint';
+COMMENT ON COLUMN jazzhands.service_endpoint.port_range_id IS 'For network services, the port that provides the service';
+COMMENT ON COLUMN jazzhands.service_endpoint.service_endpoint_uri_fragment IS 'optinal UI elements that provide the service (inside the dns record)';
+COMMENT ON COLUMN jazzhands.service_endpoint.is_synthesized IS 'The service was made up by some subsystem to glue features together (these are typcially not shown to users)';
+-- INDEXES
+CREATE INDEX xifservice_endpoint_dns_rec_id ON jazzhands.service_endpoint USING btree (dns_record_id);
+CREATE INDEX xifservice_endpoint_svc ON jazzhands.service_endpoint USING btree (service_id);
+CREATE INDEX xifsvc_endpoint_port_range_id ON jazzhands.service_endpoint USING btree (port_range_id);
+CREATE INDEX xifsvc_endpoint_svc_env ON jazzhands.service_endpoint USING btree (service_environment_id);
+
+-- CHECK CONSTRAINTS
+
+-- FOREIGN KEYS FROM
+-- consider FK between service_endpoint and jazzhands.service_endpoint_certificate_signing_request
+-- Skipping this FK since column does not exist yet
+--ALTER TABLE jazzhands.jazzhands.service_endpoint_certificate_signing_request
+--	ADD CONSTRAINT fk_service_endpoint_csr_serviice_endpoint_id
+--	FOREIGN KEY (service_endpoint_id) REFERENCES jazzhands.service_endpoint(service_endpoint_id);
+
+-- consider FK between service_endpoint and jazzhands.service_endpoint_health_check
+ALTER TABLE jazzhands.service_endpoint_health_check
+	ADD CONSTRAINT fk_service_endpoint_health_check_svc_endpoint_id
+	FOREIGN KEY (service_endpoint_id) REFERENCES jazzhands.service_endpoint(service_endpoint_id) DEFERRABLE;
+-- consider FK between service_endpoint and jazzhands.service_endpoint_service_sla
+ALTER TABLE jazzhands.service_endpoint_service_sla
+	ADD CONSTRAINT fk_service_endpoint_service_sla_endpoint_id
+	FOREIGN KEY (service_endpoint_id) REFERENCES jazzhands.service_endpoint(service_endpoint_id) DEFERRABLE;
+-- consider FK between service_endpoint and jazzhands.service_endpoint_x509_certificate
+ALTER TABLE jazzhands.service_endpoint_x509_certificate
+	ADD CONSTRAINT fk_service_endpoint_x509_certificate_seid
+	FOREIGN KEY (service_endpoint_id) REFERENCES jazzhands.service_endpoint(service_endpoint_id) DEFERRABLE;
+-- consider FK between service_endpoint and jazzhands.software_artifact_repository_uri
+ALTER TABLE jazzhands.software_artifact_repository_uri
+	ADD CONSTRAINT fk_svc_art_repo_uri_svc_endpoint_id
+	FOREIGN KEY (service_endpoint_id) REFERENCES jazzhands.service_endpoint(service_endpoint_id);
+-- consider FK between service_endpoint and jazzhands.service_endpoint_purpose
+-- Skipping this FK since column does not exist yet
+--ALTER TABLE jazzhands.jazzhands.service_endpoint_purpose
+--	ADD CONSTRAINT fk_svc_endpoint_purpose_svc_endpoint
+--	FOREIGN KEY (w) REFERENCES jazzhands.service_endpoint(service_endpoint_id);
+
+-- consider FK between service_endpoint and jazzhands.source_repository_provider_uri_template
+ALTER TABLE jazzhands.source_repository_provider_uri_template
+	ADD CONSTRAINT fk_svc_endpoint_source_repo_uri
+	FOREIGN KEY (service_endpoint_id) REFERENCES jazzhands.service_endpoint(service_endpoint_id);
+-- consider FK between service_endpoint and jazzhands.service_endpoint_service_endpoint_provider_collection
+ALTER TABLE jazzhands.service_endpoint_service_endpoint_provider_collection
+	ADD CONSTRAINT fk_svc_endpoint_svc_endpoint_prov_collection_endpoint_id
+	FOREIGN KEY (service_endpoint_id) REFERENCES jazzhands.service_endpoint(service_endpoint_id) DEFERRABLE;
+
+-- FOREIGN KEYS TO
+-- consider FK service_endpoint and dns_record
+ALTER TABLE jazzhands.service_endpoint
+	ADD CONSTRAINT fk_service_endpoint_dns_rec_id
+	FOREIGN KEY (dns_record_id) REFERENCES jazzhands.dns_record(dns_record_id) DEFERRABLE;
+-- consider FK service_endpoint and service
+ALTER TABLE jazzhands.service_endpoint
+	ADD CONSTRAINT fk_service_endpoint_svc
+	FOREIGN KEY (service_id) REFERENCES jazzhands.service(service_id) DEFERRABLE;
+-- consider FK service_endpoint and port_range
+ALTER TABLE jazzhands.service_endpoint
+	ADD CONSTRAINT fk_svc_endpoint_port_range_id
+	FOREIGN KEY (port_range_id) REFERENCES jazzhands.port_range(port_range_id) DEFERRABLE;
+-- consider FK service_endpoint and service_environment
+ALTER TABLE jazzhands.service_endpoint
+	ADD CONSTRAINT fk_svc_endpoint_svc_env
+	FOREIGN KEY (service_environment_id) REFERENCES jazzhands.service_environment(service_environment_id);
+
+-- TRIGGERS
+-- considering NEW jazzhands.service_endpoint_direct_check
+CREATE OR REPLACE FUNCTION jazzhands.service_endpoint_direct_check()
+ RETURNS trigger
+ LANGUAGE plpgsql
+ SECURITY DEFINER
+ SET search_path TO 'jazzhands'
+AS $function$
+DECLARE
+	_r		RECORD;
+BEGIN
+	IF NEW.dns_record_id IS NOT NULL OR NEW.port_range_id IS NOT NULL THEN
+		SELECT	sep.*
+		INTO	_r
+		FROM	service_endpoint_service_endpoint_provider_collection
+				JOIN service_endpoint_provider_collection
+					USING (service_endpoint_provider_collection_id)
+				JOIN service_endpoint_provider_collection_service_endpoint_provider
+					USING (service_endpoint_provider_collection_id)
+				JOIN service_endpoint_provider sep
+					USING (service_endpoint_provider_id)
+		WHERE	service_endpoint_id = NEW.service_endpoint_id;
+
+		IF FOUND THEN
+			--
+			-- It is possible that these don't need to match, but that use
+			-- case needs to be thought through, so it is disallowed for now.
+			--
+			IF _r.service_endpoint_provider_type = 'direct' THEN
+				IF _r.dns_record_id IS DISTINCT FROM NEW.dns_record_id THEN
+					RAISE EXCEPTION 'dns_record_id of service_endpoint_provider and service_endpoint must match'
+					USING ERRCODE = 'foreign_key_violation',
+					HINT = 'This check may be overly agressive but applies only to direct connections';
+				END IF;
+			END IF;
+		END IF;
+	END IF;
+
+	RETURN NEW;
+END;
+$function$
+;
+REVOKE ALL ON FUNCTION jazzhands.service_endpoint_direct_check() FROM public;
+CREATE CONSTRAINT TRIGGER trigger_service_endpoint_direct_check AFTER INSERT OR UPDATE OF dns_record_id, port_range_id ON jazzhands.service_endpoint DEFERRABLE INITIALLY IMMEDIATE FOR EACH ROW EXECUTE FUNCTION jazzhands.service_endpoint_direct_check();
+
+-- considering NEW jazzhands.validate_service_endpoint_fksets
+CREATE OR REPLACE FUNCTION jazzhands.validate_service_endpoint_fksets()
+ RETURNS trigger
+ LANGUAGE plpgsql
+ SECURITY DEFINER
+ SET search_path TO 'jazzhands'
+AS $function$
+BEGIN
+	IF NEW.dns_record_id IS NOT NULL
+		OR NEW.port_range_id IS NOT NULL
+	THEN
+		IF NEW.dns_record_id IS NULL
+			OR NEW.port_range_id IS NULL
+		THEN
+			RAISE EXCEPTION 'both dns_record_id and port_range_id must be set'
+				USING ERRCODE = 'not_null_violation';
+		END IF;
+	END IF;
+
+	RETURN NEW;
+END;
+$function$
+;
+REVOKE ALL ON FUNCTION jazzhands.validate_service_endpoint_fksets() FROM public;
+CREATE CONSTRAINT TRIGGER trigger_validate_service_endpoint_fksets AFTER INSERT OR UPDATE OF dns_record_id, port_range_id ON jazzhands.service_endpoint NOT DEFERRABLE INITIALLY IMMEDIATE FOR EACH ROW EXECUTE FUNCTION jazzhands.validate_service_endpoint_fksets();
+
+DO $$
+BEGIN
+		DELETE FROM __recreate WHERE schema = 'jazzhands' AND object IN ('service_endpoint');
+	EXCEPTION WHEN undefined_table THEN
+		RAISE NOTICE 'Drop of triggers for service_endpoint  failed but that is ok';
+		NULL;
+END;
+$$;
+
+SELECT schema_support.rebuild_stamp_trigger('jazzhands', 'service_endpoint');
+SELECT schema_support.build_audit_table_pkak_indexes('jazzhands_audit', 'jazzhands', 'service_endpoint');
+SELECT schema_support.rebuild_audit_trigger('jazzhands_audit', 'jazzhands', 'service_endpoint');
+DROP TABLE IF EXISTS service_endpoint_v97;
+DROP TABLE IF EXISTS jazzhands_audit.service_endpoint_v97;
+-- DONE DEALING WITH TABLE service_endpoint (jazzhands)
+--------------------------------------------------------------------
+DO $$
+BEGIN
+	DELETE FROM __recreate WHERE schema IN ('jazzhands', 'jazzhands_audit') AND object IN ('service_endpoint');
+EXCEPTION WHEN undefined_table THEN
+	RAISE NOTICE 'Removal of old service_endpoint failed but that is ok';
+	NULL;
+END;
+$$;
+
+DO $$
+BEGIN
+	DELETE FROM __recreate WHERE schema IN ('jazzhands', 'jazzhands_audit') AND object IN ('service_endpoint');
+EXCEPTION WHEN undefined_table THEN
+	RAISE NOTICE 'Removal of new service_endpoint failed but that is ok';
+	NULL;
+END;
+$$;
+
+select clock_timestamp(), clock_timestamp() - now() AS len;
+--------------------------------------------------------------------
+-- DEALING WITH NEW TABLE service_endpoint_certificate_signing_request (jazzhands)
+CREATE TABLE jazzhands.service_endpoint_certificate_signing_request
+(
+	service_endpoint_certificate_signing_request_id	integer NOT NULL,
+	service_endpoint_x509_certificate_purpose	varchar(50) NOT NULL,
+	service_endpoint_id	integer NOT NULL,
+	certificate_signing_request_id	integer NOT NULL,
+	description	varchar(4096)  NULL,
+	data_ins_user	varchar(255)  NULL,
+	data_ins_date	timestamp with time zone  NULL,
+	data_upd_user	varchar(255)  NULL,
+	data_upd_date	timestamp with time zone  NULL
+);
+SELECT schema_support.build_audit_table('jazzhands_audit', 'jazzhands', 'service_endpoint_certificate_signing_request', true);
+ALTER TABLE service_endpoint_certificate_signing_request
+	ALTER COLUMN service_endpoint_certificate_signing_request_id
+	ADD GENERATED BY DEFAULT AS IDENTITY;
+
+-- PRIMARY AND ALTERNATE KEYS
+ALTER TABLE jazzhands.service_endpoint_certificate_signing_request ADD CONSTRAINT ak_service_endpoint_certificate_signing_request_end_csr_id UNIQUE (service_endpoint_id, certificate_signing_request_id);
+ALTER TABLE jazzhands.service_endpoint_certificate_signing_request ADD CONSTRAINT pk_service_endpoint_certificate_signing_request PRIMARY KEY (service_endpoint_certificate_signing_request_id);
+
+-- Table/Column Comments
+COMMENT ON TABLE jazzhands.service_endpoint_certificate_signing_request IS 'Used to associate certificate signing requests with service endpoints.  This is primarily used to setup associations between creating a CSR and a CA issuing certificates.';
+COMMENT ON COLUMN jazzhands.service_endpoint_certificate_signing_request.certificate_signing_request_id IS 'Uniquely identifies Certificate';
+-- INDEXES
+CREATE INDEX xifservice_endpoint_csr_csr_id ON jazzhands.service_endpoint_certificate_signing_request USING btree (certificate_signing_request_id);
+CREATE INDEX xifservice_endpoint_csr_serviice_endpoint_id ON jazzhands.service_endpoint_certificate_signing_request USING btree (service_endpoint_id);
+CREATE INDEX xifservice_endpoint_csr_x509_cerrtificate_purpose ON jazzhands.service_endpoint_certificate_signing_request USING btree (service_endpoint_x509_certificate_purpose);
+
+-- CHECK CONSTRAINTS
+
+-- FOREIGN KEYS FROM
+
+-- FOREIGN KEYS TO
+-- consider FK service_endpoint_certificate_signing_request and certificate_signing_request
+ALTER TABLE jazzhands.service_endpoint_certificate_signing_request
+	ADD CONSTRAINT fk_service_endpoint_csr_csr_id
+	FOREIGN KEY (certificate_signing_request_id) REFERENCES jazzhands.certificate_signing_request(certificate_signing_request_id);
+-- consider FK service_endpoint_certificate_signing_request and service_endpoint
+ALTER TABLE jazzhands.service_endpoint_certificate_signing_request
+	ADD CONSTRAINT fk_service_endpoint_csr_serviice_endpoint_id
+	FOREIGN KEY (service_endpoint_id) REFERENCES jazzhands.service_endpoint(service_endpoint_id);
+-- consider FK service_endpoint_certificate_signing_request and val_service_endpoint_x509_certificate_purpose
+ALTER TABLE jazzhands.service_endpoint_certificate_signing_request
+	ADD CONSTRAINT fk_service_endpoint_csr_x509_cerrtificate_purpose
+	FOREIGN KEY (service_endpoint_x509_certificate_purpose) REFERENCES jazzhands.val_service_endpoint_x509_certificate_purpose(service_endpoint_x509_certificate_purpose);
+
+-- TRIGGERS
+DO $$
+BEGIN
+		DELETE FROM __recreate WHERE schema = 'jazzhands' AND object IN ('service_endpoint_certificate_signing_request');
+	EXCEPTION WHEN undefined_table THEN
+		RAISE NOTICE 'Drop of triggers for service_endpoint_certificate_signing_request  failed but that is ok';
+		NULL;
+END;
+$$;
+
+SELECT schema_support.rebuild_stamp_trigger('jazzhands', 'service_endpoint_certificate_signing_request');
+SELECT schema_support.build_audit_table_pkak_indexes('jazzhands_audit', 'jazzhands', 'service_endpoint_certificate_signing_request');
+SELECT schema_support.rebuild_audit_trigger('jazzhands_audit', 'jazzhands', 'service_endpoint_certificate_signing_request');
+-- DONE DEALING WITH TABLE service_endpoint_certificate_signing_request (jazzhands)
+--------------------------------------------------------------------
+DO $$
+BEGIN
+	DELETE FROM __recreate WHERE schema IN ('jazzhands', 'jazzhands_audit') AND object IN ('service_endpoint_certificate_signing_request');
+EXCEPTION WHEN undefined_table THEN
+	RAISE NOTICE 'Removal of old service_endpoint_certificate_signing_request failed but that is ok';
+	NULL;
+END;
+$$;
+
+DO $$
+BEGIN
+	DELETE FROM __recreate WHERE schema IN ('jazzhands', 'jazzhands_audit') AND object IN ('service_endpoint_certificate_signing_request');
+EXCEPTION WHEN undefined_table THEN
+	RAISE NOTICE 'Removal of new service_endpoint_certificate_signing_request failed but that is ok';
+	NULL;
+END;
+$$;
+
+select clock_timestamp(), clock_timestamp() - now() AS len;
+--------------------------------------------------------------------
+-- DEALING WITH NEW TABLE service_endpoint_purpose (jazzhands)
+CREATE TABLE jazzhands.service_endpoint_purpose
+(
+	w	integer NOT NULL,
+	service_endpoint_purpose	varchar(50) NOT NULL,
+	data_ins_user	varchar(255)  NULL,
+	data_ins_date	timestamp with time zone  NULL,
+	data_upd_user	varchar(255)  NULL,
+	data_upd_date	timestamp with time zone  NULL
+);
+SELECT schema_support.build_audit_table('jazzhands_audit', 'jazzhands', 'service_endpoint_purpose', true);
+
+-- PRIMARY AND ALTERNATE KEYS
+ALTER TABLE jazzhands.service_endpoint_purpose ADD CONSTRAINT pk_service_endpoint_purpose PRIMARY KEY (w, service_endpoint_purpose);
+
+-- Table/Column Comments
+-- INDEXES
+CREATE INDEX xifsvc_endpoint_purpose_svc_endpoint ON jazzhands.service_endpoint_purpose USING btree (w);
+CREATE INDEX xifsvc_endpoint_purpose_val_purpose ON jazzhands.service_endpoint_purpose USING btree (service_endpoint_purpose);
+
+-- CHECK CONSTRAINTS
+
+-- FOREIGN KEYS FROM
+
+-- FOREIGN KEYS TO
+-- consider FK service_endpoint_purpose and service_endpoint
+ALTER TABLE jazzhands.service_endpoint_purpose
+	ADD CONSTRAINT fk_svc_endpoint_purpose_svc_endpoint
+	FOREIGN KEY (w) REFERENCES jazzhands.service_endpoint(service_endpoint_id);
+-- consider FK service_endpoint_purpose and val_service_endpoint_purpose
+ALTER TABLE jazzhands.service_endpoint_purpose
+	ADD CONSTRAINT fk_svc_endpoint_purpose_val_purpose
+	FOREIGN KEY (service_endpoint_purpose) REFERENCES jazzhands.val_service_endpoint_purpose(service_endpoint_purpose);
+
+-- TRIGGERS
+DO $$
+BEGIN
+		DELETE FROM __recreate WHERE schema = 'jazzhands' AND object IN ('service_endpoint_purpose');
+	EXCEPTION WHEN undefined_table THEN
+		RAISE NOTICE 'Drop of triggers for service_endpoint_purpose  failed but that is ok';
+		NULL;
+END;
+$$;
+
+SELECT schema_support.rebuild_stamp_trigger('jazzhands', 'service_endpoint_purpose');
+SELECT schema_support.build_audit_table_pkak_indexes('jazzhands_audit', 'jazzhands', 'service_endpoint_purpose');
+SELECT schema_support.rebuild_audit_trigger('jazzhands_audit', 'jazzhands', 'service_endpoint_purpose');
+-- DONE DEALING WITH TABLE service_endpoint_purpose (jazzhands)
+--------------------------------------------------------------------
+DO $$
+BEGIN
+	DELETE FROM __recreate WHERE schema IN ('jazzhands', 'jazzhands_audit') AND object IN ('service_endpoint_purpose');
+EXCEPTION WHEN undefined_table THEN
+	RAISE NOTICE 'Removal of old service_endpoint_purpose failed but that is ok';
+	NULL;
+END;
+$$;
+
+DO $$
+BEGIN
+	DELETE FROM __recreate WHERE schema IN ('jazzhands', 'jazzhands_audit') AND object IN ('service_endpoint_purpose');
+EXCEPTION WHEN undefined_table THEN
+	RAISE NOTICE 'Removal of new service_endpoint_purpose failed but that is ok';
+	NULL;
+END;
+$$;
+
+select clock_timestamp(), clock_timestamp() - now() AS len;
+--------------------------------------------------------------------
+-- BEGIN: DEALING WITH TABLE service_endpoint_x509_certificate
+-- Save grants for later reapplication
+SELECT schema_support.save_grants_for_replay('jazzhands', 'service_endpoint_x509_certificate', 'service_endpoint_x509_certificate');
+
+-- FOREIGN KEYS FROM
+
+-- FOREIGN KEYS TO
+ALTER TABLE jazzhands.service_endpoint_x509_certificate DROP CONSTRAINT IF EXISTS fk_service_endpoint_x509_certificate_seid;
+ALTER TABLE jazzhands.service_endpoint_x509_certificate DROP CONSTRAINT IF EXISTS fk_service_endpoint_x509_certificate_x509id;
+
+-- EXTRA-SCHEMA constraints
+SELECT schema_support.save_constraint_for_replay(schema := 'jazzhands', object := 'service_endpoint_x509_certificate', newobject := 'service_endpoint_x509_certificate', newmap := '{"ak_service_endpoint_x509_certificate_endpoint_crt_id":{"columns":["x509_signed_certificate_id","service_endpoint_id"],"def":"UNIQUE (service_endpoint_id, x509_signed_certificate_id)","deferrable":false,"deferred":false,"name":"ak_service_endpoint_x509_certificate_endpoint_crt_id","type":"u"},"ak_service_endpoint_x509_x509_id_rank":{"columns":["service_endpoint_id","x509_certificate_rank"],"def":"UNIQUE (service_endpoint_id, x509_certificate_rank)","deferrable":false,"deferred":false,"name":"ak_service_endpoint_x509_x509_id_rank","type":"u"},"pk_service_endpoint_x509_certificate":{"columns":["service_endpoint_x509_certificate_id"],"def":"PRIMARY KEY (service_endpoint_x509_certificate_id)","deferrable":false,"deferred":false,"name":"pk_service_endpoint_x509_certificate","type":"p"}}');
+
+-- PRIMARY and ALTERNATE KEYS
+ALTER TABLE jazzhands.service_endpoint_x509_certificate DROP CONSTRAINT IF EXISTS ak_se_x509_id_rank;
+ALTER TABLE jazzhands.service_endpoint_x509_certificate DROP CONSTRAINT IF EXISTS pk_service_endpoint_x509_certificate;
+-- INDEXES
+DROP INDEX IF EXISTS "jazzhands"."xifservice_endpoint_x509_certificate_seid";
+DROP INDEX IF EXISTS "jazzhands"."xifservice_endpoint_x509_certificate_x509id";
+-- CHECK CONSTRAINTS, etc
+-- TRIGGERS, etc
+DROP TRIGGER IF EXISTS trig_userlog_service_endpoint_x509_certificate ON jazzhands.service_endpoint_x509_certificate;
+DROP TRIGGER IF EXISTS trigger_audit_service_endpoint_x509_certificate ON jazzhands.service_endpoint_x509_certificate;
+DROP FUNCTION IF EXISTS perform_audit_service_endpoint_x509_certificate();
+-- default sequences associations and sequences (values rebuilt at end, if needed)
+SELECT schema_support.save_dependent_objects_for_replay(schema := 'jazzhands', object := 'service_endpoint_x509_certificate', tags := ARRAY['table_service_endpoint_x509_certificate']);
+---- BEGIN jazzhands_audit.service_endpoint_x509_certificate TEARDOWN
+SELECT schema_support.save_dependent_objects_for_replay(schema := 'jazzhands_audit', object := 'service_endpoint_x509_certificate', tags := ARRAY['table_service_endpoint_x509_certificate']);
+-- Save grants for later reapplication
+SELECT schema_support.save_grants_for_replay('jazzhands_audit', 'service_endpoint_x509_certificate', 'service_endpoint_x509_certificate');
+
+-- FOREIGN KEYS FROM
+
+-- FOREIGN KEYS TO
+
+-- EXTRA-SCHEMA constraints
+SELECT schema_support.save_constraint_for_replay(schema := 'jazzhands_audit',  object := 'service_endpoint_x509_certificate');
+
+-- PRIMARY and ALTERNATE KEYS
+ALTER TABLE jazzhands_audit.service_endpoint_x509_certificate DROP CONSTRAINT IF EXISTS service_endpoint_x509_certificate_pkey;
+-- INDEXES
+DROP INDEX IF EXISTS "jazzhands_audit"."aud_0service_endpoint_x509_certificate_pk_service_endpoint_x509";
+DROP INDEX IF EXISTS "jazzhands_audit"."aud_service_endpoint_x509_certificate_ak_se_x509_id_rank";
+DROP INDEX IF EXISTS "jazzhands_audit"."service_endpoint_x509_certificate_aud#realtime_idx";
+DROP INDEX IF EXISTS "jazzhands_audit"."service_endpoint_x509_certificate_aud#timestamp_idx";
+DROP INDEX IF EXISTS "jazzhands_audit"."service_endpoint_x509_certificate_aud#txid_idx";
+-- CHECK CONSTRAINTS, etc
+-- TRIGGERS, etc
+-- default sequences associations and sequences (values rebuilt at end, if needed)
+-- The value of this sequence is restored based on the column at migration end
+ALTER TABLE jazzhands_audit.service_endpoint_x509_certificate ALTER COLUMN "aud#seq" DROP IDENTITY;
+---- DONE jazzhands_audit.service_endpoint_x509_certificate TEARDOWN
+
+
+ALTER TABLE service_endpoint_x509_certificate RENAME TO service_endpoint_x509_certificate_v97;
+ALTER TABLE jazzhands_audit.service_endpoint_x509_certificate RENAME TO service_endpoint_x509_certificate_v97;
+
+CREATE TABLE jazzhands.service_endpoint_x509_certificate
+(
+	service_endpoint_x509_certificate_id	integer NOT NULL,
+	x509_signed_certificate_id	integer NOT NULL,
+	service_endpoint_id	integer NOT NULL,
+	service_endpoint_x509_certificate_purpose	varchar(50) NOT NULL,
+	x509_certificate_rank	integer NOT NULL,
+	data_ins_user	varchar(255)  NULL,
+	data_ins_date	timestamp with time zone  NULL,
+	data_upd_user	varchar(255)  NULL,
+	data_upd_date	timestamp with time zone  NULL
+);
+SELECT schema_support.build_audit_table('jazzhands_audit', 'jazzhands', 'service_endpoint_x509_certificate', false);
+ALTER TABLE service_endpoint_x509_certificate
+	ALTER COLUMN service_endpoint_x509_certificate_id
+	ADD GENERATED BY DEFAULT AS IDENTITY;
+ALTER TABLE service_endpoint_x509_certificate
+	ALTER service_endpoint_x509_certificate_purpose
+	SET DEFAULT 'service'::character varying;
+ALTER TABLE service_endpoint_x509_certificate
+	ALTER x509_certificate_rank
+	SET DEFAULT 10;
+
+INSERT INTO service_endpoint_x509_certificate (
+	service_endpoint_x509_certificate_id,		-- new column (service_endpoint_x509_certificate_id)
+	x509_signed_certificate_id,
+	service_endpoint_id,
+	service_endpoint_x509_certificate_purpose,		-- new column (service_endpoint_x509_certificate_purpose)
+	x509_certificate_rank,
+	data_ins_user,
+	data_ins_date,
+	data_upd_user,
+	data_upd_date
+) SELECT
+	NULL,		-- new column (service_endpoint_x509_certificate_id)
+	x509_signed_certificate_id,
+	service_endpoint_id,
+	'service'::character varying,		-- new column (service_endpoint_x509_certificate_purpose)
+	x509_certificate_rank,
+	data_ins_user,
+	data_ins_date,
+	data_upd_user,
+	data_upd_date
+FROM service_endpoint_x509_certificate_v97;
+
+
+INSERT INTO jazzhands_audit.service_endpoint_x509_certificate (
+	service_endpoint_x509_certificate_id,		-- new column (service_endpoint_x509_certificate_id)
+	x509_signed_certificate_id,
+	service_endpoint_id,
+	service_endpoint_x509_certificate_purpose,		-- new column (service_endpoint_x509_certificate_purpose)
+	x509_certificate_rank,
+	data_ins_user,
+	data_ins_date,
+	data_upd_user,
+	data_upd_date,
+	"aud#action",
+	"aud#timestamp",
+	"aud#realtime",
+	"aud#txid",
+	"aud#user",
+	"aud#actor",
+	"aud#seq"
+) SELECT
+	NULL,		-- new column (service_endpoint_x509_certificate_id)
+	x509_signed_certificate_id,
+	service_endpoint_id,
+	NULL,		-- new column (service_endpoint_x509_certificate_purpose)
+	x509_certificate_rank,
+	data_ins_user,
+	data_ins_date,
+	data_upd_user,
+	data_upd_date,
+	"aud#action",
+	"aud#timestamp",
+	"aud#realtime",
+	"aud#txid",
+	"aud#user",
+	"aud#actor",
+	"aud#seq"
+FROM jazzhands_audit.service_endpoint_x509_certificate_v97;
+
+ALTER TABLE jazzhands.service_endpoint_x509_certificate
+	ALTER service_endpoint_x509_certificate_purpose
+	SET DEFAULT 'service'::character varying;
+ALTER TABLE jazzhands.service_endpoint_x509_certificate
+	ALTER x509_certificate_rank
+	SET DEFAULT 10;
+
+-- PRIMARY AND ALTERNATE KEYS
+ALTER TABLE jazzhands.service_endpoint_x509_certificate ADD CONSTRAINT ak_service_endpoint_x509_certificate_endpoint_crt_id UNIQUE (service_endpoint_id, x509_signed_certificate_id);
+ALTER TABLE jazzhands.service_endpoint_x509_certificate ADD CONSTRAINT ak_service_endpoint_x509_x509_id_rank UNIQUE (service_endpoint_id, x509_certificate_rank);
+ALTER TABLE jazzhands.service_endpoint_x509_certificate ADD CONSTRAINT pk_service_endpoint_x509_certificate PRIMARY KEY (service_endpoint_x509_certificate_id);
+
+-- Table/Column Comments
+COMMENT ON TABLE jazzhands.service_endpoint_x509_certificate IS 'If a certificate is used for all instances of an endpoint (provided from the db), this maps that.  service_endpoint_provider_shared_netblock_layer3_interface is used for individual nodes to map their own certificates.';
+COMMENT ON COLUMN jazzhands.service_endpoint_x509_certificate.x509_signed_certificate_id IS 'Uniquely identifies Certificate';
+COMMENT ON COLUMN jazzhands.service_endpoint_x509_certificate.x509_certificate_rank IS 'There may be more than one certifiate, this specifies importance.  This can be used to incrementally roll out certificates';
+-- INDEXES
+CREATE INDEX xifservice_endpoint_x509_certificate_purpose ON jazzhands.service_endpoint_x509_certificate USING btree (service_endpoint_x509_certificate_purpose);
+CREATE INDEX xifservice_endpoint_x509_certificate_seid ON jazzhands.service_endpoint_x509_certificate USING btree (service_endpoint_id);
+CREATE INDEX xifservice_endpoint_x509_certificate_x509id ON jazzhands.service_endpoint_x509_certificate USING btree (x509_signed_certificate_id);
+
+-- CHECK CONSTRAINTS
+
+-- FOREIGN KEYS FROM
+
+-- FOREIGN KEYS TO
+-- consider FK service_endpoint_x509_certificate and val_service_endpoint_x509_certificate_purpose
+ALTER TABLE jazzhands.service_endpoint_x509_certificate
+	ADD CONSTRAINT fk_service_endpoint_x509_certificate_purpose
+	FOREIGN KEY (service_endpoint_x509_certificate_purpose) REFERENCES jazzhands.val_service_endpoint_x509_certificate_purpose(service_endpoint_x509_certificate_purpose);
+-- consider FK service_endpoint_x509_certificate and service_endpoint
+ALTER TABLE jazzhands.service_endpoint_x509_certificate
+	ADD CONSTRAINT fk_service_endpoint_x509_certificate_seid
+	FOREIGN KEY (service_endpoint_id) REFERENCES jazzhands.service_endpoint(service_endpoint_id) DEFERRABLE;
+-- consider FK service_endpoint_x509_certificate and x509_signed_certificate
+ALTER TABLE jazzhands.service_endpoint_x509_certificate
+	ADD CONSTRAINT fk_service_endpoint_x509_certificate_x509id
+	FOREIGN KEY (x509_signed_certificate_id) REFERENCES jazzhands.x509_signed_certificate(x509_signed_certificate_id) DEFERRABLE;
+
+-- TRIGGERS
+DO $$
+BEGIN
+		DELETE FROM __recreate WHERE schema = 'jazzhands' AND object IN ('service_endpoint_x509_certificate');
+	EXCEPTION WHEN undefined_table THEN
+		RAISE NOTICE 'Drop of triggers for service_endpoint_x509_certificate  failed but that is ok';
+		NULL;
+END;
+$$;
+
+SELECT schema_support.rebuild_stamp_trigger('jazzhands', 'service_endpoint_x509_certificate');
+SELECT schema_support.build_audit_table_pkak_indexes('jazzhands_audit', 'jazzhands', 'service_endpoint_x509_certificate');
+SELECT schema_support.rebuild_audit_trigger('jazzhands_audit', 'jazzhands', 'service_endpoint_x509_certificate');
+DROP TABLE IF EXISTS service_endpoint_x509_certificate_v97;
+DROP TABLE IF EXISTS jazzhands_audit.service_endpoint_x509_certificate_v97;
+-- DONE DEALING WITH TABLE service_endpoint_x509_certificate (jazzhands)
+--------------------------------------------------------------------
+DO $$
+BEGIN
+	DELETE FROM __recreate WHERE schema IN ('jazzhands', 'jazzhands_audit') AND object IN ('service_endpoint_x509_certificate');
+EXCEPTION WHEN undefined_table THEN
+	RAISE NOTICE 'Removal of old service_endpoint_x509_certificate failed but that is ok';
+	NULL;
+END;
+$$;
+
+DO $$
+BEGIN
+	DELETE FROM __recreate WHERE schema IN ('jazzhands', 'jazzhands_audit') AND object IN ('service_endpoint_x509_certificate');
+EXCEPTION WHEN undefined_table THEN
+	RAISE NOTICE 'Removal of new service_endpoint_x509_certificate failed but that is ok';
+	NULL;
+END;
+$$;
+
+select clock_timestamp(), clock_timestamp() - now() AS len;
+--------------------------------------------------------------------
+-- DEALING WITH NEW TABLE service_relationship_manager (jazzhands)
+CREATE TABLE jazzhands.service_relationship_manager
+(
+	service_relationship_id	integer NOT NULL,
+	service_version_id	integer NOT NULL,
+	service_environment_id	integer NOT NULL,
+	related_service_id	integer NOT NULL,
+	related_service_environment_id	integer NOT NULL,
+	manager_service_id	integer  NULL,
+	manager_service_environment_id	integer  NULL,
+	data_ins_user	varchar(255)  NULL,
+	data_ins_date	timestamp with time zone  NULL,
+	data_upd_user	varchar(255)  NULL,
+	data_upd_date	timestamp with time zone  NULL
+);
+SELECT schema_support.build_audit_table('jazzhands_audit', 'jazzhands', 'service_relationship_manager', true);
+
+-- PRIMARY AND ALTERNATE KEYS
+ALTER TABLE jazzhands.service_relationship_manager ADD CONSTRAINT ak_service_relationship_manager_elements UNIQUE (service_version_id, service_environment_id, related_service_id, related_service_environment_id);
+ALTER TABLE jazzhands.service_relationship_manager ADD CONSTRAINT pk_service_relationship_manager PRIMARY KEY (service_relationship_id, service_version_id, service_environment_id);
+
+-- Table/Column Comments
+COMMENT ON COLUMN jazzhands.service_relationship_manager.service_version_id IS 'The dependee';
+COMMENT ON COLUMN jazzhands.service_relationship_manager.related_service_id IS 'Dependee which is potentially limited by service_version_restriction.   If  related_service_version_id is set, they must point to the same service.';
+-- INDEXES
+CREATE INDEX xifsvc_rel_mgr_mgr_svc_id ON jazzhands.service_relationship_manager USING btree (manager_service_id);
+CREATE INDEX xifsvc_rel_mgr_svc_env_id ON jazzhands.service_relationship_manager USING btree (manager_service_environment_id);
+CREATE INDEX xifsvc_rel_mgr_svc_env_rel_svc_env ON jazzhands.service_relationship_manager USING btree (related_service_environment_id);
+CREATE INDEX xifsvc_rel_mgr_svc_env_svc_env ON jazzhands.service_relationship_manager USING btree (service_environment_id);
+CREATE INDEX xifsvc_rel_mgr_svc_relationshop_id ON jazzhands.service_relationship_manager USING btree (service_version_id, service_relationship_id, related_service_id);
+CREATE INDEX xifsvc_version_mgr_svc_relationsship_id_version_id ON jazzhands.service_relationship_manager USING btree (service_relationship_id, service_version_id);
+
+-- CHECK CONSTRAINTS
+
+-- FOREIGN KEYS FROM
+
+-- FOREIGN KEYS TO
+-- consider FK service_relationship_manager and service
+ALTER TABLE jazzhands.service_relationship_manager
+	ADD CONSTRAINT fk_svc_rel_mgr_mgr_svc_id
+	FOREIGN KEY (manager_service_id) REFERENCES jazzhands.service(service_id);
+-- consider FK service_relationship_manager and service_environment
+ALTER TABLE jazzhands.service_relationship_manager
+	ADD CONSTRAINT fk_svc_rel_mgr_svc_env_id
+	FOREIGN KEY (manager_service_environment_id) REFERENCES jazzhands.service_environment(service_environment_id);
+-- consider FK service_relationship_manager and service_environment
+ALTER TABLE jazzhands.service_relationship_manager
+	ADD CONSTRAINT fk_svc_rel_mgr_svc_env_rel_svc_env
+	FOREIGN KEY (related_service_environment_id) REFERENCES jazzhands.service_environment(service_environment_id);
+-- consider FK service_relationship_manager and service_environment
+ALTER TABLE jazzhands.service_relationship_manager
+	ADD CONSTRAINT fk_svc_rel_mgr_svc_env_svc_env
+	FOREIGN KEY (service_environment_id) REFERENCES jazzhands.service_environment(service_environment_id);
+-- consider FK service_relationship_manager and service_relationship
+ALTER TABLE jazzhands.service_relationship_manager
+	ADD CONSTRAINT fk_svc_rel_mgr_svc_relationshop_id
+	FOREIGN KEY (service_relationship_id, service_version_id, related_service_id) REFERENCES jazzhands.service_relationship(service_relationship_id, service_version_id, service_version_restriction_service_id);
+-- consider FK service_relationship_manager and service_relationship
+ALTER TABLE jazzhands.service_relationship_manager
+	ADD CONSTRAINT fk_svc_version_mgr_svc_relationsship_id_version_id
+	FOREIGN KEY (service_relationship_id, service_version_id) REFERENCES jazzhands.service_relationship(service_relationship_id, service_version_id);
+
+-- TRIGGERS
+DO $$
+BEGIN
+		DELETE FROM __recreate WHERE schema = 'jazzhands' AND object IN ('service_relationship_manager');
+	EXCEPTION WHEN undefined_table THEN
+		RAISE NOTICE 'Drop of triggers for service_relationship_manager  failed but that is ok';
+		NULL;
+END;
+$$;
+
+SELECT schema_support.rebuild_stamp_trigger('jazzhands', 'service_relationship_manager');
+SELECT schema_support.build_audit_table_pkak_indexes('jazzhands_audit', 'jazzhands', 'service_relationship_manager');
+SELECT schema_support.rebuild_audit_trigger('jazzhands_audit', 'jazzhands', 'service_relationship_manager');
+-- DONE DEALING WITH TABLE service_relationship_manager (jazzhands)
+--------------------------------------------------------------------
+DO $$
+BEGIN
+	DELETE FROM __recreate WHERE schema IN ('jazzhands', 'jazzhands_audit') AND object IN ('service_relationship_manager');
+EXCEPTION WHEN undefined_table THEN
+	RAISE NOTICE 'Removal of old service_relationship_manager failed but that is ok';
+	NULL;
+END;
+$$;
+
+DO $$
+BEGIN
+	DELETE FROM __recreate WHERE schema IN ('jazzhands', 'jazzhands_audit') AND object IN ('service_relationship_manager');
+EXCEPTION WHEN undefined_table THEN
+	RAISE NOTICE 'Removal of new service_relationship_manager failed but that is ok';
+	NULL;
+END;
+$$;
+
+select clock_timestamp(), clock_timestamp() - now() AS len;
+--------------------------------------------------------------------
 -- DEALING WITH NEW TABLE service_version_collection_purpose (jazzhands)
 CREATE TABLE jazzhands.service_version_collection_purpose
 (
@@ -5583,6 +12467,3189 @@ select clock_timestamp(), clock_timestamp() - now() AS len;
 select clock_timestamp(), clock_timestamp() - now() AS len;
 -- Main loop processing views in jazzhands
 select clock_timestamp(), clock_timestamp() - now() AS len;
+--- about to process v_account_collection_account_ancestor in set 1
+--------------------------------------------------------------------
+-- DEALING WITH NEW TABLE v_account_collection_account_ancestor (jazzhands)
+SELECT schema_support.save_dependent_objects_for_replay('jazzhands', 'v_account_collection_account_ancestor');
+SELECT schema_support.save_dependent_objects_for_replay('jazzhands_audit', 'v_account_collection_account_ancestor');
+-- restore any missing random views that may be cached that this one needs.
+DROP VIEW IF EXISTS jazzhands.v_account_collection_account_ancestor;
+CREATE VIEW jazzhands.v_account_collection_account_ancestor AS
+ SELECT i.account_collection_id,
+    i.account_id,
+    i.account_collection_level,
+    i.account_collection_path
+   FROM ( SELECT r.account_collection_id,
+            cm.account_id,
+            r.account_collection_level,
+            r.path AS account_collection_path,
+            row_number() OVER (PARTITION BY r.account_collection_id, cm.account_id ORDER BY r.account_collection_level) AS rnk
+           FROM jazzhands_cache.ct_account_collection_hier_recurse r
+             JOIN jazzhands.account_collection_account cm ON r.root_account_collection_id = cm.account_collection_id) i
+  WHERE i.rnk = 1;
+
+DO $$
+BEGIN
+	DELETE FROM __recreate WHERE schema = 'jazzhands' AND type = 'view' AND object IN ('v_account_collection_account_ancestor','v_account_collection_account_ancestor');
+EXCEPTION WHEN undefined_table THEN
+	RAISE NOTICE 'Drop of v_account_collection_account_ancestor failed but that is ok';
+	NULL;
+END;
+$$;
+
+
+-- PRIMARY AND ALTERNATE KEYS
+
+-- Table/Column Comments
+COMMENT ON VIEW jazzhands.v_account_collection_account_ancestor IS 'All accounts that are part of an account collection and (it''s ancestor account collections, which is behind the scenes)';
+-- INDEXES
+
+-- CHECK CONSTRAINTS
+
+-- FOREIGN KEYS FROM
+
+-- FOREIGN KEYS TO
+
+-- TRIGGERS
+DO $$
+BEGIN
+		DELETE FROM __recreate WHERE schema = 'jazzhands' AND object IN ('v_account_collection_account_ancestor');
+	EXCEPTION WHEN undefined_table THEN
+		RAISE NOTICE 'Drop of triggers for v_account_collection_account_ancestor  failed but that is ok';
+		NULL;
+END;
+$$;
+
+-- DONE DEALING WITH TABLE v_account_collection_account_ancestor (jazzhands)
+--------------------------------------------------------------------
+DO $$
+BEGIN
+	DELETE FROM __recreate WHERE schema IN ('jazzhands', 'jazzhands_audit') AND object IN ('v_account_collection_account_ancestor');
+EXCEPTION WHEN undefined_table THEN
+	RAISE NOTICE 'Removal of old v_account_collection_account_ancestor failed but that is ok';
+	NULL;
+END;
+$$;
+
+DO $$
+BEGIN
+	DELETE FROM __recreate WHERE schema IN ('jazzhands', 'jazzhands_audit') AND object IN ('v_account_collection_account_ancestor');
+EXCEPTION WHEN undefined_table THEN
+	RAISE NOTICE 'Removal of new v_account_collection_account_ancestor failed but that is ok';
+	NULL;
+END;
+$$;
+
+--- about to process v_account_collection_account_descendent in set 1
+--------------------------------------------------------------------
+-- DEALING WITH NEW TABLE v_account_collection_account_descendent (jazzhands)
+SELECT schema_support.save_dependent_objects_for_replay('jazzhands', 'v_account_collection_account_descendent');
+SELECT schema_support.save_dependent_objects_for_replay('jazzhands_audit', 'v_account_collection_account_descendent');
+-- restore any missing random views that may be cached that this one needs.
+DROP VIEW IF EXISTS jazzhands.v_account_collection_account_descendent;
+CREATE VIEW jazzhands.v_account_collection_account_descendent AS
+ SELECT i.account_collection_id,
+    i.account_id,
+    i.account_collection_level,
+    i.account_collection_path
+   FROM ( SELECT ct_account_collection_hier_recurse.root_account_collection_id AS account_collection_id,
+            cm.account_id,
+            ct_account_collection_hier_recurse.account_collection_level,
+            ct_account_collection_hier_recurse.path AS account_collection_path,
+            row_number() OVER (PARTITION BY ct_account_collection_hier_recurse.root_account_collection_id, cm.account_id ORDER BY ct_account_collection_hier_recurse.account_collection_level) AS rnk
+           FROM jazzhands_cache.ct_account_collection_hier_recurse
+             JOIN jazzhands.account_collection_account cm USING (account_collection_id)) i
+  WHERE i.rnk = 1;
+
+DO $$
+BEGIN
+	DELETE FROM __recreate WHERE schema = 'jazzhands' AND type = 'view' AND object IN ('v_account_collection_account_descendent','v_account_collection_account_descendent');
+EXCEPTION WHEN undefined_table THEN
+	RAISE NOTICE 'Drop of v_account_collection_account_descendent failed but that is ok';
+	NULL;
+END;
+$$;
+
+
+-- PRIMARY AND ALTERNATE KEYS
+
+-- Table/Column Comments
+COMMENT ON VIEW jazzhands.v_account_collection_account_descendent IS 'All accounts that are part of an account collection and (it''s descendent account collections, which is behind the scenes)';
+-- INDEXES
+
+-- CHECK CONSTRAINTS
+
+-- FOREIGN KEYS FROM
+
+-- FOREIGN KEYS TO
+
+-- TRIGGERS
+DO $$
+BEGIN
+		DELETE FROM __recreate WHERE schema = 'jazzhands' AND object IN ('v_account_collection_account_descendent');
+	EXCEPTION WHEN undefined_table THEN
+		RAISE NOTICE 'Drop of triggers for v_account_collection_account_descendent  failed but that is ok';
+		NULL;
+END;
+$$;
+
+-- DONE DEALING WITH TABLE v_account_collection_account_descendent (jazzhands)
+--------------------------------------------------------------------
+DO $$
+BEGIN
+	DELETE FROM __recreate WHERE schema IN ('jazzhands', 'jazzhands_audit') AND object IN ('v_account_collection_account_descendent');
+EXCEPTION WHEN undefined_table THEN
+	RAISE NOTICE 'Removal of old v_account_collection_account_descendent failed but that is ok';
+	NULL;
+END;
+$$;
+
+DO $$
+BEGIN
+	DELETE FROM __recreate WHERE schema IN ('jazzhands', 'jazzhands_audit') AND object IN ('v_account_collection_account_descendent');
+EXCEPTION WHEN undefined_table THEN
+	RAISE NOTICE 'Removal of new v_account_collection_account_descendent failed but that is ok';
+	NULL;
+END;
+$$;
+
+--- about to process v_account_collection_hier_ancestor in set 1
+--------------------------------------------------------------------
+-- DEALING WITH NEW TABLE v_account_collection_hier_ancestor (jazzhands)
+SELECT schema_support.save_dependent_objects_for_replay('jazzhands', 'v_account_collection_hier_ancestor');
+SELECT schema_support.save_dependent_objects_for_replay('jazzhands_audit', 'v_account_collection_hier_ancestor');
+-- restore any missing random views that may be cached that this one needs.
+DROP VIEW IF EXISTS jazzhands.v_account_collection_hier_ancestor;
+CREATE VIEW jazzhands.v_account_collection_hier_ancestor AS
+ SELECT h.account_collection_id,
+    h.ancestor_account_collection_id,
+    h.account_collection_level,
+    h.account_collection_path
+   FROM ( SELECT ct_account_collection_hier_recurse.account_collection_id,
+            ct_account_collection_hier_recurse.root_account_collection_id AS ancestor_account_collection_id,
+            array_length(ct_account_collection_hier_recurse.path, 1) AS account_collection_level,
+            ct_account_collection_hier_recurse.path AS account_collection_path,
+            row_number() OVER (PARTITION BY ct_account_collection_hier_recurse.account_collection_id, ct_account_collection_hier_recurse.root_account_collection_id ORDER BY (array_length(ct_account_collection_hier_recurse.path, 1))) AS rnk
+           FROM jazzhands_cache.ct_account_collection_hier_recurse) h
+  WHERE h.rnk = 1;
+
+DO $$
+BEGIN
+	DELETE FROM __recreate WHERE schema = 'jazzhands' AND type = 'view' AND object IN ('v_account_collection_hier_ancestor','v_account_collection_hier_ancestor');
+EXCEPTION WHEN undefined_table THEN
+	RAISE NOTICE 'Drop of v_account_collection_hier_ancestor failed but that is ok';
+	NULL;
+END;
+$$;
+
+
+-- PRIMARY AND ALTERNATE KEYS
+
+-- Table/Column Comments
+COMMENT ON VIEW jazzhands.v_account_collection_hier_ancestor IS 'All ancestors of a given account collection';
+-- INDEXES
+
+-- CHECK CONSTRAINTS
+
+-- FOREIGN KEYS FROM
+
+-- FOREIGN KEYS TO
+
+-- TRIGGERS
+DO $$
+BEGIN
+		DELETE FROM __recreate WHERE schema = 'jazzhands' AND object IN ('v_account_collection_hier_ancestor');
+	EXCEPTION WHEN undefined_table THEN
+		RAISE NOTICE 'Drop of triggers for v_account_collection_hier_ancestor  failed but that is ok';
+		NULL;
+END;
+$$;
+
+-- DONE DEALING WITH TABLE v_account_collection_hier_ancestor (jazzhands)
+--------------------------------------------------------------------
+DO $$
+BEGIN
+	DELETE FROM __recreate WHERE schema IN ('jazzhands', 'jazzhands_audit') AND object IN ('v_account_collection_hier_ancestor');
+EXCEPTION WHEN undefined_table THEN
+	RAISE NOTICE 'Removal of old v_account_collection_hier_ancestor failed but that is ok';
+	NULL;
+END;
+$$;
+
+DO $$
+BEGIN
+	DELETE FROM __recreate WHERE schema IN ('jazzhands', 'jazzhands_audit') AND object IN ('v_account_collection_hier_ancestor');
+EXCEPTION WHEN undefined_table THEN
+	RAISE NOTICE 'Removal of new v_account_collection_hier_ancestor failed but that is ok';
+	NULL;
+END;
+$$;
+
+--- about to process v_account_collection_hier_descendent in set 1
+--------------------------------------------------------------------
+-- DEALING WITH NEW TABLE v_account_collection_hier_descendent (jazzhands)
+SELECT schema_support.save_dependent_objects_for_replay('jazzhands', 'v_account_collection_hier_descendent');
+SELECT schema_support.save_dependent_objects_for_replay('jazzhands_audit', 'v_account_collection_hier_descendent');
+-- restore any missing random views that may be cached that this one needs.
+DROP VIEW IF EXISTS jazzhands.v_account_collection_hier_descendent;
+CREATE VIEW jazzhands.v_account_collection_hier_descendent AS
+ SELECT h.account_collection_id,
+    h.descendent_account_collection_id,
+    h.account_collection_level
+   FROM ( SELECT ct_account_collection_hier_recurse.root_account_collection_id AS account_collection_id,
+            ct_account_collection_hier_recurse.account_collection_id AS descendent_account_collection_id,
+            array_length(ct_account_collection_hier_recurse.path, 1) AS account_collection_level,
+            ct_account_collection_hier_recurse.path AS account_collection_path,
+            row_number() OVER (PARTITION BY ct_account_collection_hier_recurse.root_account_collection_id, ct_account_collection_hier_recurse.account_collection_id ORDER BY (array_length(ct_account_collection_hier_recurse.path, 1))) AS rnk
+           FROM jazzhands_cache.ct_account_collection_hier_recurse) h
+  WHERE h.rnk = 1;
+
+DO $$
+BEGIN
+	DELETE FROM __recreate WHERE schema = 'jazzhands' AND type = 'view' AND object IN ('v_account_collection_hier_descendent','v_account_collection_hier_descendent');
+EXCEPTION WHEN undefined_table THEN
+	RAISE NOTICE 'Drop of v_account_collection_hier_descendent failed but that is ok';
+	NULL;
+END;
+$$;
+
+
+-- PRIMARY AND ALTERNATE KEYS
+
+-- Table/Column Comments
+COMMENT ON VIEW jazzhands.v_account_collection_hier_descendent IS 'All descendent account collections of a given account collection';
+-- INDEXES
+
+-- CHECK CONSTRAINTS
+
+-- FOREIGN KEYS FROM
+
+-- FOREIGN KEYS TO
+
+-- TRIGGERS
+DO $$
+BEGIN
+		DELETE FROM __recreate WHERE schema = 'jazzhands' AND object IN ('v_account_collection_hier_descendent');
+	EXCEPTION WHEN undefined_table THEN
+		RAISE NOTICE 'Drop of triggers for v_account_collection_hier_descendent  failed but that is ok';
+		NULL;
+END;
+$$;
+
+-- DONE DEALING WITH TABLE v_account_collection_hier_descendent (jazzhands)
+--------------------------------------------------------------------
+DO $$
+BEGIN
+	DELETE FROM __recreate WHERE schema IN ('jazzhands', 'jazzhands_audit') AND object IN ('v_account_collection_hier_descendent');
+EXCEPTION WHEN undefined_table THEN
+	RAISE NOTICE 'Removal of old v_account_collection_hier_descendent failed but that is ok';
+	NULL;
+END;
+$$;
+
+DO $$
+BEGIN
+	DELETE FROM __recreate WHERE schema IN ('jazzhands', 'jazzhands_audit') AND object IN ('v_account_collection_hier_descendent');
+EXCEPTION WHEN undefined_table THEN
+	RAISE NOTICE 'Removal of new v_account_collection_hier_descendent failed but that is ok';
+	NULL;
+END;
+$$;
+
+--- about to process v_company_collection_company_ancestor in set 1
+--------------------------------------------------------------------
+-- DEALING WITH NEW TABLE v_company_collection_company_ancestor (jazzhands)
+SELECT schema_support.save_dependent_objects_for_replay('jazzhands', 'v_company_collection_company_ancestor');
+SELECT schema_support.save_dependent_objects_for_replay('jazzhands_audit', 'v_company_collection_company_ancestor');
+-- restore any missing random views that may be cached that this one needs.
+DROP VIEW IF EXISTS jazzhands.v_company_collection_company_ancestor;
+CREATE VIEW jazzhands.v_company_collection_company_ancestor AS
+ SELECT i.company_collection_id,
+    i.company_id,
+    i.company_collection_level,
+    i.company_collection_path
+   FROM ( SELECT r.company_collection_id,
+            cm.company_id,
+            r.company_collection_level,
+            r.path AS company_collection_path,
+            row_number() OVER (PARTITION BY r.company_collection_id, cm.company_id ORDER BY r.company_collection_level) AS rnk
+           FROM jazzhands_cache.ct_company_collection_hier_recurse r
+             JOIN jazzhands.company_collection_company cm ON r.root_company_collection_id = cm.company_collection_id) i
+  WHERE i.rnk = 1;
+
+DO $$
+BEGIN
+	DELETE FROM __recreate WHERE schema = 'jazzhands' AND type = 'view' AND object IN ('v_company_collection_company_ancestor','v_company_collection_company_ancestor');
+EXCEPTION WHEN undefined_table THEN
+	RAISE NOTICE 'Drop of v_company_collection_company_ancestor failed but that is ok';
+	NULL;
+END;
+$$;
+
+
+-- PRIMARY AND ALTERNATE KEYS
+
+-- Table/Column Comments
+COMMENT ON VIEW jazzhands.v_company_collection_company_ancestor IS 'All companys that are part of an company collection and (it''s ancestor company collections, which is behind the scenes)';
+-- INDEXES
+
+-- CHECK CONSTRAINTS
+
+-- FOREIGN KEYS FROM
+
+-- FOREIGN KEYS TO
+
+-- TRIGGERS
+DO $$
+BEGIN
+		DELETE FROM __recreate WHERE schema = 'jazzhands' AND object IN ('v_company_collection_company_ancestor');
+	EXCEPTION WHEN undefined_table THEN
+		RAISE NOTICE 'Drop of triggers for v_company_collection_company_ancestor  failed but that is ok';
+		NULL;
+END;
+$$;
+
+-- DONE DEALING WITH TABLE v_company_collection_company_ancestor (jazzhands)
+--------------------------------------------------------------------
+DO $$
+BEGIN
+	DELETE FROM __recreate WHERE schema IN ('jazzhands', 'jazzhands_audit') AND object IN ('v_company_collection_company_ancestor');
+EXCEPTION WHEN undefined_table THEN
+	RAISE NOTICE 'Removal of old v_company_collection_company_ancestor failed but that is ok';
+	NULL;
+END;
+$$;
+
+DO $$
+BEGIN
+	DELETE FROM __recreate WHERE schema IN ('jazzhands', 'jazzhands_audit') AND object IN ('v_company_collection_company_ancestor');
+EXCEPTION WHEN undefined_table THEN
+	RAISE NOTICE 'Removal of new v_company_collection_company_ancestor failed but that is ok';
+	NULL;
+END;
+$$;
+
+--- about to process v_company_collection_company_descendent in set 1
+--------------------------------------------------------------------
+-- DEALING WITH NEW TABLE v_company_collection_company_descendent (jazzhands)
+SELECT schema_support.save_dependent_objects_for_replay('jazzhands', 'v_company_collection_company_descendent');
+SELECT schema_support.save_dependent_objects_for_replay('jazzhands_audit', 'v_company_collection_company_descendent');
+-- restore any missing random views that may be cached that this one needs.
+DROP VIEW IF EXISTS jazzhands.v_company_collection_company_descendent;
+CREATE VIEW jazzhands.v_company_collection_company_descendent AS
+ SELECT i.company_collection_id,
+    i.company_id,
+    i.company_collection_level,
+    i.company_collection_path
+   FROM ( SELECT ct_company_collection_hier_recurse.root_company_collection_id AS company_collection_id,
+            cm.company_id,
+            ct_company_collection_hier_recurse.company_collection_level,
+            ct_company_collection_hier_recurse.path AS company_collection_path,
+            row_number() OVER (PARTITION BY ct_company_collection_hier_recurse.root_company_collection_id, cm.company_id ORDER BY ct_company_collection_hier_recurse.company_collection_level) AS rnk
+           FROM jazzhands_cache.ct_company_collection_hier_recurse
+             JOIN jazzhands.company_collection_company cm USING (company_collection_id)) i
+  WHERE i.rnk = 1;
+
+DO $$
+BEGIN
+	DELETE FROM __recreate WHERE schema = 'jazzhands' AND type = 'view' AND object IN ('v_company_collection_company_descendent','v_company_collection_company_descendent');
+EXCEPTION WHEN undefined_table THEN
+	RAISE NOTICE 'Drop of v_company_collection_company_descendent failed but that is ok';
+	NULL;
+END;
+$$;
+
+
+-- PRIMARY AND ALTERNATE KEYS
+
+-- Table/Column Comments
+COMMENT ON VIEW jazzhands.v_company_collection_company_descendent IS 'All companys that are part of an company collection and (it''s descendent company collections, which is behind the scenes)';
+-- INDEXES
+
+-- CHECK CONSTRAINTS
+
+-- FOREIGN KEYS FROM
+
+-- FOREIGN KEYS TO
+
+-- TRIGGERS
+DO $$
+BEGIN
+		DELETE FROM __recreate WHERE schema = 'jazzhands' AND object IN ('v_company_collection_company_descendent');
+	EXCEPTION WHEN undefined_table THEN
+		RAISE NOTICE 'Drop of triggers for v_company_collection_company_descendent  failed but that is ok';
+		NULL;
+END;
+$$;
+
+-- DONE DEALING WITH TABLE v_company_collection_company_descendent (jazzhands)
+--------------------------------------------------------------------
+DO $$
+BEGIN
+	DELETE FROM __recreate WHERE schema IN ('jazzhands', 'jazzhands_audit') AND object IN ('v_company_collection_company_descendent');
+EXCEPTION WHEN undefined_table THEN
+	RAISE NOTICE 'Removal of old v_company_collection_company_descendent failed but that is ok';
+	NULL;
+END;
+$$;
+
+DO $$
+BEGIN
+	DELETE FROM __recreate WHERE schema IN ('jazzhands', 'jazzhands_audit') AND object IN ('v_company_collection_company_descendent');
+EXCEPTION WHEN undefined_table THEN
+	RAISE NOTICE 'Removal of new v_company_collection_company_descendent failed but that is ok';
+	NULL;
+END;
+$$;
+
+--- about to process v_company_collection_hier_ancestor in set 1
+--------------------------------------------------------------------
+-- DEALING WITH NEW TABLE v_company_collection_hier_ancestor (jazzhands)
+SELECT schema_support.save_dependent_objects_for_replay('jazzhands', 'v_company_collection_hier_ancestor');
+SELECT schema_support.save_dependent_objects_for_replay('jazzhands_audit', 'v_company_collection_hier_ancestor');
+-- restore any missing random views that may be cached that this one needs.
+DROP VIEW IF EXISTS jazzhands.v_company_collection_hier_ancestor;
+CREATE VIEW jazzhands.v_company_collection_hier_ancestor AS
+ SELECT h.company_collection_id,
+    h.ancestor_company_collection_id,
+    h.company_collection_level,
+    h.company_collection_path
+   FROM ( SELECT ct_company_collection_hier_recurse.company_collection_id,
+            ct_company_collection_hier_recurse.root_company_collection_id AS ancestor_company_collection_id,
+            array_length(ct_company_collection_hier_recurse.path, 1) AS company_collection_level,
+            ct_company_collection_hier_recurse.path AS company_collection_path,
+            row_number() OVER (PARTITION BY ct_company_collection_hier_recurse.company_collection_id, ct_company_collection_hier_recurse.root_company_collection_id ORDER BY (array_length(ct_company_collection_hier_recurse.path, 1))) AS rnk
+           FROM jazzhands_cache.ct_company_collection_hier_recurse) h
+  WHERE h.rnk = 1;
+
+DO $$
+BEGIN
+	DELETE FROM __recreate WHERE schema = 'jazzhands' AND type = 'view' AND object IN ('v_company_collection_hier_ancestor','v_company_collection_hier_ancestor');
+EXCEPTION WHEN undefined_table THEN
+	RAISE NOTICE 'Drop of v_company_collection_hier_ancestor failed but that is ok';
+	NULL;
+END;
+$$;
+
+
+-- PRIMARY AND ALTERNATE KEYS
+
+-- Table/Column Comments
+COMMENT ON VIEW jazzhands.v_company_collection_hier_ancestor IS 'All ancestors of a given company collection';
+-- INDEXES
+
+-- CHECK CONSTRAINTS
+
+-- FOREIGN KEYS FROM
+
+-- FOREIGN KEYS TO
+
+-- TRIGGERS
+DO $$
+BEGIN
+		DELETE FROM __recreate WHERE schema = 'jazzhands' AND object IN ('v_company_collection_hier_ancestor');
+	EXCEPTION WHEN undefined_table THEN
+		RAISE NOTICE 'Drop of triggers for v_company_collection_hier_ancestor  failed but that is ok';
+		NULL;
+END;
+$$;
+
+-- DONE DEALING WITH TABLE v_company_collection_hier_ancestor (jazzhands)
+--------------------------------------------------------------------
+DO $$
+BEGIN
+	DELETE FROM __recreate WHERE schema IN ('jazzhands', 'jazzhands_audit') AND object IN ('v_company_collection_hier_ancestor');
+EXCEPTION WHEN undefined_table THEN
+	RAISE NOTICE 'Removal of old v_company_collection_hier_ancestor failed but that is ok';
+	NULL;
+END;
+$$;
+
+DO $$
+BEGIN
+	DELETE FROM __recreate WHERE schema IN ('jazzhands', 'jazzhands_audit') AND object IN ('v_company_collection_hier_ancestor');
+EXCEPTION WHEN undefined_table THEN
+	RAISE NOTICE 'Removal of new v_company_collection_hier_ancestor failed but that is ok';
+	NULL;
+END;
+$$;
+
+--- about to process v_company_collection_hier_descendent in set 1
+--------------------------------------------------------------------
+-- DEALING WITH NEW TABLE v_company_collection_hier_descendent (jazzhands)
+SELECT schema_support.save_dependent_objects_for_replay('jazzhands', 'v_company_collection_hier_descendent');
+SELECT schema_support.save_dependent_objects_for_replay('jazzhands_audit', 'v_company_collection_hier_descendent');
+-- restore any missing random views that may be cached that this one needs.
+DROP VIEW IF EXISTS jazzhands.v_company_collection_hier_descendent;
+CREATE VIEW jazzhands.v_company_collection_hier_descendent AS
+ SELECT h.company_collection_id,
+    h.descendent_company_collection_id,
+    h.company_collection_level
+   FROM ( SELECT ct_company_collection_hier_recurse.root_company_collection_id AS company_collection_id,
+            ct_company_collection_hier_recurse.company_collection_id AS descendent_company_collection_id,
+            array_length(ct_company_collection_hier_recurse.path, 1) AS company_collection_level,
+            ct_company_collection_hier_recurse.path AS company_collection_path,
+            row_number() OVER (PARTITION BY ct_company_collection_hier_recurse.root_company_collection_id, ct_company_collection_hier_recurse.company_collection_id ORDER BY (array_length(ct_company_collection_hier_recurse.path, 1))) AS rnk
+           FROM jazzhands_cache.ct_company_collection_hier_recurse) h
+  WHERE h.rnk = 1;
+
+DO $$
+BEGIN
+	DELETE FROM __recreate WHERE schema = 'jazzhands' AND type = 'view' AND object IN ('v_company_collection_hier_descendent','v_company_collection_hier_descendent');
+EXCEPTION WHEN undefined_table THEN
+	RAISE NOTICE 'Drop of v_company_collection_hier_descendent failed but that is ok';
+	NULL;
+END;
+$$;
+
+
+-- PRIMARY AND ALTERNATE KEYS
+
+-- Table/Column Comments
+COMMENT ON VIEW jazzhands.v_company_collection_hier_descendent IS 'All descendent company collections of a given company collection';
+-- INDEXES
+
+-- CHECK CONSTRAINTS
+
+-- FOREIGN KEYS FROM
+
+-- FOREIGN KEYS TO
+
+-- TRIGGERS
+DO $$
+BEGIN
+		DELETE FROM __recreate WHERE schema = 'jazzhands' AND object IN ('v_company_collection_hier_descendent');
+	EXCEPTION WHEN undefined_table THEN
+		RAISE NOTICE 'Drop of triggers for v_company_collection_hier_descendent  failed but that is ok';
+		NULL;
+END;
+$$;
+
+-- DONE DEALING WITH TABLE v_company_collection_hier_descendent (jazzhands)
+--------------------------------------------------------------------
+DO $$
+BEGIN
+	DELETE FROM __recreate WHERE schema IN ('jazzhands', 'jazzhands_audit') AND object IN ('v_company_collection_hier_descendent');
+EXCEPTION WHEN undefined_table THEN
+	RAISE NOTICE 'Removal of old v_company_collection_hier_descendent failed but that is ok';
+	NULL;
+END;
+$$;
+
+DO $$
+BEGIN
+	DELETE FROM __recreate WHERE schema IN ('jazzhands', 'jazzhands_audit') AND object IN ('v_company_collection_hier_descendent');
+EXCEPTION WHEN undefined_table THEN
+	RAISE NOTICE 'Removal of new v_company_collection_hier_descendent failed but that is ok';
+	NULL;
+END;
+$$;
+
+--- about to process v_device_collection_device_ancestor in set 1
+--------------------------------------------------------------------
+-- DEALING WITH NEW TABLE v_device_collection_device_ancestor (jazzhands)
+SELECT schema_support.save_dependent_objects_for_replay('jazzhands', 'v_device_collection_device_ancestor');
+SELECT schema_support.save_dependent_objects_for_replay('jazzhands_audit', 'v_device_collection_device_ancestor');
+-- restore any missing random views that may be cached that this one needs.
+DROP VIEW IF EXISTS jazzhands.v_device_collection_device_ancestor;
+CREATE VIEW jazzhands.v_device_collection_device_ancestor AS
+ SELECT i.device_collection_id,
+    i.device_id,
+    i.device_collection_level,
+    i.device_collection_path
+   FROM ( SELECT r.device_collection_id,
+            cm.device_id,
+            r.device_collection_level,
+            r.path AS device_collection_path,
+            row_number() OVER (PARTITION BY r.device_collection_id, cm.device_id ORDER BY r.device_collection_level) AS rnk
+           FROM jazzhands_cache.ct_device_collection_hier_recurse r
+             JOIN jazzhands.device_collection_device cm ON r.root_device_collection_id = cm.device_collection_id) i
+  WHERE i.rnk = 1;
+
+DO $$
+BEGIN
+	DELETE FROM __recreate WHERE schema = 'jazzhands' AND type = 'view' AND object IN ('v_device_collection_device_ancestor','v_device_collection_device_ancestor');
+EXCEPTION WHEN undefined_table THEN
+	RAISE NOTICE 'Drop of v_device_collection_device_ancestor failed but that is ok';
+	NULL;
+END;
+$$;
+
+
+-- PRIMARY AND ALTERNATE KEYS
+
+-- Table/Column Comments
+COMMENT ON VIEW jazzhands.v_device_collection_device_ancestor IS 'All devices that are part of an device collection and (it''s ancestor device collections, which is behind the scenes)';
+-- INDEXES
+
+-- CHECK CONSTRAINTS
+
+-- FOREIGN KEYS FROM
+
+-- FOREIGN KEYS TO
+
+-- TRIGGERS
+DO $$
+BEGIN
+		DELETE FROM __recreate WHERE schema = 'jazzhands' AND object IN ('v_device_collection_device_ancestor');
+	EXCEPTION WHEN undefined_table THEN
+		RAISE NOTICE 'Drop of triggers for v_device_collection_device_ancestor  failed but that is ok';
+		NULL;
+END;
+$$;
+
+-- DONE DEALING WITH TABLE v_device_collection_device_ancestor (jazzhands)
+--------------------------------------------------------------------
+DO $$
+BEGIN
+	DELETE FROM __recreate WHERE schema IN ('jazzhands', 'jazzhands_audit') AND object IN ('v_device_collection_device_ancestor');
+EXCEPTION WHEN undefined_table THEN
+	RAISE NOTICE 'Removal of old v_device_collection_device_ancestor failed but that is ok';
+	NULL;
+END;
+$$;
+
+DO $$
+BEGIN
+	DELETE FROM __recreate WHERE schema IN ('jazzhands', 'jazzhands_audit') AND object IN ('v_device_collection_device_ancestor');
+EXCEPTION WHEN undefined_table THEN
+	RAISE NOTICE 'Removal of new v_device_collection_device_ancestor failed but that is ok';
+	NULL;
+END;
+$$;
+
+--- about to process v_device_collection_device_descendent in set 1
+--------------------------------------------------------------------
+-- DEALING WITH NEW TABLE v_device_collection_device_descendent (jazzhands)
+SELECT schema_support.save_dependent_objects_for_replay('jazzhands', 'v_device_collection_device_descendent');
+SELECT schema_support.save_dependent_objects_for_replay('jazzhands_audit', 'v_device_collection_device_descendent');
+-- restore any missing random views that may be cached that this one needs.
+DROP VIEW IF EXISTS jazzhands.v_device_collection_device_descendent;
+CREATE VIEW jazzhands.v_device_collection_device_descendent AS
+ SELECT i.device_collection_id,
+    i.device_id,
+    i.device_collection_level,
+    i.device_collection_path
+   FROM ( SELECT ct_device_collection_hier_recurse.root_device_collection_id AS device_collection_id,
+            cm.device_id,
+            ct_device_collection_hier_recurse.device_collection_level,
+            ct_device_collection_hier_recurse.path AS device_collection_path,
+            row_number() OVER (PARTITION BY ct_device_collection_hier_recurse.root_device_collection_id, cm.device_id ORDER BY ct_device_collection_hier_recurse.device_collection_level) AS rnk
+           FROM jazzhands_cache.ct_device_collection_hier_recurse
+             JOIN jazzhands.device_collection_device cm USING (device_collection_id)) i
+  WHERE i.rnk = 1;
+
+DO $$
+BEGIN
+	DELETE FROM __recreate WHERE schema = 'jazzhands' AND type = 'view' AND object IN ('v_device_collection_device_descendent','v_device_collection_device_descendent');
+EXCEPTION WHEN undefined_table THEN
+	RAISE NOTICE 'Drop of v_device_collection_device_descendent failed but that is ok';
+	NULL;
+END;
+$$;
+
+
+-- PRIMARY AND ALTERNATE KEYS
+
+-- Table/Column Comments
+COMMENT ON VIEW jazzhands.v_device_collection_device_descendent IS 'All devices that are part of an device collection and (it''s descendent device collections, which is behind the scenes)';
+-- INDEXES
+
+-- CHECK CONSTRAINTS
+
+-- FOREIGN KEYS FROM
+
+-- FOREIGN KEYS TO
+
+-- TRIGGERS
+DO $$
+BEGIN
+		DELETE FROM __recreate WHERE schema = 'jazzhands' AND object IN ('v_device_collection_device_descendent');
+	EXCEPTION WHEN undefined_table THEN
+		RAISE NOTICE 'Drop of triggers for v_device_collection_device_descendent  failed but that is ok';
+		NULL;
+END;
+$$;
+
+-- DONE DEALING WITH TABLE v_device_collection_device_descendent (jazzhands)
+--------------------------------------------------------------------
+DO $$
+BEGIN
+	DELETE FROM __recreate WHERE schema IN ('jazzhands', 'jazzhands_audit') AND object IN ('v_device_collection_device_descendent');
+EXCEPTION WHEN undefined_table THEN
+	RAISE NOTICE 'Removal of old v_device_collection_device_descendent failed but that is ok';
+	NULL;
+END;
+$$;
+
+DO $$
+BEGIN
+	DELETE FROM __recreate WHERE schema IN ('jazzhands', 'jazzhands_audit') AND object IN ('v_device_collection_device_descendent');
+EXCEPTION WHEN undefined_table THEN
+	RAISE NOTICE 'Removal of new v_device_collection_device_descendent failed but that is ok';
+	NULL;
+END;
+$$;
+
+--- about to process v_device_collection_hier_ancestor in set 1
+--------------------------------------------------------------------
+-- DEALING WITH NEW TABLE v_device_collection_hier_ancestor (jazzhands)
+SELECT schema_support.save_dependent_objects_for_replay('jazzhands', 'v_device_collection_hier_ancestor');
+SELECT schema_support.save_dependent_objects_for_replay('jazzhands_audit', 'v_device_collection_hier_ancestor');
+-- restore any missing random views that may be cached that this one needs.
+DROP VIEW IF EXISTS jazzhands.v_device_collection_hier_ancestor;
+CREATE VIEW jazzhands.v_device_collection_hier_ancestor AS
+ SELECT h.device_collection_id,
+    h.ancestor_device_collection_id,
+    h.device_collection_level,
+    h.device_collection_path
+   FROM ( SELECT ct_device_collection_hier_recurse.device_collection_id,
+            ct_device_collection_hier_recurse.root_device_collection_id AS ancestor_device_collection_id,
+            array_length(ct_device_collection_hier_recurse.path, 1) AS device_collection_level,
+            ct_device_collection_hier_recurse.path AS device_collection_path,
+            row_number() OVER (PARTITION BY ct_device_collection_hier_recurse.device_collection_id, ct_device_collection_hier_recurse.root_device_collection_id ORDER BY (array_length(ct_device_collection_hier_recurse.path, 1))) AS rnk
+           FROM jazzhands_cache.ct_device_collection_hier_recurse) h
+  WHERE h.rnk = 1;
+
+DO $$
+BEGIN
+	DELETE FROM __recreate WHERE schema = 'jazzhands' AND type = 'view' AND object IN ('v_device_collection_hier_ancestor','v_device_collection_hier_ancestor');
+EXCEPTION WHEN undefined_table THEN
+	RAISE NOTICE 'Drop of v_device_collection_hier_ancestor failed but that is ok';
+	NULL;
+END;
+$$;
+
+
+-- PRIMARY AND ALTERNATE KEYS
+
+-- Table/Column Comments
+COMMENT ON VIEW jazzhands.v_device_collection_hier_ancestor IS 'All ancestors of a given device collection';
+-- INDEXES
+
+-- CHECK CONSTRAINTS
+
+-- FOREIGN KEYS FROM
+
+-- FOREIGN KEYS TO
+
+-- TRIGGERS
+DO $$
+BEGIN
+		DELETE FROM __recreate WHERE schema = 'jazzhands' AND object IN ('v_device_collection_hier_ancestor');
+	EXCEPTION WHEN undefined_table THEN
+		RAISE NOTICE 'Drop of triggers for v_device_collection_hier_ancestor  failed but that is ok';
+		NULL;
+END;
+$$;
+
+-- DONE DEALING WITH TABLE v_device_collection_hier_ancestor (jazzhands)
+--------------------------------------------------------------------
+DO $$
+BEGIN
+	DELETE FROM __recreate WHERE schema IN ('jazzhands', 'jazzhands_audit') AND object IN ('v_device_collection_hier_ancestor');
+EXCEPTION WHEN undefined_table THEN
+	RAISE NOTICE 'Removal of old v_device_collection_hier_ancestor failed but that is ok';
+	NULL;
+END;
+$$;
+
+DO $$
+BEGIN
+	DELETE FROM __recreate WHERE schema IN ('jazzhands', 'jazzhands_audit') AND object IN ('v_device_collection_hier_ancestor');
+EXCEPTION WHEN undefined_table THEN
+	RAISE NOTICE 'Removal of new v_device_collection_hier_ancestor failed but that is ok';
+	NULL;
+END;
+$$;
+
+--- about to process v_device_collection_hier_descendent in set 1
+--------------------------------------------------------------------
+-- DEALING WITH NEW TABLE v_device_collection_hier_descendent (jazzhands)
+SELECT schema_support.save_dependent_objects_for_replay('jazzhands', 'v_device_collection_hier_descendent');
+SELECT schema_support.save_dependent_objects_for_replay('jazzhands_audit', 'v_device_collection_hier_descendent');
+-- restore any missing random views that may be cached that this one needs.
+DROP VIEW IF EXISTS jazzhands.v_device_collection_hier_descendent;
+CREATE VIEW jazzhands.v_device_collection_hier_descendent AS
+ SELECT h.device_collection_id,
+    h.descendent_device_collection_id,
+    h.device_collection_level
+   FROM ( SELECT ct_device_collection_hier_recurse.root_device_collection_id AS device_collection_id,
+            ct_device_collection_hier_recurse.device_collection_id AS descendent_device_collection_id,
+            array_length(ct_device_collection_hier_recurse.path, 1) AS device_collection_level,
+            ct_device_collection_hier_recurse.path AS device_collection_path,
+            row_number() OVER (PARTITION BY ct_device_collection_hier_recurse.root_device_collection_id, ct_device_collection_hier_recurse.device_collection_id ORDER BY (array_length(ct_device_collection_hier_recurse.path, 1))) AS rnk
+           FROM jazzhands_cache.ct_device_collection_hier_recurse) h
+  WHERE h.rnk = 1;
+
+DO $$
+BEGIN
+	DELETE FROM __recreate WHERE schema = 'jazzhands' AND type = 'view' AND object IN ('v_device_collection_hier_descendent','v_device_collection_hier_descendent');
+EXCEPTION WHEN undefined_table THEN
+	RAISE NOTICE 'Drop of v_device_collection_hier_descendent failed but that is ok';
+	NULL;
+END;
+$$;
+
+
+-- PRIMARY AND ALTERNATE KEYS
+
+-- Table/Column Comments
+COMMENT ON VIEW jazzhands.v_device_collection_hier_descendent IS 'All descendent device collections of a given device collection';
+-- INDEXES
+
+-- CHECK CONSTRAINTS
+
+-- FOREIGN KEYS FROM
+
+-- FOREIGN KEYS TO
+
+-- TRIGGERS
+DO $$
+BEGIN
+		DELETE FROM __recreate WHERE schema = 'jazzhands' AND object IN ('v_device_collection_hier_descendent');
+	EXCEPTION WHEN undefined_table THEN
+		RAISE NOTICE 'Drop of triggers for v_device_collection_hier_descendent  failed but that is ok';
+		NULL;
+END;
+$$;
+
+-- DONE DEALING WITH TABLE v_device_collection_hier_descendent (jazzhands)
+--------------------------------------------------------------------
+DO $$
+BEGIN
+	DELETE FROM __recreate WHERE schema IN ('jazzhands', 'jazzhands_audit') AND object IN ('v_device_collection_hier_descendent');
+EXCEPTION WHEN undefined_table THEN
+	RAISE NOTICE 'Removal of old v_device_collection_hier_descendent failed but that is ok';
+	NULL;
+END;
+$$;
+
+DO $$
+BEGIN
+	DELETE FROM __recreate WHERE schema IN ('jazzhands', 'jazzhands_audit') AND object IN ('v_device_collection_hier_descendent');
+EXCEPTION WHEN undefined_table THEN
+	RAISE NOTICE 'Removal of new v_device_collection_hier_descendent failed but that is ok';
+	NULL;
+END;
+$$;
+
+--- about to process v_dns_domain_collection_dns_domain_ancestor in set 1
+--------------------------------------------------------------------
+-- DEALING WITH NEW TABLE v_dns_domain_collection_dns_domain_ancestor (jazzhands)
+SELECT schema_support.save_dependent_objects_for_replay('jazzhands', 'v_dns_domain_collection_dns_domain_ancestor');
+SELECT schema_support.save_dependent_objects_for_replay('jazzhands_audit', 'v_dns_domain_collection_dns_domain_ancestor');
+-- restore any missing random views that may be cached that this one needs.
+DROP VIEW IF EXISTS jazzhands.v_dns_domain_collection_dns_domain_ancestor;
+CREATE VIEW jazzhands.v_dns_domain_collection_dns_domain_ancestor AS
+ SELECT i.dns_domain_collection_id,
+    i.dns_domain_id,
+    i.dns_domain_collection_level,
+    i.dns_domain_collection_path
+   FROM ( SELECT r.dns_domain_collection_id,
+            cm.dns_domain_id,
+            r.dns_domain_collection_level,
+            r.path AS dns_domain_collection_path,
+            row_number() OVER (PARTITION BY r.dns_domain_collection_id, cm.dns_domain_id ORDER BY r.dns_domain_collection_level) AS rnk
+           FROM jazzhands_cache.ct_dns_domain_collection_hier_recurse r
+             JOIN jazzhands.dns_domain_collection_dns_domain cm ON r.root_dns_domain_collection_id = cm.dns_domain_collection_id) i
+  WHERE i.rnk = 1;
+
+DO $$
+BEGIN
+	DELETE FROM __recreate WHERE schema = 'jazzhands' AND type = 'view' AND object IN ('v_dns_domain_collection_dns_domain_ancestor','v_dns_domain_collection_dns_domain_ancestor');
+EXCEPTION WHEN undefined_table THEN
+	RAISE NOTICE 'Drop of v_dns_domain_collection_dns_domain_ancestor failed but that is ok';
+	NULL;
+END;
+$$;
+
+
+-- PRIMARY AND ALTERNATE KEYS
+
+-- Table/Column Comments
+COMMENT ON VIEW jazzhands.v_dns_domain_collection_dns_domain_ancestor IS 'All dns_domains that are part of an dns_domain collection and (it''s ancestor dns_domain collections, which is behind the scenes)';
+-- INDEXES
+
+-- CHECK CONSTRAINTS
+
+-- FOREIGN KEYS FROM
+
+-- FOREIGN KEYS TO
+
+-- TRIGGERS
+DO $$
+BEGIN
+		DELETE FROM __recreate WHERE schema = 'jazzhands' AND object IN ('v_dns_domain_collection_dns_domain_ancestor');
+	EXCEPTION WHEN undefined_table THEN
+		RAISE NOTICE 'Drop of triggers for v_dns_domain_collection_dns_domain_ancestor  failed but that is ok';
+		NULL;
+END;
+$$;
+
+-- DONE DEALING WITH TABLE v_dns_domain_collection_dns_domain_ancestor (jazzhands)
+--------------------------------------------------------------------
+DO $$
+BEGIN
+	DELETE FROM __recreate WHERE schema IN ('jazzhands', 'jazzhands_audit') AND object IN ('v_dns_domain_collection_dns_domain_ancestor');
+EXCEPTION WHEN undefined_table THEN
+	RAISE NOTICE 'Removal of old v_dns_domain_collection_dns_domain_ancestor failed but that is ok';
+	NULL;
+END;
+$$;
+
+DO $$
+BEGIN
+	DELETE FROM __recreate WHERE schema IN ('jazzhands', 'jazzhands_audit') AND object IN ('v_dns_domain_collection_dns_domain_ancestor');
+EXCEPTION WHEN undefined_table THEN
+	RAISE NOTICE 'Removal of new v_dns_domain_collection_dns_domain_ancestor failed but that is ok';
+	NULL;
+END;
+$$;
+
+--- about to process v_dns_domain_collection_dns_domain_descendent in set 1
+--------------------------------------------------------------------
+-- DEALING WITH NEW TABLE v_dns_domain_collection_dns_domain_descendent (jazzhands)
+SELECT schema_support.save_dependent_objects_for_replay('jazzhands', 'v_dns_domain_collection_dns_domain_descendent');
+SELECT schema_support.save_dependent_objects_for_replay('jazzhands_audit', 'v_dns_domain_collection_dns_domain_descendent');
+-- restore any missing random views that may be cached that this one needs.
+DROP VIEW IF EXISTS jazzhands.v_dns_domain_collection_dns_domain_descendent;
+CREATE VIEW jazzhands.v_dns_domain_collection_dns_domain_descendent AS
+ SELECT i.dns_domain_collection_id,
+    i.dns_domain_id,
+    i.dns_domain_collection_level,
+    i.dns_domain_collection_path
+   FROM ( SELECT ct_dns_domain_collection_hier_recurse.root_dns_domain_collection_id AS dns_domain_collection_id,
+            cm.dns_domain_id,
+            ct_dns_domain_collection_hier_recurse.dns_domain_collection_level,
+            ct_dns_domain_collection_hier_recurse.path AS dns_domain_collection_path,
+            row_number() OVER (PARTITION BY ct_dns_domain_collection_hier_recurse.root_dns_domain_collection_id, cm.dns_domain_id ORDER BY ct_dns_domain_collection_hier_recurse.dns_domain_collection_level) AS rnk
+           FROM jazzhands_cache.ct_dns_domain_collection_hier_recurse
+             JOIN jazzhands.dns_domain_collection_dns_domain cm USING (dns_domain_collection_id)) i
+  WHERE i.rnk = 1;
+
+DO $$
+BEGIN
+	DELETE FROM __recreate WHERE schema = 'jazzhands' AND type = 'view' AND object IN ('v_dns_domain_collection_dns_domain_descendent','v_dns_domain_collection_dns_domain_descendent');
+EXCEPTION WHEN undefined_table THEN
+	RAISE NOTICE 'Drop of v_dns_domain_collection_dns_domain_descendent failed but that is ok';
+	NULL;
+END;
+$$;
+
+
+-- PRIMARY AND ALTERNATE KEYS
+
+-- Table/Column Comments
+COMMENT ON VIEW jazzhands.v_dns_domain_collection_dns_domain_descendent IS 'All dns_domains that are part of an dns_domain collection and (it''s descendent dns_domain collections, which is behind the scenes)';
+-- INDEXES
+
+-- CHECK CONSTRAINTS
+
+-- FOREIGN KEYS FROM
+
+-- FOREIGN KEYS TO
+
+-- TRIGGERS
+DO $$
+BEGIN
+		DELETE FROM __recreate WHERE schema = 'jazzhands' AND object IN ('v_dns_domain_collection_dns_domain_descendent');
+	EXCEPTION WHEN undefined_table THEN
+		RAISE NOTICE 'Drop of triggers for v_dns_domain_collection_dns_domain_descendent  failed but that is ok';
+		NULL;
+END;
+$$;
+
+-- DONE DEALING WITH TABLE v_dns_domain_collection_dns_domain_descendent (jazzhands)
+--------------------------------------------------------------------
+DO $$
+BEGIN
+	DELETE FROM __recreate WHERE schema IN ('jazzhands', 'jazzhands_audit') AND object IN ('v_dns_domain_collection_dns_domain_descendent');
+EXCEPTION WHEN undefined_table THEN
+	RAISE NOTICE 'Removal of old v_dns_domain_collection_dns_domain_descendent failed but that is ok';
+	NULL;
+END;
+$$;
+
+DO $$
+BEGIN
+	DELETE FROM __recreate WHERE schema IN ('jazzhands', 'jazzhands_audit') AND object IN ('v_dns_domain_collection_dns_domain_descendent');
+EXCEPTION WHEN undefined_table THEN
+	RAISE NOTICE 'Removal of new v_dns_domain_collection_dns_domain_descendent failed but that is ok';
+	NULL;
+END;
+$$;
+
+--- about to process v_dns_domain_collection_hier_ancestor in set 1
+--------------------------------------------------------------------
+-- DEALING WITH NEW TABLE v_dns_domain_collection_hier_ancestor (jazzhands)
+SELECT schema_support.save_dependent_objects_for_replay('jazzhands', 'v_dns_domain_collection_hier_ancestor');
+SELECT schema_support.save_dependent_objects_for_replay('jazzhands_audit', 'v_dns_domain_collection_hier_ancestor');
+-- restore any missing random views that may be cached that this one needs.
+DROP VIEW IF EXISTS jazzhands.v_dns_domain_collection_hier_ancestor;
+CREATE VIEW jazzhands.v_dns_domain_collection_hier_ancestor AS
+ SELECT h.dns_domain_collection_id,
+    h.ancestor_dns_domain_collection_id,
+    h.dns_domain_collection_level,
+    h.dns_domain_collection_path
+   FROM ( SELECT ct_dns_domain_collection_hier_recurse.dns_domain_collection_id,
+            ct_dns_domain_collection_hier_recurse.root_dns_domain_collection_id AS ancestor_dns_domain_collection_id,
+            array_length(ct_dns_domain_collection_hier_recurse.path, 1) AS dns_domain_collection_level,
+            ct_dns_domain_collection_hier_recurse.path AS dns_domain_collection_path,
+            row_number() OVER (PARTITION BY ct_dns_domain_collection_hier_recurse.dns_domain_collection_id, ct_dns_domain_collection_hier_recurse.root_dns_domain_collection_id ORDER BY (array_length(ct_dns_domain_collection_hier_recurse.path, 1))) AS rnk
+           FROM jazzhands_cache.ct_dns_domain_collection_hier_recurse) h
+  WHERE h.rnk = 1;
+
+DO $$
+BEGIN
+	DELETE FROM __recreate WHERE schema = 'jazzhands' AND type = 'view' AND object IN ('v_dns_domain_collection_hier_ancestor','v_dns_domain_collection_hier_ancestor');
+EXCEPTION WHEN undefined_table THEN
+	RAISE NOTICE 'Drop of v_dns_domain_collection_hier_ancestor failed but that is ok';
+	NULL;
+END;
+$$;
+
+
+-- PRIMARY AND ALTERNATE KEYS
+
+-- Table/Column Comments
+COMMENT ON VIEW jazzhands.v_dns_domain_collection_hier_ancestor IS 'All ancestors of a given dns_domain collection';
+-- INDEXES
+
+-- CHECK CONSTRAINTS
+
+-- FOREIGN KEYS FROM
+
+-- FOREIGN KEYS TO
+
+-- TRIGGERS
+DO $$
+BEGIN
+		DELETE FROM __recreate WHERE schema = 'jazzhands' AND object IN ('v_dns_domain_collection_hier_ancestor');
+	EXCEPTION WHEN undefined_table THEN
+		RAISE NOTICE 'Drop of triggers for v_dns_domain_collection_hier_ancestor  failed but that is ok';
+		NULL;
+END;
+$$;
+
+-- DONE DEALING WITH TABLE v_dns_domain_collection_hier_ancestor (jazzhands)
+--------------------------------------------------------------------
+DO $$
+BEGIN
+	DELETE FROM __recreate WHERE schema IN ('jazzhands', 'jazzhands_audit') AND object IN ('v_dns_domain_collection_hier_ancestor');
+EXCEPTION WHEN undefined_table THEN
+	RAISE NOTICE 'Removal of old v_dns_domain_collection_hier_ancestor failed but that is ok';
+	NULL;
+END;
+$$;
+
+DO $$
+BEGIN
+	DELETE FROM __recreate WHERE schema IN ('jazzhands', 'jazzhands_audit') AND object IN ('v_dns_domain_collection_hier_ancestor');
+EXCEPTION WHEN undefined_table THEN
+	RAISE NOTICE 'Removal of new v_dns_domain_collection_hier_ancestor failed but that is ok';
+	NULL;
+END;
+$$;
+
+--- about to process v_dns_domain_collection_hier_descendent in set 1
+--------------------------------------------------------------------
+-- DEALING WITH NEW TABLE v_dns_domain_collection_hier_descendent (jazzhands)
+SELECT schema_support.save_dependent_objects_for_replay('jazzhands', 'v_dns_domain_collection_hier_descendent');
+SELECT schema_support.save_dependent_objects_for_replay('jazzhands_audit', 'v_dns_domain_collection_hier_descendent');
+-- restore any missing random views that may be cached that this one needs.
+DROP VIEW IF EXISTS jazzhands.v_dns_domain_collection_hier_descendent;
+CREATE VIEW jazzhands.v_dns_domain_collection_hier_descendent AS
+ SELECT h.dns_domain_collection_id,
+    h.descendent_dns_domain_collection_id,
+    h.dns_domain_collection_level
+   FROM ( SELECT ct_dns_domain_collection_hier_recurse.root_dns_domain_collection_id AS dns_domain_collection_id,
+            ct_dns_domain_collection_hier_recurse.dns_domain_collection_id AS descendent_dns_domain_collection_id,
+            array_length(ct_dns_domain_collection_hier_recurse.path, 1) AS dns_domain_collection_level,
+            ct_dns_domain_collection_hier_recurse.path AS dns_domain_collection_path,
+            row_number() OVER (PARTITION BY ct_dns_domain_collection_hier_recurse.root_dns_domain_collection_id, ct_dns_domain_collection_hier_recurse.dns_domain_collection_id ORDER BY (array_length(ct_dns_domain_collection_hier_recurse.path, 1))) AS rnk
+           FROM jazzhands_cache.ct_dns_domain_collection_hier_recurse) h
+  WHERE h.rnk = 1;
+
+DO $$
+BEGIN
+	DELETE FROM __recreate WHERE schema = 'jazzhands' AND type = 'view' AND object IN ('v_dns_domain_collection_hier_descendent','v_dns_domain_collection_hier_descendent');
+EXCEPTION WHEN undefined_table THEN
+	RAISE NOTICE 'Drop of v_dns_domain_collection_hier_descendent failed but that is ok';
+	NULL;
+END;
+$$;
+
+
+-- PRIMARY AND ALTERNATE KEYS
+
+-- Table/Column Comments
+COMMENT ON VIEW jazzhands.v_dns_domain_collection_hier_descendent IS 'All descendent dns_domain collections of a given dns_domain collection';
+-- INDEXES
+
+-- CHECK CONSTRAINTS
+
+-- FOREIGN KEYS FROM
+
+-- FOREIGN KEYS TO
+
+-- TRIGGERS
+DO $$
+BEGIN
+		DELETE FROM __recreate WHERE schema = 'jazzhands' AND object IN ('v_dns_domain_collection_hier_descendent');
+	EXCEPTION WHEN undefined_table THEN
+		RAISE NOTICE 'Drop of triggers for v_dns_domain_collection_hier_descendent  failed but that is ok';
+		NULL;
+END;
+$$;
+
+-- DONE DEALING WITH TABLE v_dns_domain_collection_hier_descendent (jazzhands)
+--------------------------------------------------------------------
+DO $$
+BEGIN
+	DELETE FROM __recreate WHERE schema IN ('jazzhands', 'jazzhands_audit') AND object IN ('v_dns_domain_collection_hier_descendent');
+EXCEPTION WHEN undefined_table THEN
+	RAISE NOTICE 'Removal of old v_dns_domain_collection_hier_descendent failed but that is ok';
+	NULL;
+END;
+$$;
+
+DO $$
+BEGIN
+	DELETE FROM __recreate WHERE schema IN ('jazzhands', 'jazzhands_audit') AND object IN ('v_dns_domain_collection_hier_descendent');
+EXCEPTION WHEN undefined_table THEN
+	RAISE NOTICE 'Removal of new v_dns_domain_collection_hier_descendent failed but that is ok';
+	NULL;
+END;
+$$;
+
+--- about to process v_layer2_network_collection_hier_ancestor in set 1
+--------------------------------------------------------------------
+-- DEALING WITH NEW TABLE v_layer2_network_collection_hier_ancestor (jazzhands)
+SELECT schema_support.save_dependent_objects_for_replay('jazzhands', 'v_layer2_network_collection_hier_ancestor');
+SELECT schema_support.save_dependent_objects_for_replay('jazzhands_audit', 'v_layer2_network_collection_hier_ancestor');
+-- restore any missing random views that may be cached that this one needs.
+DROP VIEW IF EXISTS jazzhands.v_layer2_network_collection_hier_ancestor;
+CREATE VIEW jazzhands.v_layer2_network_collection_hier_ancestor AS
+ SELECT h.layer2_network_collection_id,
+    h.ancestor_layer2_network_collection_id,
+    h.layer2_network_collection_level,
+    h.layer2_network_collection_path
+   FROM ( SELECT ct_layer2_network_collection_hier_recurse.layer2_network_collection_id,
+            ct_layer2_network_collection_hier_recurse.root_layer2_network_collection_id AS ancestor_layer2_network_collection_id,
+            array_length(ct_layer2_network_collection_hier_recurse.path, 1) AS layer2_network_collection_level,
+            ct_layer2_network_collection_hier_recurse.path AS layer2_network_collection_path,
+            row_number() OVER (PARTITION BY ct_layer2_network_collection_hier_recurse.layer2_network_collection_id, ct_layer2_network_collection_hier_recurse.root_layer2_network_collection_id ORDER BY (array_length(ct_layer2_network_collection_hier_recurse.path, 1))) AS rnk
+           FROM jazzhands_cache.ct_layer2_network_collection_hier_recurse) h
+  WHERE h.rnk = 1;
+
+DO $$
+BEGIN
+	DELETE FROM __recreate WHERE schema = 'jazzhands' AND type = 'view' AND object IN ('v_layer2_network_collection_hier_ancestor','v_layer2_network_collection_hier_ancestor');
+EXCEPTION WHEN undefined_table THEN
+	RAISE NOTICE 'Drop of v_layer2_network_collection_hier_ancestor failed but that is ok';
+	NULL;
+END;
+$$;
+
+
+-- PRIMARY AND ALTERNATE KEYS
+
+-- Table/Column Comments
+COMMENT ON VIEW jazzhands.v_layer2_network_collection_hier_ancestor IS 'All ancestors of a given layer2_network collection';
+-- INDEXES
+
+-- CHECK CONSTRAINTS
+
+-- FOREIGN KEYS FROM
+
+-- FOREIGN KEYS TO
+
+-- TRIGGERS
+DO $$
+BEGIN
+		DELETE FROM __recreate WHERE schema = 'jazzhands' AND object IN ('v_layer2_network_collection_hier_ancestor');
+	EXCEPTION WHEN undefined_table THEN
+		RAISE NOTICE 'Drop of triggers for v_layer2_network_collection_hier_ancestor  failed but that is ok';
+		NULL;
+END;
+$$;
+
+-- DONE DEALING WITH TABLE v_layer2_network_collection_hier_ancestor (jazzhands)
+--------------------------------------------------------------------
+DO $$
+BEGIN
+	DELETE FROM __recreate WHERE schema IN ('jazzhands', 'jazzhands_audit') AND object IN ('v_layer2_network_collection_hier_ancestor');
+EXCEPTION WHEN undefined_table THEN
+	RAISE NOTICE 'Removal of old v_layer2_network_collection_hier_ancestor failed but that is ok';
+	NULL;
+END;
+$$;
+
+DO $$
+BEGIN
+	DELETE FROM __recreate WHERE schema IN ('jazzhands', 'jazzhands_audit') AND object IN ('v_layer2_network_collection_hier_ancestor');
+EXCEPTION WHEN undefined_table THEN
+	RAISE NOTICE 'Removal of new v_layer2_network_collection_hier_ancestor failed but that is ok';
+	NULL;
+END;
+$$;
+
+--- about to process v_layer2_network_collection_hier_descendent in set 1
+--------------------------------------------------------------------
+-- DEALING WITH NEW TABLE v_layer2_network_collection_hier_descendent (jazzhands)
+SELECT schema_support.save_dependent_objects_for_replay('jazzhands', 'v_layer2_network_collection_hier_descendent');
+SELECT schema_support.save_dependent_objects_for_replay('jazzhands_audit', 'v_layer2_network_collection_hier_descendent');
+-- restore any missing random views that may be cached that this one needs.
+DROP VIEW IF EXISTS jazzhands.v_layer2_network_collection_hier_descendent;
+CREATE VIEW jazzhands.v_layer2_network_collection_hier_descendent AS
+ SELECT h.layer2_network_collection_id,
+    h.descendent_layer2_network_collection_id,
+    h.layer2_network_collection_level
+   FROM ( SELECT ct_layer2_network_collection_hier_recurse.root_layer2_network_collection_id AS layer2_network_collection_id,
+            ct_layer2_network_collection_hier_recurse.layer2_network_collection_id AS descendent_layer2_network_collection_id,
+            array_length(ct_layer2_network_collection_hier_recurse.path, 1) AS layer2_network_collection_level,
+            ct_layer2_network_collection_hier_recurse.path AS layer2_network_collection_path,
+            row_number() OVER (PARTITION BY ct_layer2_network_collection_hier_recurse.root_layer2_network_collection_id, ct_layer2_network_collection_hier_recurse.layer2_network_collection_id ORDER BY (array_length(ct_layer2_network_collection_hier_recurse.path, 1))) AS rnk
+           FROM jazzhands_cache.ct_layer2_network_collection_hier_recurse) h
+  WHERE h.rnk = 1;
+
+DO $$
+BEGIN
+	DELETE FROM __recreate WHERE schema = 'jazzhands' AND type = 'view' AND object IN ('v_layer2_network_collection_hier_descendent','v_layer2_network_collection_hier_descendent');
+EXCEPTION WHEN undefined_table THEN
+	RAISE NOTICE 'Drop of v_layer2_network_collection_hier_descendent failed but that is ok';
+	NULL;
+END;
+$$;
+
+
+-- PRIMARY AND ALTERNATE KEYS
+
+-- Table/Column Comments
+COMMENT ON VIEW jazzhands.v_layer2_network_collection_hier_descendent IS 'All descendent layer2_network collections of a given layer2_network collection';
+-- INDEXES
+
+-- CHECK CONSTRAINTS
+
+-- FOREIGN KEYS FROM
+
+-- FOREIGN KEYS TO
+
+-- TRIGGERS
+DO $$
+BEGIN
+		DELETE FROM __recreate WHERE schema = 'jazzhands' AND object IN ('v_layer2_network_collection_hier_descendent');
+	EXCEPTION WHEN undefined_table THEN
+		RAISE NOTICE 'Drop of triggers for v_layer2_network_collection_hier_descendent  failed but that is ok';
+		NULL;
+END;
+$$;
+
+-- DONE DEALING WITH TABLE v_layer2_network_collection_hier_descendent (jazzhands)
+--------------------------------------------------------------------
+DO $$
+BEGIN
+	DELETE FROM __recreate WHERE schema IN ('jazzhands', 'jazzhands_audit') AND object IN ('v_layer2_network_collection_hier_descendent');
+EXCEPTION WHEN undefined_table THEN
+	RAISE NOTICE 'Removal of old v_layer2_network_collection_hier_descendent failed but that is ok';
+	NULL;
+END;
+$$;
+
+DO $$
+BEGIN
+	DELETE FROM __recreate WHERE schema IN ('jazzhands', 'jazzhands_audit') AND object IN ('v_layer2_network_collection_hier_descendent');
+EXCEPTION WHEN undefined_table THEN
+	RAISE NOTICE 'Removal of new v_layer2_network_collection_hier_descendent failed but that is ok';
+	NULL;
+END;
+$$;
+
+--- about to process v_layer2_network_collection_layer2_network_ancestor in set 1
+--------------------------------------------------------------------
+-- DEALING WITH NEW TABLE v_layer2_network_collection_layer2_network_ancestor (jazzhands)
+SELECT schema_support.save_dependent_objects_for_replay('jazzhands', 'v_layer2_network_collection_layer2_network_ancestor');
+SELECT schema_support.save_dependent_objects_for_replay('jazzhands_audit', 'v_layer2_network_collection_layer2_network_ancestor');
+-- restore any missing random views that may be cached that this one needs.
+DROP VIEW IF EXISTS jazzhands.v_layer2_network_collection_layer2_network_ancestor;
+CREATE VIEW jazzhands.v_layer2_network_collection_layer2_network_ancestor AS
+ SELECT i.layer2_network_collection_id,
+    i.layer2_network_id,
+    i.layer2_network_collection_level,
+    i.layer2_network_collection_path
+   FROM ( SELECT r.layer2_network_collection_id,
+            cm.layer2_network_id,
+            r.layer2_network_collection_level,
+            r.path AS layer2_network_collection_path,
+            row_number() OVER (PARTITION BY r.layer2_network_collection_id, cm.layer2_network_id ORDER BY r.layer2_network_collection_level) AS rnk
+           FROM jazzhands_cache.ct_layer2_network_collection_hier_recurse r
+             JOIN jazzhands.layer2_network_collection_layer2_network cm ON r.root_layer2_network_collection_id = cm.layer2_network_collection_id) i
+  WHERE i.rnk = 1;
+
+DO $$
+BEGIN
+	DELETE FROM __recreate WHERE schema = 'jazzhands' AND type = 'view' AND object IN ('v_layer2_network_collection_layer2_network_ancestor','v_layer2_network_collection_layer2_network_ancestor');
+EXCEPTION WHEN undefined_table THEN
+	RAISE NOTICE 'Drop of v_layer2_network_collection_layer2_network_ancestor failed but that is ok';
+	NULL;
+END;
+$$;
+
+
+-- PRIMARY AND ALTERNATE KEYS
+
+-- Table/Column Comments
+COMMENT ON VIEW jazzhands.v_layer2_network_collection_layer2_network_ancestor IS 'All layer2_networks that are part of an layer2_network collection and (it''s ancestor layer2_network collections, which is behind the scenes)';
+-- INDEXES
+
+-- CHECK CONSTRAINTS
+
+-- FOREIGN KEYS FROM
+
+-- FOREIGN KEYS TO
+
+-- TRIGGERS
+DO $$
+BEGIN
+		DELETE FROM __recreate WHERE schema = 'jazzhands' AND object IN ('v_layer2_network_collection_layer2_network_ancestor');
+	EXCEPTION WHEN undefined_table THEN
+		RAISE NOTICE 'Drop of triggers for v_layer2_network_collection_layer2_network_ancestor  failed but that is ok';
+		NULL;
+END;
+$$;
+
+-- DONE DEALING WITH TABLE v_layer2_network_collection_layer2_network_ancestor (jazzhands)
+--------------------------------------------------------------------
+DO $$
+BEGIN
+	DELETE FROM __recreate WHERE schema IN ('jazzhands', 'jazzhands_audit') AND object IN ('v_layer2_network_collection_layer2_network_ancestor');
+EXCEPTION WHEN undefined_table THEN
+	RAISE NOTICE 'Removal of old v_layer2_network_collection_layer2_network_ancestor failed but that is ok';
+	NULL;
+END;
+$$;
+
+DO $$
+BEGIN
+	DELETE FROM __recreate WHERE schema IN ('jazzhands', 'jazzhands_audit') AND object IN ('v_layer2_network_collection_layer2_network_ancestor');
+EXCEPTION WHEN undefined_table THEN
+	RAISE NOTICE 'Removal of new v_layer2_network_collection_layer2_network_ancestor failed but that is ok';
+	NULL;
+END;
+$$;
+
+--- about to process v_layer2_network_collection_layer2_network_descendent in set 1
+--------------------------------------------------------------------
+-- DEALING WITH NEW TABLE v_layer2_network_collection_layer2_network_descendent (jazzhands)
+SELECT schema_support.save_dependent_objects_for_replay('jazzhands', 'v_layer2_network_collection_layer2_network_descendent');
+SELECT schema_support.save_dependent_objects_for_replay('jazzhands_audit', 'v_layer2_network_collection_layer2_network_descendent');
+-- restore any missing random views that may be cached that this one needs.
+DROP VIEW IF EXISTS jazzhands.v_layer2_network_collection_layer2_network_descendent;
+CREATE VIEW jazzhands.v_layer2_network_collection_layer2_network_descendent AS
+ SELECT i.layer2_network_collection_id,
+    i.layer2_network_id,
+    i.layer2_network_collection_level,
+    i.layer2_network_collection_path
+   FROM ( SELECT ct_layer2_network_collection_hier_recurse.root_layer2_network_collection_id AS layer2_network_collection_id,
+            cm.layer2_network_id,
+            ct_layer2_network_collection_hier_recurse.layer2_network_collection_level,
+            ct_layer2_network_collection_hier_recurse.path AS layer2_network_collection_path,
+            row_number() OVER (PARTITION BY ct_layer2_network_collection_hier_recurse.root_layer2_network_collection_id, cm.layer2_network_id ORDER BY ct_layer2_network_collection_hier_recurse.layer2_network_collection_level) AS rnk
+           FROM jazzhands_cache.ct_layer2_network_collection_hier_recurse
+             JOIN jazzhands.layer2_network_collection_layer2_network cm USING (layer2_network_collection_id)) i
+  WHERE i.rnk = 1;
+
+DO $$
+BEGIN
+	DELETE FROM __recreate WHERE schema = 'jazzhands' AND type = 'view' AND object IN ('v_layer2_network_collection_layer2_network_descendent','v_layer2_network_collection_layer2_network_descendent');
+EXCEPTION WHEN undefined_table THEN
+	RAISE NOTICE 'Drop of v_layer2_network_collection_layer2_network_descendent failed but that is ok';
+	NULL;
+END;
+$$;
+
+
+-- PRIMARY AND ALTERNATE KEYS
+
+-- Table/Column Comments
+COMMENT ON VIEW jazzhands.v_layer2_network_collection_layer2_network_descendent IS 'All layer2_networks that are part of an layer2_network collection and (it''s descendent layer2_network collections, which is behind the scenes)';
+-- INDEXES
+
+-- CHECK CONSTRAINTS
+
+-- FOREIGN KEYS FROM
+
+-- FOREIGN KEYS TO
+
+-- TRIGGERS
+DO $$
+BEGIN
+		DELETE FROM __recreate WHERE schema = 'jazzhands' AND object IN ('v_layer2_network_collection_layer2_network_descendent');
+	EXCEPTION WHEN undefined_table THEN
+		RAISE NOTICE 'Drop of triggers for v_layer2_network_collection_layer2_network_descendent  failed but that is ok';
+		NULL;
+END;
+$$;
+
+-- DONE DEALING WITH TABLE v_layer2_network_collection_layer2_network_descendent (jazzhands)
+--------------------------------------------------------------------
+DO $$
+BEGIN
+	DELETE FROM __recreate WHERE schema IN ('jazzhands', 'jazzhands_audit') AND object IN ('v_layer2_network_collection_layer2_network_descendent');
+EXCEPTION WHEN undefined_table THEN
+	RAISE NOTICE 'Removal of old v_layer2_network_collection_layer2_network_descendent failed but that is ok';
+	NULL;
+END;
+$$;
+
+DO $$
+BEGIN
+	DELETE FROM __recreate WHERE schema IN ('jazzhands', 'jazzhands_audit') AND object IN ('v_layer2_network_collection_layer2_network_descendent');
+EXCEPTION WHEN undefined_table THEN
+	RAISE NOTICE 'Removal of new v_layer2_network_collection_layer2_network_descendent failed but that is ok';
+	NULL;
+END;
+$$;
+
+--- about to process v_layer3_network_collection_hier_ancestor in set 1
+--------------------------------------------------------------------
+-- DEALING WITH NEW TABLE v_layer3_network_collection_hier_ancestor (jazzhands)
+SELECT schema_support.save_dependent_objects_for_replay('jazzhands', 'v_layer3_network_collection_hier_ancestor');
+SELECT schema_support.save_dependent_objects_for_replay('jazzhands_audit', 'v_layer3_network_collection_hier_ancestor');
+-- restore any missing random views that may be cached that this one needs.
+DROP VIEW IF EXISTS jazzhands.v_layer3_network_collection_hier_ancestor;
+CREATE VIEW jazzhands.v_layer3_network_collection_hier_ancestor AS
+ SELECT h.layer3_network_collection_id,
+    h.ancestor_layer3_network_collection_id,
+    h.layer3_network_collection_level,
+    h.layer3_network_collection_path
+   FROM ( SELECT ct_layer3_network_collection_hier_recurse.layer3_network_collection_id,
+            ct_layer3_network_collection_hier_recurse.root_layer3_network_collection_id AS ancestor_layer3_network_collection_id,
+            array_length(ct_layer3_network_collection_hier_recurse.path, 1) AS layer3_network_collection_level,
+            ct_layer3_network_collection_hier_recurse.path AS layer3_network_collection_path,
+            row_number() OVER (PARTITION BY ct_layer3_network_collection_hier_recurse.layer3_network_collection_id, ct_layer3_network_collection_hier_recurse.root_layer3_network_collection_id ORDER BY (array_length(ct_layer3_network_collection_hier_recurse.path, 1))) AS rnk
+           FROM jazzhands_cache.ct_layer3_network_collection_hier_recurse) h
+  WHERE h.rnk = 1;
+
+DO $$
+BEGIN
+	DELETE FROM __recreate WHERE schema = 'jazzhands' AND type = 'view' AND object IN ('v_layer3_network_collection_hier_ancestor','v_layer3_network_collection_hier_ancestor');
+EXCEPTION WHEN undefined_table THEN
+	RAISE NOTICE 'Drop of v_layer3_network_collection_hier_ancestor failed but that is ok';
+	NULL;
+END;
+$$;
+
+
+-- PRIMARY AND ALTERNATE KEYS
+
+-- Table/Column Comments
+COMMENT ON VIEW jazzhands.v_layer3_network_collection_hier_ancestor IS 'All ancestors of a given layer3_network collection';
+-- INDEXES
+
+-- CHECK CONSTRAINTS
+
+-- FOREIGN KEYS FROM
+
+-- FOREIGN KEYS TO
+
+-- TRIGGERS
+DO $$
+BEGIN
+		DELETE FROM __recreate WHERE schema = 'jazzhands' AND object IN ('v_layer3_network_collection_hier_ancestor');
+	EXCEPTION WHEN undefined_table THEN
+		RAISE NOTICE 'Drop of triggers for v_layer3_network_collection_hier_ancestor  failed but that is ok';
+		NULL;
+END;
+$$;
+
+-- DONE DEALING WITH TABLE v_layer3_network_collection_hier_ancestor (jazzhands)
+--------------------------------------------------------------------
+DO $$
+BEGIN
+	DELETE FROM __recreate WHERE schema IN ('jazzhands', 'jazzhands_audit') AND object IN ('v_layer3_network_collection_hier_ancestor');
+EXCEPTION WHEN undefined_table THEN
+	RAISE NOTICE 'Removal of old v_layer3_network_collection_hier_ancestor failed but that is ok';
+	NULL;
+END;
+$$;
+
+DO $$
+BEGIN
+	DELETE FROM __recreate WHERE schema IN ('jazzhands', 'jazzhands_audit') AND object IN ('v_layer3_network_collection_hier_ancestor');
+EXCEPTION WHEN undefined_table THEN
+	RAISE NOTICE 'Removal of new v_layer3_network_collection_hier_ancestor failed but that is ok';
+	NULL;
+END;
+$$;
+
+--- about to process v_layer3_network_collection_hier_descendent in set 1
+--------------------------------------------------------------------
+-- DEALING WITH NEW TABLE v_layer3_network_collection_hier_descendent (jazzhands)
+SELECT schema_support.save_dependent_objects_for_replay('jazzhands', 'v_layer3_network_collection_hier_descendent');
+SELECT schema_support.save_dependent_objects_for_replay('jazzhands_audit', 'v_layer3_network_collection_hier_descendent');
+-- restore any missing random views that may be cached that this one needs.
+DROP VIEW IF EXISTS jazzhands.v_layer3_network_collection_hier_descendent;
+CREATE VIEW jazzhands.v_layer3_network_collection_hier_descendent AS
+ SELECT h.layer3_network_collection_id,
+    h.descendent_layer3_network_collection_id,
+    h.layer3_network_collection_level
+   FROM ( SELECT ct_layer3_network_collection_hier_recurse.root_layer3_network_collection_id AS layer3_network_collection_id,
+            ct_layer3_network_collection_hier_recurse.layer3_network_collection_id AS descendent_layer3_network_collection_id,
+            array_length(ct_layer3_network_collection_hier_recurse.path, 1) AS layer3_network_collection_level,
+            ct_layer3_network_collection_hier_recurse.path AS layer3_network_collection_path,
+            row_number() OVER (PARTITION BY ct_layer3_network_collection_hier_recurse.root_layer3_network_collection_id, ct_layer3_network_collection_hier_recurse.layer3_network_collection_id ORDER BY (array_length(ct_layer3_network_collection_hier_recurse.path, 1))) AS rnk
+           FROM jazzhands_cache.ct_layer3_network_collection_hier_recurse) h
+  WHERE h.rnk = 1;
+
+DO $$
+BEGIN
+	DELETE FROM __recreate WHERE schema = 'jazzhands' AND type = 'view' AND object IN ('v_layer3_network_collection_hier_descendent','v_layer3_network_collection_hier_descendent');
+EXCEPTION WHEN undefined_table THEN
+	RAISE NOTICE 'Drop of v_layer3_network_collection_hier_descendent failed but that is ok';
+	NULL;
+END;
+$$;
+
+
+-- PRIMARY AND ALTERNATE KEYS
+
+-- Table/Column Comments
+COMMENT ON VIEW jazzhands.v_layer3_network_collection_hier_descendent IS 'All descendent layer3_network collections of a given layer3_network collection';
+-- INDEXES
+
+-- CHECK CONSTRAINTS
+
+-- FOREIGN KEYS FROM
+
+-- FOREIGN KEYS TO
+
+-- TRIGGERS
+DO $$
+BEGIN
+		DELETE FROM __recreate WHERE schema = 'jazzhands' AND object IN ('v_layer3_network_collection_hier_descendent');
+	EXCEPTION WHEN undefined_table THEN
+		RAISE NOTICE 'Drop of triggers for v_layer3_network_collection_hier_descendent  failed but that is ok';
+		NULL;
+END;
+$$;
+
+-- DONE DEALING WITH TABLE v_layer3_network_collection_hier_descendent (jazzhands)
+--------------------------------------------------------------------
+DO $$
+BEGIN
+	DELETE FROM __recreate WHERE schema IN ('jazzhands', 'jazzhands_audit') AND object IN ('v_layer3_network_collection_hier_descendent');
+EXCEPTION WHEN undefined_table THEN
+	RAISE NOTICE 'Removal of old v_layer3_network_collection_hier_descendent failed but that is ok';
+	NULL;
+END;
+$$;
+
+DO $$
+BEGIN
+	DELETE FROM __recreate WHERE schema IN ('jazzhands', 'jazzhands_audit') AND object IN ('v_layer3_network_collection_hier_descendent');
+EXCEPTION WHEN undefined_table THEN
+	RAISE NOTICE 'Removal of new v_layer3_network_collection_hier_descendent failed but that is ok';
+	NULL;
+END;
+$$;
+
+--- about to process v_layer3_network_collection_layer3_network_ancestor in set 1
+--------------------------------------------------------------------
+-- DEALING WITH NEW TABLE v_layer3_network_collection_layer3_network_ancestor (jazzhands)
+SELECT schema_support.save_dependent_objects_for_replay('jazzhands', 'v_layer3_network_collection_layer3_network_ancestor');
+SELECT schema_support.save_dependent_objects_for_replay('jazzhands_audit', 'v_layer3_network_collection_layer3_network_ancestor');
+-- restore any missing random views that may be cached that this one needs.
+DROP VIEW IF EXISTS jazzhands.v_layer3_network_collection_layer3_network_ancestor;
+CREATE VIEW jazzhands.v_layer3_network_collection_layer3_network_ancestor AS
+ SELECT i.layer3_network_collection_id,
+    i.layer3_network_id,
+    i.layer3_network_collection_level,
+    i.layer3_network_collection_path
+   FROM ( SELECT r.layer3_network_collection_id,
+            cm.layer3_network_id,
+            r.layer3_network_collection_level,
+            r.path AS layer3_network_collection_path,
+            row_number() OVER (PARTITION BY r.layer3_network_collection_id, cm.layer3_network_id ORDER BY r.layer3_network_collection_level) AS rnk
+           FROM jazzhands_cache.ct_layer3_network_collection_hier_recurse r
+             JOIN jazzhands.layer3_network_collection_layer3_network cm ON r.root_layer3_network_collection_id = cm.layer3_network_collection_id) i
+  WHERE i.rnk = 1;
+
+DO $$
+BEGIN
+	DELETE FROM __recreate WHERE schema = 'jazzhands' AND type = 'view' AND object IN ('v_layer3_network_collection_layer3_network_ancestor','v_layer3_network_collection_layer3_network_ancestor');
+EXCEPTION WHEN undefined_table THEN
+	RAISE NOTICE 'Drop of v_layer3_network_collection_layer3_network_ancestor failed but that is ok';
+	NULL;
+END;
+$$;
+
+
+-- PRIMARY AND ALTERNATE KEYS
+
+-- Table/Column Comments
+COMMENT ON VIEW jazzhands.v_layer3_network_collection_layer3_network_ancestor IS 'All layer3_networks that are part of an layer3_network collection and (it''s ancestor layer3_network collections, which is behind the scenes)';
+-- INDEXES
+
+-- CHECK CONSTRAINTS
+
+-- FOREIGN KEYS FROM
+
+-- FOREIGN KEYS TO
+
+-- TRIGGERS
+DO $$
+BEGIN
+		DELETE FROM __recreate WHERE schema = 'jazzhands' AND object IN ('v_layer3_network_collection_layer3_network_ancestor');
+	EXCEPTION WHEN undefined_table THEN
+		RAISE NOTICE 'Drop of triggers for v_layer3_network_collection_layer3_network_ancestor  failed but that is ok';
+		NULL;
+END;
+$$;
+
+-- DONE DEALING WITH TABLE v_layer3_network_collection_layer3_network_ancestor (jazzhands)
+--------------------------------------------------------------------
+DO $$
+BEGIN
+	DELETE FROM __recreate WHERE schema IN ('jazzhands', 'jazzhands_audit') AND object IN ('v_layer3_network_collection_layer3_network_ancestor');
+EXCEPTION WHEN undefined_table THEN
+	RAISE NOTICE 'Removal of old v_layer3_network_collection_layer3_network_ancestor failed but that is ok';
+	NULL;
+END;
+$$;
+
+DO $$
+BEGIN
+	DELETE FROM __recreate WHERE schema IN ('jazzhands', 'jazzhands_audit') AND object IN ('v_layer3_network_collection_layer3_network_ancestor');
+EXCEPTION WHEN undefined_table THEN
+	RAISE NOTICE 'Removal of new v_layer3_network_collection_layer3_network_ancestor failed but that is ok';
+	NULL;
+END;
+$$;
+
+--- about to process v_layer3_network_collection_layer3_network_descendent in set 1
+--------------------------------------------------------------------
+-- DEALING WITH NEW TABLE v_layer3_network_collection_layer3_network_descendent (jazzhands)
+SELECT schema_support.save_dependent_objects_for_replay('jazzhands', 'v_layer3_network_collection_layer3_network_descendent');
+SELECT schema_support.save_dependent_objects_for_replay('jazzhands_audit', 'v_layer3_network_collection_layer3_network_descendent');
+-- restore any missing random views that may be cached that this one needs.
+DROP VIEW IF EXISTS jazzhands.v_layer3_network_collection_layer3_network_descendent;
+CREATE VIEW jazzhands.v_layer3_network_collection_layer3_network_descendent AS
+ SELECT i.layer3_network_collection_id,
+    i.layer3_network_id,
+    i.layer3_network_collection_level,
+    i.layer3_network_collection_path
+   FROM ( SELECT ct_layer3_network_collection_hier_recurse.root_layer3_network_collection_id AS layer3_network_collection_id,
+            cm.layer3_network_id,
+            ct_layer3_network_collection_hier_recurse.layer3_network_collection_level,
+            ct_layer3_network_collection_hier_recurse.path AS layer3_network_collection_path,
+            row_number() OVER (PARTITION BY ct_layer3_network_collection_hier_recurse.root_layer3_network_collection_id, cm.layer3_network_id ORDER BY ct_layer3_network_collection_hier_recurse.layer3_network_collection_level) AS rnk
+           FROM jazzhands_cache.ct_layer3_network_collection_hier_recurse
+             JOIN jazzhands.layer3_network_collection_layer3_network cm USING (layer3_network_collection_id)) i
+  WHERE i.rnk = 1;
+
+DO $$
+BEGIN
+	DELETE FROM __recreate WHERE schema = 'jazzhands' AND type = 'view' AND object IN ('v_layer3_network_collection_layer3_network_descendent','v_layer3_network_collection_layer3_network_descendent');
+EXCEPTION WHEN undefined_table THEN
+	RAISE NOTICE 'Drop of v_layer3_network_collection_layer3_network_descendent failed but that is ok';
+	NULL;
+END;
+$$;
+
+
+-- PRIMARY AND ALTERNATE KEYS
+
+-- Table/Column Comments
+COMMENT ON VIEW jazzhands.v_layer3_network_collection_layer3_network_descendent IS 'All layer3_networks that are part of an layer3_network collection and (it''s descendent layer3_network collections, which is behind the scenes)';
+-- INDEXES
+
+-- CHECK CONSTRAINTS
+
+-- FOREIGN KEYS FROM
+
+-- FOREIGN KEYS TO
+
+-- TRIGGERS
+DO $$
+BEGIN
+		DELETE FROM __recreate WHERE schema = 'jazzhands' AND object IN ('v_layer3_network_collection_layer3_network_descendent');
+	EXCEPTION WHEN undefined_table THEN
+		RAISE NOTICE 'Drop of triggers for v_layer3_network_collection_layer3_network_descendent  failed but that is ok';
+		NULL;
+END;
+$$;
+
+-- DONE DEALING WITH TABLE v_layer3_network_collection_layer3_network_descendent (jazzhands)
+--------------------------------------------------------------------
+DO $$
+BEGIN
+	DELETE FROM __recreate WHERE schema IN ('jazzhands', 'jazzhands_audit') AND object IN ('v_layer3_network_collection_layer3_network_descendent');
+EXCEPTION WHEN undefined_table THEN
+	RAISE NOTICE 'Removal of old v_layer3_network_collection_layer3_network_descendent failed but that is ok';
+	NULL;
+END;
+$$;
+
+DO $$
+BEGIN
+	DELETE FROM __recreate WHERE schema IN ('jazzhands', 'jazzhands_audit') AND object IN ('v_layer3_network_collection_layer3_network_descendent');
+EXCEPTION WHEN undefined_table THEN
+	RAISE NOTICE 'Removal of new v_layer3_network_collection_layer3_network_descendent failed but that is ok';
+	NULL;
+END;
+$$;
+
+--- about to process v_netblock_collection_hier_ancestor in set 1
+--------------------------------------------------------------------
+-- DEALING WITH NEW TABLE v_netblock_collection_hier_ancestor (jazzhands)
+SELECT schema_support.save_dependent_objects_for_replay('jazzhands', 'v_netblock_collection_hier_ancestor');
+SELECT schema_support.save_dependent_objects_for_replay('jazzhands_audit', 'v_netblock_collection_hier_ancestor');
+-- restore any missing random views that may be cached that this one needs.
+DROP VIEW IF EXISTS jazzhands.v_netblock_collection_hier_ancestor;
+CREATE VIEW jazzhands.v_netblock_collection_hier_ancestor AS
+ SELECT h.netblock_collection_id,
+    h.ancestor_netblock_collection_id,
+    h.netblock_collection_level,
+    h.netblock_collection_path
+   FROM ( SELECT ct_netblock_collection_hier_recurse.netblock_collection_id,
+            ct_netblock_collection_hier_recurse.root_netblock_collection_id AS ancestor_netblock_collection_id,
+            array_length(ct_netblock_collection_hier_recurse.path, 1) AS netblock_collection_level,
+            ct_netblock_collection_hier_recurse.path AS netblock_collection_path,
+            row_number() OVER (PARTITION BY ct_netblock_collection_hier_recurse.netblock_collection_id, ct_netblock_collection_hier_recurse.root_netblock_collection_id ORDER BY (array_length(ct_netblock_collection_hier_recurse.path, 1))) AS rnk
+           FROM jazzhands_cache.ct_netblock_collection_hier_recurse) h
+  WHERE h.rnk = 1;
+
+DO $$
+BEGIN
+	DELETE FROM __recreate WHERE schema = 'jazzhands' AND type = 'view' AND object IN ('v_netblock_collection_hier_ancestor','v_netblock_collection_hier_ancestor');
+EXCEPTION WHEN undefined_table THEN
+	RAISE NOTICE 'Drop of v_netblock_collection_hier_ancestor failed but that is ok';
+	NULL;
+END;
+$$;
+
+
+-- PRIMARY AND ALTERNATE KEYS
+
+-- Table/Column Comments
+COMMENT ON VIEW jazzhands.v_netblock_collection_hier_ancestor IS 'All ancestors of a given netblock collection';
+-- INDEXES
+
+-- CHECK CONSTRAINTS
+
+-- FOREIGN KEYS FROM
+
+-- FOREIGN KEYS TO
+
+-- TRIGGERS
+DO $$
+BEGIN
+		DELETE FROM __recreate WHERE schema = 'jazzhands' AND object IN ('v_netblock_collection_hier_ancestor');
+	EXCEPTION WHEN undefined_table THEN
+		RAISE NOTICE 'Drop of triggers for v_netblock_collection_hier_ancestor  failed but that is ok';
+		NULL;
+END;
+$$;
+
+-- DONE DEALING WITH TABLE v_netblock_collection_hier_ancestor (jazzhands)
+--------------------------------------------------------------------
+DO $$
+BEGIN
+	DELETE FROM __recreate WHERE schema IN ('jazzhands', 'jazzhands_audit') AND object IN ('v_netblock_collection_hier_ancestor');
+EXCEPTION WHEN undefined_table THEN
+	RAISE NOTICE 'Removal of old v_netblock_collection_hier_ancestor failed but that is ok';
+	NULL;
+END;
+$$;
+
+DO $$
+BEGIN
+	DELETE FROM __recreate WHERE schema IN ('jazzhands', 'jazzhands_audit') AND object IN ('v_netblock_collection_hier_ancestor');
+EXCEPTION WHEN undefined_table THEN
+	RAISE NOTICE 'Removal of new v_netblock_collection_hier_ancestor failed but that is ok';
+	NULL;
+END;
+$$;
+
+--- about to process v_netblock_collection_hier_descendent in set 1
+--------------------------------------------------------------------
+-- DEALING WITH NEW TABLE v_netblock_collection_hier_descendent (jazzhands)
+SELECT schema_support.save_dependent_objects_for_replay('jazzhands', 'v_netblock_collection_hier_descendent');
+SELECT schema_support.save_dependent_objects_for_replay('jazzhands_audit', 'v_netblock_collection_hier_descendent');
+-- restore any missing random views that may be cached that this one needs.
+DROP VIEW IF EXISTS jazzhands.v_netblock_collection_hier_descendent;
+CREATE VIEW jazzhands.v_netblock_collection_hier_descendent AS
+ SELECT h.netblock_collection_id,
+    h.descendent_netblock_collection_id,
+    h.netblock_collection_level
+   FROM ( SELECT ct_netblock_collection_hier_recurse.root_netblock_collection_id AS netblock_collection_id,
+            ct_netblock_collection_hier_recurse.netblock_collection_id AS descendent_netblock_collection_id,
+            array_length(ct_netblock_collection_hier_recurse.path, 1) AS netblock_collection_level,
+            ct_netblock_collection_hier_recurse.path AS netblock_collection_path,
+            row_number() OVER (PARTITION BY ct_netblock_collection_hier_recurse.root_netblock_collection_id, ct_netblock_collection_hier_recurse.netblock_collection_id ORDER BY (array_length(ct_netblock_collection_hier_recurse.path, 1))) AS rnk
+           FROM jazzhands_cache.ct_netblock_collection_hier_recurse) h
+  WHERE h.rnk = 1;
+
+DO $$
+BEGIN
+	DELETE FROM __recreate WHERE schema = 'jazzhands' AND type = 'view' AND object IN ('v_netblock_collection_hier_descendent','v_netblock_collection_hier_descendent');
+EXCEPTION WHEN undefined_table THEN
+	RAISE NOTICE 'Drop of v_netblock_collection_hier_descendent failed but that is ok';
+	NULL;
+END;
+$$;
+
+
+-- PRIMARY AND ALTERNATE KEYS
+
+-- Table/Column Comments
+COMMENT ON VIEW jazzhands.v_netblock_collection_hier_descendent IS 'All descendent netblock collections of a given netblock collection';
+-- INDEXES
+
+-- CHECK CONSTRAINTS
+
+-- FOREIGN KEYS FROM
+
+-- FOREIGN KEYS TO
+
+-- TRIGGERS
+DO $$
+BEGIN
+		DELETE FROM __recreate WHERE schema = 'jazzhands' AND object IN ('v_netblock_collection_hier_descendent');
+	EXCEPTION WHEN undefined_table THEN
+		RAISE NOTICE 'Drop of triggers for v_netblock_collection_hier_descendent  failed but that is ok';
+		NULL;
+END;
+$$;
+
+-- DONE DEALING WITH TABLE v_netblock_collection_hier_descendent (jazzhands)
+--------------------------------------------------------------------
+DO $$
+BEGIN
+	DELETE FROM __recreate WHERE schema IN ('jazzhands', 'jazzhands_audit') AND object IN ('v_netblock_collection_hier_descendent');
+EXCEPTION WHEN undefined_table THEN
+	RAISE NOTICE 'Removal of old v_netblock_collection_hier_descendent failed but that is ok';
+	NULL;
+END;
+$$;
+
+DO $$
+BEGIN
+	DELETE FROM __recreate WHERE schema IN ('jazzhands', 'jazzhands_audit') AND object IN ('v_netblock_collection_hier_descendent');
+EXCEPTION WHEN undefined_table THEN
+	RAISE NOTICE 'Removal of new v_netblock_collection_hier_descendent failed but that is ok';
+	NULL;
+END;
+$$;
+
+--- about to process v_netblock_collection_netblock_ancestor in set 1
+--------------------------------------------------------------------
+-- DEALING WITH NEW TABLE v_netblock_collection_netblock_ancestor (jazzhands)
+SELECT schema_support.save_dependent_objects_for_replay('jazzhands', 'v_netblock_collection_netblock_ancestor');
+SELECT schema_support.save_dependent_objects_for_replay('jazzhands_audit', 'v_netblock_collection_netblock_ancestor');
+-- restore any missing random views that may be cached that this one needs.
+DROP VIEW IF EXISTS jazzhands.v_netblock_collection_netblock_ancestor;
+CREATE VIEW jazzhands.v_netblock_collection_netblock_ancestor AS
+ SELECT i.netblock_collection_id,
+    i.netblock_id,
+    i.netblock_collection_level,
+    i.netblock_collection_path
+   FROM ( SELECT r.netblock_collection_id,
+            cm.netblock_id,
+            r.netblock_collection_level,
+            r.path AS netblock_collection_path,
+            row_number() OVER (PARTITION BY r.netblock_collection_id, cm.netblock_id ORDER BY r.netblock_collection_level) AS rnk
+           FROM jazzhands_cache.ct_netblock_collection_hier_recurse r
+             JOIN jazzhands.netblock_collection_netblock cm ON r.root_netblock_collection_id = cm.netblock_collection_id) i
+  WHERE i.rnk = 1;
+
+DO $$
+BEGIN
+	DELETE FROM __recreate WHERE schema = 'jazzhands' AND type = 'view' AND object IN ('v_netblock_collection_netblock_ancestor','v_netblock_collection_netblock_ancestor');
+EXCEPTION WHEN undefined_table THEN
+	RAISE NOTICE 'Drop of v_netblock_collection_netblock_ancestor failed but that is ok';
+	NULL;
+END;
+$$;
+
+
+-- PRIMARY AND ALTERNATE KEYS
+
+-- Table/Column Comments
+COMMENT ON VIEW jazzhands.v_netblock_collection_netblock_ancestor IS 'All netblocks that are part of an netblock collection and (it''s ancestor netblock collections, which is behind the scenes)';
+-- INDEXES
+
+-- CHECK CONSTRAINTS
+
+-- FOREIGN KEYS FROM
+
+-- FOREIGN KEYS TO
+
+-- TRIGGERS
+DO $$
+BEGIN
+		DELETE FROM __recreate WHERE schema = 'jazzhands' AND object IN ('v_netblock_collection_netblock_ancestor');
+	EXCEPTION WHEN undefined_table THEN
+		RAISE NOTICE 'Drop of triggers for v_netblock_collection_netblock_ancestor  failed but that is ok';
+		NULL;
+END;
+$$;
+
+-- DONE DEALING WITH TABLE v_netblock_collection_netblock_ancestor (jazzhands)
+--------------------------------------------------------------------
+DO $$
+BEGIN
+	DELETE FROM __recreate WHERE schema IN ('jazzhands', 'jazzhands_audit') AND object IN ('v_netblock_collection_netblock_ancestor');
+EXCEPTION WHEN undefined_table THEN
+	RAISE NOTICE 'Removal of old v_netblock_collection_netblock_ancestor failed but that is ok';
+	NULL;
+END;
+$$;
+
+DO $$
+BEGIN
+	DELETE FROM __recreate WHERE schema IN ('jazzhands', 'jazzhands_audit') AND object IN ('v_netblock_collection_netblock_ancestor');
+EXCEPTION WHEN undefined_table THEN
+	RAISE NOTICE 'Removal of new v_netblock_collection_netblock_ancestor failed but that is ok';
+	NULL;
+END;
+$$;
+
+--- about to process v_netblock_collection_netblock_descendent in set 1
+--------------------------------------------------------------------
+-- DEALING WITH NEW TABLE v_netblock_collection_netblock_descendent (jazzhands)
+SELECT schema_support.save_dependent_objects_for_replay('jazzhands', 'v_netblock_collection_netblock_descendent');
+SELECT schema_support.save_dependent_objects_for_replay('jazzhands_audit', 'v_netblock_collection_netblock_descendent');
+-- restore any missing random views that may be cached that this one needs.
+DROP VIEW IF EXISTS jazzhands.v_netblock_collection_netblock_descendent;
+CREATE VIEW jazzhands.v_netblock_collection_netblock_descendent AS
+ SELECT i.netblock_collection_id,
+    i.netblock_id,
+    i.netblock_collection_level,
+    i.netblock_collection_path
+   FROM ( SELECT ct_netblock_collection_hier_recurse.root_netblock_collection_id AS netblock_collection_id,
+            cm.netblock_id,
+            ct_netblock_collection_hier_recurse.netblock_collection_level,
+            ct_netblock_collection_hier_recurse.path AS netblock_collection_path,
+            row_number() OVER (PARTITION BY ct_netblock_collection_hier_recurse.root_netblock_collection_id, cm.netblock_id ORDER BY ct_netblock_collection_hier_recurse.netblock_collection_level) AS rnk
+           FROM jazzhands_cache.ct_netblock_collection_hier_recurse
+             JOIN jazzhands.netblock_collection_netblock cm USING (netblock_collection_id)) i
+  WHERE i.rnk = 1;
+
+DO $$
+BEGIN
+	DELETE FROM __recreate WHERE schema = 'jazzhands' AND type = 'view' AND object IN ('v_netblock_collection_netblock_descendent','v_netblock_collection_netblock_descendent');
+EXCEPTION WHEN undefined_table THEN
+	RAISE NOTICE 'Drop of v_netblock_collection_netblock_descendent failed but that is ok';
+	NULL;
+END;
+$$;
+
+
+-- PRIMARY AND ALTERNATE KEYS
+
+-- Table/Column Comments
+COMMENT ON VIEW jazzhands.v_netblock_collection_netblock_descendent IS 'All netblocks that are part of an netblock collection and (it''s descendent netblock collections, which is behind the scenes)';
+-- INDEXES
+
+-- CHECK CONSTRAINTS
+
+-- FOREIGN KEYS FROM
+
+-- FOREIGN KEYS TO
+
+-- TRIGGERS
+DO $$
+BEGIN
+		DELETE FROM __recreate WHERE schema = 'jazzhands' AND object IN ('v_netblock_collection_netblock_descendent');
+	EXCEPTION WHEN undefined_table THEN
+		RAISE NOTICE 'Drop of triggers for v_netblock_collection_netblock_descendent  failed but that is ok';
+		NULL;
+END;
+$$;
+
+-- DONE DEALING WITH TABLE v_netblock_collection_netblock_descendent (jazzhands)
+--------------------------------------------------------------------
+DO $$
+BEGIN
+	DELETE FROM __recreate WHERE schema IN ('jazzhands', 'jazzhands_audit') AND object IN ('v_netblock_collection_netblock_descendent');
+EXCEPTION WHEN undefined_table THEN
+	RAISE NOTICE 'Removal of old v_netblock_collection_netblock_descendent failed but that is ok';
+	NULL;
+END;
+$$;
+
+DO $$
+BEGIN
+	DELETE FROM __recreate WHERE schema IN ('jazzhands', 'jazzhands_audit') AND object IN ('v_netblock_collection_netblock_descendent');
+EXCEPTION WHEN undefined_table THEN
+	RAISE NOTICE 'Removal of new v_netblock_collection_netblock_descendent failed but that is ok';
+	NULL;
+END;
+$$;
+
+--- about to process v_property_name_collection_hier_ancestor in set 1
+--------------------------------------------------------------------
+-- DEALING WITH NEW TABLE v_property_name_collection_hier_ancestor (jazzhands)
+SELECT schema_support.save_dependent_objects_for_replay('jazzhands', 'v_property_name_collection_hier_ancestor');
+SELECT schema_support.save_dependent_objects_for_replay('jazzhands_audit', 'v_property_name_collection_hier_ancestor');
+-- restore any missing random views that may be cached that this one needs.
+DROP VIEW IF EXISTS jazzhands.v_property_name_collection_hier_ancestor;
+CREATE VIEW jazzhands.v_property_name_collection_hier_ancestor AS
+ SELECT h.property_name_collection_id,
+    h.ancestor_property_name_collection_id,
+    h.property_name_collection_level,
+    h.property_name_collection_path
+   FROM ( SELECT ct_property_name_collection_hier_recurse.property_name_collection_id,
+            ct_property_name_collection_hier_recurse.root_property_name_collection_id AS ancestor_property_name_collection_id,
+            array_length(ct_property_name_collection_hier_recurse.path, 1) AS property_name_collection_level,
+            ct_property_name_collection_hier_recurse.path AS property_name_collection_path,
+            row_number() OVER (PARTITION BY ct_property_name_collection_hier_recurse.property_name_collection_id, ct_property_name_collection_hier_recurse.root_property_name_collection_id ORDER BY (array_length(ct_property_name_collection_hier_recurse.path, 1))) AS rnk
+           FROM jazzhands_cache.ct_property_name_collection_hier_recurse) h
+  WHERE h.rnk = 1;
+
+DO $$
+BEGIN
+	DELETE FROM __recreate WHERE schema = 'jazzhands' AND type = 'view' AND object IN ('v_property_name_collection_hier_ancestor','v_property_name_collection_hier_ancestor');
+EXCEPTION WHEN undefined_table THEN
+	RAISE NOTICE 'Drop of v_property_name_collection_hier_ancestor failed but that is ok';
+	NULL;
+END;
+$$;
+
+
+-- PRIMARY AND ALTERNATE KEYS
+
+-- Table/Column Comments
+COMMENT ON VIEW jazzhands.v_property_name_collection_hier_ancestor IS 'All ancestors of a given property_name collection';
+-- INDEXES
+
+-- CHECK CONSTRAINTS
+
+-- FOREIGN KEYS FROM
+
+-- FOREIGN KEYS TO
+
+-- TRIGGERS
+DO $$
+BEGIN
+		DELETE FROM __recreate WHERE schema = 'jazzhands' AND object IN ('v_property_name_collection_hier_ancestor');
+	EXCEPTION WHEN undefined_table THEN
+		RAISE NOTICE 'Drop of triggers for v_property_name_collection_hier_ancestor  failed but that is ok';
+		NULL;
+END;
+$$;
+
+-- DONE DEALING WITH TABLE v_property_name_collection_hier_ancestor (jazzhands)
+--------------------------------------------------------------------
+DO $$
+BEGIN
+	DELETE FROM __recreate WHERE schema IN ('jazzhands', 'jazzhands_audit') AND object IN ('v_property_name_collection_hier_ancestor');
+EXCEPTION WHEN undefined_table THEN
+	RAISE NOTICE 'Removal of old v_property_name_collection_hier_ancestor failed but that is ok';
+	NULL;
+END;
+$$;
+
+DO $$
+BEGIN
+	DELETE FROM __recreate WHERE schema IN ('jazzhands', 'jazzhands_audit') AND object IN ('v_property_name_collection_hier_ancestor');
+EXCEPTION WHEN undefined_table THEN
+	RAISE NOTICE 'Removal of new v_property_name_collection_hier_ancestor failed but that is ok';
+	NULL;
+END;
+$$;
+
+--- about to process v_property_name_collection_hier_descendent in set 1
+--------------------------------------------------------------------
+-- DEALING WITH NEW TABLE v_property_name_collection_hier_descendent (jazzhands)
+SELECT schema_support.save_dependent_objects_for_replay('jazzhands', 'v_property_name_collection_hier_descendent');
+SELECT schema_support.save_dependent_objects_for_replay('jazzhands_audit', 'v_property_name_collection_hier_descendent');
+-- restore any missing random views that may be cached that this one needs.
+DROP VIEW IF EXISTS jazzhands.v_property_name_collection_hier_descendent;
+CREATE VIEW jazzhands.v_property_name_collection_hier_descendent AS
+ SELECT h.property_name_collection_id,
+    h.descendent_property_name_collection_id,
+    h.property_name_collection_level
+   FROM ( SELECT ct_property_name_collection_hier_recurse.root_property_name_collection_id AS property_name_collection_id,
+            ct_property_name_collection_hier_recurse.property_name_collection_id AS descendent_property_name_collection_id,
+            array_length(ct_property_name_collection_hier_recurse.path, 1) AS property_name_collection_level,
+            ct_property_name_collection_hier_recurse.path AS property_name_collection_path,
+            row_number() OVER (PARTITION BY ct_property_name_collection_hier_recurse.root_property_name_collection_id, ct_property_name_collection_hier_recurse.property_name_collection_id ORDER BY (array_length(ct_property_name_collection_hier_recurse.path, 1))) AS rnk
+           FROM jazzhands_cache.ct_property_name_collection_hier_recurse) h
+  WHERE h.rnk = 1;
+
+DO $$
+BEGIN
+	DELETE FROM __recreate WHERE schema = 'jazzhands' AND type = 'view' AND object IN ('v_property_name_collection_hier_descendent','v_property_name_collection_hier_descendent');
+EXCEPTION WHEN undefined_table THEN
+	RAISE NOTICE 'Drop of v_property_name_collection_hier_descendent failed but that is ok';
+	NULL;
+END;
+$$;
+
+
+-- PRIMARY AND ALTERNATE KEYS
+
+-- Table/Column Comments
+COMMENT ON VIEW jazzhands.v_property_name_collection_hier_descendent IS 'All descendent property_name collections of a given property_name collection';
+-- INDEXES
+
+-- CHECK CONSTRAINTS
+
+-- FOREIGN KEYS FROM
+
+-- FOREIGN KEYS TO
+
+-- TRIGGERS
+DO $$
+BEGIN
+		DELETE FROM __recreate WHERE schema = 'jazzhands' AND object IN ('v_property_name_collection_hier_descendent');
+	EXCEPTION WHEN undefined_table THEN
+		RAISE NOTICE 'Drop of triggers for v_property_name_collection_hier_descendent  failed but that is ok';
+		NULL;
+END;
+$$;
+
+-- DONE DEALING WITH TABLE v_property_name_collection_hier_descendent (jazzhands)
+--------------------------------------------------------------------
+DO $$
+BEGIN
+	DELETE FROM __recreate WHERE schema IN ('jazzhands', 'jazzhands_audit') AND object IN ('v_property_name_collection_hier_descendent');
+EXCEPTION WHEN undefined_table THEN
+	RAISE NOTICE 'Removal of old v_property_name_collection_hier_descendent failed but that is ok';
+	NULL;
+END;
+$$;
+
+DO $$
+BEGIN
+	DELETE FROM __recreate WHERE schema IN ('jazzhands', 'jazzhands_audit') AND object IN ('v_property_name_collection_hier_descendent');
+EXCEPTION WHEN undefined_table THEN
+	RAISE NOTICE 'Removal of new v_property_name_collection_hier_descendent failed but that is ok';
+	NULL;
+END;
+$$;
+
+--- about to process v_property_name_collection_property_name_ancestor in set 1
+--------------------------------------------------------------------
+-- DEALING WITH NEW TABLE v_property_name_collection_property_name_ancestor (jazzhands)
+SELECT schema_support.save_dependent_objects_for_replay('jazzhands', 'v_property_name_collection_property_name_ancestor');
+SELECT schema_support.save_dependent_objects_for_replay('jazzhands_audit', 'v_property_name_collection_property_name_ancestor');
+-- restore any missing random views that may be cached that this one needs.
+DROP VIEW IF EXISTS jazzhands.v_property_name_collection_property_name_ancestor;
+CREATE VIEW jazzhands.v_property_name_collection_property_name_ancestor AS
+ SELECT i.property_name_collection_id,
+    i.property_type,
+    i.property_name,
+    i.property_name_collection_level,
+    i.property_name_collection_path
+   FROM ( SELECT r.property_name_collection_id,
+            cm.property_type,
+            cm.property_name,
+            r.property_name_collection_level,
+            r.path AS property_name_collection_path,
+            row_number() OVER (PARTITION BY r.property_name_collection_id, cm.property_type, cm.property_name ORDER BY r.property_name_collection_level) AS rnk
+           FROM jazzhands_cache.ct_property_name_collection_hier_recurse r
+             JOIN jazzhands.property_name_collection_property_name cm ON r.root_property_name_collection_id = cm.property_name_collection_id) i
+  WHERE i.rnk = 1;
+
+DO $$
+BEGIN
+	DELETE FROM __recreate WHERE schema = 'jazzhands' AND type = 'view' AND object IN ('v_property_name_collection_property_name_ancestor','v_property_name_collection_property_name_ancestor');
+EXCEPTION WHEN undefined_table THEN
+	RAISE NOTICE 'Drop of v_property_name_collection_property_name_ancestor failed but that is ok';
+	NULL;
+END;
+$$;
+
+
+-- PRIMARY AND ALTERNATE KEYS
+
+-- Table/Column Comments
+COMMENT ON VIEW jazzhands.v_property_name_collection_property_name_ancestor IS 'All property_names that are part of an property_name collection and (it''s ancestor property_name collections, which is behind the scenes)';
+-- INDEXES
+
+-- CHECK CONSTRAINTS
+
+-- FOREIGN KEYS FROM
+
+-- FOREIGN KEYS TO
+
+-- TRIGGERS
+DO $$
+BEGIN
+		DELETE FROM __recreate WHERE schema = 'jazzhands' AND object IN ('v_property_name_collection_property_name_ancestor');
+	EXCEPTION WHEN undefined_table THEN
+		RAISE NOTICE 'Drop of triggers for v_property_name_collection_property_name_ancestor  failed but that is ok';
+		NULL;
+END;
+$$;
+
+-- DONE DEALING WITH TABLE v_property_name_collection_property_name_ancestor (jazzhands)
+--------------------------------------------------------------------
+DO $$
+BEGIN
+	DELETE FROM __recreate WHERE schema IN ('jazzhands', 'jazzhands_audit') AND object IN ('v_property_name_collection_property_name_ancestor');
+EXCEPTION WHEN undefined_table THEN
+	RAISE NOTICE 'Removal of old v_property_name_collection_property_name_ancestor failed but that is ok';
+	NULL;
+END;
+$$;
+
+DO $$
+BEGIN
+	DELETE FROM __recreate WHERE schema IN ('jazzhands', 'jazzhands_audit') AND object IN ('v_property_name_collection_property_name_ancestor');
+EXCEPTION WHEN undefined_table THEN
+	RAISE NOTICE 'Removal of new v_property_name_collection_property_name_ancestor failed but that is ok';
+	NULL;
+END;
+$$;
+
+--- about to process v_property_name_collection_property_name_descendent in set 1
+--------------------------------------------------------------------
+-- DEALING WITH NEW TABLE v_property_name_collection_property_name_descendent (jazzhands)
+SELECT schema_support.save_dependent_objects_for_replay('jazzhands', 'v_property_name_collection_property_name_descendent');
+SELECT schema_support.save_dependent_objects_for_replay('jazzhands_audit', 'v_property_name_collection_property_name_descendent');
+-- restore any missing random views that may be cached that this one needs.
+DROP VIEW IF EXISTS jazzhands.v_property_name_collection_property_name_descendent;
+CREATE VIEW jazzhands.v_property_name_collection_property_name_descendent AS
+ SELECT i.property_name_collection_id,
+    i.property_type,
+    i.property_name,
+    i.property_name_collection_level,
+    i.property_name_collection_path
+   FROM ( SELECT ct_property_name_collection_hier_recurse.root_property_name_collection_id AS property_name_collection_id,
+            cm.property_type,
+            cm.property_name,
+            ct_property_name_collection_hier_recurse.property_name_collection_level,
+            ct_property_name_collection_hier_recurse.path AS property_name_collection_path,
+            row_number() OVER (PARTITION BY ct_property_name_collection_hier_recurse.root_property_name_collection_id, cm.property_type, cm.property_name ORDER BY ct_property_name_collection_hier_recurse.property_name_collection_level) AS rnk
+           FROM jazzhands_cache.ct_property_name_collection_hier_recurse
+             JOIN jazzhands.property_name_collection_property_name cm USING (property_name_collection_id)) i
+  WHERE i.rnk = 1;
+
+DO $$
+BEGIN
+	DELETE FROM __recreate WHERE schema = 'jazzhands' AND type = 'view' AND object IN ('v_property_name_collection_property_name_descendent','v_property_name_collection_property_name_descendent');
+EXCEPTION WHEN undefined_table THEN
+	RAISE NOTICE 'Drop of v_property_name_collection_property_name_descendent failed but that is ok';
+	NULL;
+END;
+$$;
+
+
+-- PRIMARY AND ALTERNATE KEYS
+
+-- Table/Column Comments
+COMMENT ON VIEW jazzhands.v_property_name_collection_property_name_descendent IS 'All property_names that are part of an property_name collection and (it''s descendent property_name collections, which is behind the scenes)';
+-- INDEXES
+
+-- CHECK CONSTRAINTS
+
+-- FOREIGN KEYS FROM
+
+-- FOREIGN KEYS TO
+
+-- TRIGGERS
+DO $$
+BEGIN
+		DELETE FROM __recreate WHERE schema = 'jazzhands' AND object IN ('v_property_name_collection_property_name_descendent');
+	EXCEPTION WHEN undefined_table THEN
+		RAISE NOTICE 'Drop of triggers for v_property_name_collection_property_name_descendent  failed but that is ok';
+		NULL;
+END;
+$$;
+
+-- DONE DEALING WITH TABLE v_property_name_collection_property_name_descendent (jazzhands)
+--------------------------------------------------------------------
+DO $$
+BEGIN
+	DELETE FROM __recreate WHERE schema IN ('jazzhands', 'jazzhands_audit') AND object IN ('v_property_name_collection_property_name_descendent');
+EXCEPTION WHEN undefined_table THEN
+	RAISE NOTICE 'Removal of old v_property_name_collection_property_name_descendent failed but that is ok';
+	NULL;
+END;
+$$;
+
+DO $$
+BEGIN
+	DELETE FROM __recreate WHERE schema IN ('jazzhands', 'jazzhands_audit') AND object IN ('v_property_name_collection_property_name_descendent');
+EXCEPTION WHEN undefined_table THEN
+	RAISE NOTICE 'Removal of new v_property_name_collection_property_name_descendent failed but that is ok';
+	NULL;
+END;
+$$;
+
+--- about to process v_service_environment_collection_hier_ancestor in set 1
+--------------------------------------------------------------------
+-- DEALING WITH NEW TABLE v_service_environment_collection_hier_ancestor (jazzhands)
+SELECT schema_support.save_dependent_objects_for_replay('jazzhands', 'v_service_environment_collection_hier_ancestor');
+SELECT schema_support.save_dependent_objects_for_replay('jazzhands_audit', 'v_service_environment_collection_hier_ancestor');
+-- restore any missing random views that may be cached that this one needs.
+DROP VIEW IF EXISTS jazzhands.v_service_environment_collection_hier_ancestor;
+CREATE VIEW jazzhands.v_service_environment_collection_hier_ancestor AS
+ SELECT h.service_environment_collection_id,
+    h.ancestor_service_environment_collection_id,
+    h.service_environment_collection_level,
+    h.service_environment_collection_path
+   FROM ( SELECT ct_service_environment_collection_hier_recurse.service_environment_collection_id,
+            ct_service_environment_collection_hier_recurse.root_service_environment_collection_id AS ancestor_service_environment_collection_id,
+            array_length(ct_service_environment_collection_hier_recurse.path, 1) AS service_environment_collection_level,
+            ct_service_environment_collection_hier_recurse.path AS service_environment_collection_path,
+            row_number() OVER (PARTITION BY ct_service_environment_collection_hier_recurse.service_environment_collection_id, ct_service_environment_collection_hier_recurse.root_service_environment_collection_id ORDER BY (array_length(ct_service_environment_collection_hier_recurse.path, 1))) AS rnk
+           FROM jazzhands_cache.ct_service_environment_collection_hier_recurse) h
+  WHERE h.rnk = 1;
+
+DO $$
+BEGIN
+	DELETE FROM __recreate WHERE schema = 'jazzhands' AND type = 'view' AND object IN ('v_service_environment_collection_hier_ancestor','v_service_environment_collection_hier_ancestor');
+EXCEPTION WHEN undefined_table THEN
+	RAISE NOTICE 'Drop of v_service_environment_collection_hier_ancestor failed but that is ok';
+	NULL;
+END;
+$$;
+
+
+-- PRIMARY AND ALTERNATE KEYS
+
+-- Table/Column Comments
+COMMENT ON VIEW jazzhands.v_service_environment_collection_hier_ancestor IS 'All ancestors of a given service_environment collection';
+-- INDEXES
+
+-- CHECK CONSTRAINTS
+
+-- FOREIGN KEYS FROM
+
+-- FOREIGN KEYS TO
+
+-- TRIGGERS
+DO $$
+BEGIN
+		DELETE FROM __recreate WHERE schema = 'jazzhands' AND object IN ('v_service_environment_collection_hier_ancestor');
+	EXCEPTION WHEN undefined_table THEN
+		RAISE NOTICE 'Drop of triggers for v_service_environment_collection_hier_ancestor  failed but that is ok';
+		NULL;
+END;
+$$;
+
+-- DONE DEALING WITH TABLE v_service_environment_collection_hier_ancestor (jazzhands)
+--------------------------------------------------------------------
+DO $$
+BEGIN
+	DELETE FROM __recreate WHERE schema IN ('jazzhands', 'jazzhands_audit') AND object IN ('v_service_environment_collection_hier_ancestor');
+EXCEPTION WHEN undefined_table THEN
+	RAISE NOTICE 'Removal of old v_service_environment_collection_hier_ancestor failed but that is ok';
+	NULL;
+END;
+$$;
+
+DO $$
+BEGIN
+	DELETE FROM __recreate WHERE schema IN ('jazzhands', 'jazzhands_audit') AND object IN ('v_service_environment_collection_hier_ancestor');
+EXCEPTION WHEN undefined_table THEN
+	RAISE NOTICE 'Removal of new v_service_environment_collection_hier_ancestor failed but that is ok';
+	NULL;
+END;
+$$;
+
+--- about to process v_service_environment_collection_hier_descendent in set 1
+--------------------------------------------------------------------
+-- DEALING WITH NEW TABLE v_service_environment_collection_hier_descendent (jazzhands)
+SELECT schema_support.save_dependent_objects_for_replay('jazzhands', 'v_service_environment_collection_hier_descendent');
+SELECT schema_support.save_dependent_objects_for_replay('jazzhands_audit', 'v_service_environment_collection_hier_descendent');
+-- restore any missing random views that may be cached that this one needs.
+DROP VIEW IF EXISTS jazzhands.v_service_environment_collection_hier_descendent;
+CREATE VIEW jazzhands.v_service_environment_collection_hier_descendent AS
+ SELECT h.service_environment_collection_id,
+    h.descendent_service_environment_collection_id,
+    h.service_environment_collection_level
+   FROM ( SELECT ct_service_environment_collection_hier_recurse.root_service_environment_collection_id AS service_environment_collection_id,
+            ct_service_environment_collection_hier_recurse.service_environment_collection_id AS descendent_service_environment_collection_id,
+            array_length(ct_service_environment_collection_hier_recurse.path, 1) AS service_environment_collection_level,
+            ct_service_environment_collection_hier_recurse.path AS service_environment_collection_path,
+            row_number() OVER (PARTITION BY ct_service_environment_collection_hier_recurse.root_service_environment_collection_id, ct_service_environment_collection_hier_recurse.service_environment_collection_id ORDER BY (array_length(ct_service_environment_collection_hier_recurse.path, 1))) AS rnk
+           FROM jazzhands_cache.ct_service_environment_collection_hier_recurse) h
+  WHERE h.rnk = 1;
+
+DO $$
+BEGIN
+	DELETE FROM __recreate WHERE schema = 'jazzhands' AND type = 'view' AND object IN ('v_service_environment_collection_hier_descendent','v_service_environment_collection_hier_descendent');
+EXCEPTION WHEN undefined_table THEN
+	RAISE NOTICE 'Drop of v_service_environment_collection_hier_descendent failed but that is ok';
+	NULL;
+END;
+$$;
+
+
+-- PRIMARY AND ALTERNATE KEYS
+
+-- Table/Column Comments
+COMMENT ON VIEW jazzhands.v_service_environment_collection_hier_descendent IS 'All descendent service_environment collections of a given service_environment collection';
+-- INDEXES
+
+-- CHECK CONSTRAINTS
+
+-- FOREIGN KEYS FROM
+
+-- FOREIGN KEYS TO
+
+-- TRIGGERS
+DO $$
+BEGIN
+		DELETE FROM __recreate WHERE schema = 'jazzhands' AND object IN ('v_service_environment_collection_hier_descendent');
+	EXCEPTION WHEN undefined_table THEN
+		RAISE NOTICE 'Drop of triggers for v_service_environment_collection_hier_descendent  failed but that is ok';
+		NULL;
+END;
+$$;
+
+-- DONE DEALING WITH TABLE v_service_environment_collection_hier_descendent (jazzhands)
+--------------------------------------------------------------------
+DO $$
+BEGIN
+	DELETE FROM __recreate WHERE schema IN ('jazzhands', 'jazzhands_audit') AND object IN ('v_service_environment_collection_hier_descendent');
+EXCEPTION WHEN undefined_table THEN
+	RAISE NOTICE 'Removal of old v_service_environment_collection_hier_descendent failed but that is ok';
+	NULL;
+END;
+$$;
+
+DO $$
+BEGIN
+	DELETE FROM __recreate WHERE schema IN ('jazzhands', 'jazzhands_audit') AND object IN ('v_service_environment_collection_hier_descendent');
+EXCEPTION WHEN undefined_table THEN
+	RAISE NOTICE 'Removal of new v_service_environment_collection_hier_descendent failed but that is ok';
+	NULL;
+END;
+$$;
+
+--- about to process v_service_environment_collection_service_environment_ancestor in set 1
+--------------------------------------------------------------------
+-- DEALING WITH NEW TABLE v_service_environment_collection_service_environment_ancestor (jazzhands)
+SELECT schema_support.save_dependent_objects_for_replay('jazzhands', 'v_service_environment_collection_service_environment_ancestor');
+SELECT schema_support.save_dependent_objects_for_replay('jazzhands_audit', 'v_service_environment_collection_service_environment_ancestor');
+-- restore any missing random views that may be cached that this one needs.
+DROP VIEW IF EXISTS jazzhands.v_service_environment_collection_service_environment_ancestor;
+CREATE VIEW jazzhands.v_service_environment_collection_service_environment_ancestor AS
+ SELECT i.service_environment_collection_id,
+    i.service_environment_id,
+    i.service_environment_collection_level,
+    i.service_environment_collection_path
+   FROM ( SELECT r.service_environment_collection_id,
+            cm.service_environment_id,
+            r.service_environment_collection_level,
+            r.path AS service_environment_collection_path,
+            row_number() OVER (PARTITION BY r.service_environment_collection_id, cm.service_environment_id ORDER BY r.service_environment_collection_level) AS rnk
+           FROM jazzhands_cache.ct_service_environment_collection_hier_recurse r
+             JOIN jazzhands.service_environment_collection_service_environment cm ON r.root_service_environment_collection_id = cm.service_environment_collection_id) i
+  WHERE i.rnk = 1;
+
+DO $$
+BEGIN
+	DELETE FROM __recreate WHERE schema = 'jazzhands' AND type = 'view' AND object IN ('v_service_environment_collection_service_environment_ancestor','v_service_environment_collection_service_environment_ancestor');
+EXCEPTION WHEN undefined_table THEN
+	RAISE NOTICE 'Drop of v_service_environment_collection_service_environment_ancestor failed but that is ok';
+	NULL;
+END;
+$$;
+
+
+-- PRIMARY AND ALTERNATE KEYS
+
+-- Table/Column Comments
+COMMENT ON VIEW jazzhands.v_service_environment_collection_service_environment_ancestor IS 'All service_environments that are part of an service_environment collection and (it''s ancestor service_environment collections, which is behind the scenes)';
+-- INDEXES
+
+-- CHECK CONSTRAINTS
+
+-- FOREIGN KEYS FROM
+
+-- FOREIGN KEYS TO
+
+-- TRIGGERS
+DO $$
+BEGIN
+		DELETE FROM __recreate WHERE schema = 'jazzhands' AND object IN ('v_service_environment_collection_service_environment_ancestor');
+	EXCEPTION WHEN undefined_table THEN
+		RAISE NOTICE 'Drop of triggers for v_service_environment_collection_service_environment_ancestor  failed but that is ok';
+		NULL;
+END;
+$$;
+
+-- DONE DEALING WITH TABLE v_service_environment_collection_service_environment_ancestor (jazzhands)
+--------------------------------------------------------------------
+DO $$
+BEGIN
+	DELETE FROM __recreate WHERE schema IN ('jazzhands', 'jazzhands_audit') AND object IN ('v_service_environment_collection_service_environment_ancestor');
+EXCEPTION WHEN undefined_table THEN
+	RAISE NOTICE 'Removal of old v_service_environment_collection_service_environment_ancestor failed but that is ok';
+	NULL;
+END;
+$$;
+
+DO $$
+BEGIN
+	DELETE FROM __recreate WHERE schema IN ('jazzhands', 'jazzhands_audit') AND object IN ('v_service_environment_collection_service_environment_ancestor');
+EXCEPTION WHEN undefined_table THEN
+	RAISE NOTICE 'Removal of new v_service_environment_collection_service_environment_ancestor failed but that is ok';
+	NULL;
+END;
+$$;
+
+--- about to process v_service_environment_collection_service_environment_descendent in set 1
+--------------------------------------------------------------------
+-- DEALING WITH NEW TABLE v_service_environment_collection_service_environment_descendent (jazzhands)
+SELECT schema_support.save_dependent_objects_for_replay('jazzhands', 'v_service_environment_collection_service_environment_descendent');
+SELECT schema_support.save_dependent_objects_for_replay('jazzhands_audit', 'v_service_environment_collection_service_environment_descendent');
+-- restore any missing random views that may be cached that this one needs.
+DROP VIEW IF EXISTS jazzhands.v_service_environment_collection_service_environment_descendent;
+CREATE VIEW jazzhands.v_service_environment_collection_service_environment_descendent AS
+ SELECT i.service_environment_collection_id,
+    i.service_environment_id,
+    i.service_environment_collection_level,
+    i.service_environment_collection_path
+   FROM ( SELECT ct_service_environment_collection_hier_recurse.root_service_environment_collection_id AS service_environment_collection_id,
+            cm.service_environment_id,
+            ct_service_environment_collection_hier_recurse.service_environment_collection_level,
+            ct_service_environment_collection_hier_recurse.path AS service_environment_collection_path,
+            row_number() OVER (PARTITION BY ct_service_environment_collection_hier_recurse.root_service_environment_collection_id, cm.service_environment_id ORDER BY ct_service_environment_collection_hier_recurse.service_environment_collection_level) AS rnk
+           FROM jazzhands_cache.ct_service_environment_collection_hier_recurse
+             JOIN jazzhands.service_environment_collection_service_environment cm USING (service_environment_collection_id)) i
+  WHERE i.rnk = 1;
+
+DO $$
+BEGIN
+	DELETE FROM __recreate WHERE schema = 'jazzhands' AND type = 'view' AND object IN ('v_service_environment_collection_service_environment_descendent','v_service_environment_collection_service_environment_descendent');
+EXCEPTION WHEN undefined_table THEN
+	RAISE NOTICE 'Drop of v_service_environment_collection_service_environment_descendent failed but that is ok';
+	NULL;
+END;
+$$;
+
+
+-- PRIMARY AND ALTERNATE KEYS
+
+-- Table/Column Comments
+COMMENT ON VIEW jazzhands.v_service_environment_collection_service_environment_descendent IS 'All service_environments that are part of an service_environment collection and (it''s descendent service_environment collections, which is behind the scenes)';
+-- INDEXES
+
+-- CHECK CONSTRAINTS
+
+-- FOREIGN KEYS FROM
+
+-- FOREIGN KEYS TO
+
+-- TRIGGERS
+DO $$
+BEGIN
+		DELETE FROM __recreate WHERE schema = 'jazzhands' AND object IN ('v_service_environment_collection_service_environment_descendent');
+	EXCEPTION WHEN undefined_table THEN
+		RAISE NOTICE 'Drop of triggers for v_service_environment_collection_service_environment_descendent  failed but that is ok';
+		NULL;
+END;
+$$;
+
+-- DONE DEALING WITH TABLE v_service_environment_collection_service_environment_descendent (jazzhands)
+--------------------------------------------------------------------
+DO $$
+BEGIN
+	DELETE FROM __recreate WHERE schema IN ('jazzhands', 'jazzhands_audit') AND object IN ('v_service_environment_collection_service_environment_descendent');
+EXCEPTION WHEN undefined_table THEN
+	RAISE NOTICE 'Removal of old v_service_environment_collection_service_environment_descendent failed but that is ok';
+	NULL;
+END;
+$$;
+
+DO $$
+BEGIN
+	DELETE FROM __recreate WHERE schema IN ('jazzhands', 'jazzhands_audit') AND object IN ('v_service_environment_collection_service_environment_descendent');
+EXCEPTION WHEN undefined_table THEN
+	RAISE NOTICE 'Removal of new v_service_environment_collection_service_environment_descendent failed but that is ok';
+	NULL;
+END;
+$$;
+
+--- about to process v_service_version_collection_hier_ancestor in set 1
+--------------------------------------------------------------------
+-- DEALING WITH NEW TABLE v_service_version_collection_hier_ancestor (jazzhands)
+SELECT schema_support.save_dependent_objects_for_replay('jazzhands', 'v_service_version_collection_hier_ancestor');
+SELECT schema_support.save_dependent_objects_for_replay('jazzhands_audit', 'v_service_version_collection_hier_ancestor');
+-- restore any missing random views that may be cached that this one needs.
+DROP VIEW IF EXISTS jazzhands.v_service_version_collection_hier_ancestor;
+CREATE VIEW jazzhands.v_service_version_collection_hier_ancestor AS
+ SELECT h.service_version_collection_id,
+    h.ancestor_service_version_collection_id,
+    h.service_version_collection_level,
+    h.service_version_collection_path
+   FROM ( SELECT ct_service_version_collection_hier_recurse.service_version_collection_id,
+            ct_service_version_collection_hier_recurse.root_service_version_collection_id AS ancestor_service_version_collection_id,
+            array_length(ct_service_version_collection_hier_recurse.path, 1) AS service_version_collection_level,
+            ct_service_version_collection_hier_recurse.path AS service_version_collection_path,
+            row_number() OVER (PARTITION BY ct_service_version_collection_hier_recurse.service_version_collection_id, ct_service_version_collection_hier_recurse.root_service_version_collection_id ORDER BY (array_length(ct_service_version_collection_hier_recurse.path, 1))) AS rnk
+           FROM jazzhands_cache.ct_service_version_collection_hier_recurse) h
+  WHERE h.rnk = 1;
+
+DO $$
+BEGIN
+	DELETE FROM __recreate WHERE schema = 'jazzhands' AND type = 'view' AND object IN ('v_service_version_collection_hier_ancestor','v_service_version_collection_hier_ancestor');
+EXCEPTION WHEN undefined_table THEN
+	RAISE NOTICE 'Drop of v_service_version_collection_hier_ancestor failed but that is ok';
+	NULL;
+END;
+$$;
+
+
+-- PRIMARY AND ALTERNATE KEYS
+
+-- Table/Column Comments
+COMMENT ON VIEW jazzhands.v_service_version_collection_hier_ancestor IS 'All ancestors of a given service_version collection';
+-- INDEXES
+
+-- CHECK CONSTRAINTS
+
+-- FOREIGN KEYS FROM
+
+-- FOREIGN KEYS TO
+
+-- TRIGGERS
+DO $$
+BEGIN
+		DELETE FROM __recreate WHERE schema = 'jazzhands' AND object IN ('v_service_version_collection_hier_ancestor');
+	EXCEPTION WHEN undefined_table THEN
+		RAISE NOTICE 'Drop of triggers for v_service_version_collection_hier_ancestor  failed but that is ok';
+		NULL;
+END;
+$$;
+
+-- DONE DEALING WITH TABLE v_service_version_collection_hier_ancestor (jazzhands)
+--------------------------------------------------------------------
+DO $$
+BEGIN
+	DELETE FROM __recreate WHERE schema IN ('jazzhands', 'jazzhands_audit') AND object IN ('v_service_version_collection_hier_ancestor');
+EXCEPTION WHEN undefined_table THEN
+	RAISE NOTICE 'Removal of old v_service_version_collection_hier_ancestor failed but that is ok';
+	NULL;
+END;
+$$;
+
+DO $$
+BEGIN
+	DELETE FROM __recreate WHERE schema IN ('jazzhands', 'jazzhands_audit') AND object IN ('v_service_version_collection_hier_ancestor');
+EXCEPTION WHEN undefined_table THEN
+	RAISE NOTICE 'Removal of new v_service_version_collection_hier_ancestor failed but that is ok';
+	NULL;
+END;
+$$;
+
+--- about to process v_service_version_collection_hier_descendent in set 1
+--------------------------------------------------------------------
+-- DEALING WITH NEW TABLE v_service_version_collection_hier_descendent (jazzhands)
+SELECT schema_support.save_dependent_objects_for_replay('jazzhands', 'v_service_version_collection_hier_descendent');
+SELECT schema_support.save_dependent_objects_for_replay('jazzhands_audit', 'v_service_version_collection_hier_descendent');
+-- restore any missing random views that may be cached that this one needs.
+DROP VIEW IF EXISTS jazzhands.v_service_version_collection_hier_descendent;
+CREATE VIEW jazzhands.v_service_version_collection_hier_descendent AS
+ SELECT h.service_version_collection_id,
+    h.descendent_service_version_collection_id,
+    h.service_version_collection_level
+   FROM ( SELECT ct_service_version_collection_hier_recurse.root_service_version_collection_id AS service_version_collection_id,
+            ct_service_version_collection_hier_recurse.service_version_collection_id AS descendent_service_version_collection_id,
+            array_length(ct_service_version_collection_hier_recurse.path, 1) AS service_version_collection_level,
+            ct_service_version_collection_hier_recurse.path AS service_version_collection_path,
+            row_number() OVER (PARTITION BY ct_service_version_collection_hier_recurse.root_service_version_collection_id, ct_service_version_collection_hier_recurse.service_version_collection_id ORDER BY (array_length(ct_service_version_collection_hier_recurse.path, 1))) AS rnk
+           FROM jazzhands_cache.ct_service_version_collection_hier_recurse) h
+  WHERE h.rnk = 1;
+
+DO $$
+BEGIN
+	DELETE FROM __recreate WHERE schema = 'jazzhands' AND type = 'view' AND object IN ('v_service_version_collection_hier_descendent','v_service_version_collection_hier_descendent');
+EXCEPTION WHEN undefined_table THEN
+	RAISE NOTICE 'Drop of v_service_version_collection_hier_descendent failed but that is ok';
+	NULL;
+END;
+$$;
+
+
+-- PRIMARY AND ALTERNATE KEYS
+
+-- Table/Column Comments
+COMMENT ON VIEW jazzhands.v_service_version_collection_hier_descendent IS 'All descendent service_version collections of a given service_version collection';
+-- INDEXES
+
+-- CHECK CONSTRAINTS
+
+-- FOREIGN KEYS FROM
+
+-- FOREIGN KEYS TO
+
+-- TRIGGERS
+DO $$
+BEGIN
+		DELETE FROM __recreate WHERE schema = 'jazzhands' AND object IN ('v_service_version_collection_hier_descendent');
+	EXCEPTION WHEN undefined_table THEN
+		RAISE NOTICE 'Drop of triggers for v_service_version_collection_hier_descendent  failed but that is ok';
+		NULL;
+END;
+$$;
+
+-- DONE DEALING WITH TABLE v_service_version_collection_hier_descendent (jazzhands)
+--------------------------------------------------------------------
+DO $$
+BEGIN
+	DELETE FROM __recreate WHERE schema IN ('jazzhands', 'jazzhands_audit') AND object IN ('v_service_version_collection_hier_descendent');
+EXCEPTION WHEN undefined_table THEN
+	RAISE NOTICE 'Removal of old v_service_version_collection_hier_descendent failed but that is ok';
+	NULL;
+END;
+$$;
+
+DO $$
+BEGIN
+	DELETE FROM __recreate WHERE schema IN ('jazzhands', 'jazzhands_audit') AND object IN ('v_service_version_collection_hier_descendent');
+EXCEPTION WHEN undefined_table THEN
+	RAISE NOTICE 'Removal of new v_service_version_collection_hier_descendent failed but that is ok';
+	NULL;
+END;
+$$;
+
+--- about to process v_service_version_collection_service_version_ancestor in set 1
+--------------------------------------------------------------------
+-- DEALING WITH NEW TABLE v_service_version_collection_service_version_ancestor (jazzhands)
+SELECT schema_support.save_dependent_objects_for_replay('jazzhands', 'v_service_version_collection_service_version_ancestor');
+SELECT schema_support.save_dependent_objects_for_replay('jazzhands_audit', 'v_service_version_collection_service_version_ancestor');
+-- restore any missing random views that may be cached that this one needs.
+DROP VIEW IF EXISTS jazzhands.v_service_version_collection_service_version_ancestor;
+CREATE VIEW jazzhands.v_service_version_collection_service_version_ancestor AS
+ SELECT i.service_version_collection_id,
+    i.service_version_id,
+    i.service_version_collection_level,
+    i.service_version_collection_path
+   FROM ( SELECT r.service_version_collection_id,
+            cm.service_version_id,
+            r.service_version_collection_level,
+            r.path AS service_version_collection_path,
+            row_number() OVER (PARTITION BY r.service_version_collection_id, cm.service_version_id ORDER BY r.service_version_collection_level) AS rnk
+           FROM jazzhands_cache.ct_service_version_collection_hier_recurse r
+             JOIN jazzhands.service_version_collection_service_version cm ON r.root_service_version_collection_id = cm.service_version_collection_id) i
+  WHERE i.rnk = 1;
+
+DO $$
+BEGIN
+	DELETE FROM __recreate WHERE schema = 'jazzhands' AND type = 'view' AND object IN ('v_service_version_collection_service_version_ancestor','v_service_version_collection_service_version_ancestor');
+EXCEPTION WHEN undefined_table THEN
+	RAISE NOTICE 'Drop of v_service_version_collection_service_version_ancestor failed but that is ok';
+	NULL;
+END;
+$$;
+
+
+-- PRIMARY AND ALTERNATE KEYS
+
+-- Table/Column Comments
+COMMENT ON VIEW jazzhands.v_service_version_collection_service_version_ancestor IS 'All service_versions that are part of an service_version collection and (it''s ancestor service_version collections, which is behind the scenes)';
+-- INDEXES
+
+-- CHECK CONSTRAINTS
+
+-- FOREIGN KEYS FROM
+
+-- FOREIGN KEYS TO
+
+-- TRIGGERS
+DO $$
+BEGIN
+		DELETE FROM __recreate WHERE schema = 'jazzhands' AND object IN ('v_service_version_collection_service_version_ancestor');
+	EXCEPTION WHEN undefined_table THEN
+		RAISE NOTICE 'Drop of triggers for v_service_version_collection_service_version_ancestor  failed but that is ok';
+		NULL;
+END;
+$$;
+
+-- DONE DEALING WITH TABLE v_service_version_collection_service_version_ancestor (jazzhands)
+--------------------------------------------------------------------
+DO $$
+BEGIN
+	DELETE FROM __recreate WHERE schema IN ('jazzhands', 'jazzhands_audit') AND object IN ('v_service_version_collection_service_version_ancestor');
+EXCEPTION WHEN undefined_table THEN
+	RAISE NOTICE 'Removal of old v_service_version_collection_service_version_ancestor failed but that is ok';
+	NULL;
+END;
+$$;
+
+DO $$
+BEGIN
+	DELETE FROM __recreate WHERE schema IN ('jazzhands', 'jazzhands_audit') AND object IN ('v_service_version_collection_service_version_ancestor');
+EXCEPTION WHEN undefined_table THEN
+	RAISE NOTICE 'Removal of new v_service_version_collection_service_version_ancestor failed but that is ok';
+	NULL;
+END;
+$$;
+
+--- about to process v_service_version_collection_service_version_descendent in set 1
+--------------------------------------------------------------------
+-- DEALING WITH NEW TABLE v_service_version_collection_service_version_descendent (jazzhands)
+SELECT schema_support.save_dependent_objects_for_replay('jazzhands', 'v_service_version_collection_service_version_descendent');
+SELECT schema_support.save_dependent_objects_for_replay('jazzhands_audit', 'v_service_version_collection_service_version_descendent');
+-- restore any missing random views that may be cached that this one needs.
+DROP VIEW IF EXISTS jazzhands.v_service_version_collection_service_version_descendent;
+CREATE VIEW jazzhands.v_service_version_collection_service_version_descendent AS
+ SELECT i.service_version_collection_id,
+    i.service_version_id,
+    i.service_version_collection_level,
+    i.service_version_collection_path
+   FROM ( SELECT ct_service_version_collection_hier_recurse.root_service_version_collection_id AS service_version_collection_id,
+            cm.service_version_id,
+            ct_service_version_collection_hier_recurse.service_version_collection_level,
+            ct_service_version_collection_hier_recurse.path AS service_version_collection_path,
+            row_number() OVER (PARTITION BY ct_service_version_collection_hier_recurse.root_service_version_collection_id, cm.service_version_id ORDER BY ct_service_version_collection_hier_recurse.service_version_collection_level) AS rnk
+           FROM jazzhands_cache.ct_service_version_collection_hier_recurse
+             JOIN jazzhands.service_version_collection_service_version cm USING (service_version_collection_id)) i
+  WHERE i.rnk = 1;
+
+DO $$
+BEGIN
+	DELETE FROM __recreate WHERE schema = 'jazzhands' AND type = 'view' AND object IN ('v_service_version_collection_service_version_descendent','v_service_version_collection_service_version_descendent');
+EXCEPTION WHEN undefined_table THEN
+	RAISE NOTICE 'Drop of v_service_version_collection_service_version_descendent failed but that is ok';
+	NULL;
+END;
+$$;
+
+
+-- PRIMARY AND ALTERNATE KEYS
+
+-- Table/Column Comments
+COMMENT ON VIEW jazzhands.v_service_version_collection_service_version_descendent IS 'All service_versions that are part of an service_version collection and (it''s descendent service_version collections, which is behind the scenes)';
+-- INDEXES
+
+-- CHECK CONSTRAINTS
+
+-- FOREIGN KEYS FROM
+
+-- FOREIGN KEYS TO
+
+-- TRIGGERS
+DO $$
+BEGIN
+		DELETE FROM __recreate WHERE schema = 'jazzhands' AND object IN ('v_service_version_collection_service_version_descendent');
+	EXCEPTION WHEN undefined_table THEN
+		RAISE NOTICE 'Drop of triggers for v_service_version_collection_service_version_descendent  failed but that is ok';
+		NULL;
+END;
+$$;
+
+-- DONE DEALING WITH TABLE v_service_version_collection_service_version_descendent (jazzhands)
+--------------------------------------------------------------------
+DO $$
+BEGIN
+	DELETE FROM __recreate WHERE schema IN ('jazzhands', 'jazzhands_audit') AND object IN ('v_service_version_collection_service_version_descendent');
+EXCEPTION WHEN undefined_table THEN
+	RAISE NOTICE 'Removal of old v_service_version_collection_service_version_descendent failed but that is ok';
+	NULL;
+END;
+$$;
+
+DO $$
+BEGIN
+	DELETE FROM __recreate WHERE schema IN ('jazzhands', 'jazzhands_audit') AND object IN ('v_service_version_collection_service_version_descendent');
+EXCEPTION WHEN undefined_table THEN
+	RAISE NOTICE 'Removal of new v_service_version_collection_service_version_descendent failed but that is ok';
+	NULL;
+END;
+$$;
+
+--- about to process v_token_collection_hier_ancestor in set 1
+--------------------------------------------------------------------
+-- DEALING WITH NEW TABLE v_token_collection_hier_ancestor (jazzhands)
+SELECT schema_support.save_dependent_objects_for_replay('jazzhands', 'v_token_collection_hier_ancestor');
+SELECT schema_support.save_dependent_objects_for_replay('jazzhands_audit', 'v_token_collection_hier_ancestor');
+-- restore any missing random views that may be cached that this one needs.
+DROP VIEW IF EXISTS jazzhands.v_token_collection_hier_ancestor;
+CREATE VIEW jazzhands.v_token_collection_hier_ancestor AS
+ SELECT h.token_collection_id,
+    h.ancestor_token_collection_id,
+    h.token_collection_level,
+    h.token_collection_path
+   FROM ( SELECT ct_token_collection_hier_recurse.token_collection_id,
+            ct_token_collection_hier_recurse.root_token_collection_id AS ancestor_token_collection_id,
+            array_length(ct_token_collection_hier_recurse.path, 1) AS token_collection_level,
+            ct_token_collection_hier_recurse.path AS token_collection_path,
+            row_number() OVER (PARTITION BY ct_token_collection_hier_recurse.token_collection_id, ct_token_collection_hier_recurse.root_token_collection_id ORDER BY (array_length(ct_token_collection_hier_recurse.path, 1))) AS rnk
+           FROM jazzhands_cache.ct_token_collection_hier_recurse) h
+  WHERE h.rnk = 1;
+
+DO $$
+BEGIN
+	DELETE FROM __recreate WHERE schema = 'jazzhands' AND type = 'view' AND object IN ('v_token_collection_hier_ancestor','v_token_collection_hier_ancestor');
+EXCEPTION WHEN undefined_table THEN
+	RAISE NOTICE 'Drop of v_token_collection_hier_ancestor failed but that is ok';
+	NULL;
+END;
+$$;
+
+
+-- PRIMARY AND ALTERNATE KEYS
+
+-- Table/Column Comments
+COMMENT ON VIEW jazzhands.v_token_collection_hier_ancestor IS 'All ancestors of a given token collection';
+-- INDEXES
+
+-- CHECK CONSTRAINTS
+
+-- FOREIGN KEYS FROM
+
+-- FOREIGN KEYS TO
+
+-- TRIGGERS
+DO $$
+BEGIN
+		DELETE FROM __recreate WHERE schema = 'jazzhands' AND object IN ('v_token_collection_hier_ancestor');
+	EXCEPTION WHEN undefined_table THEN
+		RAISE NOTICE 'Drop of triggers for v_token_collection_hier_ancestor  failed but that is ok';
+		NULL;
+END;
+$$;
+
+-- DONE DEALING WITH TABLE v_token_collection_hier_ancestor (jazzhands)
+--------------------------------------------------------------------
+DO $$
+BEGIN
+	DELETE FROM __recreate WHERE schema IN ('jazzhands', 'jazzhands_audit') AND object IN ('v_token_collection_hier_ancestor');
+EXCEPTION WHEN undefined_table THEN
+	RAISE NOTICE 'Removal of old v_token_collection_hier_ancestor failed but that is ok';
+	NULL;
+END;
+$$;
+
+DO $$
+BEGIN
+	DELETE FROM __recreate WHERE schema IN ('jazzhands', 'jazzhands_audit') AND object IN ('v_token_collection_hier_ancestor');
+EXCEPTION WHEN undefined_table THEN
+	RAISE NOTICE 'Removal of new v_token_collection_hier_ancestor failed but that is ok';
+	NULL;
+END;
+$$;
+
+--- about to process v_token_collection_hier_descendent in set 1
+--------------------------------------------------------------------
+-- DEALING WITH NEW TABLE v_token_collection_hier_descendent (jazzhands)
+SELECT schema_support.save_dependent_objects_for_replay('jazzhands', 'v_token_collection_hier_descendent');
+SELECT schema_support.save_dependent_objects_for_replay('jazzhands_audit', 'v_token_collection_hier_descendent');
+-- restore any missing random views that may be cached that this one needs.
+DROP VIEW IF EXISTS jazzhands.v_token_collection_hier_descendent;
+CREATE VIEW jazzhands.v_token_collection_hier_descendent AS
+ SELECT h.token_collection_id,
+    h.descendent_token_collection_id,
+    h.token_collection_level
+   FROM ( SELECT ct_token_collection_hier_recurse.root_token_collection_id AS token_collection_id,
+            ct_token_collection_hier_recurse.token_collection_id AS descendent_token_collection_id,
+            array_length(ct_token_collection_hier_recurse.path, 1) AS token_collection_level,
+            ct_token_collection_hier_recurse.path AS token_collection_path,
+            row_number() OVER (PARTITION BY ct_token_collection_hier_recurse.root_token_collection_id, ct_token_collection_hier_recurse.token_collection_id ORDER BY (array_length(ct_token_collection_hier_recurse.path, 1))) AS rnk
+           FROM jazzhands_cache.ct_token_collection_hier_recurse) h
+  WHERE h.rnk = 1;
+
+DO $$
+BEGIN
+	DELETE FROM __recreate WHERE schema = 'jazzhands' AND type = 'view' AND object IN ('v_token_collection_hier_descendent','v_token_collection_hier_descendent');
+EXCEPTION WHEN undefined_table THEN
+	RAISE NOTICE 'Drop of v_token_collection_hier_descendent failed but that is ok';
+	NULL;
+END;
+$$;
+
+
+-- PRIMARY AND ALTERNATE KEYS
+
+-- Table/Column Comments
+COMMENT ON VIEW jazzhands.v_token_collection_hier_descendent IS 'All descendent token collections of a given token collection';
+-- INDEXES
+
+-- CHECK CONSTRAINTS
+
+-- FOREIGN KEYS FROM
+
+-- FOREIGN KEYS TO
+
+-- TRIGGERS
+DO $$
+BEGIN
+		DELETE FROM __recreate WHERE schema = 'jazzhands' AND object IN ('v_token_collection_hier_descendent');
+	EXCEPTION WHEN undefined_table THEN
+		RAISE NOTICE 'Drop of triggers for v_token_collection_hier_descendent  failed but that is ok';
+		NULL;
+END;
+$$;
+
+-- DONE DEALING WITH TABLE v_token_collection_hier_descendent (jazzhands)
+--------------------------------------------------------------------
+DO $$
+BEGIN
+	DELETE FROM __recreate WHERE schema IN ('jazzhands', 'jazzhands_audit') AND object IN ('v_token_collection_hier_descendent');
+EXCEPTION WHEN undefined_table THEN
+	RAISE NOTICE 'Removal of old v_token_collection_hier_descendent failed but that is ok';
+	NULL;
+END;
+$$;
+
+DO $$
+BEGIN
+	DELETE FROM __recreate WHERE schema IN ('jazzhands', 'jazzhands_audit') AND object IN ('v_token_collection_hier_descendent');
+EXCEPTION WHEN undefined_table THEN
+	RAISE NOTICE 'Removal of new v_token_collection_hier_descendent failed but that is ok';
+	NULL;
+END;
+$$;
+
+--- about to process v_token_collection_token_ancestor in set 1
+--------------------------------------------------------------------
+-- DEALING WITH NEW TABLE v_token_collection_token_ancestor (jazzhands)
+SELECT schema_support.save_dependent_objects_for_replay('jazzhands', 'v_token_collection_token_ancestor');
+SELECT schema_support.save_dependent_objects_for_replay('jazzhands_audit', 'v_token_collection_token_ancestor');
+-- restore any missing random views that may be cached that this one needs.
+DROP VIEW IF EXISTS jazzhands.v_token_collection_token_ancestor;
+CREATE VIEW jazzhands.v_token_collection_token_ancestor AS
+ SELECT i.token_collection_id,
+    i.token_id,
+    i.token_collection_level,
+    i.token_collection_path
+   FROM ( SELECT r.token_collection_id,
+            cm.token_id,
+            r.token_collection_level,
+            r.path AS token_collection_path,
+            row_number() OVER (PARTITION BY r.token_collection_id, cm.token_id ORDER BY r.token_collection_level) AS rnk
+           FROM jazzhands_cache.ct_token_collection_hier_recurse r
+             JOIN jazzhands.token_collection_token cm ON r.root_token_collection_id = cm.token_collection_id) i
+  WHERE i.rnk = 1;
+
+DO $$
+BEGIN
+	DELETE FROM __recreate WHERE schema = 'jazzhands' AND type = 'view' AND object IN ('v_token_collection_token_ancestor','v_token_collection_token_ancestor');
+EXCEPTION WHEN undefined_table THEN
+	RAISE NOTICE 'Drop of v_token_collection_token_ancestor failed but that is ok';
+	NULL;
+END;
+$$;
+
+
+-- PRIMARY AND ALTERNATE KEYS
+
+-- Table/Column Comments
+COMMENT ON VIEW jazzhands.v_token_collection_token_ancestor IS 'All tokens that are part of an token collection and (it''s ancestor token collections, which is behind the scenes)';
+-- INDEXES
+
+-- CHECK CONSTRAINTS
+
+-- FOREIGN KEYS FROM
+
+-- FOREIGN KEYS TO
+
+-- TRIGGERS
+DO $$
+BEGIN
+		DELETE FROM __recreate WHERE schema = 'jazzhands' AND object IN ('v_token_collection_token_ancestor');
+	EXCEPTION WHEN undefined_table THEN
+		RAISE NOTICE 'Drop of triggers for v_token_collection_token_ancestor  failed but that is ok';
+		NULL;
+END;
+$$;
+
+-- DONE DEALING WITH TABLE v_token_collection_token_ancestor (jazzhands)
+--------------------------------------------------------------------
+DO $$
+BEGIN
+	DELETE FROM __recreate WHERE schema IN ('jazzhands', 'jazzhands_audit') AND object IN ('v_token_collection_token_ancestor');
+EXCEPTION WHEN undefined_table THEN
+	RAISE NOTICE 'Removal of old v_token_collection_token_ancestor failed but that is ok';
+	NULL;
+END;
+$$;
+
+DO $$
+BEGIN
+	DELETE FROM __recreate WHERE schema IN ('jazzhands', 'jazzhands_audit') AND object IN ('v_token_collection_token_ancestor');
+EXCEPTION WHEN undefined_table THEN
+	RAISE NOTICE 'Removal of new v_token_collection_token_ancestor failed but that is ok';
+	NULL;
+END;
+$$;
+
+--- about to process v_token_collection_token_descendent in set 1
+--------------------------------------------------------------------
+-- DEALING WITH NEW TABLE v_token_collection_token_descendent (jazzhands)
+SELECT schema_support.save_dependent_objects_for_replay('jazzhands', 'v_token_collection_token_descendent');
+SELECT schema_support.save_dependent_objects_for_replay('jazzhands_audit', 'v_token_collection_token_descendent');
+-- restore any missing random views that may be cached that this one needs.
+DROP VIEW IF EXISTS jazzhands.v_token_collection_token_descendent;
+CREATE VIEW jazzhands.v_token_collection_token_descendent AS
+ SELECT i.token_collection_id,
+    i.token_id,
+    i.token_collection_level,
+    i.token_collection_path
+   FROM ( SELECT ct_token_collection_hier_recurse.root_token_collection_id AS token_collection_id,
+            cm.token_id,
+            ct_token_collection_hier_recurse.token_collection_level,
+            ct_token_collection_hier_recurse.path AS token_collection_path,
+            row_number() OVER (PARTITION BY ct_token_collection_hier_recurse.root_token_collection_id, cm.token_id ORDER BY ct_token_collection_hier_recurse.token_collection_level) AS rnk
+           FROM jazzhands_cache.ct_token_collection_hier_recurse
+             JOIN jazzhands.token_collection_token cm USING (token_collection_id)) i
+  WHERE i.rnk = 1;
+
+DO $$
+BEGIN
+	DELETE FROM __recreate WHERE schema = 'jazzhands' AND type = 'view' AND object IN ('v_token_collection_token_descendent','v_token_collection_token_descendent');
+EXCEPTION WHEN undefined_table THEN
+	RAISE NOTICE 'Drop of v_token_collection_token_descendent failed but that is ok';
+	NULL;
+END;
+$$;
+
+
+-- PRIMARY AND ALTERNATE KEYS
+
+-- Table/Column Comments
+COMMENT ON VIEW jazzhands.v_token_collection_token_descendent IS 'All tokens that are part of an token collection and (it''s descendent token collections, which is behind the scenes)';
+-- INDEXES
+
+-- CHECK CONSTRAINTS
+
+-- FOREIGN KEYS FROM
+
+-- FOREIGN KEYS TO
+
+-- TRIGGERS
+DO $$
+BEGIN
+		DELETE FROM __recreate WHERE schema = 'jazzhands' AND object IN ('v_token_collection_token_descendent');
+	EXCEPTION WHEN undefined_table THEN
+		RAISE NOTICE 'Drop of triggers for v_token_collection_token_descendent  failed but that is ok';
+		NULL;
+END;
+$$;
+
+-- DONE DEALING WITH TABLE v_token_collection_token_descendent (jazzhands)
+--------------------------------------------------------------------
+DO $$
+BEGIN
+	DELETE FROM __recreate WHERE schema IN ('jazzhands', 'jazzhands_audit') AND object IN ('v_token_collection_token_descendent');
+EXCEPTION WHEN undefined_table THEN
+	RAISE NOTICE 'Removal of old v_token_collection_token_descendent failed but that is ok';
+	NULL;
+END;
+$$;
+
+DO $$
+BEGIN
+	DELETE FROM __recreate WHERE schema IN ('jazzhands', 'jazzhands_audit') AND object IN ('v_token_collection_token_descendent');
+EXCEPTION WHEN undefined_table THEN
+	RAISE NOTICE 'Removal of new v_token_collection_token_descendent failed but that is ok';
+	NULL;
+END;
+$$;
+
 -- Main loop processing views in jazzhands_legacy_manip
 select clock_timestamp(), clock_timestamp() - now() AS len;
 -- Main loop processing views in layerx_network_manip
@@ -5667,6 +15734,1447 @@ $$;
 --
 select clock_timestamp(), clock_timestamp() - now() AS len;
 SELECT schema_support.replay_object_recreates(tags := ARRAY['process_all_procs_in_schema_jazzhands_cache']);
+-- New function; dropping in case it returned because of type change
+CREATE OR REPLACE FUNCTION jazzhands_cache.account_collection_hier_recurse_handler()
+ RETURNS trigger
+ LANGUAGE plpgsql
+ SECURITY DEFINER
+ SET search_path TO 'jazzhands'
+AS $function$
+DECLARE
+	_r		RECORD;
+	_d		RECORD;
+	_cnt	INTEGER;
+BEGIN
+	--
+	-- Delete any rows that are invalidated due to a parent change.
+	--
+	IF
+		(TG_OP = 'DELETE' OR TG_OP = 'UPDATE')
+	THEN
+		--
+		-- This convoluted statement deletes anything where the path has the
+		-- parent and child consective in the path array.  This is nasty.
+		FOR _r IN
+		DELETE FROM jazzhands_cache.ct_account_collection_hier_recurse
+			WHERE path IN  (
+				SELECT path FROM (
+					SELECT * FROM (
+						SELECT path, unnest(path) as first,
+							unnest(pathplus) as second
+							--, row_number() over () as rn
+							FROM (
+								SELECT path, path[2:array_length(path, 1)] AS pathplus
+								FROM jazzhands_cache.ct_account_collection_hier_recurse
+							) i
+					) rmme WHERE second = OLD.account_collection_id
+					AND first = OLD.child_account_collection_id
+				) rmpath
+			)
+			RETURNING *
+		LOOP
+			RAISE DEBUG '-> achd rm %', to_json(_r);
+		END LOOP
+		;
+		get diagnostics _cnt = row_count;
+		RAISE DEBUG 'Deleting upstream references to accol %/% from cache == %',
+			OLD.account_collection_id, OLD.child_account_collection_id, _cnt;
+	END IF;
+
+	--
+	-- Insert any new rows to correspond with a new parent
+	--
+	IF TG_OP = 'INSERT' OR TG_OP = 'UPDATE' THEN
+		RAISE DEBUG 'achd %%Insert: %', to_json(NEW);
+
+		--- @> should use the GIN index.  ANY, not so much
+		FOR _r IN
+			SELECT DISTINCT
+				p.path as parent_path, c.path as child_path,
+				c.account_collection_id AS account_collection_id,
+				p.root_account_collection_id AS root_account_collection_id,
+				c.path || p.path as path,
+				p.path @> ARRAY[NEW.child_account_collection_id]  OR
+					c.path @> ARRAY[NEW.account_collection_id] AS cycle
+			FROM	jazzhands_cache.ct_account_collection_hier_recurse p,
+				jazzhands_cache.ct_account_collection_hier_recurse c
+			WHERE p.account_collection_id = NEW.account_collection_id
+			AND c.root_account_collection_id = NEW.child_account_collection_id
+		LOOP
+			RAISE DEBUG 'achd: i/dsmash:%', to_json(_r);
+			IF _r.cycle THEN
+				RAISE EXCEPTION 'This creates an infite loop'
+					USING ERRCODE = 'invalid_parameter_value';
+			END IF;
+			INSERT INTO jazzhands_cache.ct_account_collection_hier_recurse (
+					root_account_collection_id,
+					account_collection_id,
+					path,
+					cycle
+				) VALUES (
+					_r.root_account_collection_id,
+					_r.account_collection_id,
+					_r.path,
+					_r.cycle
+				) RETURNING * INTO _d ;
+		END LOOP;
+	END IF;
+
+	RETURN NULL;
+END
+$function$
+;
+
+-- New function; dropping in case it returned because of type change
+CREATE OR REPLACE FUNCTION jazzhands_cache.company_collection_hier_recurse_handler()
+ RETURNS trigger
+ LANGUAGE plpgsql
+ SECURITY DEFINER
+ SET search_path TO 'jazzhands'
+AS $function$
+DECLARE
+	_r		RECORD;
+	_d		RECORD;
+	_cnt	INTEGER;
+BEGIN
+	--
+	-- Delete any rows that are invalidated due to a parent change.
+	--
+	IF
+		(TG_OP = 'DELETE' OR TG_OP = 'UPDATE')
+	THEN
+		--
+		-- This convoluted statement deletes anything where the path has the
+		-- parent and child consective in the path array.  This is nasty.
+		FOR _r IN
+		DELETE FROM jazzhands_cache.ct_company_collection_hier_recurse
+			WHERE path IN  (
+				SELECT path FROM (
+					SELECT * FROM (
+						SELECT path, unnest(path) as first,
+							unnest(pathplus) as second
+							--, row_number() over () as rn
+						FROM (
+							SELECT path, path[2:array_length(path, 1)] AS pathplus
+							FROM jazzhands_cache.ct_company_collection_hier_recurse
+						) i
+					) rmme WHERE second = OLD.company_collection_id
+					AND first = OLD.child_company_collection_id
+				) rmpath
+			)
+			RETURNING *
+		LOOP
+			RAISE DEBUG '-> cchd rm %', to_json(_r);
+		END LOOP
+		;
+		get diagnostics _cnt = row_count;
+		RAISE DEBUG 'Deleting upstream references to accol %/% from cache == %',
+			OLD.company_collection_id, OLD.child_company_collection_id, _cnt;
+	END IF;
+
+	--
+	-- Insert any new rows to correspond with a new parent
+	--
+	IF TG_OP = 'INSERT' OR TG_OP = 'UPDATE' THEN
+		RAISE DEBUG 'cchd %%Insert: %', to_json(NEW);
+
+		--- @> should use the GIN index.  ANY, not so much
+		FOR _r IN
+			SELECT DISTINCT
+				p.path as parent_path, c.path as child_path,
+				c.company_collection_id AS company_collection_id,
+				p.root_company_collection_id AS root_company_collection_id,
+				c.path || p.path as path,
+				p.path @> ARRAY[NEW.child_company_collection_id]  OR
+					c.path @> ARRAY[NEW.company_collection_id] AS cycle
+			FROM	jazzhands_cache.ct_company_collection_hier_recurse p,
+				jazzhands_cache.ct_company_collection_hier_recurse c
+			WHERE p.company_collection_id = NEW.company_collection_id
+			AND c.root_company_collection_id = NEW.child_company_collection_id
+		LOOP
+			RAISE DEBUG 'cchd: i/dsmash:%', to_json(_r);
+			IF _r.cycle THEN
+				RAISE EXCEPTION 'This creates an infite loop'
+					USING ERRCODE = 'invalid_parameter_value';
+			END IF;
+			INSERT INTO jazzhands_cache.ct_company_collection_hier_recurse (
+					root_company_collection_id,
+					company_collection_id,
+					path,
+					cycle
+				) VALUES (
+					_r.root_company_collection_id,
+					_r.company_collection_id,
+					_r.path,
+					_r.cycle
+				) RETURNING * INTO _d ;
+		END LOOP;
+	END IF;
+
+	RETURN NULL;
+END
+$function$
+;
+
+-- New function; dropping in case it returned because of type change
+CREATE OR REPLACE FUNCTION jazzhands_cache.ct_account_collection_hier_recurse_base_handler()
+ RETURNS trigger
+ LANGUAGE plpgsql
+ SECURITY DEFINER
+ SET search_path TO 'jazzhands'
+AS $function$
+BEGIN
+	IF TG_OP = 'DELETE' THEN
+		DELETE FROM jazzhands_cache.ct_account_collection_hier_recurse
+		WHERE root_account_collection_id = OLD.account_collection_id
+		AND account_collection_id = OLD.account_collection_id;
+
+		RETURN OLD;
+	ELSIF TG_OP = 'UPDATE' THEN
+		UPDATE jazzhands_cache.ct_account_collection_hier_recurse
+		SET
+			root_account_collection_id = NEW.account_collection_id,
+			account_collection_id = NEW.account_collection_id
+		WHERE root_account_collection_id = OLD.account_collection_id
+		AND account_collection_id = OLD.account_collection_id;
+	ELSIF TG_OP = 'INSERT' THEN
+		INSERT INTO jazzhands_cache.ct_account_collection_hier_recurse (
+			root_account_collection_id,
+			account_collection_id,
+			path,
+			cycle
+		) VALUES (
+			NEW.account_collection_id,
+			NEW.account_collection_id,
+			ARRAY[NEW.account_collection_id],
+			false
+		);
+	END IF;
+
+	RETURN NEW;
+END
+$function$
+;
+
+-- New function; dropping in case it returned because of type change
+CREATE OR REPLACE FUNCTION jazzhands_cache.ct_company_collection_hier_recurse_base_handler()
+ RETURNS trigger
+ LANGUAGE plpgsql
+ SECURITY DEFINER
+ SET search_path TO 'jazzhands'
+AS $function$
+BEGIN
+	IF TG_OP = 'DELETE' THEN
+		DELETE FROM jazzhands_cache.ct_company_collection_hier_recurse
+		WHERE root_company_collection_id = OLD.company_collection_id
+		AND company_collection_id = OLD.company_collection_id;
+
+		RETURN OLD;
+	ELSIF TG_OP = 'UPDATE' THEN
+		UPDATE jazzhands_cache.ct_company_collection_hier_recurse
+		SET
+			root_company_collection_id = NEW.company_collection_id,
+			company_collection_id = NEW.company_collection_id
+		WHERE root_company_collection_id = OLD.company_collection_id
+		AND company_collection_id = OLD.company_collection_id;
+	ELSIF TG_OP = 'INSERT' THEN
+		INSERT INTO jazzhands_cache.ct_company_collection_hier_recurse (
+			root_company_collection_id,
+			company_collection_id,
+			path,
+			cycle
+		) VALUES (
+			NEW.company_collection_id,
+			NEW.company_collection_id,
+			ARRAY[NEW.company_collection_id],
+			false
+		);
+	END IF;
+
+	RETURN NEW;
+END
+$function$
+;
+
+-- New function; dropping in case it returned because of type change
+CREATE OR REPLACE FUNCTION jazzhands_cache.ct_device_collection_hier_recurse_base_handler()
+ RETURNS trigger
+ LANGUAGE plpgsql
+ SECURITY DEFINER
+ SET search_path TO 'jazzhands'
+AS $function$
+BEGIN
+	IF TG_OP = 'DELETE' THEN
+		DELETE FROM jazzhands_cache.ct_device_collection_hier_recurse
+		WHERE root_device_collection_id = OLD.device_collection_id
+		AND device_collection_id = OLD.device_collection_id;
+
+		RETURN OLD;
+	ELSIF TG_OP = 'UPDATE' THEN
+		UPDATE jazzhands_cache.ct_device_collection_hier_recurse
+		SET
+			root_device_collection_id = NEW.device_collection_id,
+			device_collection_id = NEW.device_collection_id
+		WHERE root_device_collection_id = OLD.device_collection_id
+		AND device_collection_id = OLD.device_collection_id;
+	ELSIF TG_OP = 'INSERT' THEN
+		INSERT INTO jazzhands_cache.ct_device_collection_hier_recurse (
+			root_device_collection_id,
+			device_collection_id,
+			path,
+			cycle
+		) VALUES (
+			NEW.device_collection_id,
+			NEW.device_collection_id,
+			ARRAY[NEW.device_collection_id],
+			false
+		);
+	END IF;
+
+	RETURN NEW;
+END
+$function$
+;
+
+-- New function; dropping in case it returned because of type change
+CREATE OR REPLACE FUNCTION jazzhands_cache.ct_dns_domain_collection_hier_recurse_base_handler()
+ RETURNS trigger
+ LANGUAGE plpgsql
+ SECURITY DEFINER
+ SET search_path TO 'jazzhands'
+AS $function$
+BEGIN
+	IF TG_OP = 'DELETE' THEN
+		DELETE FROM jazzhands_cache.ct_dns_domain_collection_hier_recurse
+		WHERE root_dns_domain_collection_id = OLD.dns_domain_collection_id
+		AND dns_domain_collection_id = OLD.dns_domain_collection_id;
+
+		RETURN OLD;
+	ELSIF TG_OP = 'UPDATE' THEN
+		UPDATE jazzhands_cache.ct_dns_domain_collection_hier_recurse
+		SET
+			root_dns_domain_collection_id = NEW.dns_domain_collection_id,
+			dns_domain_collection_id = NEW.dns_domain_collection_id
+		WHERE root_dns_domain_collection_id = OLD.dns_domain_collection_id
+		AND dns_domain_collection_id = OLD.dns_domain_collection_id;
+	ELSIF TG_OP = 'INSERT' THEN
+		INSERT INTO jazzhands_cache.ct_dns_domain_collection_hier_recurse (
+			root_dns_domain_collection_id,
+			dns_domain_collection_id,
+			path,
+			cycle
+		) VALUES (
+			NEW.dns_domain_collection_id,
+			NEW.dns_domain_collection_id,
+			ARRAY[NEW.dns_domain_collection_id],
+			false
+		);
+	END IF;
+
+	RETURN NEW;
+END
+$function$
+;
+
+-- New function; dropping in case it returned because of type change
+CREATE OR REPLACE FUNCTION jazzhands_cache.ct_layer2_network_collection_hier_recurse_base_handler()
+ RETURNS trigger
+ LANGUAGE plpgsql
+ SECURITY DEFINER
+ SET search_path TO 'jazzhands'
+AS $function$
+BEGIN
+	IF TG_OP = 'DELETE' THEN
+		DELETE FROM jazzhands_cache.ct_layer2_network_collection_hier_recurse
+		WHERE root_layer2_network_collection_id = OLD.layer2_network_collection_id
+		AND layer2_network_collection_id = OLD.layer2_network_collection_id;
+
+		RETURN OLD;
+	ELSIF TG_OP = 'UPDATE' THEN
+		UPDATE jazzhands_cache.ct_layer2_network_collection_hier_recurse
+		SET
+			root_layer2_network_collection_id = NEW.layer2_network_collection_id,
+			layer2_network_collection_id = NEW.layer2_network_collection_id
+		WHERE root_layer2_network_collection_id = OLD.layer2_network_collection_id
+		AND layer2_network_collection_id = OLD.layer2_network_collection_id;
+	ELSIF TG_OP = 'INSERT' THEN
+		INSERT INTO jazzhands_cache.ct_layer2_network_collection_hier_recurse (
+			root_layer2_network_collection_id,
+			layer2_network_collection_id,
+			path,
+			cycle
+		) VALUES (
+			NEW.layer2_network_collection_id,
+			NEW.layer2_network_collection_id,
+			ARRAY[NEW.layer2_network_collection_id],
+			false
+		);
+	END IF;
+
+	RETURN NEW;
+END
+$function$
+;
+
+-- New function; dropping in case it returned because of type change
+CREATE OR REPLACE FUNCTION jazzhands_cache.ct_layer3_network_collection_hier_recurse_base_handler()
+ RETURNS trigger
+ LANGUAGE plpgsql
+ SECURITY DEFINER
+ SET search_path TO 'jazzhands'
+AS $function$
+BEGIN
+	IF TG_OP = 'DELETE' THEN
+		DELETE FROM jazzhands_cache.ct_layer3_network_collection_hier_recurse
+		WHERE root_layer3_network_collection_id = OLD.layer3_network_collection_id
+		AND layer3_network_collection_id = OLD.layer3_network_collection_id;
+
+		RETURN OLD;
+	ELSIF TG_OP = 'UPDATE' THEN
+		UPDATE jazzhands_cache.ct_layer3_network_collection_hier_recurse
+		SET
+			root_layer3_network_collection_id = NEW.layer3_network_collection_id,
+			layer3_network_collection_id = NEW.layer3_network_collection_id
+		WHERE root_layer3_network_collection_id = OLD.layer3_network_collection_id
+		AND layer3_network_collection_id = OLD.layer3_network_collection_id;
+	ELSIF TG_OP = 'INSERT' THEN
+		INSERT INTO jazzhands_cache.ct_layer3_network_collection_hier_recurse (
+			root_layer3_network_collection_id,
+			layer3_network_collection_id,
+			path,
+			cycle
+		) VALUES (
+			NEW.layer3_network_collection_id,
+			NEW.layer3_network_collection_id,
+			ARRAY[NEW.layer3_network_collection_id],
+			false
+		);
+	END IF;
+
+	RETURN NEW;
+END
+$function$
+;
+
+-- New function; dropping in case it returned because of type change
+CREATE OR REPLACE FUNCTION jazzhands_cache.ct_netblock_collection_hier_recurse_base_handler()
+ RETURNS trigger
+ LANGUAGE plpgsql
+ SECURITY DEFINER
+ SET search_path TO 'jazzhands'
+AS $function$
+BEGIN
+	IF TG_OP = 'DELETE' THEN
+		DELETE FROM jazzhands_cache.ct_netblock_collection_hier_recurse
+		WHERE root_netblock_collection_id = OLD.netblock_collection_id
+		AND netblock_collection_id = OLD.netblock_collection_id;
+
+		RETURN OLD;
+	ELSIF TG_OP = 'UPDATE' THEN
+		UPDATE jazzhands_cache.ct_netblock_collection_hier_recurse
+		SET
+			root_netblock_collection_id = NEW.netblock_collection_id,
+			netblock_collection_id = NEW.netblock_collection_id
+		WHERE root_netblock_collection_id = OLD.netblock_collection_id
+		AND netblock_collection_id = OLD.netblock_collection_id;
+	ELSIF TG_OP = 'INSERT' THEN
+		INSERT INTO jazzhands_cache.ct_netblock_collection_hier_recurse (
+			root_netblock_collection_id,
+			netblock_collection_id,
+			path,
+			cycle
+		) VALUES (
+			NEW.netblock_collection_id,
+			NEW.netblock_collection_id,
+			ARRAY[NEW.netblock_collection_id],
+			false
+		);
+	END IF;
+
+	RETURN NEW;
+END
+$function$
+;
+
+-- New function; dropping in case it returned because of type change
+CREATE OR REPLACE FUNCTION jazzhands_cache.ct_property_name_collection_hier_recurse_base_handler()
+ RETURNS trigger
+ LANGUAGE plpgsql
+ SECURITY DEFINER
+ SET search_path TO 'jazzhands'
+AS $function$
+BEGIN
+	IF TG_OP = 'DELETE' THEN
+		DELETE FROM jazzhands_cache.ct_property_name_collection_hier_recurse
+		WHERE root_property_name_collection_id = OLD.property_name_collection_id
+		AND property_name_collection_id = OLD.property_name_collection_id;
+
+		RETURN OLD;
+	ELSIF TG_OP = 'UPDATE' THEN
+		UPDATE jazzhands_cache.ct_property_name_collection_hier_recurse
+		SET
+			root_property_name_collection_id = NEW.property_name_collection_id,
+			property_name_collection_id = NEW.property_name_collection_id
+		WHERE root_property_name_collection_id = OLD.property_name_collection_id
+		AND property_name_collection_id = OLD.property_name_collection_id;
+	ELSIF TG_OP = 'INSERT' THEN
+		INSERT INTO jazzhands_cache.ct_property_name_collection_hier_recurse (
+			root_property_name_collection_id,
+			property_name_collection_id,
+			path,
+			cycle
+		) VALUES (
+			NEW.property_name_collection_id,
+			NEW.property_name_collection_id,
+			ARRAY[NEW.property_name_collection_id],
+			false
+		);
+	END IF;
+
+	RETURN NEW;
+END
+$function$
+;
+
+-- New function; dropping in case it returned because of type change
+CREATE OR REPLACE FUNCTION jazzhands_cache.ct_service_environment_collection_hier_recurse_base_handler()
+ RETURNS trigger
+ LANGUAGE plpgsql
+ SECURITY DEFINER
+ SET search_path TO 'jazzhands'
+AS $function$
+BEGIN
+	IF TG_OP = 'DELETE' THEN
+		DELETE FROM jazzhands_cache.ct_service_environment_collection_hier_recurse
+		WHERE root_service_environment_collection_id = OLD.service_environment_collection_id
+		AND service_environment_collection_id = OLD.service_environment_collection_id;
+
+		RETURN OLD;
+	ELSIF TG_OP = 'UPDATE' THEN
+		UPDATE jazzhands_cache.ct_service_environment_collection_hier_recurse
+		SET
+			root_service_environment_collection_id = NEW.service_environment_collection_id,
+			service_environment_collection_id = NEW.service_environment_collection_id
+		WHERE root_service_environment_collection_id = OLD.service_environment_collection_id
+		AND service_environment_collection_id = OLD.service_environment_collection_id;
+	ELSIF TG_OP = 'INSERT' THEN
+		INSERT INTO jazzhands_cache.ct_service_environment_collection_hier_recurse (
+			root_service_environment_collection_id,
+			service_environment_collection_id,
+			path,
+			cycle
+		) VALUES (
+			NEW.service_environment_collection_id,
+			NEW.service_environment_collection_id,
+			ARRAY[NEW.service_environment_collection_id],
+			false
+		);
+	END IF;
+
+	RETURN NEW;
+END
+$function$
+;
+
+-- New function; dropping in case it returned because of type change
+CREATE OR REPLACE FUNCTION jazzhands_cache.ct_service_version_collection_hier_recurse_base_handler()
+ RETURNS trigger
+ LANGUAGE plpgsql
+ SECURITY DEFINER
+ SET search_path TO 'jazzhands'
+AS $function$
+BEGIN
+	IF TG_OP = 'DELETE' THEN
+		DELETE FROM jazzhands_cache.ct_service_version_collection_hier_recurse
+		WHERE root_service_version_collection_id = OLD.service_version_collection_id
+		AND service_version_collection_id = OLD.service_version_collection_id;
+
+		RETURN OLD;
+	ELSIF TG_OP = 'UPDATE' THEN
+		UPDATE jazzhands_cache.ct_service_version_collection_hier_recurse
+		SET
+			root_service_version_collection_id = NEW.service_version_collection_id,
+			service_version_collection_id = NEW.service_version_collection_id
+		WHERE root_service_version_collection_id = OLD.service_version_collection_id
+		AND service_version_collection_id = OLD.service_version_collection_id;
+	ELSIF TG_OP = 'INSERT' THEN
+		INSERT INTO jazzhands_cache.ct_service_version_collection_hier_recurse (
+			root_service_version_collection_id,
+			service_version_collection_id,
+			path,
+			cycle
+		) VALUES (
+			NEW.service_version_collection_id,
+			NEW.service_version_collection_id,
+			ARRAY[NEW.service_version_collection_id],
+			false
+		);
+	END IF;
+
+	RETURN NEW;
+END
+$function$
+;
+
+-- New function; dropping in case it returned because of type change
+CREATE OR REPLACE FUNCTION jazzhands_cache.ct_token_collection_hier_recurse_base_handler()
+ RETURNS trigger
+ LANGUAGE plpgsql
+ SECURITY DEFINER
+ SET search_path TO 'jazzhands'
+AS $function$
+BEGIN
+	IF TG_OP = 'DELETE' THEN
+		DELETE FROM jazzhands_cache.ct_token_collection_hier_recurse
+		WHERE root_token_collection_id = OLD.token_collection_id
+		AND token_collection_id = OLD.token_collection_id;
+
+		RETURN OLD;
+	ELSIF TG_OP = 'UPDATE' THEN
+		UPDATE jazzhands_cache.ct_token_collection_hier_recurse
+		SET
+			root_token_collection_id = NEW.token_collection_id,
+			token_collection_id = NEW.token_collection_id
+		WHERE root_token_collection_id = OLD.token_collection_id
+		AND token_collection_id = OLD.token_collection_id;
+	ELSIF TG_OP = 'INSERT' THEN
+		INSERT INTO jazzhands_cache.ct_token_collection_hier_recurse (
+			root_token_collection_id,
+			token_collection_id,
+			path,
+			cycle
+		) VALUES (
+			NEW.token_collection_id,
+			NEW.token_collection_id,
+			ARRAY[NEW.token_collection_id],
+			false
+		);
+	END IF;
+
+	RETURN NEW;
+END
+$function$
+;
+
+-- New function; dropping in case it returned because of type change
+CREATE OR REPLACE FUNCTION jazzhands_cache.device_collection_hier_recurse_handler()
+ RETURNS trigger
+ LANGUAGE plpgsql
+ SECURITY DEFINER
+ SET search_path TO 'jazzhands'
+AS $function$
+DECLARE
+	_r		RECORD;
+	_d		RECORD;
+	_cnt	INTEGER;
+BEGIN
+	--
+	-- Delete any rows that are invalidated due to a parent change.
+	--
+	IF
+		(TG_OP = 'DELETE' OR TG_OP = 'UPDATE')
+	THEN
+		--
+		-- This convoluted statement deletes anything where the path has the
+		-- parent and child consective in the path array.  This is nasty.
+		FOR _r IN
+		DELETE FROM jazzhands_cache.ct_device_collection_hier_recurse
+			WHERE path IN  (
+				SELECT path FROM (
+					SELECT * FROM (
+						SELECT path, unnest(path) as first,
+							unnest(pathplus) as second
+							--, row_number() over () as rn
+						FROM (
+							SELECT path, path[2:array_length(path, 1)] AS pathplus
+							FROM jazzhands_cache.ct_device_collection_hier_recurse
+						) i
+					) rmme WHERE second = OLD.device_collection_id
+					AND first = OLD.child_device_collection_id
+				) rmpath
+			)
+			RETURNING *
+		LOOP
+			RAISE DEBUG '-> dchd rm %', to_json(_r);
+		END LOOP
+		;
+		get diagnostics _cnt = row_count;
+		RAISE DEBUG 'Deleting upstream references to accol %/% from cache == %',
+			OLD.device_collection_id, OLD.child_device_collection_id, _cnt;
+	END IF;
+
+	--
+	-- Insert any new rows to correspond with a new parent
+	--
+	IF TG_OP = 'INSERT' OR TG_OP = 'UPDATE' THEN
+		RAISE DEBUG 'dchd %%Insert: %', to_json(NEW);
+
+		--- @> should use the GIN index.  ANY, not so much
+		FOR _r IN
+			SELECT DISTINCT
+				p.path as parent_path, c.path as child_path,
+				c.device_collection_id AS device_collection_id,
+				p.root_device_collection_id AS root_device_collection_id,
+				c.path || p.path as path,
+				p.path @> ARRAY[NEW.child_device_collection_id]  OR
+					c.path @> ARRAY[NEW.device_collection_id] AS cycle
+			FROM	jazzhands_cache.ct_device_collection_hier_recurse p,
+				jazzhands_cache.ct_device_collection_hier_recurse c
+			WHERE p.device_collection_id = NEW.device_collection_id
+			AND c.root_device_collection_id = NEW.child_device_collection_id
+		LOOP
+			RAISE DEBUG 'dchd: i/dsmash:%', to_json(_r);
+			IF _r.cycle THEN
+				RAISE EXCEPTION 'This creates an infite loop'
+					USING ERRCODE = 'invalid_parameter_value';
+			END IF;
+			INSERT INTO jazzhands_cache.ct_device_collection_hier_recurse (
+					root_device_collection_id,
+					device_collection_id,
+					path,
+					cycle
+				) VALUES (
+					_r.root_device_collection_id,
+					_r.device_collection_id,
+					_r.path,
+					_r.cycle
+				) RETURNING * INTO _d ;
+		END LOOP;
+	END IF;
+
+	RETURN NULL;
+END
+$function$
+;
+
+-- New function; dropping in case it returned because of type change
+CREATE OR REPLACE FUNCTION jazzhands_cache.dns_domain_collection_hier_recurse_handler()
+ RETURNS trigger
+ LANGUAGE plpgsql
+ SECURITY DEFINER
+ SET search_path TO 'jazzhands'
+AS $function$
+DECLARE
+	_r		RECORD;
+	_d		RECORD;
+	_cnt	INTEGER;
+BEGIN
+	--
+	-- Delete any rows that are invalidated due to a parent change.
+	--
+	IF
+		(TG_OP = 'DELETE' OR TG_OP = 'UPDATE')
+	THEN
+		--
+		-- This convoluted statement deletes anything where the path has the
+		-- parent and child consective in the path array.  This is nasty.
+		FOR _r IN
+		DELETE FROM jazzhands_cache.ct_dns_domain_collection_hier_recurse
+			WHERE path IN  (
+				SELECT path FROM (
+					SELECT * FROM (
+						SELECT path, unnest(path) as first,
+							unnest(pathplus) as second
+							--, row_number() over () as rn
+						FROM (
+							SELECT path, path[2:array_length(path, 1)] AS pathplus
+							FROM jazzhands_cache.ct_dns_domain_collection_hier_recurse
+						) i
+					) rmme WHERE second = OLD.dns_domain_collection_id
+					AND first = OLD.child_dns_domain_collection_id
+				) rmpath
+			)
+			RETURNING *
+		LOOP
+			RAISE DEBUG '-> ddchd rm %', to_json(_r);
+		END LOOP
+		;
+		get diagnostics _cnt = row_count;
+		RAISE DEBUG 'Deleting upstream references to accol %/% from cache == %',
+			OLD.dns_domain_collection_id, OLD.child_dns_domain_collection_id, _cnt;
+	END IF;
+
+	--
+	-- Insert any new rows to correspond with a new parent
+	--
+	IF TG_OP = 'INSERT' OR TG_OP = 'UPDATE' THEN
+		RAISE DEBUG 'ddchd %%Insert: %', to_json(NEW);
+
+		--- @> should use the GIN index.  ANY, not so much
+		FOR _r IN
+			SELECT DISTINCT
+				p.path as parent_path, c.path as child_path,
+				c.dns_domain_collection_id AS dns_domain_collection_id,
+				p.root_dns_domain_collection_id AS root_dns_domain_collection_id,
+				c.path || p.path as path,
+				p.path @> ARRAY[NEW.child_dns_domain_collection_id]  OR
+					c.path @> ARRAY[NEW.dns_domain_collection_id] AS cycle
+			FROM	jazzhands_cache.ct_dns_domain_collection_hier_recurse p,
+				jazzhands_cache.ct_dns_domain_collection_hier_recurse c
+			WHERE p.dns_domain_collection_id = NEW.dns_domain_collection_id
+			AND c.root_dns_domain_collection_id = NEW.child_dns_domain_collection_id
+		LOOP
+			RAISE DEBUG 'ddchd: i/dsmash:%', to_json(_r);
+			IF _r.cycle THEN
+				RAISE EXCEPTION 'This creates an infite loop'
+					USING ERRCODE = 'invalid_parameter_value';
+			END IF;
+			INSERT INTO jazzhands_cache.ct_dns_domain_collection_hier_recurse (
+					root_dns_domain_collection_id,
+					dns_domain_collection_id,
+					path,
+					cycle
+				) VALUES (
+					_r.root_dns_domain_collection_id,
+					_r.dns_domain_collection_id,
+					_r.path,
+					_r.cycle
+				) RETURNING * INTO _d ;
+		END LOOP;
+	END IF;
+
+	RETURN NULL;
+END
+$function$
+;
+
+-- New function; dropping in case it returned because of type change
+CREATE OR REPLACE FUNCTION jazzhands_cache.layer2_network_collection_hier_recurse_handler()
+ RETURNS trigger
+ LANGUAGE plpgsql
+ SECURITY DEFINER
+ SET search_path TO 'jazzhands'
+AS $function$
+DECLARE
+	_r		RECORD;
+	_d		RECORD;
+	_cnt	INTEGER;
+BEGIN
+	--
+	-- Delete any rows that are invalidated due to a parent change.
+	--
+	IF
+		(TG_OP = 'DELETE' OR TG_OP = 'UPDATE')
+	THEN
+		--
+		-- This convoluted statement deletes anything where the path has the
+		-- parent and child consective in the path array.  This is nasty.
+		FOR _r IN
+		DELETE FROM jazzhands_cache.ct_layer2_network_collection_hier_recurse
+			WHERE path IN  (
+				SELECT path FROM (
+					SELECT * FROM (
+						SELECT path, unnest(path) as first,
+							unnest(pathplus) as second
+							--, row_number() over () as rn
+						FROM (
+							SELECT path, path[2:array_length(path, 1)] AS pathplus
+							FROM jazzhands_cache.ct_layer2_network_collection_hier_recurse
+						) i
+					) rmme WHERE second = OLD.layer2_network_collection_id
+					AND first = OLD.child_layer2_network_collection_id
+				) rmpath
+			)
+			RETURNING *
+		LOOP
+			RAISE DEBUG '-> l2nchd rm %', to_json(_r);
+		END LOOP
+		;
+		get diagnostics _cnt = row_count;
+		RAISE DEBUG 'Deleting upstream references to accol %/% from cache == %',
+			OLD.layer2_network_collection_id, OLD.child_layer2_network_collection_id, _cnt;
+	END IF;
+
+	--
+	-- Insert any new rows to correspond with a new parent
+	--
+	IF TG_OP = 'INSERT' OR TG_OP = 'UPDATE' THEN
+		RAISE DEBUG 'l2nchd %%Insert: %', to_json(NEW);
+
+		--- @> should use the GIN index.  ANY, not so much
+		FOR _r IN
+			SELECT DISTINCT
+				p.path as parent_path, c.path as child_path,
+				c.layer2_network_collection_id AS layer2_network_collection_id,
+				p.root_layer2_network_collection_id AS root_layer2_network_collection_id,
+				c.path || p.path as path,
+				p.path @> ARRAY[NEW.child_layer2_network_collection_id]  OR
+					c.path @> ARRAY[NEW.layer2_network_collection_id] AS cycle
+			FROM	jazzhands_cache.ct_layer2_network_collection_hier_recurse p,
+				jazzhands_cache.ct_layer2_network_collection_hier_recurse c
+			WHERE p.layer2_network_collection_id = NEW.layer2_network_collection_id
+			AND c.root_layer2_network_collection_id = NEW.child_layer2_network_collection_id
+		LOOP
+			RAISE DEBUG 'l2nchd: i/dsmash:%', to_json(_r);
+			IF _r.cycle THEN
+				RAISE EXCEPTION 'This creates an infite loop'
+					USING ERRCODE = 'invalid_parameter_value';
+			END IF;
+			INSERT INTO jazzhands_cache.ct_layer2_network_collection_hier_recurse (
+					root_layer2_network_collection_id,
+					layer2_network_collection_id,
+					path,
+					cycle
+				) VALUES (
+					_r.root_layer2_network_collection_id,
+					_r.layer2_network_collection_id,
+					_r.path,
+					_r.cycle
+				) RETURNING * INTO _d ;
+		END LOOP;
+	END IF;
+
+	RETURN NULL;
+END
+$function$
+;
+
+-- New function; dropping in case it returned because of type change
+CREATE OR REPLACE FUNCTION jazzhands_cache.layer3_network_collection_hier_recurse_handler()
+ RETURNS trigger
+ LANGUAGE plpgsql
+ SECURITY DEFINER
+ SET search_path TO 'jazzhands'
+AS $function$
+DECLARE
+	_r		RECORD;
+	_d		RECORD;
+	_cnt	INTEGER;
+BEGIN
+	--
+	-- Delete any rows that are invalidated due to a parent change.
+	--
+	IF
+		(TG_OP = 'DELETE' OR TG_OP = 'UPDATE')
+	THEN
+		--
+		-- This convoluted statement delets anything where the path has the
+		-- parent and child consective in the path array.  This is nasty.
+		FOR _r IN
+		DELETE FROM jazzhands_cache.ct_layer3_network_collection_hier_recurse
+			WHERE path IN  (
+				SELECT path FROM (
+					SELECT * FROM (
+						SELECT path, unnest(path) as first,
+							unnest(pathplus) as second
+							--, row_number() over () as rn
+						FROM (
+							SELECT path, path[2:array_length(path, 1)] AS pathplus
+							FROM jazzhands_cache.ct_layer3_network_collection_hier_recurse
+						) i
+					) rmme WHERE second = OLD.layer3_network_collection_id
+					AND first = OLD.child_layer3_network_collection_id
+				) rmpath
+			)
+			RETURNING *
+		LOOP
+			RAISE DEBUG '-> l3nchd rm %', to_json(_r);
+		END LOOP
+		;
+		get diagnostics _cnt = row_count;
+		RAISE DEBUG 'Deleting upstream references to accol %/% from cache == %',
+			OLD.layer3_network_collection_id, OLD.child_layer3_network_collection_id, _cnt;
+	END IF;
+
+	--
+	-- Insert any new rows to correspond with a new parent
+	--
+	IF TG_OP = 'INSERT' OR TG_OP = 'UPDATE' THEN
+		RAISE DEBUG 'l3nchd %%Insert: %', to_json(NEW);
+
+		--- @> should use the GIN index.  ANY, not so much
+		FOR _r IN
+			SELECT DISTINCT
+				p.path as parent_path, c.path as child_path,
+				c.layer3_network_collection_id AS layer3_network_collection_id,
+				p.root_layer3_network_collection_id AS root_layer3_network_collection_id,
+				c.path || p.path as path,
+				p.path @> ARRAY[NEW.child_layer3_network_collection_id]  OR
+					c.path @> ARRAY[NEW.layer3_network_collection_id] AS cycle
+			FROM	jazzhands_cache.ct_layer3_network_collection_hier_recurse p,
+				jazzhands_cache.ct_layer3_network_collection_hier_recurse c
+			WHERE p.layer3_network_collection_id = NEW.layer3_network_collection_id
+			AND c.root_layer3_network_collection_id = NEW.child_layer3_network_collection_id
+		LOOP
+			RAISE DEBUG 'l3nchd: i/dsmash:%', to_json(_r);
+			IF _r.cycle THEN
+				RAISE EXCEPTION 'This creates an infite loop'
+					USING ERRCODE = 'invalid_parameter_value';
+			END IF;
+			INSERT INTO jazzhands_cache.ct_layer3_network_collection_hier_recurse (
+					root_layer3_network_collection_id,
+					layer3_network_collection_id,
+					path,
+					cycle
+				) VALUES (
+					_r.root_layer3_network_collection_id,
+					_r.layer3_network_collection_id,
+					_r.path,
+					_r.cycle
+				) RETURNING * INTO _d ;
+		END LOOP;
+	END IF;
+
+	RETURN NULL;
+END
+$function$
+;
+
+-- New function; dropping in case it returned because of type change
+CREATE OR REPLACE FUNCTION jazzhands_cache.netblock_collection_hier_recurse_handler()
+ RETURNS trigger
+ LANGUAGE plpgsql
+ SECURITY DEFINER
+ SET search_path TO 'jazzhands'
+AS $function$
+DECLARE
+	_r		RECORD;
+	_d		RECORD;
+	_cnt	INTEGER;
+BEGIN
+	--
+	-- Delete any rows that are invalidated due to a parent change.
+	--
+	IF
+		(TG_OP = 'DELETE' OR TG_OP = 'UPDATE')
+	THEN
+		--
+		-- This convoluted statement delets anything where the path has the
+		-- parent and child consective in the path array.  This is nasty.
+		FOR _r IN
+		DELETE FROM jazzhands_cache.ct_netblock_collection_hier_recurse
+			WHERE path IN  (
+				SELECT path FROM (
+					SELECT * FROM (
+						SELECT path, unnest(path) as first,
+							unnest(pathplus) as second
+							--, row_number() over () as rn
+						FROM (
+							SELECT path, path[2:array_length(path, 1)] AS pathplus
+							FROM jazzhands_cache.ct_netblock_collection_hier_recurse
+						) i
+					) rmme WHERE second = OLD.netblock_collection_id
+					AND first = OLD.child_netblock_collection_id
+				) rmpath
+			)
+			RETURNING *
+		LOOP
+			RAISE DEBUG '-> nchd rm %', to_json(_r);
+		END LOOP
+		;
+		get diagnostics _cnt = row_count;
+		RAISE DEBUG 'Deleting upstream references to accol %/% from cache == %',
+			OLD.netblock_collection_id, OLD.child_netblock_collection_id, _cnt;
+	END IF;
+
+	--
+	-- Insert any new rows to correspond with a new parent
+	--
+	IF TG_OP = 'INSERT' OR TG_OP = 'UPDATE' THEN
+		RAISE DEBUG 'nchd %%Insert: %', to_json(NEW);
+
+		--- @> should use the GIN index.  ANY, not so much
+		FOR _r IN
+			SELECT DISTINCT
+				p.path as parent_path, c.path as child_path,
+				c.netblock_collection_id AS netblock_collection_id,
+				p.root_netblock_collection_id AS root_netblock_collection_id,
+				c.path || p.path as path,
+				p.path @> ARRAY[NEW.child_netblock_collection_id]  OR
+					c.path @> ARRAY[NEW.netblock_collection_id] AS cycle
+			FROM	jazzhands_cache.ct_netblock_collection_hier_recurse p,
+				jazzhands_cache.ct_netblock_collection_hier_recurse c
+			WHERE p.netblock_collection_id = NEW.netblock_collection_id
+			AND c.root_netblock_collection_id = NEW.child_netblock_collection_id
+		LOOP
+			RAISE DEBUG 'nchd: i/dsmash:%', to_json(_r);
+			IF _r.cycle THEN
+				RAISE EXCEPTION 'This creates an infite loop'
+					USING ERRCODE = 'invalid_parameter_value';
+			END IF;
+			INSERT INTO jazzhands_cache.ct_netblock_collection_hier_recurse (
+					root_netblock_collection_id,
+					netblock_collection_id,
+					path,
+					cycle
+				) VALUES (
+					_r.root_netblock_collection_id,
+					_r.netblock_collection_id,
+					_r.path,
+					_r.cycle
+				) RETURNING * INTO _d ;
+		END LOOP;
+	END IF;
+
+	RETURN NULL;
+END
+$function$
+;
+
+-- New function; dropping in case it returned because of type change
+CREATE OR REPLACE FUNCTION jazzhands_cache.property_name_collection_hier_recurse_handler()
+ RETURNS trigger
+ LANGUAGE plpgsql
+ SECURITY DEFINER
+ SET search_path TO 'jazzhands'
+AS $function$
+DECLARE
+	_r		RECORD;
+	_d		RECORD;
+	_cnt	INTEGER;
+BEGIN
+	--
+	-- Delete any rows that are invalidated due to a parent change.
+	--
+	IF
+		(TG_OP = 'DELETE' OR TG_OP = 'UPDATE')
+	THEN
+		--
+		-- This convoluted statement delets anything where the path has the
+		-- parent and child consective in the path array.  This is nasty.
+		FOR _r IN
+		DELETE FROM jazzhands_cache.ct_property_name_collection_hier_recurse
+			WHERE path IN  (
+				SELECT path FROM (
+					SELECT * FROM (
+						SELECT path, unnest(path) as first,
+							unnest(pathplus) as second
+							--, row_number() over () as rn
+						FROM (
+							SELECT path, path[2:array_length(path, 1)] AS pathplus
+							FROM jazzhands_cache.ct_property_name_collection_hier_recurse
+						) i
+					) rmme WHERE second = OLD.property_name_collection_id
+					AND first = OLD.child_property_name_collection_id
+				) rmpath
+			)
+			RETURNING *
+		LOOP
+			RAISE DEBUG '-> pnchd rm %', to_json(_r);
+		END LOOP
+		;
+		get diagnostics _cnt = row_count;
+		RAISE DEBUG 'Deleting upstream references to accol %/% from cache == %',
+			OLD.property_name_collection_id, OLD.child_property_name_collection_id, _cnt;
+	END IF;
+
+	--
+	-- Insert any new rows to correspond with a new parent
+	--
+	IF TG_OP = 'INSERT' OR TG_OP = 'UPDATE' THEN
+		RAISE DEBUG 'pnchd %%Insert: %', to_json(NEW);
+
+		--- @> should use the GIN index.  ANY, not so much
+		FOR _r IN
+			SELECT DISTINCT
+				p.path as parent_path, c.path as child_path,
+				c.property_name_collection_id AS property_name_collection_id,
+				p.root_property_name_collection_id AS root_property_name_collection_id,
+				c.path || p.path as path,
+				p.path @> ARRAY[NEW.child_property_name_collection_id]  OR
+					c.path @> ARRAY[NEW.property_name_collection_id] AS cycle
+			FROM	jazzhands_cache.ct_property_name_collection_hier_recurse p,
+				jazzhands_cache.ct_property_name_collection_hier_recurse c
+			WHERE p.property_name_collection_id = NEW.property_name_collection_id
+			AND c.root_property_name_collection_id = NEW.child_property_name_collection_id
+		LOOP
+			RAISE DEBUG 'pnchd: i/dsmash:%', to_json(_r);
+			IF _r.cycle THEN
+				RAISE EXCEPTION 'This creates an infite loop'
+					USING ERRCODE = 'invalid_parameter_value';
+			END IF;
+			INSERT INTO jazzhands_cache.ct_property_name_collection_hier_recurse (
+					root_property_name_collection_id,
+					property_name_collection_id,
+					path,
+					cycle
+				) VALUES (
+					_r.root_property_name_collection_id,
+					_r.property_name_collection_id,
+					_r.path,
+					_r.cycle
+				) RETURNING * INTO _d ;
+		END LOOP;
+	END IF;
+
+	RETURN NULL;
+END
+$function$
+;
+
+-- New function; dropping in case it returned because of type change
+CREATE OR REPLACE FUNCTION jazzhands_cache.service_environment_collection_hier_recurse_handler()
+ RETURNS trigger
+ LANGUAGE plpgsql
+ SECURITY DEFINER
+ SET search_path TO 'jazzhands'
+AS $function$
+DECLARE
+	_r		RECORD;
+	_d		RECORD;
+	_cnt	INTEGER;
+BEGIN
+	--
+	-- Delete any rows that are invalidated due to a parent change.
+	--
+	IF
+		(TG_OP = 'DELETE' OR TG_OP = 'UPDATE')
+	THEN
+		--
+		-- This convoluted statement delets anything where the path has the
+		-- parent and child consective in the path array.  This is nasty.
+		FOR _r IN
+		DELETE FROM jazzhands_cache.ct_service_environment_collection_hier_recurse
+			WHERE path IN  (
+				SELECT path FROM (
+					SELECT * FROM (
+						SELECT path, unnest(path) as first,
+							unnest(pathplus) as second
+							--, row_number() over () as rn
+						FROM (
+							SELECT path, path[2:array_length(path, 1)] AS pathplus
+							FROM jazzhands_cache.ct_service_environment_collection_hier_recurse
+						) i
+					) rmme WHERE second = OLD.service_environment_collection_id
+					AND first = OLD.child_service_environment_collection_id
+				) rmpath
+			)
+			RETURNING *
+		LOOP
+			RAISE DEBUG '-> sechd rm %', to_json(_r);
+		END LOOP
+		;
+		get diagnostics _cnt = row_count;
+		RAISE DEBUG 'Deleting upstream references to accol %/% from cache == %',
+			OLD.service_environment_collection_id, OLD.child_service_environment_collection_id, _cnt;
+	END IF;
+
+	--
+	-- Insert any new rows to correspond with a new parent
+	--
+	IF TG_OP = 'INSERT' OR TG_OP = 'UPDATE' THEN
+		RAISE DEBUG 'sechd %%Insert: %', to_json(NEW);
+
+		--- @> should use the GIN index.  ANY, not so much
+		FOR _r IN
+			SELECT DISTINCT
+				p.path as parent_path, c.path as child_path,
+				c.service_environment_collection_id AS service_environment_collection_id,
+				p.root_service_environment_collection_id AS root_service_environment_collection_id,
+				c.path || p.path as path,
+				p.path @> ARRAY[NEW.child_service_environment_collection_id]  OR
+					c.path @> ARRAY[NEW.service_environment_collection_id] AS cycle
+			FROM	jazzhands_cache.ct_service_environment_collection_hier_recurse p,
+				jazzhands_cache.ct_service_environment_collection_hier_recurse c
+			WHERE p.service_environment_collection_id = NEW.service_environment_collection_id
+			AND c.root_service_environment_collection_id = NEW.child_service_environment_collection_id
+		LOOP
+			RAISE DEBUG 'sechd: i/dsmash:%', to_json(_r);
+			IF _r.cycle THEN
+				RAISE EXCEPTION 'This creates an infite loop'
+					USING ERRCODE = 'invalid_parameter_value';
+			END IF;
+			INSERT INTO jazzhands_cache.ct_service_environment_collection_hier_recurse (
+					root_service_environment_collection_id,
+					service_environment_collection_id,
+					path,
+					cycle
+				) VALUES (
+					_r.root_service_environment_collection_id,
+					_r.service_environment_collection_id,
+					_r.path,
+					_r.cycle
+				) RETURNING * INTO _d ;
+		END LOOP;
+	END IF;
+
+	RETURN NULL;
+END
+$function$
+;
+
+-- New function; dropping in case it returned because of type change
+CREATE OR REPLACE FUNCTION jazzhands_cache.service_version_collection_hier_recurse_handler()
+ RETURNS trigger
+ LANGUAGE plpgsql
+ SECURITY DEFINER
+ SET search_path TO 'jazzhands'
+AS $function$
+DECLARE
+	_r		RECORD;
+	_d		RECORD;
+	_cnt	INTEGER;
+BEGIN
+	--
+	-- Delete any rows that are invalidated due to a parent change.
+	--
+	IF
+		(TG_OP = 'DELETE' OR TG_OP = 'UPDATE')
+	THEN
+		--
+		-- This convoluted statement delets anything where the path has the
+		-- parent and child consective in the path array.  This is nasty.
+		FOR _r IN
+		DELETE FROM jazzhands_cache.ct_service_version_collection_hier_recurse
+			WHERE path IN  (
+				SELECT path FROM (
+					SELECT * FROM (
+						SELECT path, unnest(path) as first,
+							unnest(pathplus) as second
+							--, row_number() over () as rn
+						FROM (
+							SELECT path, path[2:array_length(path, 1)] AS pathplus
+							FROM jazzhands_cache.ct_service_version_collection_hier_recurse
+						) i
+					) rmme WHERE second = OLD.service_version_collection_id
+					AND first = OLD.child_service_version_collection_id
+				) rmpath
+			)
+			RETURNING *
+		LOOP
+			RAISE DEBUG '-> svchd rm %', to_json(_r);
+		END LOOP
+		;
+		get diagnostics _cnt = row_count;
+		RAISE DEBUG 'Deleting upstream references to accol %/% from cache == %',
+			OLD.service_version_collection_id, OLD.child_service_version_collection_id, _cnt;
+	END IF;
+
+	--
+	-- Insert any new rows to correspond with a new parent
+	--
+	IF TG_OP = 'INSERT' OR TG_OP = 'UPDATE' THEN
+		RAISE DEBUG 'svchd %%Insert: %', to_json(NEW);
+
+		--- @> should use the GIN index.  ANY, not so much
+		FOR _r IN
+			SELECT DISTINCT
+				p.path as parent_path, c.path as child_path,
+				c.service_version_collection_id AS service_version_collection_id,
+				p.root_service_version_collection_id AS root_service_version_collection_id,
+				c.path || p.path as path,
+				p.path @> ARRAY[NEW.child_service_version_collection_id]  OR
+					c.path @> ARRAY[NEW.service_version_collection_id] AS cycle
+			FROM	jazzhands_cache.ct_service_version_collection_hier_recurse p,
+				jazzhands_cache.ct_service_version_collection_hier_recurse c
+			WHERE p.service_version_collection_id = NEW.service_version_collection_id
+			AND c.root_service_version_collection_id = NEW.child_service_version_collection_id
+		LOOP
+			RAISE DEBUG 'svchd: i/dsmash:%', to_json(_r);
+			IF _r.cycle THEN
+				RAISE EXCEPTION 'This creates an infite loop'
+					USING ERRCODE = 'invalid_parameter_value';
+			END IF;
+			INSERT INTO jazzhands_cache.ct_service_version_collection_hier_recurse (
+					root_service_version_collection_id,
+					service_version_collection_id,
+					path,
+					cycle
+				) VALUES (
+					_r.root_service_version_collection_id,
+					_r.service_version_collection_id,
+					_r.path,
+					_r.cycle
+				) RETURNING * INTO _d ;
+		END LOOP;
+	END IF;
+
+	RETURN NULL;
+END
+$function$
+;
+
+-- New function; dropping in case it returned because of type change
+CREATE OR REPLACE FUNCTION jazzhands_cache.token_collection_hier_recurse_handler()
+ RETURNS trigger
+ LANGUAGE plpgsql
+ SECURITY DEFINER
+ SET search_path TO 'jazzhands'
+AS $function$
+DECLARE
+	_r		RECORD;
+	_d		RECORD;
+	_cnt	INTEGER;
+BEGIN
+	--
+	-- Delete any rows that are invalidated due to a parent change.
+	--
+	IF
+		(TG_OP = 'DELETE' OR TG_OP = 'UPDATE')
+	THEN
+		--
+		-- This convoluted statement delets anything where the path has the
+		-- parent and child consective in the path array.  This is nasty.
+		FOR _r IN
+		DELETE FROM jazzhands_cache.ct_token_collection_hier_recurse
+			WHERE path IN  (
+				SELECT path FROM (
+					SELECT * FROM (
+						SELECT path, unnest(path) as first,
+							unnest(pathplus) as second
+							--, row_number() over () as rn
+						FROM (
+							SELECT path, path[2:array_length(path, 1)] AS pathplus
+							FROM jazzhands_cache.ct_token_collection_hier_recurse
+						) i
+					) rmme WHERE second = OLD.token_collection_id
+					AND first = OLD.child_token_collection_id
+				) rmpath
+			)
+			RETURNING *
+		LOOP
+			RAISE DEBUG '-> tchd rm %', to_json(_r);
+		END LOOP
+		;
+		get diagnostics _cnt = row_count;
+		RAISE DEBUG 'Deleting upstream references to accol %/% from cache == %',
+			OLD.token_collection_id, OLD.child_token_collection_id, _cnt;
+	END IF;
+
+	--
+	-- Insert any new rows to correspond with a new parent
+	--
+	IF TG_OP = 'INSERT' OR TG_OP = 'UPDATE' THEN
+		RAISE DEBUG 'tchd %%Insert: %', to_json(NEW);
+
+		--- @> should use the GIN index.  ANY, not so much
+		FOR _r IN
+			SELECT DISTINCT
+				p.path as parent_path, c.path as child_path,
+				c.token_collection_id AS token_collection_id,
+				p.root_token_collection_id AS root_token_collection_id,
+				c.path || p.path as path,
+				p.path @> ARRAY[NEW.child_token_collection_id]  OR
+					c.path @> ARRAY[NEW.token_collection_id] AS cycle
+			FROM	jazzhands_cache.ct_token_collection_hier_recurse p,
+				jazzhands_cache.ct_token_collection_hier_recurse c
+			WHERE p.token_collection_id = NEW.token_collection_id
+			AND c.root_token_collection_id = NEW.child_token_collection_id
+		LOOP
+			RAISE DEBUG 'tchd: i/dsmash:%', to_json(_r);
+			IF _r.cycle THEN
+				RAISE EXCEPTION 'This creates an infite loop'
+					USING ERRCODE = 'invalid_parameter_value';
+			END IF;
+			INSERT INTO jazzhands_cache.ct_token_collection_hier_recurse (
+					root_token_collection_id,
+					token_collection_id,
+					path,
+					cycle
+				) VALUES (
+					_r.root_token_collection_id,
+					_r.token_collection_id,
+					_r.path,
+					_r.cycle
+				) RETURNING * INTO _d ;
+		END LOOP;
+	END IF;
+
+	RETURN NULL;
+END
+$function$
+;
+
 --
 -- Process all procs in account_collection_manip
 --
@@ -5810,7 +17318,7 @@ BEGIN
 			FROM service_version_collection_purpose svcp
 			WHERE svc.service_version_collection_id
 					= svcp.service_version_collection_id
-			AND service_collection_purpose IN ('all', 'current');
+			AND service_version_collection_purpose IN ('all', 'current');
 	ELSIF TG_OP = 'DELETE' THEN
 		DELETE FROM service_version_collection_purpose
 		WHERE service_version_collection_purpose IN ('current', 'all')
@@ -5901,6 +17409,162 @@ BEGIN
 	DELETE FROM __recreate WHERE schema = 'jazzhands' AND type = 'function' AND object IN ('manip_all_svc_collection_members');
 EXCEPTION WHEN undefined_table THEN
 	RAISE NOTICE 'Drop of proc manip_all_svc_collection_members failed but that is ok';
+	NULL;
+END;
+$$;
+
+-- Changed function
+SELECT schema_support.save_dependent_objects_for_replay('jazzhands', 'validate_netblock_to_range_changes');
+SELECT schema_support.save_grants_for_replay('jazzhands', 'validate_netblock_to_range_changes');
+CREATE OR REPLACE FUNCTION jazzhands.validate_netblock_to_range_changes()
+ RETURNS trigger
+ LANGUAGE plpgsql
+ SECURITY DEFINER
+ SET search_path TO 'jazzhands'
+AS $function$
+DECLARE
+	_vnrt	val_network_range_type%ROWTYPE;
+	_r		RECORD;
+	_tally	INTEGER;
+BEGIN
+	--
+	-- Check to see if changing these things causes any of the defined
+	-- rules about the netblocks to change
+	--
+	PERFORM
+	FROM	network_range nr
+			JOIN netblock p ON p.netblock_id = nr.parent_netblock_id
+			JOIN netblock start ON start.netblock_id = nr.start_netblock_id
+			JOIN netblock stop ON stop.netblock_id = nr.stop_netblock_id
+			JOIN val_network_range_type vnrt USING (network_range_type)
+	WHERE	-- Check if this IP is even related to a range
+			( p.netblock_id = NEW.netblock_id
+				OR start.netblock_id = NEW.netblock_id
+				OR stop.netblock_id = NEW.netblock_id
+			) AND (
+				-- If so, check to make usre that its the right type.
+					p.can_subnet = true
+				OR 	start.is_single_address = false
+				OR 	stop.is_single_address = false
+				-- and the start/stop is in the parent
+				OR NOT (
+					host(start.ip_address)::inet <<= p.ip_address
+					AND host(stop.ip_address)::inet <<= p.ip_address
+				)
+				-- and if a type is forced, start/top have it
+				OR ( vnrt.netblock_type IS NOT NULL
+					AND NOT
+					( start.netblock_type IS NOT DISTINCT FROM
+						vnrt.netblock_type
+					AND	stop.netblock_type IS NOT DISTINCT FROM
+						vnrt.netblock_type
+					)
+				) -- and if a cidr boundary is required and its not on AS such
+				OR ( vnrt.require_cidr_boundary = true
+					AND NOT (
+						start.ip_address = network(start.ip_address)
+						AND
+						stop.ip_address = broadcast(stop.ip_address)
+					)
+				)
+				OR ( vnrt.require_cidr_boundary = true
+					AND NOT (
+						masklen(start.ip_address) !=
+							masklen(stop.ip_address)
+					)
+				)
+
+			)
+	;
+
+	IF FOUND THEN
+		RAISE EXCEPTION 'Netblock changes conflict with network range requirements '
+			USING ERRCODE = 'integrity_constraint_violation';
+	END IF;
+
+	--
+	-- If an IP changed, check to see if that made ranges overlap
+	--
+	IF OLD.ip_address IS DISTINCT FROM NEW.ip_address THEN
+		FOR _r IN SELECT nr.*, host(start.ip_address)::inet AS start_ip,
+					host(stop.ip_address)::inet AS stop_ip
+				FROM network_range nr
+					JOIN netblock start
+						ON start.netblock_id = nr.start_netblock_id
+					JOIN netblock stop
+						ON stop.netblock_id = nr.stop_netblock_id
+				WHERE nr.start_netblock_id = NEW.netblock_id
+				OR nr.stop_netblock_id = NEW.netblock_id
+		LOOP
+			IF _r.stop_ip < _r.start_ip THEN
+				RAISE EXCEPTION 'stop ip address can not be before start in network ranges.'
+					USING ERRCODE = 'invalid_parameter_value';
+			END IF;
+		END LOOP;
+		FOR _vnrt IN SELECT *
+				FROM val_network_range_type
+				WHERE network_range_type IN (
+					SELECT network_range_type
+					FROM	network_range nr
+					WHERE parent_netblock_id = NEW.netblock_id
+					OR start_netblock_id = NEW.netblock_id
+					OR stop_netblock_id = NEW.netblock_id
+				) AND can_overlap = false
+		LOOP
+			SELECT count(*)
+			INTO _tally
+			FROM	network_range nr
+				JOIN netblock start ON start.netblock_id = nr.start_netblock_id
+				JOIN netblock stop ON stop.netblock_id = nr.stop_netblock_id
+			WHERE	network_range_type = _vnrt.network_range_type
+			AND
+				start.ip_address <= NEW.ip_address
+			AND
+				stop.ip_address  >= NEW.ip_address
+			;
+
+			IF _tally > 1 THEN
+				RAISE EXCEPTION 'Netblock changes network range overlap with type % (%)',
+					_vnrt.network_range_type, _tally
+					USING ERRCODE = 'integrity_constraint_violation';
+			END IF;
+		END LOOP;
+
+		SELECT count(*)
+		INTO _tally
+		FROM	network_range nr
+			JOIN netblock start ON start.netblock_id = nr.start_netblock_id
+			JOIN netblock stop ON stop.netblock_id = nr.stop_netblock_id
+			JOIN val_network_range_type USING (network_range_type)
+		WHERE require_cidr_boundary = true
+		AND (
+			nr.parent_netblock_id = NEW.netblock_id
+			OR start_netblock_id = NEW.netblock_id
+			OR stop_netblock_id = NEW.netblock_id
+		) AND (
+			masklen(start.ip_address) != masklen(stop.ip_address)
+			OR start.ip_address != network(start.ip_address)
+			OR stop.ip_address != broadcast(stop.ip_address)
+		);
+
+		IF _tally > 0 THEN
+			RAISE EXCEPTION 'netblock is part of network_range_type % and creates % violations',
+				_vnrt.network_range_type, _tally
+				USING ERRCODE = 'integrity_constraint_violation';
+		END IF;
+
+	END IF;
+
+	RETURN NEW;
+END; $function$
+;
+
+DO $$
+-- not dropping regrants here.
+BEGIN
+	DELETE FROM __recreate WHERE schema = 'jazzhands' AND type = 'function' AND object IN ('validate_netblock_to_range_changes');
+EXCEPTION WHEN undefined_table THEN
+	RAISE NOTICE 'Drop of proc validate_netblock_to_range_changes failed but that is ok';
 	NULL;
 END;
 $$;
@@ -6065,6 +17729,8 @@ SELECT schema_support.replay_object_recreates(tags := ARRAY['process_all_procs_i
 -- Process all procs in schema_support
 --
 select clock_timestamp(), clock_timestamp() - now() AS len;
+SELECT schema_support.save_dependent_objects_for_replay(schema := 'schema_support'::text, object := 'create_cache_table ( text,text,text,text,boolean )'::text, tags := ARRAY['process_all_procs_in_schema_schema_support'::text]);
+DROP FUNCTION IF EXISTS schema_support.create_cache_table ( text,text,text,text,boolean );
 SELECT schema_support.replay_object_recreates(tags := ARRAY['process_all_procs_in_schema_schema_support']);
 --
 -- Process all procs in script_hooks
@@ -6148,30 +17814,8 @@ WHERE service_version_collection_type = 'current-services';
 ALTER TABLE filesystem ALTER CONSTRAINT fk_filesystem_block_storage_device_id
 	DEFERRABLE;
 
-ALTER TABLE val_block_storage_device_type
-	ADD CONSTRAINT check_prp_prmt_1312273807 
-	CHECK (permit_component_id IN ('REQUIRED', 'PROHIBITED', 'ALLOWED')) ;
-
-ALTER TABLE val_block_storage_device_type
-	ADD CONSTRAINT check_prp_prmt_1709045498 
-	CHECK (permit_logical_volume_id IN ('REQUIRED','PROHIBITED','ALLOWED'));
-
-ALTER TABLE val_encryption_key_purpose
-	ADD CONSTRAINT check_prp_prmt_790339211 
-	CHECK (permit_encryption_key_db_value 
-	IN ('REQUIRED','PROHIBITED','ALLOWED') ) ;
-
-ALTER TABLE val_filesystem_type
-	ADD CONSTRAINT check_prp_prmt_202454059 
-	CHECK (permit_filesystem_label IN ('REQUIRED','PROHIBITED','ALLOWED') );
-
-ALTER TABLE val_filesystem_type
-	ADD CONSTRAINT check_prp_prmt_354720359 
-	CHECK ( permit_mountpoint IN ('REQUIRED', 'PROHIBITED', 'ALLOWED') ) ;
-
-ALTER TABLE val_filesystem_type
-	ADD CONSTRAINT check_prp_prmt_388499636 
-	CHECK (permit_filesystem_serial IN ('REQUIRED','PROHIBITED','ALLOWED'));
+--- some issue with this; will get regenerated later.
+TRUNCATE TABLE jazzhands_cache.ct_jazzhands_legacy_device_support;
 
 
 -- END Misc that does not apply to above
@@ -6235,28 +17879,6 @@ $$;
 
 SELECT schema_support.replay_object_recreates(tags := ARRAY['process_all_procs_in_schema_audit']);
 -- DONE: process_ancillary_schema(audit)
---
--- BEGIN: Fix cache table entries.
---
--- removing old
--- adding new cache tables that are not there
-INSERT INTO schema_support.cache_table (cache_table_schema, cache_table, defining_view_schema, defining_view, updates_enabled
-	) SELECT 'jazzhands_cache' , 'ct_netblock_hier' , 'jazzhands_cache' , 'v_netblock_hier' , '1'  WHERE ('jazzhands_cache' , 'ct_netblock_hier' , 'jazzhands_cache' , 'v_netblock_hier' , '1'  ) NOT IN ( SELECT * FROM schema_support.cache_table );
-INSERT INTO schema_support.cache_table (cache_table_schema, cache_table, defining_view_schema, defining_view, updates_enabled
-	) SELECT 'jazzhands_cache' , 'ct_device_components' , 'jazzhands_cache' , 'v_device_components' , '1'  WHERE ('jazzhands_cache' , 'ct_device_components' , 'jazzhands_cache' , 'v_device_components' , '1'  ) NOT IN ( SELECT * FROM schema_support.cache_table );
-INSERT INTO schema_support.cache_table (cache_table_schema, cache_table, defining_view_schema, defining_view, updates_enabled
-	) SELECT 'jazzhands_cache' , 'ct_netblock_hier' , 'jazzhands_cache' , 'v_netblock_hier' , '1'  WHERE ('jazzhands_cache' , 'ct_netblock_hier' , 'jazzhands_cache' , 'v_netblock_hier' , '1'  ) NOT IN ( SELECT * FROM schema_support.cache_table );
-INSERT INTO schema_support.cache_table (cache_table_schema, cache_table, defining_view_schema, defining_view, updates_enabled
-	) SELECT 'jazzhands_cache' , 'ct_account_collection_hier_from_ancestor' , 'jazzhands_cache' , 'v_account_collection_hier_from_ancestor' , '1'  WHERE ('jazzhands_cache' , 'ct_account_collection_hier_from_ancestor' , 'jazzhands_cache' , 'v_account_collection_hier_from_ancestor' , '1'  ) NOT IN ( SELECT * FROM schema_support.cache_table );
-INSERT INTO schema_support.cache_table (cache_table_schema, cache_table, defining_view_schema, defining_view, updates_enabled
-	) SELECT 'jazzhands_cache' , 'ct_device_collection_hier_from_ancestor' , 'jazzhands_cache' , 'v_device_collection_hier_from_ancestor' , '1'  WHERE ('jazzhands_cache' , 'ct_device_collection_hier_from_ancestor' , 'jazzhands_cache' , 'v_device_collection_hier_from_ancestor' , '1'  ) NOT IN ( SELECT * FROM schema_support.cache_table );
-INSERT INTO schema_support.cache_table (cache_table_schema, cache_table, defining_view_schema, defining_view, updates_enabled
-	) SELECT 'jazzhands_cache' , 'ct_netblock_collection_hier_from_ancestor' , 'jazzhands_cache' , 'v_netblock_collection_hier_from_ancestor' , '1'  WHERE ('jazzhands_cache' , 'ct_netblock_collection_hier_from_ancestor' , 'jazzhands_cache' , 'v_netblock_collection_hier_from_ancestor' , '1'  ) NOT IN ( SELECT * FROM schema_support.cache_table );
-INSERT INTO schema_support.cache_table (cache_table_schema, cache_table, defining_view_schema, defining_view, updates_enabled
-	) SELECT 'jazzhands_cache' , 'ct_jazzhands_legacy_device_support' , 'jazzhands_cache' , 'v_jazzhands_legacy_device_support' , '1'  WHERE ('jazzhands_cache' , 'ct_jazzhands_legacy_device_support' , 'jazzhands_cache' , 'v_jazzhands_legacy_device_support' , '1'  ) NOT IN ( SELECT * FROM schema_support.cache_table );
---
--- DONE: Fix cache table entries.
---
 
 
 -- Clean Up
@@ -6302,6 +17924,8 @@ DROP TRIGGER IF EXISTS trigger_audit_account_assigned_certificate ON account_ass
 CREATE TRIGGER trigger_audit_account_assigned_certificate AFTER INSERT OR DELETE OR UPDATE ON jazzhands.account_assigned_certificate FOR EACH ROW EXECUTE FUNCTION jazzhands.perform_audit_account_assigned_certificate();
 DROP TRIGGER IF EXISTS aaa_account_collection_base_handler ON account_collection;
 CREATE TRIGGER aaa_account_collection_base_handler AFTER INSERT OR DELETE OR UPDATE OF account_collection_id ON jazzhands.account_collection FOR EACH ROW EXECUTE FUNCTION jazzhands_cache.account_collection_base_handler();
+DROP TRIGGER IF EXISTS aaa_ct_account_collection_hier_recurse_base_handler ON account_collection;
+CREATE TRIGGER aaa_ct_account_collection_hier_recurse_base_handler AFTER INSERT OR DELETE OR UPDATE OF account_collection_id ON jazzhands.account_collection FOR EACH ROW EXECUTE FUNCTION jazzhands_cache.ct_account_collection_hier_recurse_base_handler();
 DROP TRIGGER IF EXISTS trig_account_collection_realm ON account_collection;
 CREATE TRIGGER trig_account_collection_realm AFTER UPDATE OF account_collection_type ON jazzhands.account_collection FOR EACH ROW EXECUTE FUNCTION jazzhands.account_collection_realm();
 DROP TRIGGER IF EXISTS trig_userlog_account_collection ON account_collection;
@@ -6322,6 +17946,8 @@ DROP TRIGGER IF EXISTS trigger_audit_account_collection_account ON account_colle
 CREATE TRIGGER trigger_audit_account_collection_account AFTER INSERT OR DELETE OR UPDATE ON jazzhands.account_collection_account FOR EACH ROW EXECUTE FUNCTION jazzhands.perform_audit_account_collection_account();
 DROP TRIGGER IF EXISTS trigger_pgnotify_account_collection_account_token_changes ON account_collection_account;
 CREATE TRIGGER trigger_pgnotify_account_collection_account_token_changes AFTER INSERT OR DELETE OR UPDATE ON jazzhands.account_collection_account FOR EACH ROW EXECUTE FUNCTION jazzhands.pgnotify_account_collection_account_token_changes();
+DROP TRIGGER IF EXISTS aaa_account_collection_hier_recurse_handler ON account_collection_hier;
+CREATE TRIGGER aaa_account_collection_hier_recurse_handler AFTER INSERT OR DELETE OR UPDATE OF account_collection_id, child_account_collection_id ON jazzhands.account_collection_hier FOR EACH ROW EXECUTE FUNCTION jazzhands_cache.account_collection_hier_recurse_handler();
 DROP TRIGGER IF EXISTS aaa_account_collection_root_handler ON account_collection_hier;
 CREATE TRIGGER aaa_account_collection_root_handler AFTER INSERT OR DELETE OR UPDATE OF account_collection_id, child_account_collection_id ON jazzhands.account_collection_hier FOR EACH ROW EXECUTE FUNCTION jazzhands_cache.account_collection_root_handler();
 DROP TRIGGER IF EXISTS trig_account_collection_hier_realm ON account_collection_hier;
@@ -6478,6 +18104,8 @@ DROP TRIGGER IF EXISTS trigger_delete_per_company_company_collection ON company;
 CREATE TRIGGER trigger_delete_per_company_company_collection BEFORE DELETE ON jazzhands.company FOR EACH ROW EXECUTE FUNCTION jazzhands.delete_per_company_company_collection();
 DROP TRIGGER IF EXISTS trigger_update_per_company_company_collection ON company;
 CREATE TRIGGER trigger_update_per_company_company_collection AFTER INSERT OR UPDATE ON jazzhands.company FOR EACH ROW EXECUTE FUNCTION jazzhands.update_per_company_company_collection();
+DROP TRIGGER IF EXISTS aaa_ct_company_collection_hier_recurse_base_handler ON company_collection;
+CREATE TRIGGER aaa_ct_company_collection_hier_recurse_base_handler AFTER INSERT OR DELETE OR UPDATE OF company_collection_id ON jazzhands.company_collection FOR EACH ROW EXECUTE FUNCTION jazzhands_cache.ct_company_collection_hier_recurse_base_handler();
 DROP TRIGGER IF EXISTS trig_userlog_company_collection ON company_collection;
 CREATE TRIGGER trig_userlog_company_collection BEFORE INSERT OR UPDATE ON jazzhands.company_collection FOR EACH ROW EXECUTE FUNCTION schema_support.trigger_ins_upd_generic_func();
 DROP TRIGGER IF EXISTS trigger_audit_company_collection ON company_collection;
@@ -6494,6 +18122,8 @@ DROP TRIGGER IF EXISTS trigger_audit_company_collection_company ON company_colle
 CREATE TRIGGER trigger_audit_company_collection_company AFTER INSERT OR DELETE OR UPDATE ON jazzhands.company_collection_company FOR EACH ROW EXECUTE FUNCTION jazzhands.perform_audit_company_collection_company();
 DROP TRIGGER IF EXISTS trigger_company_collection_member_enforce ON company_collection_company;
 CREATE CONSTRAINT TRIGGER trigger_company_collection_member_enforce AFTER INSERT OR UPDATE ON jazzhands.company_collection_company DEFERRABLE INITIALLY IMMEDIATE FOR EACH ROW EXECUTE FUNCTION jazzhands.company_collection_member_enforce();
+DROP TRIGGER IF EXISTS aaa_company_collection_hier_recurse_handler ON company_collection_hier;
+CREATE TRIGGER aaa_company_collection_hier_recurse_handler AFTER INSERT OR DELETE OR UPDATE OF company_collection_id, child_company_collection_id ON jazzhands.company_collection_hier FOR EACH ROW EXECUTE FUNCTION jazzhands_cache.company_collection_hier_recurse_handler();
 DROP TRIGGER IF EXISTS trig_userlog_company_collection_hier ON company_collection_hier;
 CREATE TRIGGER trig_userlog_company_collection_hier BEFORE INSERT OR UPDATE ON jazzhands.company_collection_hier FOR EACH ROW EXECUTE FUNCTION schema_support.trigger_ins_upd_generic_func();
 DROP TRIGGER IF EXISTS trigger_audit_company_collection_hier ON company_collection_hier;
@@ -6590,6 +18220,8 @@ DROP TRIGGER IF EXISTS trigger_update_per_device_device_collection ON device;
 CREATE TRIGGER trigger_update_per_device_device_collection AFTER INSERT OR UPDATE ON jazzhands.device FOR EACH ROW EXECUTE FUNCTION jazzhands.update_per_device_device_collection();
 DROP TRIGGER IF EXISTS trigger_validate_device_component_assignment ON device;
 CREATE CONSTRAINT TRIGGER trigger_validate_device_component_assignment AFTER INSERT OR UPDATE OF device_type_id, component_id ON jazzhands.device DEFERRABLE INITIALLY IMMEDIATE FOR EACH ROW EXECUTE FUNCTION jazzhands.validate_device_component_assignment();
+DROP TRIGGER IF EXISTS aaa_ct_device_collection_hier_recurse_base_handler ON device_collection;
+CREATE TRIGGER aaa_ct_device_collection_hier_recurse_base_handler AFTER INSERT OR DELETE OR UPDATE OF device_collection_id ON jazzhands.device_collection FOR EACH ROW EXECUTE FUNCTION jazzhands_cache.ct_device_collection_hier_recurse_base_handler();
 DROP TRIGGER IF EXISTS aaa_device_collection_base_handler ON device_collection;
 CREATE TRIGGER aaa_device_collection_base_handler AFTER INSERT OR DELETE OR UPDATE OF device_collection_id ON jazzhands.device_collection FOR EACH ROW EXECUTE FUNCTION jazzhands_cache.device_collection_base_handler();
 DROP TRIGGER IF EXISTS trig_userlog_device_collection ON device_collection;
@@ -6622,6 +18254,8 @@ DROP TRIGGER IF EXISTS trigger_member_device_collection_after_hooks ON device_co
 CREATE TRIGGER trigger_member_device_collection_after_hooks AFTER INSERT OR DELETE OR UPDATE ON jazzhands.device_collection_device FOR EACH STATEMENT EXECUTE FUNCTION jazzhands.device_collection_after_hooks();
 DROP TRIGGER IF EXISTS trigger_member_device_collection_after_row_hooks ON device_collection_device;
 CREATE TRIGGER trigger_member_device_collection_after_row_hooks AFTER INSERT OR DELETE OR UPDATE ON jazzhands.device_collection_device FOR EACH ROW EXECUTE FUNCTION jazzhands.device_collection_device_after_row_hooks();
+DROP TRIGGER IF EXISTS aaa_device_collection_hier_recurse_handler ON device_collection_hier;
+CREATE TRIGGER aaa_device_collection_hier_recurse_handler AFTER INSERT OR DELETE OR UPDATE OF device_collection_id, child_device_collection_id ON jazzhands.device_collection_hier FOR EACH ROW EXECUTE FUNCTION jazzhands_cache.device_collection_hier_recurse_handler();
 DROP TRIGGER IF EXISTS aaa_device_collection_root_handler ON device_collection_hier;
 CREATE TRIGGER aaa_device_collection_root_handler AFTER INSERT OR DELETE OR UPDATE OF device_collection_id, child_device_collection_id ON jazzhands.device_collection_hier FOR EACH ROW EXECUTE FUNCTION jazzhands_cache.device_collection_root_handler();
 DROP TRIGGER IF EXISTS trig_userlog_device_collection_hier ON device_collection_hier;
@@ -6692,6 +18326,8 @@ DROP TRIGGER IF EXISTS trigger_dns_domain_collection_child_automation_ins ON dns
 CREATE TRIGGER trigger_dns_domain_collection_child_automation_ins AFTER INSERT OR UPDATE OF parent_dns_domain_id ON jazzhands.dns_domain FOR EACH ROW EXECUTE FUNCTION jazzhands.dns_domain_collection_child_automation();
 DROP TRIGGER IF EXISTS trigger_dns_domain_trigger_change ON dns_domain;
 CREATE TRIGGER trigger_dns_domain_trigger_change AFTER INSERT OR UPDATE OF dns_domain_name ON jazzhands.dns_domain FOR EACH ROW EXECUTE FUNCTION jazzhands.dns_domain_trigger_change();
+DROP TRIGGER IF EXISTS aaa_ct_dns_domain_collection_hier_recurse_base_handler ON dns_domain_collection;
+CREATE TRIGGER aaa_ct_dns_domain_collection_hier_recurse_base_handler AFTER INSERT OR DELETE OR UPDATE OF dns_domain_collection_id ON jazzhands.dns_domain_collection FOR EACH ROW EXECUTE FUNCTION jazzhands_cache.ct_dns_domain_collection_hier_recurse_base_handler();
 DROP TRIGGER IF EXISTS trig_userlog_dns_domain_collection ON dns_domain_collection;
 CREATE TRIGGER trig_userlog_dns_domain_collection BEFORE INSERT OR UPDATE ON jazzhands.dns_domain_collection FOR EACH ROW EXECUTE FUNCTION schema_support.trigger_ins_upd_generic_func();
 DROP TRIGGER IF EXISTS trigger_audit_dns_domain_collection ON dns_domain_collection;
@@ -6708,6 +18344,8 @@ DROP TRIGGER IF EXISTS trigger_audit_dns_domain_collection_dns_domain ON dns_dom
 CREATE TRIGGER trigger_audit_dns_domain_collection_dns_domain AFTER INSERT OR DELETE OR UPDATE ON jazzhands.dns_domain_collection_dns_domain FOR EACH ROW EXECUTE FUNCTION jazzhands.perform_audit_dns_domain_collection_dns_domain();
 DROP TRIGGER IF EXISTS trigger_dns_domain_collection_member_enforce ON dns_domain_collection_dns_domain;
 CREATE CONSTRAINT TRIGGER trigger_dns_domain_collection_member_enforce AFTER INSERT OR UPDATE ON jazzhands.dns_domain_collection_dns_domain DEFERRABLE INITIALLY IMMEDIATE FOR EACH ROW EXECUTE FUNCTION jazzhands.dns_domain_collection_member_enforce();
+DROP TRIGGER IF EXISTS aaa_dns_domain_collection_hier_recurse_handler ON dns_domain_collection_hier;
+CREATE TRIGGER aaa_dns_domain_collection_hier_recurse_handler AFTER INSERT OR DELETE OR UPDATE OF dns_domain_collection_id, child_dns_domain_collection_id ON jazzhands.dns_domain_collection_hier FOR EACH ROW EXECUTE FUNCTION jazzhands_cache.dns_domain_collection_hier_recurse_handler();
 DROP TRIGGER IF EXISTS trig_userlog_dns_domain_collection_hier ON dns_domain_collection_hier;
 CREATE TRIGGER trig_userlog_dns_domain_collection_hier BEFORE INSERT OR UPDATE ON jazzhands.dns_domain_collection_hier FOR EACH ROW EXECUTE FUNCTION schema_support.trigger_ins_upd_generic_func();
 DROP TRIGGER IF EXISTS trigger_audit_dns_domain_collection_hier ON dns_domain_collection_hier;
@@ -6816,6 +18454,8 @@ DROP TRIGGER IF EXISTS trig_userlog_layer2_network ON layer2_network;
 CREATE TRIGGER trig_userlog_layer2_network BEFORE INSERT OR UPDATE ON jazzhands.layer2_network FOR EACH ROW EXECUTE FUNCTION schema_support.trigger_ins_upd_generic_func();
 DROP TRIGGER IF EXISTS trigger_audit_layer2_network ON layer2_network;
 CREATE TRIGGER trigger_audit_layer2_network AFTER INSERT OR DELETE OR UPDATE ON jazzhands.layer2_network FOR EACH ROW EXECUTE FUNCTION jazzhands.perform_audit_layer2_network();
+DROP TRIGGER IF EXISTS aaa_ct_layer2_network_collection_hier_recurse_base_handler ON layer2_network_collection;
+CREATE TRIGGER aaa_ct_layer2_network_collection_hier_recurse_base_handler AFTER INSERT OR DELETE OR UPDATE OF layer2_network_collection_id ON jazzhands.layer2_network_collection FOR EACH ROW EXECUTE FUNCTION jazzhands_cache.ct_layer2_network_collection_hier_recurse_base_handler();
 DROP TRIGGER IF EXISTS layer2_net_collection_member_enforce_on_type_change ON layer2_network_collection;
 CREATE CONSTRAINT TRIGGER layer2_net_collection_member_enforce_on_type_change AFTER UPDATE OF layer2_network_collection_type ON jazzhands.layer2_network_collection DEFERRABLE INITIALLY IMMEDIATE FOR EACH ROW EXECUTE FUNCTION jazzhands.layer2_net_collection_member_enforce_on_type_change();
 DROP TRIGGER IF EXISTS trig_userlog_layer2_network_collection ON layer2_network_collection;
@@ -6828,6 +18468,8 @@ DROP TRIGGER IF EXISTS trigger_manip_layer2_network_collection_bytype_insup ON l
 CREATE TRIGGER trigger_manip_layer2_network_collection_bytype_insup AFTER INSERT OR UPDATE OF layer2_network_collection_type ON jazzhands.layer2_network_collection FOR EACH ROW EXECUTE FUNCTION jazzhands.manip_layer2_network_collection_bytype();
 DROP TRIGGER IF EXISTS trigger_validate_layer2_network_collection_type_change ON layer2_network_collection;
 CREATE TRIGGER trigger_validate_layer2_network_collection_type_change BEFORE UPDATE OF layer2_network_collection_type ON jazzhands.layer2_network_collection FOR EACH ROW EXECUTE FUNCTION jazzhands.validate_layer2_network_collection_type_change();
+DROP TRIGGER IF EXISTS aaa_layer2_network_collection_hier_recurse_handler ON layer2_network_collection_hier;
+CREATE TRIGGER aaa_layer2_network_collection_hier_recurse_handler AFTER INSERT OR DELETE OR UPDATE OF layer2_network_collection_id, child_layer2_network_collection_id ON jazzhands.layer2_network_collection_hier FOR EACH ROW EXECUTE FUNCTION jazzhands_cache.layer2_network_collection_hier_recurse_handler();
 DROP TRIGGER IF EXISTS trig_userlog_layer2_network_collection_hier ON layer2_network_collection_hier;
 CREATE TRIGGER trig_userlog_layer2_network_collection_hier BEFORE INSERT OR UPDATE ON jazzhands.layer2_network_collection_hier FOR EACH ROW EXECUTE FUNCTION schema_support.trigger_ins_upd_generic_func();
 DROP TRIGGER IF EXISTS trigger_audit_layer2_network_collection_hier ON layer2_network_collection_hier;
@@ -6888,6 +18530,8 @@ DROP TRIGGER IF EXISTS trigger_audit_layer3_network ON layer3_network;
 CREATE TRIGGER trigger_audit_layer3_network AFTER INSERT OR DELETE OR UPDATE ON jazzhands.layer3_network FOR EACH ROW EXECUTE FUNCTION jazzhands.perform_audit_layer3_network();
 DROP TRIGGER IF EXISTS trigger_layer3_network_validate_netblock ON layer3_network;
 CREATE CONSTRAINT TRIGGER trigger_layer3_network_validate_netblock AFTER INSERT OR UPDATE OF netblock_id ON jazzhands.layer3_network NOT DEFERRABLE INITIALLY IMMEDIATE FOR EACH ROW EXECUTE FUNCTION jazzhands.layer3_network_validate_netblock();
+DROP TRIGGER IF EXISTS aaa_ct_layer3_network_collection_hier_recurse_base_handler ON layer3_network_collection;
+CREATE TRIGGER aaa_ct_layer3_network_collection_hier_recurse_base_handler AFTER INSERT OR DELETE OR UPDATE OF layer3_network_collection_id ON jazzhands.layer3_network_collection FOR EACH ROW EXECUTE FUNCTION jazzhands_cache.ct_layer3_network_collection_hier_recurse_base_handler();
 DROP TRIGGER IF EXISTS layer3_net_collection_member_enforce_on_type_change ON layer3_network_collection;
 CREATE CONSTRAINT TRIGGER layer3_net_collection_member_enforce_on_type_change AFTER UPDATE OF layer3_network_collection_type ON jazzhands.layer3_network_collection DEFERRABLE INITIALLY IMMEDIATE FOR EACH ROW EXECUTE FUNCTION jazzhands.layer3_net_collection_member_enforce_on_type_change();
 DROP TRIGGER IF EXISTS trig_userlog_layer3_network_collection ON layer3_network_collection;
@@ -6900,6 +18544,8 @@ DROP TRIGGER IF EXISTS trigger_manip_layer3_network_collection_bytype_insup ON l
 CREATE TRIGGER trigger_manip_layer3_network_collection_bytype_insup AFTER INSERT OR UPDATE OF layer3_network_collection_type ON jazzhands.layer3_network_collection FOR EACH ROW EXECUTE FUNCTION jazzhands.manip_layer3_network_collection_bytype();
 DROP TRIGGER IF EXISTS trigger_validate_layer3_network_collection_type_change ON layer3_network_collection;
 CREATE TRIGGER trigger_validate_layer3_network_collection_type_change BEFORE UPDATE OF layer3_network_collection_type ON jazzhands.layer3_network_collection FOR EACH ROW EXECUTE FUNCTION jazzhands.validate_layer3_network_collection_type_change();
+DROP TRIGGER IF EXISTS aaa_layer3_network_collection_hier_recurse_handler ON layer3_network_collection_hier;
+CREATE TRIGGER aaa_layer3_network_collection_hier_recurse_handler AFTER INSERT OR DELETE OR UPDATE OF layer3_network_collection_id, child_layer3_network_collection_id ON jazzhands.layer3_network_collection_hier FOR EACH ROW EXECUTE FUNCTION jazzhands_cache.layer3_network_collection_hier_recurse_handler();
 DROP TRIGGER IF EXISTS trig_userlog_layer3_network_collection_hier ON layer3_network_collection_hier;
 CREATE TRIGGER trig_userlog_layer3_network_collection_hier BEFORE INSERT OR UPDATE ON jazzhands.layer3_network_collection_hier FOR EACH ROW EXECUTE FUNCTION schema_support.trigger_ins_upd_generic_func();
 DROP TRIGGER IF EXISTS trigger_audit_layer3_network_collection_hier ON layer3_network_collection_hier;
@@ -6974,6 +18620,8 @@ DROP TRIGGER IF EXISTS trigger_validate_netblock_to_range_changes ON netblock;
 CREATE CONSTRAINT TRIGGER trigger_validate_netblock_to_range_changes AFTER UPDATE OF ip_address, is_single_address, can_subnet, netblock_type ON jazzhands.netblock DEFERRABLE INITIALLY IMMEDIATE FOR EACH ROW EXECUTE FUNCTION jazzhands.validate_netblock_to_range_changes();
 DROP TRIGGER IF EXISTS zaa_ta_cache_netblock_hier_handler ON netblock;
 CREATE TRIGGER zaa_ta_cache_netblock_hier_handler AFTER INSERT OR DELETE OR UPDATE OF ip_address, parent_netblock_id ON jazzhands.netblock FOR EACH ROW EXECUTE FUNCTION jazzhands_cache.cache_netblock_hier_handler();
+DROP TRIGGER IF EXISTS aaa_ct_netblock_collection_hier_recurse_base_handler ON netblock_collection;
+CREATE TRIGGER aaa_ct_netblock_collection_hier_recurse_base_handler AFTER INSERT OR DELETE OR UPDATE OF netblock_collection_id ON jazzhands.netblock_collection FOR EACH ROW EXECUTE FUNCTION jazzhands_cache.ct_netblock_collection_hier_recurse_base_handler();
 DROP TRIGGER IF EXISTS aaa_netblock_collection_base_handler ON netblock_collection;
 CREATE TRIGGER aaa_netblock_collection_base_handler AFTER INSERT OR DELETE OR UPDATE OF netblock_collection_id ON jazzhands.netblock_collection FOR EACH ROW EXECUTE FUNCTION jazzhands_cache.netblock_collection_base_handler();
 DROP TRIGGER IF EXISTS trig_userlog_netblock_collection ON netblock_collection;
@@ -6986,6 +18634,8 @@ DROP TRIGGER IF EXISTS trigger_manip_netblock_collection_bytype_insup ON netbloc
 CREATE TRIGGER trigger_manip_netblock_collection_bytype_insup AFTER INSERT OR UPDATE OF netblock_collection_type ON jazzhands.netblock_collection FOR EACH ROW EXECUTE FUNCTION jazzhands.manip_netblock_collection_bytype();
 DROP TRIGGER IF EXISTS trigger_validate_netblock_collection_type_change ON netblock_collection;
 CREATE TRIGGER trigger_validate_netblock_collection_type_change BEFORE UPDATE OF netblock_collection_type ON jazzhands.netblock_collection FOR EACH ROW EXECUTE FUNCTION jazzhands.validate_netblock_collection_type_change();
+DROP TRIGGER IF EXISTS aaa_netblock_collection_hier_recurse_handler ON netblock_collection_hier;
+CREATE TRIGGER aaa_netblock_collection_hier_recurse_handler AFTER INSERT OR DELETE OR UPDATE OF netblock_collection_id, child_netblock_collection_id ON jazzhands.netblock_collection_hier FOR EACH ROW EXECUTE FUNCTION jazzhands_cache.netblock_collection_hier_recurse_handler();
 DROP TRIGGER IF EXISTS aaa_netblock_collection_root_handler ON netblock_collection_hier;
 CREATE TRIGGER aaa_netblock_collection_root_handler AFTER INSERT OR DELETE OR UPDATE OF netblock_collection_id, child_netblock_collection_id ON jazzhands.netblock_collection_hier FOR EACH ROW EXECUTE FUNCTION jazzhands_cache.netblock_collection_root_handler();
 DROP TRIGGER IF EXISTS trig_userlog_netblock_collection_hier ON netblock_collection_hier;
@@ -7116,12 +18766,16 @@ DROP TRIGGER IF EXISTS trigger_audit_property ON property;
 CREATE TRIGGER trigger_audit_property AFTER INSERT OR DELETE OR UPDATE ON jazzhands.property FOR EACH ROW EXECUTE FUNCTION jazzhands.perform_audit_property();
 DROP TRIGGER IF EXISTS trigger_validate_property ON property;
 CREATE CONSTRAINT TRIGGER trigger_validate_property AFTER INSERT OR UPDATE ON jazzhands.property NOT DEFERRABLE INITIALLY IMMEDIATE FOR EACH ROW EXECUTE FUNCTION jazzhands.validate_property();
+DROP TRIGGER IF EXISTS aaa_ct_property_name_collection_hier_recurse_base_handler ON property_name_collection;
+CREATE TRIGGER aaa_ct_property_name_collection_hier_recurse_base_handler AFTER INSERT OR DELETE OR UPDATE OF property_name_collection_id ON jazzhands.property_name_collection FOR EACH ROW EXECUTE FUNCTION jazzhands_cache.ct_property_name_collection_hier_recurse_base_handler();
 DROP TRIGGER IF EXISTS trig_userlog_property_name_collection ON property_name_collection;
 CREATE TRIGGER trig_userlog_property_name_collection BEFORE INSERT OR UPDATE ON jazzhands.property_name_collection FOR EACH ROW EXECUTE FUNCTION schema_support.trigger_ins_upd_generic_func();
 DROP TRIGGER IF EXISTS trigger_audit_property_name_collection ON property_name_collection;
 CREATE TRIGGER trigger_audit_property_name_collection AFTER INSERT OR DELETE OR UPDATE ON jazzhands.property_name_collection FOR EACH ROW EXECUTE FUNCTION jazzhands.perform_audit_property_name_collection();
 DROP TRIGGER IF EXISTS trigger_validate_property_name_collection_type_change ON property_name_collection;
 CREATE TRIGGER trigger_validate_property_name_collection_type_change BEFORE UPDATE OF property_name_collection_type ON jazzhands.property_name_collection FOR EACH ROW EXECUTE FUNCTION jazzhands.validate_property_name_collection_type_change();
+DROP TRIGGER IF EXISTS aaa_property_name_collection_hier_recurse_handler ON property_name_collection_hier;
+CREATE TRIGGER aaa_property_name_collection_hier_recurse_handler AFTER INSERT OR DELETE OR UPDATE OF property_name_collection_id, child_property_name_collection_id ON jazzhands.property_name_collection_hier FOR EACH ROW EXECUTE FUNCTION jazzhands_cache.property_name_collection_hier_recurse_handler();
 DROP TRIGGER IF EXISTS trig_userlog_property_name_collection_hier ON property_name_collection_hier;
 CREATE TRIGGER trig_userlog_property_name_collection_hier BEFORE INSERT OR UPDATE ON jazzhands.property_name_collection_hier FOR EACH ROW EXECUTE FUNCTION schema_support.trigger_ins_upd_generic_func();
 DROP TRIGGER IF EXISTS trigger_audit_property_name_collection_hier ON property_name_collection_hier;
@@ -7174,14 +18828,6 @@ DROP TRIGGER IF EXISTS trigger_create_all_services_collection ON service;
 CREATE TRIGGER trigger_create_all_services_collection AFTER INSERT OR UPDATE OF service_name, service_type ON jazzhands.service FOR EACH ROW EXECUTE FUNCTION jazzhands.create_all_services_collection();
 DROP TRIGGER IF EXISTS trigger_create_all_services_collection_del ON service;
 CREATE TRIGGER trigger_create_all_services_collection_del BEFORE DELETE ON jazzhands.service FOR EACH ROW EXECUTE FUNCTION jazzhands.create_all_services_collection();
-DROP TRIGGER IF EXISTS trig_userlog_service_endpoint ON service_endpoint;
-CREATE TRIGGER trig_userlog_service_endpoint BEFORE INSERT OR UPDATE ON jazzhands.service_endpoint FOR EACH ROW EXECUTE FUNCTION schema_support.trigger_ins_upd_generic_func();
-DROP TRIGGER IF EXISTS trigger_audit_service_endpoint ON service_endpoint;
-CREATE TRIGGER trigger_audit_service_endpoint AFTER INSERT OR DELETE OR UPDATE ON jazzhands.service_endpoint FOR EACH ROW EXECUTE FUNCTION jazzhands.perform_audit_service_endpoint();
-DROP TRIGGER IF EXISTS trigger_service_endpoint_direct_check ON service_endpoint;
-CREATE CONSTRAINT TRIGGER trigger_service_endpoint_direct_check AFTER INSERT OR UPDATE OF dns_record_id, port_range_id ON jazzhands.service_endpoint DEFERRABLE INITIALLY IMMEDIATE FOR EACH ROW EXECUTE FUNCTION jazzhands.service_endpoint_direct_check();
-DROP TRIGGER IF EXISTS trigger_validate_service_endpoint_fksets ON service_endpoint;
-CREATE CONSTRAINT TRIGGER trigger_validate_service_endpoint_fksets AFTER INSERT OR UPDATE OF dns_record_id, port_range_id ON jazzhands.service_endpoint NOT DEFERRABLE INITIALLY IMMEDIATE FOR EACH ROW EXECUTE FUNCTION jazzhands.validate_service_endpoint_fksets();
 DROP TRIGGER IF EXISTS trig_userlog_service_endpoint_health_check ON service_endpoint_health_check;
 CREATE TRIGGER trig_userlog_service_endpoint_health_check BEFORE INSERT OR UPDATE ON jazzhands.service_endpoint_health_check FOR EACH ROW EXECUTE FUNCTION schema_support.trigger_ins_upd_generic_func();
 DROP TRIGGER IF EXISTS trigger_audit_service_endpoint_health_check ON service_endpoint_health_check;
@@ -7228,10 +18874,6 @@ DROP TRIGGER IF EXISTS trig_userlog_service_endpoint_service_sla_service_feature
 CREATE TRIGGER trig_userlog_service_endpoint_service_sla_service_feature BEFORE INSERT OR UPDATE ON jazzhands.service_endpoint_service_sla_service_feature FOR EACH ROW EXECUTE FUNCTION schema_support.trigger_ins_upd_generic_func();
 DROP TRIGGER IF EXISTS trigger_audit_service_endpoint_service_sla_service_feature ON service_endpoint_service_sla_service_feature;
 CREATE TRIGGER trigger_audit_service_endpoint_service_sla_service_feature AFTER INSERT OR DELETE OR UPDATE ON jazzhands.service_endpoint_service_sla_service_feature FOR EACH ROW EXECUTE FUNCTION jazzhands.perform_audit_service_endpoint_service_sla_service_feature();
-DROP TRIGGER IF EXISTS trig_userlog_service_endpoint_x509_certificate ON service_endpoint_x509_certificate;
-CREATE TRIGGER trig_userlog_service_endpoint_x509_certificate BEFORE INSERT OR UPDATE ON jazzhands.service_endpoint_x509_certificate FOR EACH ROW EXECUTE FUNCTION schema_support.trigger_ins_upd_generic_func();
-DROP TRIGGER IF EXISTS trigger_audit_service_endpoint_x509_certificate ON service_endpoint_x509_certificate;
-CREATE TRIGGER trigger_audit_service_endpoint_x509_certificate AFTER INSERT OR DELETE OR UPDATE ON jazzhands.service_endpoint_x509_certificate FOR EACH ROW EXECUTE FUNCTION jazzhands.perform_audit_service_endpoint_x509_certificate();
 DROP TRIGGER IF EXISTS trig_userlog_service_environment ON service_environment;
 CREATE TRIGGER trig_userlog_service_environment BEFORE INSERT OR UPDATE ON jazzhands.service_environment FOR EACH ROW EXECUTE FUNCTION schema_support.trigger_ins_upd_generic_func();
 DROP TRIGGER IF EXISTS trigger_audit_service_environment ON service_environment;
@@ -7240,6 +18882,8 @@ DROP TRIGGER IF EXISTS trigger_delete_per_service_environment_service_environmen
 CREATE TRIGGER trigger_delete_per_service_environment_service_environment_coll BEFORE DELETE ON jazzhands.service_environment FOR EACH ROW EXECUTE FUNCTION jazzhands.delete_per_service_environment_service_environment_collection();
 DROP TRIGGER IF EXISTS trigger_update_per_service_environment_service_environment_coll ON service_environment;
 CREATE TRIGGER trigger_update_per_service_environment_service_environment_coll AFTER INSERT OR UPDATE ON jazzhands.service_environment FOR EACH ROW EXECUTE FUNCTION jazzhands.update_per_service_environment_service_environment_collection();
+DROP TRIGGER IF EXISTS aaa_ct_service_environment_collection_hier_recurse_base_handler ON service_environment_collection;
+CREATE TRIGGER aaa_ct_service_environment_collection_hier_recurse_base_handler AFTER INSERT OR DELETE OR UPDATE OF service_environment_collection_id ON jazzhands.service_environment_collection FOR EACH ROW EXECUTE FUNCTION jazzhands_cache.ct_service_environment_collection_hier_recurse_base_handler();
 DROP TRIGGER IF EXISTS trig_userlog_service_environment_collection ON service_environment_collection;
 CREATE TRIGGER trig_userlog_service_environment_collection BEFORE INSERT OR UPDATE ON jazzhands.service_environment_collection FOR EACH ROW EXECUTE FUNCTION schema_support.trigger_ins_upd_generic_func();
 DROP TRIGGER IF EXISTS trigger_audit_service_environment_collection ON service_environment_collection;
@@ -7250,6 +18894,8 @@ DROP TRIGGER IF EXISTS trigger_manip_service_environment_collection_bytype_insup
 CREATE TRIGGER trigger_manip_service_environment_collection_bytype_insup AFTER INSERT OR UPDATE OF service_environment_collection_type ON jazzhands.service_environment_collection FOR EACH ROW EXECUTE FUNCTION jazzhands.manip_service_environment_collection_bytype();
 DROP TRIGGER IF EXISTS trigger_validate_service_environment_collection_type_change ON service_environment_collection;
 CREATE TRIGGER trigger_validate_service_environment_collection_type_change BEFORE UPDATE OF service_environment_collection_type ON jazzhands.service_environment_collection FOR EACH ROW EXECUTE FUNCTION jazzhands.validate_service_environment_collection_type_change();
+DROP TRIGGER IF EXISTS aaa_service_environment_collection_hier_recurse_handler ON service_environment_collection_hier;
+CREATE TRIGGER aaa_service_environment_collection_hier_recurse_handler AFTER INSERT OR DELETE OR UPDATE OF service_environment_collection_id, child_service_environment_collection_id ON jazzhands.service_environment_collection_hier FOR EACH ROW EXECUTE FUNCTION jazzhands_cache.service_environment_collection_hier_recurse_handler();
 DROP TRIGGER IF EXISTS trig_userlog_service_environment_collection_hier ON service_environment_collection_hier;
 CREATE TRIGGER trig_userlog_service_environment_collection_hier BEFORE INSERT OR UPDATE ON jazzhands.service_environment_collection_hier FOR EACH ROW EXECUTE FUNCTION schema_support.trigger_ins_upd_generic_func();
 DROP TRIGGER IF EXISTS trigger_audit_service_environment_collection_hier ON service_environment_collection_hier;
@@ -7280,12 +18926,6 @@ DROP TRIGGER IF EXISTS trig_userlog_service_layer3_acl ON service_layer3_acl;
 CREATE TRIGGER trig_userlog_service_layer3_acl BEFORE INSERT OR UPDATE ON jazzhands.service_layer3_acl FOR EACH ROW EXECUTE FUNCTION schema_support.trigger_ins_upd_generic_func();
 DROP TRIGGER IF EXISTS trigger_audit_service_layer3_acl ON service_layer3_acl;
 CREATE TRIGGER trigger_audit_service_layer3_acl AFTER INSERT OR DELETE OR UPDATE ON jazzhands.service_layer3_acl FOR EACH ROW EXECUTE FUNCTION jazzhands.perform_audit_service_layer3_acl();
-DROP TRIGGER IF EXISTS trig_userlog_service_relationship ON service_relationship;
-CREATE TRIGGER trig_userlog_service_relationship BEFORE INSERT OR UPDATE ON jazzhands.service_relationship FOR EACH ROW EXECUTE FUNCTION schema_support.trigger_ins_upd_generic_func();
-DROP TRIGGER IF EXISTS trigger_audit_service_relationship ON service_relationship;
-CREATE TRIGGER trigger_audit_service_relationship AFTER INSERT OR DELETE OR UPDATE ON jazzhands.service_relationship FOR EACH ROW EXECUTE FUNCTION jazzhands.perform_audit_service_relationship();
-DROP TRIGGER IF EXISTS trigger_check_service_relationship_rhs ON service_relationship;
-CREATE CONSTRAINT TRIGGER trigger_check_service_relationship_rhs AFTER INSERT OR UPDATE OF related_service_version_id, service_version_restriction_service_id, service_version_restriction ON jazzhands.service_relationship NOT DEFERRABLE INITIALLY IMMEDIATE FOR EACH ROW EXECUTE FUNCTION jazzhands.check_service_relationship_rhs();
 DROP TRIGGER IF EXISTS trig_userlog_service_relationship_service_feature ON service_relationship_service_feature;
 CREATE TRIGGER trig_userlog_service_relationship_service_feature BEFORE INSERT OR UPDATE ON jazzhands.service_relationship_service_feature FOR EACH ROW EXECUTE FUNCTION schema_support.trigger_ins_upd_generic_func();
 DROP TRIGGER IF EXISTS trigger_audit_service_relationship_service_feature ON service_relationship_service_feature;
@@ -7324,10 +18964,14 @@ DROP TRIGGER IF EXISTS trig_userlog_service_version_artifact ON service_version_
 CREATE TRIGGER trig_userlog_service_version_artifact BEFORE INSERT OR UPDATE ON jazzhands.service_version_artifact FOR EACH ROW EXECUTE FUNCTION schema_support.trigger_ins_upd_generic_func();
 DROP TRIGGER IF EXISTS trigger_audit_service_version_artifact ON service_version_artifact;
 CREATE TRIGGER trigger_audit_service_version_artifact AFTER INSERT OR DELETE OR UPDATE ON jazzhands.service_version_artifact FOR EACH ROW EXECUTE FUNCTION jazzhands.perform_audit_service_version_artifact();
+DROP TRIGGER IF EXISTS aaa_ct_service_version_collection_hier_recurse_base_handler ON service_version_collection;
+CREATE TRIGGER aaa_ct_service_version_collection_hier_recurse_base_handler AFTER INSERT OR DELETE OR UPDATE OF service_version_collection_id ON jazzhands.service_version_collection FOR EACH ROW EXECUTE FUNCTION jazzhands_cache.ct_service_version_collection_hier_recurse_base_handler();
 DROP TRIGGER IF EXISTS trig_userlog_service_version_collection ON service_version_collection;
 CREATE TRIGGER trig_userlog_service_version_collection BEFORE INSERT OR UPDATE ON jazzhands.service_version_collection FOR EACH ROW EXECUTE FUNCTION schema_support.trigger_ins_upd_generic_func();
 DROP TRIGGER IF EXISTS trigger_audit_service_version_collection ON service_version_collection;
 CREATE TRIGGER trigger_audit_service_version_collection AFTER INSERT OR DELETE OR UPDATE ON jazzhands.service_version_collection FOR EACH ROW EXECUTE FUNCTION jazzhands.perform_audit_service_version_collection();
+DROP TRIGGER IF EXISTS aaa_service_version_collection_hier_recurse_handler ON service_version_collection_hier;
+CREATE TRIGGER aaa_service_version_collection_hier_recurse_handler AFTER INSERT OR DELETE OR UPDATE OF service_version_collection_id, child_service_version_collection_id ON jazzhands.service_version_collection_hier FOR EACH ROW EXECUTE FUNCTION jazzhands_cache.service_version_collection_hier_recurse_handler();
 DROP TRIGGER IF EXISTS trig_userlog_service_version_collection_hier ON service_version_collection_hier;
 CREATE TRIGGER trig_userlog_service_version_collection_hier BEFORE INSERT OR UPDATE ON jazzhands.service_version_collection_hier FOR EACH ROW EXECUTE FUNCTION schema_support.trigger_ins_upd_generic_func();
 DROP TRIGGER IF EXISTS trigger_audit_service_version_collection_hier ON service_version_collection_hier;
@@ -7466,10 +19110,14 @@ DROP TRIGGER IF EXISTS trigger_audit_token ON token;
 CREATE TRIGGER trigger_audit_token AFTER INSERT OR DELETE OR UPDATE ON jazzhands.token FOR EACH ROW EXECUTE FUNCTION jazzhands.perform_audit_token();
 DROP TRIGGER IF EXISTS trigger_pgnotify_token_change ON token;
 CREATE TRIGGER trigger_pgnotify_token_change AFTER INSERT OR UPDATE ON jazzhands.token FOR EACH ROW EXECUTE FUNCTION jazzhands.pgnotify_token_change();
+DROP TRIGGER IF EXISTS aaa_ct_token_collection_hier_recurse_base_handler ON token_collection;
+CREATE TRIGGER aaa_ct_token_collection_hier_recurse_base_handler AFTER INSERT OR DELETE OR UPDATE OF token_collection_id ON jazzhands.token_collection FOR EACH ROW EXECUTE FUNCTION jazzhands_cache.ct_token_collection_hier_recurse_base_handler();
 DROP TRIGGER IF EXISTS trig_userlog_token_collection ON token_collection;
 CREATE TRIGGER trig_userlog_token_collection BEFORE INSERT OR UPDATE ON jazzhands.token_collection FOR EACH ROW EXECUTE FUNCTION schema_support.trigger_ins_upd_generic_func();
 DROP TRIGGER IF EXISTS trigger_audit_token_collection ON token_collection;
 CREATE TRIGGER trigger_audit_token_collection AFTER INSERT OR DELETE OR UPDATE ON jazzhands.token_collection FOR EACH ROW EXECUTE FUNCTION jazzhands.perform_audit_token_collection();
+DROP TRIGGER IF EXISTS aaa_token_collection_hier_recurse_handler ON token_collection_hier;
+CREATE TRIGGER aaa_token_collection_hier_recurse_handler AFTER INSERT OR DELETE OR UPDATE OF token_collection_id, child_token_collection_id ON jazzhands.token_collection_hier FOR EACH ROW EXECUTE FUNCTION jazzhands_cache.token_collection_hier_recurse_handler();
 DROP TRIGGER IF EXISTS trig_userlog_token_collection_hier ON token_collection_hier;
 CREATE TRIGGER trig_userlog_token_collection_hier BEFORE INSERT OR UPDATE ON jazzhands.token_collection_hier FOR EACH ROW EXECUTE FUNCTION schema_support.trigger_ins_upd_generic_func();
 DROP TRIGGER IF EXISTS trigger_audit_token_collection_hier ON token_collection_hier;

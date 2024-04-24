@@ -1132,7 +1132,7 @@ LANGUAGE plpgsql;
 CREATE OR REPLACE FUNCTION component_manip.insert_memory_component(
 	model				text,
 	memory_size			bigint,
-	memory_speed		bigint,
+	memory_speed		bigint DEFAULT NULL,
 	memory_type			text DEFAULT 'DDR3',
 	vendor_name			text DEFAULT NULL,
 	serial_number		text DEFAULT NULL
@@ -1150,14 +1150,18 @@ BEGIN
 
 	IF vendor_name IS NOT NULL THEN
 		SELECT
-			company_id INTO cid
+			comp.company_id INTO cid
 		FROM
-			company c LEFT JOIN
-			property p USING (company_id)
+			company comp JOIN
+			company_collection_company ccc USING (company_id) JOIN
+			property p USING (company_collection_id)
 		WHERE
-			property_type = 'DeviceProvisioning' AND
-			property_name = 'VendorMemoryProbeString' AND
-			property_value = vendor_name;
+			p.property_type = 'DeviceProvisioning' AND
+			p.property_name = 'MemoryVendorProbeString' AND
+			p.property_value = vendor_name
+		ORDER BY
+			p.property_id
+		LIMIT 1;
 	END IF;
 
 	--
@@ -1237,8 +1241,20 @@ BEGIN
 			component_type_id,
 			property_value
 		) VALUES
-			('MemorySize', 'memory', ctid, memory_size),
-			('MemorySpeed', 'memory', ctid, memory_speed);
+			('MemorySize', 'memory', ctid, memory_size);
+
+		--
+		-- memory_speed may not be passed, so only insert it if we have it.
+		--
+		IF memory_speed IS NOT NULL THEN
+			INSERT INTO component_property (
+				component_property_name,
+				component_property_type,
+				component_type_id,
+				property_value
+			) VALUES
+				('MemorySpeed', 'memory', ctid, memory_speed);
+		END IF;
 
 		--
 		-- Insert the component functions
@@ -1320,17 +1336,20 @@ BEGIN
 	cid := NULL;
 
 	IF vendor_name IS NOT NULL THEN
+
 		SELECT
-			company.company_id INTO cid
+			comp.company_id INTO cid
 		FROM
-			company JOIN
-			company_collection_company ccc using (company_id) JOIN
-			company_collection cc using (company_collection_id) JOIN
+			company comp JOIN
+			company_collection_company ccc USING (company_id) JOIN
 			property p USING (company_collection_id)
 		WHERE
-			property_type = 'DeviceProvisioning' AND
-			property_name = 'VendorCPUProbeString' AND
-			property_value = vendor_name;
+			p.property_type = 'DeviceProvisioning' AND
+			p.property_name = 'CPUVendorProbeString' AND
+			p.property_value = vendor_name
+		ORDER BY
+			p.property_id
+		LIMIT 1;
 	END IF;
 
 	--

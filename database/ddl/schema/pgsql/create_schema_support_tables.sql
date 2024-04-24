@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2016 Todd Kover
+ * Copyright (c) 2016-2024 Todd Kover
  * All rights reserved.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
@@ -69,6 +69,7 @@ CREATE TABLE schema_support.cache_table (
 	defining_view_schema	text	NOT NULL,
 	defining_view			text	NOT NULL,
 	updates_enabled			boolean	NOT NULL,
+	create_options			jsonb,
 	PRIMARY KEY (cache_table_schema, cache_table)
 );
 

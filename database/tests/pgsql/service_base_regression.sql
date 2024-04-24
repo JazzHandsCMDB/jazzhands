@@ -1,4 +1,4 @@
--- Copyright (c) 2021-2023 Todd Kover
+-- Copyright (c) 2021-2024 Todd Kover
 -- All rights reserved.
 --
 -- Licensed under the Apache License, Version 2.0 (the "License");
@@ -22,6 +22,7 @@
 SAVEPOINT service_base_regression;
 
 \ir ../../ddl/schema/pgsql/create_service_base_triggers.sql
+\ir ../../ddl/schema/pgsql/create_service_automated_collection_triggers.sql
 \ir ../../ddl/schema/pgsql/create_service_version_automated_membership_triggers.sql
 
 SAVEPOINT pretest;
@@ -35,7 +36,7 @@ DECLARE
 BEGIN
 	RAISE NOTICE 'service_base_regression: Begin';
 
-	INSERT INTO val_service_namespace ( service_namespace ) 
+	INSERT INTO val_service_namespace ( service_namespace )
 		VALUES ('altnamespace1');
 
 	INSERT INTO val_service_type ( service_type, service_namespace ) VALUES
@@ -66,9 +67,9 @@ BEGIN
 			('unique1', 'network'),
 			('unique2', 'socket');
 		BEGIN
-			UPDATE service 
-			SET service_name = 'unique1' 
-			WHERE service_name = 'unique2' 
+			UPDATE service
+			SET service_name = 'unique1'
+			WHERE service_name = 'unique2'
 			AND service_type = 'socket';
 		EXCEPTION WHEN unique_violation THEN
 			RAISE EXCEPTION '%', SQLERRM USING ERRCODE = 'JH999';
@@ -84,7 +85,7 @@ BEGIN
 				('unique1', 'jhtype1'),
 				('unique1', 'jhtype3');
 		BEGIN
-			UPDATE val_service_type 
+			UPDATE val_service_type
 			SET service_namespace = 'default'
 			WHERE service_type = 'jhtype3'
 			RETURNING * INTO _r;
@@ -101,10 +102,29 @@ BEGIN
 		INSERT INTO service (service_name, service_type) VALUES
 			('unique1', 'jhtype1'),
 			('unique2', 'jhtype3');
-		UPDATE val_service_type 
+		UPDATE val_service_type
 		SET service_namespace = 'default'
 		WHERE service_type = 'jhtype3'
 		RETURNING * INTO _r;
+		RAISE NOTICE 'success!';
+	EXCEPTION WHEN SQLSTATE 'JH999' THEN
+		RAISE NOTICE '... It did (%)', SQLERRM;
+	END;
+
+	RAISE NOTICE 'Checking if basic service name manipulation works';
+	BEGIN
+		INSERT INTO service (service_name, service_type) VALUES
+			('unique1', 'jhtype1'),
+			('unique2', 'jhtype3');
+
+		UPDATE service SET service_name = 'unique1a'
+			WHERE service_name = 'unique1' AND service_type = 'jhtype1';
+		UPDATE service SET service_name = 'unique2a'
+			WHERE service_name = 'unique2' AND service_type = 'jhtype1';
+
+		DELETE FROM service WHERE service_name IN ('unique1a', 'unique2a')
+			AND service_type = 'jhtype1';
+
 		RAISE NOTICE 'success!';
 	EXCEPTION WHEN SQLSTATE 'JH999' THEN
 		RAISE NOTICE '... It did (%)', SQLERRM;
@@ -122,7 +142,7 @@ BEGIN
 			WHERE service_name = 'unique1' and service_type = 'jhtype1'
 		);
 
-		DELETE FROM service 
+		DELETE FROM service
 			WHERE service_name = 'unique1' and service_type = 'jhtype1';
 		RAISE EXCEPTION 'worked' USING ERRCODE = 'JH999';
 	EXCEPTION WHEN SQLSTATE 'JH999' THEN

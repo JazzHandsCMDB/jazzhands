@@ -1,13 +1,13 @@
 --
 -- Copyright (c) 2015 Matthew Ragan
 -- All rights reserved.
--- 
+--
 -- Licensed under the Apache License, Version 2.0 (the "License");
 -- you may not use this file except in compliance with the License.
 -- You may obtain a copy of the License at
--- 
+--
 --      http://www.apache.org/licenses/LICENSE-2.0
--- 
+--
 -- Unless required by applicable law or agreed to in writing, software
 -- distributed under the License is distributed on an "AS IS" BASIS,
 -- WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
@@ -48,7 +48,7 @@ BEGIN
 	SET CONSTRAINTS ALL DEFERRED;
 
 	SELECT ARRAY(
-		SELECT 
+		SELECT
 			DISTINCT child_pv_id
 		FROM
 			v_lv_hier lh
@@ -69,7 +69,7 @@ BEGIN
 	) INTO pv_list;
 
 	SELECT ARRAY(
-		SELECT 
+		SELECT
 			DISTINCT child_vg_id
 		FROM
 			v_lv_hier lh
@@ -90,7 +90,7 @@ BEGIN
 	) INTO vg_list;
 
 	SELECT ARRAY(
-		SELECT 
+		SELECT
 			DISTINCT child_lv_id
 		FROM
 			v_lv_hier lh
@@ -136,7 +136,7 @@ BEGIN
 	SET CONSTRAINTS ALL DEFERRED;
 
 	SELECT ARRAY(
-		SELECT 
+		SELECT
 			DISTINCT child_pv_id
 		FROM
 			v_lv_hier lh
@@ -157,7 +157,7 @@ BEGIN
 	) INTO pv_list;
 
 	SELECT ARRAY(
-		SELECT 
+		SELECT
 			DISTINCT child_vg_id
 		FROM
 			v_lv_hier lh
@@ -178,7 +178,7 @@ BEGIN
 	) INTO vg_list;
 
 	SELECT ARRAY(
-		SELECT 
+		SELECT
 			DISTINCT child_lv_id
 		FROM
 			v_lv_hier lh
@@ -255,13 +255,13 @@ BEGIN
 	SET CONSTRAINTS ALL DEFERRED;
 
 	FOREACH pvid IN ARRAY physicalish_volume_list LOOP
-		DELETE FROM 
+		DELETE FROM
 			volume_group_physicalish_volume vgpv
 		WHERE
 			vgpv.physicalish_volume_id = pvid
 		RETURNING
 			volume_group_id INTO vgid;
-		
+
 		IF FOUND AND purge_orphans THEN
 			PERFORM * FROM
 				volume_group_physicalish_volume vgpv
@@ -334,7 +334,7 @@ BEGIN
 		volume_group_physicalish_volume vgpv
 	WHERE
 		vgpv.volume_group_id = ANY(volume_group_list);
-	
+
 	DELETE FROM
 		volume_group_purpose vgp
 	WHERE
@@ -349,17 +349,17 @@ BEGIN
 		logical_volume_purpose
 	WHERE
 		logical_volume_id = ANY(lvids);
-	
+
 	DELETE FROM
 		block_storage_device
 	WHERE
 		logical_volume_id = ANY(lvids);
-	
+
 	DELETE FROM
 		logical_volume
 	WHERE
 		logical_volume_id = ANY(lvids);
-	
+
 	DELETE FROM
 		volume_group vg
 	WHERE
@@ -409,17 +409,17 @@ BEGIN
 		logical_volume_property lvp
 	WHERE
 		lvp.logical_volume_id = ANY(logical_volume_list);
-	
+
 	DELETE FROM
 		logical_volume_purpose lvp
 	WHERE
 		lvp.logical_volume_id = ANY(logical_volume_list);
-	
+
 	DELETE FROM
 		block_storage_device bsd
 	WHERE
 		bsd.logical_volume_id = ANY(logical_volume_list);
-	
+
 	DELETE FROM
 		logical_volume lv
 	WHERE
