@@ -1,17 +1,17 @@
 /*
- * Copyright (c) 2015, Todd M. Kover					     
- * All rights reserved.							  
- *									       
- * Licensed under the Apache License, Version 2.0 (the "License");	       
- * you may not use this file except in compliance with the License.	      
- * You may obtain a copy of the License at				       
- *									       
- *       http://www.apache.org/licenses/LICENSE-2.0			      
- *									       
- * Unless required by applicable law or agreed to in writing, software	   
- * distributed under the License is distributed on an "AS IS" BASIS,	     
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.      
- * See the License for the specific language governing permissions and	   
+ * Copyright (c) 2015, Todd M. Kover					
+ * All rights reserved.							
+ *									
+ * Licensed under the Apache License, Version 2.0 (the "License");	
+ * you may not use this file except in compliance with the License.	
+ * You may obtain a copy of the License at				
+ *									
+ *       http://www.apache.org/licenses/LICENSE-2.0			
+ *									
+ * Unless required by applicable law or agreed to in writing, software	
+ * distributed under the License is distributed on an "AS IS" BASIS,	
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and	
  * limitations under the License.						
  */
 
@@ -119,7 +119,7 @@ $(document).ready(function(){
 
 	$("table.attest").on('click', "input.approveall", function(event) {
 
-		$(event.target).closest('table.attest').find('input.approve').each( 
+		$(event.target).closest('table.attest').find('input.approve').each(
 			function(iter, obj) {
 				$(obj).addClass('buttonon');
 				$(obj).closest('td').find('.disapprove').removeClass('buttonon');
@@ -141,7 +141,7 @@ $(document).ready(function(){
 
 		// check for corrections that were not filled in
 		$('form#attest').find('input.correction').each(function(i, obj) {
-			if( !$(obj).closest('div.correction').hasClass('hidecorrection') && 
+			if( !$(obj).closest('div.correction').hasClass('hidecorrection') &&
 					($(obj).hasClass('hint') || $(obj).val().length == 0 ) ) {
 				s.dosubmit = false;
 				$(obj).closest('td').addClass('error');
@@ -152,7 +152,7 @@ $(document).ready(function(){
 
 		// check for chosen selects that were not filled in
 		$('form#attest').find('select.correction').each(function(i, obj) {
-			if( !$(obj).closest('div.correction').hasClass('hidecorrection') && 
+			if( !$(obj).closest('div.correction').hasClass('hidecorrection') &&
 					($(obj).hasClass('hint') || $(obj).val().length == 0 ) ) {
 				s.dosubmit = false;
 				$(obj).closest('td').addClass('error');
@@ -166,7 +166,7 @@ $(document).ready(function(){
 			if( $(obj).val() == '' && !$(obj).closest('div.correction').hasClass('hidecorrection')) {
 				$(obj).closest('td').addClass('error');
 				s.dosubmit = false;
-			} else { 
+			} else {
 				$(obj).closest('td').removeClass('error');
 			}
 		});
@@ -181,7 +181,7 @@ $(document).ready(function(){
 });
 
 function build_approve_correct(resp, newid) {
-	var box = $("<input />", { 
+	var box = $("<input />", {
 		name: newid,
 		id: newid,
 		class: 'correction hint',

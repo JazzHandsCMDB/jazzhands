@@ -46,13 +46,12 @@ sub find_best_ns {
 
 	my $lastns;
 
-	my $res = Net::DNS::Resolver->new;
+	my $res   = Net::DNS::Resolver->new;
 	my $query = $res->query( $zone, "NS" );
 
 	if ( !$query || !$query->answer ) {
 		$stab->error_return(
-			"Unable to find the registered nameserver for this host"
-		);
+			"Unable to find the registered nameserver for this host");
 	}
 	foreach my $rr ( grep { $_->type eq 'NS' } $query->answer ) {
 		if ( defined( $rr->nsdname ) ) {
@@ -95,8 +94,7 @@ sub process_zone {
 	my @zone = $res->axfr($xferzone);
 	if ( $#zone == -1 ) {
 		$stab->error_return(
-			"Unable to AXFR zone from authoritative DNS server $ns"
-		);
+			"Unable to AXFR zone from authoritative DNS server $ns");
 	}
 
 	my $msg    = "";
@@ -108,47 +106,34 @@ sub process_zone {
 			next if ( defined($do_16) && $do_16 != $2 );
 			my @addr = ( $1, $2, $3, $4 );
 			if ( !$addr[0] ) {
-				$msg .=
-				  "Weird, unverified PTR record: $rr->name";
+				$msg .= "Weird, unverified PTR record: $rr->name";
 			} else {
 				my $addr = join( ".", reverse(@addr) );
-				$msg .= check_addr(
-					$stab, $rr->ptrdname,
-					$addr, $rr->type
-				);
+				$msg .= check_addr( $stab, $rr->ptrdname, $addr, $rr->type );
 			}
 		} elsif ( $rr->type eq 'A' ) {
-			$msg .= check_addr( $stab, $rr->name, $rr->address,
-				$rr->type );
-			$msg .= check_name( $stab, $rr->name, $rr->address,
-				$rr->type, $zone );
+			$msg .= check_addr( $stab, $rr->name, $rr->address, $rr->type );
+			$msg .=
+			  check_name( $stab, $rr->name, $rr->address, $rr->type, $zone );
 		} elsif ( $rr->type eq 'MX' ) {
 			$msg .= check_mx( $stab, $rr->name, $rr->preference,
 				$rr->exchange, $zone );
 		} elsif ( $rr->type eq 'CNAME' ) {
-			$msg .=
-			  check_cname( $stab, $rr->name, $rr->cname, $zone );
+			$msg .= check_cname( $stab, $rr->name, $rr->cname, $zone );
 		} elsif ( $rr->type eq 'CNAME' ) {
-			$msg .=
-			  check_cname( $stab, $rr->name, $rr->cname, $zone );
+			$msg .= check_cname( $stab, $rr->name, $rr->cname, $zone );
 		} elsif ( $rr->type eq 'SRV' ) {
 			$msg .= check_srv( $stab, $rr, $zone );
 		} elsif ( $rr->type eq 'TXT' ) {
 			my @list = $rr->char_str_list;
 			$msg .= check_txt( $stab, $rr->name, \@list, $zone );
 		} elsif ( $rr->type eq 'NS' ) {
-			$msg .=
-			  check_ns( $stab, $rr->name, $rr->nsdname, $zone );
+			$msg .= check_ns( $stab, $rr->name, $rr->nsdname, $zone );
 		} elsif ( $rr->type eq 'SOA' ) {
 			$msg .= check_soa( $stab, $rr, $zone );
 		} else {
-			$msg .= $cgi->li(
-				"NOTE: ",
-				$rr->type,
-				" record ",
-				$rr->name,
-" can not be checked and should be verified by hand."
-			);
+			$msg .= $cgi->li( "NOTE: ", $rr->type, " record ", $rr->name,
+				" can not be checked and should be verified by hand." );
 		}
 	}
 
@@ -169,7 +154,7 @@ sub device_from_name {
 		 where  device_name = ?
 	};
 	my $sth = $stab->prepare($q) || $stab->return_db_err($dbh);
-	$sth->execute($name) || $stab->return_db_err($sth);
+	$sth->execute($name)         || $stab->return_db_err($sth);
 
 	$sth->fetchrow_hashref;
 }
@@ -177,8 +162,7 @@ sub device_from_name {
 sub check_for_zone {
 	my ( $stab, $zone ) = @_;
 
-	my $sth = $stab->prepare(
-		qq{
+	my $sth = $stab->prepare( qq{
 		select	dns_domain_id
 		 from	dns_domain
 		 where	soa_name = ?
@@ -196,8 +180,7 @@ sub check_soa {
 	my ( $stab, $rr, $zone ) = @_;
 	my $cgi = $stab->cgi;
 
-	my $sth = $stab->prepare(
-		qq{
+	my $sth = $stab->prepare( qq{
 		select	*
 		 from	v_dns_domain_nouniverse
 		where	soa_name = ?
@@ -254,13 +237,11 @@ sub check_ns {
 	} else {
 		if ( !defined( check_for_zone( $stab, $zone ) ) ) {
 			return $cgi->li(
-"$name is a dedicated zone; not checking NS record"
-			);
+				"$name is a dedicated zone; not checking NS record");
 		}
 	}
 
-	my $sth = $stab->prepare(
-		qq{
+	my $sth = $stab->prepare( qq{
 		select	d.dns_value
 		  from	dns_record	d
 				inner join dns_domain dom
@@ -278,7 +259,7 @@ sub check_ns {
 	}
 
 	$sth->bind_param( ':zone', $zone ) || $stab->return_db_err($sth);
-	$sth->execute || $stab->return_db_err($sth);
+	$sth->execute                      || $stab->return_db_err($sth);
 
 	my $msg   = "";
 	my $found = 0;
@@ -292,7 +273,7 @@ sub check_ns {
 			$found = 1;
 		} else {
 			$msg .= $cgi->li(
-"NS: $name ($nsdname) does not match JazzHands for $shortname (",
+				"NS: $name ($nsdname) does not match JazzHands for $shortname (",
 				"$dnsval"
 			);
 		}
@@ -308,8 +289,7 @@ sub check_ns {
 			} else {
 				$ps = "for domain";
 			}
-			return $cgi->li(
-				"NS record $ps: $nsdname not in JazzHands");
+			return $cgi->li("NS record $ps: $nsdname not in JazzHands");
 		}
 	}
 }
@@ -326,8 +306,7 @@ sub check_txt {
 		$nameq = "d.dns_name is null";
 	}
 
-	my $sth = $stab->prepare(
-		qq{
+	my $sth = $stab->prepare( qq{
 		select	d.dns_value
 		 from	dns_record d
 				inner join dns_domain dom
@@ -361,11 +340,8 @@ sub check_txt {
 			} else {
 				$msg .= $cgi->li(
 					"TXT record for ",
-					$cgi->b($name),
-					" ($val) does not match JazzHands ",
-					"(",
-					$cgi->b($val),
-					")"
+					$cgi->b($name), " ($val) does not match JazzHands ",
+					"(", $cgi->b($val), ")"
 				);
 			}
 		}
@@ -451,23 +427,22 @@ sub check_srv {
 	my $found = 0;
 	while ( my $hr = $sth->fetchrow_hashref ) {
 
-       # slap the zone back on some compares to what came from dns look right...
+		# slap the zone back on some compares to what came from dns look right...
 		$hr->{ _dbx('DNS_VALUE') } .= ".$zone"
 		  if ( $hr->{ _dbx('DNS_VALUE') } !~ /\.$/ );
 		$hr->{ _dbx('DNS_VALUE') } =~ s/\.$//;
-		my $mesh = join( " ",
-			$rr->priority, $rr->weight, $rr->port, $rr->target );
+		my $mesh =
+		  join( " ", $rr->priority, $rr->weight, $rr->port, $rr->target );
 		$mesh =~ s/\s+/ /g;
 		if ( defined( $hr->{ _dbx('DNS_SRV_PORT') } ) ) {
 			if (
 				$hr->{ _dbx('DNS_VALUE') } eq $rr->target
 				&&
 
-			       # $hr->{_dbx('DNS_SRV_SERVICE')} == $svc &&
-			       # $hr->{_dbx('DNS_SRV_PROTOCOL')} eq "_$proto" &&
+				# $hr->{_dbx('DNS_SRV_SERVICE')} == $svc &&
+				# $hr->{_dbx('DNS_SRV_PROTOCOL')} eq "_$proto" &&
 				$hr->{ _dbx('DNS_PRIORITY') } == $rr->priority
-				&& $hr->{ _dbx('DNS_SRV_WEIGHT') } ==
-				$rr->weight
+				&& $hr->{ _dbx('DNS_SRV_WEIGHT') } == $rr->weight
 				&& $hr->{ _dbx('DNS_SRV_PORT') } == $rr->port
 			  )
 			{
@@ -479,13 +454,8 @@ sub check_srv {
 					$hr->{ _dbx('DNS_SRV_PORT') },
 					$hr->{ _dbx('DNS_VALUE') } );
 				$dbmesh =~ s/\s+/ /g;
-				$msg .= $cgi->li(
-					"SRV record in DNS ",
-					$rr->name,
-					" is '",
-					$cgi->b($dbmesh),
-					"' not '$mesh'"
-				);
+				$msg .= $cgi->li( "SRV record in DNS ",
+					$rr->name, " is '", $cgi->b($dbmesh), "' not '$mesh'" );
 			}
 		} elsif ( $hr->{ _dbx('DNS_VALUE') } eq $mesh ) {
 			$found = 1;
@@ -498,13 +468,8 @@ sub check_srv {
 					$hr->{ _dbx('DNS_SRV_PORT') },
 					$hr->{ _dbx('DNS_VALUE') } );
 				$dbmesh =~ s/\s+/ /g;
-				$msg .= $cgi->li(
-					"combined SRV record ",
-					$rr->name,
-					" is ",
-					$cgi->b($dbmesh),
-					" not '$mesh'"
-				);
+				$msg .= $cgi->li( "combined SRV record ",
+					$rr->name, " is ", $cgi->b($dbmesh), " not '$mesh'" );
 			}
 		}
 	}
@@ -517,9 +482,7 @@ sub check_srv {
 				"SRV record for ",
 				$rr->name,
 				" was not found in JazzHands (",
-				join( " ",
-					$rr->priority, $rr->weight,
-					$rr->port,     $rr->target ),
+				join( " ", $rr->priority, $rr->weight, $rr->port, $rr->target ),
 				")"
 			);
 		}
@@ -542,8 +505,7 @@ sub check_mx {
 	}
 
 	my $msg;
-	my $sth = $stab->prepare(
-		qq{
+	my $sth = $stab->prepare( qq{
 		select	lower(dns.dns_value), dns_priority
 		  from	dns_record dns
 				inner join dns_domain dom
@@ -578,19 +540,17 @@ sub check_mx {
 			$msg   = "";
 			last;
 		} else {
-			my $x = ($pri) ? "$pri $val" : $val;
+			my $x     = ($pri) ? "$pri $val" : $val;
 			my $mname = $name || "";
 			$msg .= $cgi->li(
-"MX record $mname ($x) in JazzHands does not match ($combo)"
-			);
+				"MX record $mname ($x) in JazzHands does not match ($combo)");
 		}
 	}
 	$sth->finish;
 
 	if ( !$found ) {
 		if ( !$msg || !length($msg) ) {
-			$msg .= $cgi->li(
-				"MX record $name $pref $mx not in JazzHands");
+			$msg .= $cgi->li("MX record $name $pref $mx not in JazzHands");
 		}
 	}
 	$msg;
@@ -630,8 +590,7 @@ sub check_cname {
 	my $rv = "";
 	if ( !defined($db) ) {
 		$rv .= $cgi->li(
-			"CNAME ",
-			$cgi->b("$cname.$zone"),
+			"CNAME ", $cgi->b("$cname.$zone"),
 			" in DNS (",
 			device_link( $stab, $devname, $pointsto ),
 			") is not set in JazzHands"
@@ -642,8 +601,7 @@ sub check_cname {
 		$rv .= $cgi->li(
 			"CNAME mismatch",
 			$cgi->b("$cname.$zone"),
-			" is ",
-			$cgi->b("$db"),
+			" is ", $cgi->b("$db"),
 			" in JazzHands and ",
 			$cgi->b("$pointsto"),
 			" in DNS "
@@ -666,7 +624,7 @@ sub check_name {
 				dom.soa_name,
 				dom.dns_domain_id
 		 from	netblock nb
-				inner join dns_record dns on 
+				inner join dns_record dns on
 					nb.netblock_id = dns.netblock_id
 				inner join dns_domain dom on
 					dom.dns_domain_id = dns.dns_domain_id
@@ -710,7 +668,7 @@ sub check_addr {
 			select	dns.dns_domain_id, dns.dns_name,
 					dom.soa_name
 			 from	netblock nb
-					inner join dns_record dns on 
+					inner join dns_record dns on
 						nb.netblock_id = dns.netblock_id
 					inner join dns_domain dom on
 						dom.dns_domain_id = dns.dns_domain_id
@@ -739,23 +697,22 @@ sub check_addr {
 		} else {
 			if ( $rec eq 'PTR' ) {
 				$t .= $cgi->li(
-					"IP ", $addr,
+					"IP ",
+					$addr,
 					"JazzHands ",
 					$cgi->b( device_link( $stab, $full ) ),
 					" PTR does not match DNS",
-					$cgi->b(
-						device_link( $stab, $in_name )
-					),
+					$cgi->b( device_link( $stab, $in_name ) ),
 					"! [May overlap with next error ]\n"
 				);
 				$mismatch++;
 			} elsif ( $rec eq 'A' ) {
 				$t .= $cgi->li(
 					"A record for ",
-					$cgi->b(
-						device_link( $stab, $in_name )
-					),
-					"(", $addr, ")",
+					$cgi->b( device_link( $stab, $in_name ) ),
+					"(",
+					$addr,
+					")",
 					" does not match JazzHands (",
 					$cgi->b( device_link( $stab, $full ) ),
 					")"
@@ -764,7 +721,7 @@ sub check_addr {
 			} else {
 				$t .= $cgi->li(
 					$cgi->b(
-"rec of type $rec not supported for $in_name/$addr.  This should not happen."
+						"rec of type $rec not supported for $in_name/$addr.  This should not happen."
 					)
 				);
 			}
@@ -774,16 +731,14 @@ sub check_addr {
 	if ( !$mismatch ) {
 		if ( $rec eq 'PTR' ) {
 			$t .= $cgi->li( "IP $addr PTR in DNS ",
-				$cgi->b($in_name),
-				" does not exist in JazzHands.\n" );
+				$cgi->b($in_name), " does not exist in JazzHands.\n" );
 		} elsif ( $rec eq 'A' ) {
 			$t .= $cgi->li( "A record for ",
-				$cgi->b($in_name), " (",
-				$addr, ") is not in JazzHands.\n" );
+				$cgi->b($in_name), " (", $addr, ") is not in JazzHands.\n" );
 		} else {
 			$t .= $cgi->li(
 				$cgi->b(
-"rec of type $rec not supported for $in_name/$addr.  This should not happen. (no records in db)"
+					"rec of type $rec not supported for $in_name/$addr.  This should not happen. (no records in db)"
 				)
 			);
 		}
@@ -804,15 +759,12 @@ sub device_link {
 	if ( !$dev ) {
 		return ($name);
 	} else {
-		return (
-			$cgi->a(
-				{
-					-href => "../device/device.pl?devid="
-					  . $dev->{ _dbx('DEVICE_ID') }
-				},
-				$altname
-			)
-		);
+		return ( $cgi->a( {
+				-href => "../device/device.pl?devid="
+				  . $dev->{ _dbx('DEVICE_ID') }
+			},
+			$altname
+		) );
 	}
 
 }
@@ -835,8 +787,7 @@ sub do_dns_compare {
 
 	my $msg = process_zone( $stab, $ns, $zone );
 	print $cgi->header;
-	print $stab->start_html(
-		{ -title => "Reconcilation issues with $zone" } );
+	print $stab->start_html( { -title => "Reconcilation issues with $zone" } );
 	print $cgi->center("Note:  JazzHands == STAB");
 	print $cgi->div( { -align => 'center' },
 		$cgi->a( { -href => "../dns/?dnsdomainid=$domid" }, $zone ) );

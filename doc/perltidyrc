@@ -1,1 +1,1 @@
---indent-columns=4 --entab-leading-whitespace=4 --cuddled-else --no-outdent-long-lines --no-outdent-long-comments
+--indent-columns=4 --entab-leading-whitespace=4 --cuddled-else --no-outdent-long-lines --no-outdent-long-comments --weld-nested-containers --stack-opening-tokens

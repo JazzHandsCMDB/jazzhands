@@ -2,7 +2,7 @@ jazzhands-perl-common (0.96.1) jammy; urgency=medium
 
   * fix perl warning issue in logging
 
- -- Todd M. Kover <kovert@omniscient.com>  Tue, Nov 28 2023 15:36:22 -0500
+ -- Todd M. Kover <kovert@omniscient.com>  Tue, 28 Nov 2023 15:36:22 -0500
 
 jazzhands-perl-common (0.96.0) jammy; urgency=medium
 

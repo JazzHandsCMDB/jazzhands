@@ -128,6 +128,13 @@ function site_to_rack(siteid, rackdivid, where, locid) {
 	if(locid != null) {
 		url += ";RACK_LOCATION_ID=" + locid;
 	}
+	// Get the "original" attribute value of the select element in the rackdiv element
+	// This is used to restore the original value of the select element after the ajax request
+	// has been completed
+	var selectElement = rackdiv.getElementsByTagName('select')[0];
+	var originalValue = selectElement.getAttribute('original');
+	// And let's add that to the url for the ajax call
+	url += ";ORIGINAL=" + originalValue;
 	//console.log( url );
 	ajaxrequest = createRequest();
 	ajaxrequest.open("GET", url, true);
@@ -136,6 +143,9 @@ function site_to_rack(siteid, rackdivid, where, locid) {
 			var x = rackdiv;
 			var htmlgoo = ajaxrequest.responseText;
 			rackdiv.innerHTML = htmlgoo;
+			// Get the new select element in the rackdiv element
+			var selectElement = rackdiv.getElementsByTagName('select')[0];
+			updateChangeTrackingStatus( selectElement );
 		}
 	}
 	ajaxrequest.send(null);
@@ -164,5 +174,34 @@ function setRackLinkRedir(dropfieldid, redirlinkid, root) {
 	} else {
 		redirlink.href = "javascript:void(null);";
 	}
-}
 
+	// This is used to parse the rack id -> type dictionary
+	// It's a hack because the ajax query generating this data
+	// doesn't actually return a text/javascript mime type
+	processDeferredScripts();
+
+	// The structure of the rackTypes dictionary is:
+	/*
+	{
+		"16": {                    <--- this is the rack_id = dropfield.value
+			"rack_id": "16",
+			"rack_type": "layer2"
+		},
+		"19": {
+			"rack_id": "19",
+			"rack_type": "networking"
+		},
+		...
+	}
+	*/
+
+	// Let's update the rack type (layer) location_rack_type div
+	var rackType = document.getElementById('location_rack_type');
+	if( rackType != null ) {
+		if( dropfield.value != null ) {
+			rackType.innerHTML = rackTypes[dropfield.value].rack_type;
+		} else {
+			rackType.innerHTML = 'n/a';
+		}
+	}
+}

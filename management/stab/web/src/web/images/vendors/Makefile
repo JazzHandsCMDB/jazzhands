@@ -26,7 +26,7 @@
 
 STAB_DIR=/prod/www/stab/docs/images/vendors
 
-IMAGES= avaya.ico cisco.ico dell.ico dothill.ico emc.ico force10.ico \
+IMAGES= avaya.ico cisco.ico dell.svg dothill.ico emc.ico force10.ico \
 	foundry.ico google.ico hp.ico ibm.ico juniper.ico netapp.ico \
 	stargold.gif starred.gif sun.ico target.gif \
 
@@ -37,8 +37,8 @@ all:
 
 install:
 	install -d -o root -g bin $(DESTDIR)/$(STAB_DIR)
-	for script in $(IMAGES) ; do \
-		install -o root -g bin -m 755 $$script $(DESTDIR)/$(STAB_DIR)/$$script ;\
+	for image in $(IMAGES) ; do \
+		install -o root -g bin -m 755 $$image $(DESTDIR)/$(STAB_DIR)/$$image ;\
 	done
 
 clean:

@@ -29,7 +29,7 @@ function createRequest() {
 	var req;
 	try {
 		req = new XMLHttpRequest();
-	} catch (trymicrosoft) { 
+	} catch (trymicrosoft) {
 		try {
 			req = new ActiveXObject("Msxml2.XMLHTTP");
 		} catch (othermicrosoft) {
@@ -41,7 +41,7 @@ function createRequest() {
 		}
 	}
 	if (req == null)
-		alert("Error creating request object!");   
+		alert("Error creating request object!");
 
 	return req;
 }

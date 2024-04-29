@@ -40,7 +40,7 @@ sub process_site_netblocks {
 	my $cgi = $stab->cgi;
 
 	#print $cgi->header, $cgi->start_html, $cgi->Dump, $cgi->end_html; exit;
-	print $cgi->header, $cgi->start_html;
+	#print $cgi->header, $cgi->start_html;
 
 	#print $cgi->end_html; exit;
 
@@ -85,12 +85,14 @@ sub process_site_netblocks {
 		$numchanges += create_site_netblock( $stab, $site_code, $sn_ip );
 	}
 
-	print $cgi->end_html;
+	#print $cgi->end_html;
 
 	if ( $numchanges > 0 ) {
-		my $url = "../?sitecode=$site_code";
+
+		#my $url = "../?sitecode=$site_code";
+		$cgi->delete_all;
 		$stab->commit || die $stab->return_db_err;
-		$stab->msg_return( "$numchanges changes commited", $url, 1 );
+		$stab->msg_return( "$numchanges changes commited", undef, 1 );
 	}
 
 	$stab->rollback;

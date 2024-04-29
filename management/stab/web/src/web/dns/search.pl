@@ -55,14 +55,31 @@ sub do_domain_search {
 	my $cgi  = $stab->cgi          || die "Could not create cgi";
 	my $dbh  = $stab->dbh          || die "Could not create dbh";
 
-	my $id      = $stab->cgi_parse_param('DNS_DOMAIN_ID');
+	# The domain id parameter is supplied if the Go to Zone button is clicked
+	# But not if the Go to Record button is clicked
+	my $dnsdomid = $stab->cgi_parse_param('DNS_DOMAIN_ID');
+
+	# The dnssearch parameter is supplied if the Go to Record button is clicked
+	my $dnssearch = $stab->cgi_parse_param('DNS_SEARCH_RECORD_ID');
+
+	# The addonly parameter is supplied if the Add Record (do not view zone) button is clicked
 	my $addonly = $stab->cgi_parse_param('addonly');
 	if ($addonly) {
 		$addonly = ';addonly=1';
 	} else {
 		$addonly = '';
 	}
-	my $url = "index.pl?dnsdomainid=$id$addonly";
+
+	# Override the domain id from the record id if the dnssearch parameter is supplied
+	if ($dnssearch) {
+		my $dnsrecord = $stab->get_dns_record_from_id($dnssearch);
+		$dnsdomid  = $dnsrecord->{'dns_domain_id'};
+		$dnssearch = ';dnssearch=' . $dnssearch;
+	} else {
+		$dnssearch = '';
+	}
+
+	my $url = "index.pl?dnsdomainid=$dnsdomid$addonly$dnssearch";
 	$cgi->redirect($url);
 	undef $stab;
 }

@@ -196,25 +196,25 @@ sub do_update_device {
 	my $cgi  = $stab->cgi          || die "Could not create cgi";
 
 	my $devid     = $stab->cgi_get_ids('DEVICE_ID');
-	my $devtypeid = $stab->cgi_parse_param( 'DEVICE_TYPE_ID', $devid );
-	my $serialno  = $stab->cgi_parse_param( 'SERIAL_NUMBER', $devid );
-	my $partno    = $stab->cgi_parse_param( 'PART_NUMBER', $devid );
-	my $leasexp   = $stab->cgi_parse_param( 'LEASE_EXPIRATION_DATE', $devid );
-	my $site      = $stab->cgi_parse_param( 'SITE_CODE', $devid );
-	my $status    = $stab->cgi_parse_param( 'DEVICE_STATUS', $devid );
-	my $owner     = $stab->cgi_parse_param( 'OWNERSHIP_STATUS', $devid );
+	my $devtypeid = $stab->cgi_parse_param( 'DEVICE_TYPE_ID',         $devid );
+	my $serialno  = $stab->cgi_parse_param( 'SERIAL_NUMBER',          $devid );
+	my $partno    = $stab->cgi_parse_param( 'PART_NUMBER',            $devid );
+	my $leasexp   = $stab->cgi_parse_param( 'LEASE_EXPIRATION_DATE',  $devid );
+	my $site      = $stab->cgi_parse_param( 'SITE_CODE',              $devid );
+	my $status    = $stab->cgi_parse_param( 'DEVICE_STATUS',          $devid );
+	my $owner     = $stab->cgi_parse_param( 'OWNERSHIP_STATUS',       $devid );
 	my $svcenv    = $stab->cgi_parse_param( 'SERVICE_ENVIRONMENT_ID', $devid );
-	my $assettag  = $stab->cgi_parse_param( 'ASSET_TAG', $devid );
-	my $osid      = $stab->cgi_parse_param( 'OPERATING_SYSTEM_ID', $devid );
+	my $assettag  = $stab->cgi_parse_param( 'ASSET_TAG',              $devid );
+	my $osid      = $stab->cgi_parse_param( 'OPERATING_SYSTEM_ID',    $devid );
 	my $ismonitored = $stab->cgi_parse_param( 'chk_IS_MONITORED', $devid );
 	my $baselined   = $stab->cgi_parse_param( 'chk_IS_BASELINED', $devid );
 	my $parentid    = $stab->cgi_parse_param( 'PARENT_DEVICE_ID', $devid );
-	my $localmgd = $stab->cgi_parse_param( 'chk_IS_LOCALLY_MANAGED', $devid );
+	my $localmgd = $stab->cgi_parse_param( 'chk_IS_LOCALLY_MANAGED',  $devid );
 	my $cfgfetch = $stab->cgi_parse_param( 'chk_SHOULD_FETCH_CONFIG', $devid );
-	my $virtdev  = $stab->cgi_parse_param( 'chk_IS_VIRTUAL_DEVICE', $devid );
-	my $mgmtprot = $stab->cgi_parse_param( 'AUTO_MGMT_PROTOCOL', $devid );
-	my $appgtab  = $stab->cgi_parse_param( 'has_appgroup_tab', $devid );
-	my @appgroup = $stab->cgi_parse_param( 'appgroup', $devid );
+	my $virtdev  = $stab->cgi_parse_param( 'chk_IS_VIRTUAL_DEVICE',   $devid );
+	my $mgmtprot = $stab->cgi_parse_param( 'AUTO_MGMT_PROTOCOL',      $devid );
+	my $appgtab  = $stab->cgi_parse_param( 'has_appgroup_tab',        $devid );
+	my @appgroup = $stab->cgi_parse_param( 'appgroup',                $devid );
 
 	#-print $cgi->header, $cgi->html($cgi->Dump()); exit;
 	# print $cgi->header, $cgi->start_html,
@@ -276,9 +276,12 @@ sub do_update_device {
 	# [XXX] need to clear same power ports, too!
 
 	#
+	# If the user attempts to change the device name
 	# check to see if the device name already exists
 	#
-	if ( defined($devname) ) {
+	# Note: because there is no enforcement on device name unqiueness, it's possible for the same name to appear twice; this is usually a mistake, or something unintentional rather than leak internal configuration info
+
+	if ( defined($devname) && $devname ne $dbdevice->{ _dbx('DEVICE_NAME') } ) {
 		my $existingdev = $stab->get_dev_from_name($devname);
 		if (   $existingdev
 			&& $existingdev->{ _dbx('DEVICE_ID') } != $devid )
@@ -415,15 +418,13 @@ sub do_update_device {
 			LEASE_EXPIRATION_DATE => $leasexp,
 		};
 
-		if (
-			!(
-				$numchanges += $stab->DBInsert(
-					table  => 'asset',
-					hash   => $newasset,
-					errors => \@errs
-				)
+		if ( !(
+			$numchanges += $stab->DBInsert(
+				table  => 'asset',
+				hash   => $newasset,
+				errors => \@errs
 			)
-		  )
+		) )
 		{
 			$stab->error_return( join( " ", @errs ) );
 		}
@@ -435,8 +436,6 @@ sub do_update_device {
 		DEVICE_NAME    => $devname,
 		DEVICE_TYPE_ID => $devtypeid,
 
-		#- SERIAL_NUMBER  => $serialno,
-		PART_NUMBER    => $partno,
 		PHYSICAL_LABEL => $physlabel,
 
 		#- DEVICE_STATUS		=> $status,
@@ -514,7 +513,7 @@ sub get_dev_funcs {
 		 where	device_id = ?
 	};
 	my $sth = $stab->prepare($q) || die $stab->return_db_err;
-	$sth->execute($devid) || die $stab->return_db_err($sth);
+	$sth->execute($devid)        || die $stab->return_db_err($sth);
 
 	while ( my ($func) = $sth->fetchrow_array ) {
 		push( @oldfuncs, $func );
@@ -539,8 +538,7 @@ sub reconcile_appgroup {
 
 	# 1. go through all the leaf appgroups in the db and see if any need
 	# to be unset
-	my $sth = $stab->prepare(
-		qq{
+	my $sth = $stab->prepare( qq{
 		begin
 			appgroup_util.remove_role(?, ?);
 		end;
@@ -555,8 +553,7 @@ sub reconcile_appgroup {
 
 	# 2. go through all the appgroups in the argument list and see if any
 	# need to be set (using the pl/sql function for setting such things
-	$sth = $stab->prepare(
-		qq{
+	$sth = $stab->prepare( qq{
 		begin
 			appgroup_util.add_role(?, ?);
 		end;
@@ -707,7 +704,7 @@ sub update_location {
 	{
 		$stab->rollback;
 		my $url = "../device.pl";
-		$stab->error_return( "Unknown Error with Update", $url );
+		$stab->error_return( "Unknown Error with Location Update", $url );
 	}
 
 	$numchanges;
@@ -795,7 +792,7 @@ sub get_dns_records_from_netblock_id {
 	#  	    	and		should_generate_ptr = 'Y'
 
 	my $sth = $stab->prepare($q) || die $stab->return_db_err;
-	$sth->execute($id) || die $stab->return_db_err($sth);
+	$sth->execute($id)           || die $stab->return_db_err($sth);
 
 	# Get all records as a single hash with dns record ids being the keys
 	my $hr = $sth->fetchall_arrayref( {} );
@@ -812,7 +809,7 @@ sub get_dns_record {
 		where	dns_record_id = ?
 	};
 	my $sth = $stab->prepare($q) || die $stab->return_db_err;
-	$sth->execute($id) || die $stab->return_db_err($sth);
+	$sth->execute($id)           || die $stab->return_db_err($sth);
 	my $hr = $sth->fetchrow_hashref;
 	$sth->finish;
 	$hr;
@@ -835,7 +832,7 @@ sub get_network_interface {
 		where	network_interface_id = ?
 	};
 	my $sth = $stab->prepare($q) || die $stab->return_db_err;
-	$sth->execute($id) || die $stab->return_db_err($sth);
+	$sth->execute($id)           || die $stab->return_db_err($sth);
 	my $hr = $sth->fetchrow_hashref;
 	$sth->finish;
 	$hr;
@@ -850,7 +847,7 @@ sub get_total_ifs {
 		 where	device_id = ?
 	};
 	my $sth = $stab->prepare($q) || die $stab->return_db_err;
-	$sth->execute($id) || die $stab->return_db_err($sth);
+	$sth->execute($id)           || die $stab->return_db_err($sth);
 	my ($rv) = $sth->fetchrow_array;
 	$sth->finish;
 	$rv;
@@ -862,8 +859,7 @@ sub get_total_ifs {
 sub number_interface_kids {
 	my ( $stab, $netintid ) = @_;
 
-	my $sth = $stab->prepare(
-		qq{
+	my $sth = $stab->prepare( qq{
 		select	count(*)
 		 from	network_interface
 		where	parent_network_interface_id = ?
@@ -931,10 +927,10 @@ sub get_dnsids {
 		 where	dns.netblock_id = ?
 	};
 	my $sth = $stab->prepare($q) || $stab->return_db_err;
-	$sth->execute($netblockid) || $stab->return_db_err($sth);
+	$sth->execute($netblockid)   || $stab->return_db_err($sth);
 	while ( my ( $id, $dns, $dom ) = $sth->fetchrow_array ) {
 		my $fqhn = "$dns" if ( defined($dns) );
-		$fqhn .= ".$dom" if ( defined($dom) );
+		$fqhn .= ".$dom"  if ( defined($dom) );
 		push( @dnsid, $id, $fqhn );
 	}
 	$sth->finish;
@@ -1005,7 +1001,7 @@ sub process_netblock_and_dns {
 				},
 			);
 			foreach my $q (@qs) {
-				my $sth = $stab->prepare($q) || $stab->return_db_err;
+				my $sth = $stab->prepare($q)  || $stab->return_db_err;
 				$sth->execute($dns_record_id) || $stab->return_db_err($sth);
 				$sth->finish;
 			}
@@ -1140,16 +1136,14 @@ sub process_netblock_and_dns {
 		$$refnumchanges++;
 		my $type = 'A';
 		$type = 'AAAA' if ( $stab->validate_ip($ip_ui) == 6 );
-		$stab->add_dns_record(
-			{
-				dns_name            => $dns_new_ui,
-				dns_domain_id       => $dnsdom_new_ui,
-				dns_type            => $type,
-				dns_class           => 'IN',
-				netblock_id         => $configured_netblock_id,
-				SHOULD_GENERATE_PTR => $dnsptr_new_ui,
-			}
-		);
+		$stab->add_dns_record( {
+			dns_name            => $dns_new_ui,
+			dns_domain_id       => $dnsdom_new_ui,
+			dns_type            => $type,
+			dns_class           => 'IN',
+			netblock_id         => $configured_netblock_id,
+			SHOULD_GENERATE_PTR => $dnsptr_new_ui,
+		} );
 	}
 
 	$configured_netblock_id;
@@ -1523,7 +1517,7 @@ sub update_physical_connection {
 		my $rowname = $list[$i];
 		my $magic   = $stab->cgi_parse_param("${short}_$rowname");
 		my $side    = ($backwards) ? 1 : 2;
-		my $devid   = $stab->cgi_parse_param( "PC_P${side}_DEVICE_ID", $magic );
+		my $devid = $stab->cgi_parse_param( "PC_P${side}_DEVICE_ID",   $magic );
 		my $devnm = $stab->cgi_parse_param( "PC_P${side}_DEVICE_NAME", $magic );
 		my $oport =
 		  $stab->cgi_parse_param( "PC_P${side}_PHYSICAL_PORT_ID", $magic );
@@ -1810,8 +1804,7 @@ sub update_all_interfaces {
 	my $numchanges = 0;
 
 	# Get the network interfaces from the database
-	my $sth = $stab->prepare(
-		qq{
+	my $sth = $stab->prepare( qq{
 		select	network_interface_id
 		 from	network_interface
 		where	device_id = ?
@@ -1883,8 +1876,7 @@ sub validate_ip_dns_combo {
 	if ( $dnsname !~ /\./ ) { return; }
 
 	# Get a list of existing domains
-	my $sth = $stab->prepare(
-		qq{
+	my $sth = $stab->prepare( qq{
 			select		dns_domain_id, soa_name
 			from		dns_domain
 			order by	soa_name
@@ -1972,8 +1964,7 @@ sub update_interface {
 	}
 
 	# Let's get the associated netblocks from the database
-	my $sth = $stab->prepare(
-		qq{
+	my $sth = $stab->prepare( qq{
 		select		netblock.netblock_id
 		from		network_interface
 		left join	network_interface_netblock using( network_interface_id )
@@ -2184,15 +2175,13 @@ sub process_interface_netblock {
 
 		my @errs;
 
-		if (
-			!(
-				$numchanges += $stab->DBInsert(
-					table  => 'network_interface_netblock',
-					hash   => $new,
-					errors => \@errs
-				)
+		if ( !(
+			$numchanges += $stab->DBInsert(
+				table  => 'network_interface_netblock',
+				hash   => $new,
+				errors => \@errs
 			)
-		  )
+		) )
 		{
 			$stab->error_return( join( " ", @errs ) );
 		}
@@ -2260,16 +2249,14 @@ sub manipulate_network_interface_purpose {
 
 	my $oldpurp = $stab->get_network_int_purpose($netintid);
 
-	my $rmsth = $stab->prepare(
-		qq{
+	my $rmsth = $stab->prepare( qq{
 		delete from network_interface_purpose
 		where	network_interface_id = ?
 		and		network_interface_purpose = ?
 	}
 	) || return $stab->return_db_err;
 
-	my $addsth = $stab->prepare(
-		qq{
+	my $addsth = $stab->prepare( qq{
 		INSERT INTO network_interface_purpose (
 			device_id, network_interface_id, network_interface_purpose
 		) VALUES (
@@ -2320,7 +2307,7 @@ sub rename_physical_port {
 		 where	physical_port_id = ?
 	};
 
-	my $sth = $stab->prepare($q) || $stab->return_db_err;
+	my $sth = $stab->prepare($q)   || $stab->return_db_err;
 	$sth->execute( $newname, $id ) || $stab->return_db_err($sth);
 	$sth->finish;
 }
@@ -2344,7 +2331,7 @@ sub add_device_note {
 		)
 	};
 
-	my $sth = $stab->prepare($q) || $stab->return_db_err;
+	my $sth = $stab->prepare($q)          || $stab->return_db_err;
 	$sth->execute( $devid, $text, $user ) || $stab->return_db_err($sth);
 	1;
 }
@@ -2437,8 +2424,7 @@ sub process_interfaces {
 			);
 		}
 
-		my $gSth = $stab->prepare(
-			qq{
+		my $gSth = $stab->prepare( qq{
 			select * from static_route where static_route_id = ?
 		}
 		);
@@ -2456,13 +2442,11 @@ sub process_interfaces {
 					"$destip for static route is not reachable from an interface on this device."
 				);
 			}
-			if (
-				$stab->is_static_route_on_device(
-					$devid,
-					$ni->{ _dbx('NETWORK_INTERFACE_ID') },
-					$nb->{ _dbx('NETBLOCK_ID') }
-				)
-			  )
+			if ( $stab->is_static_route_on_device(
+				$devid,
+				$ni->{ _dbx('NETWORK_INTERFACE_ID') },
+				$nb->{ _dbx('NETBLOCK_ID') }
+			) )
 			{
 				$stab->error_return(
 					"Static Route $srcip/$srcbits->$destip is already on device"
@@ -2516,20 +2500,17 @@ sub process_interfaces {
 			);
 		}
 
-		if (
-			$stab->is_static_route_on_device(
-				$devid,
-				$ni->{ _dbx('NETWORK_INTERFACE_ID') },
-				$nb->{ _dbx('NETBLOCK_ID') }
-			)
-		  )
+		if ( $stab->is_static_route_on_device(
+			$devid,
+			$ni->{ _dbx('NETWORK_INTERFACE_ID') },
+			$nb->{ _dbx('NETBLOCK_ID') }
+		) )
 		{
 			$stab->error_return(
 				"Static Route $srcip/$srcbits->$destip is already on device");
 		}
 
-		my $sth = $stab->prepare(
-			qq{
+		my $sth = $stab->prepare( qq{
 			insert into static_route
 				(DEVICE_SRC_ID, NETWORK_INTERFACE_DST_ID, NETBLOCK_ID)
 			values
@@ -2701,15 +2682,13 @@ sub add_interfaces {
 	my $numchanges = 0;
 	my @errs;
 
-	if (
-		!(
-			$numchanges += $stab->DBInsert(
-				table  => 'network_interface',
-				hash   => $new,
-				errors => \@errs
-			)
+	if ( !(
+		$numchanges += $stab->DBInsert(
+			table  => 'network_interface',
+			hash   => $new,
+			errors => \@errs
 		)
-	  )
+	) )
 	{
 		$stab->error_return( join( " ", @errs ) );
 	}
@@ -2723,15 +2702,13 @@ sub add_interfaces {
 			device_id            => $devid
 		};
 
-		if (
-			!(
-				$numchanges += $stab->DBInsert(
-					table  => 'network_interface_netblock',
-					hash   => $new2,
-					errors => \@errs
-				)
+		if ( !(
+			$numchanges += $stab->DBInsert(
+				table  => 'network_interface_netblock',
+				hash   => $new2,
+				errors => \@errs
 			)
-		  )
+		) )
 		{
 			$stab->error_return( join( " ", @errs ) );
 		}
@@ -2740,16 +2717,14 @@ sub add_interfaces {
 	if ( defined($dns) && defined($dnsdom_ui) ) {
 		my $type = 'A';
 		$type = 'AAAA' if ( $stab->validate_ip($ip) == 6 );
-		$stab->add_dns_record(
-			{
-				dns_name            => $dns,
-				dns_domain_id       => $dnsdom_ui,
-				dns_type            => $type,
-				dns_class           => 'IN',
-				netblock_id         => $nblk->{ _dbx('NETBLOCK_ID') },
-				SHOULD_GENERATE_PTR => $dnsptr_ui,
-			}
-		);
+		$stab->add_dns_record( {
+			dns_name            => $dns,
+			dns_domain_id       => $dnsdom_ui,
+			dns_type            => $type,
+			dns_class           => 'IN',
+			netblock_id         => $nblk->{ _dbx('NETBLOCK_ID') },
+			SHOULD_GENERATE_PTR => $dnsptr_ui,
+		} );
 		$numchanges++;
 	}
 
@@ -2850,7 +2825,7 @@ sub switch_all_ni_prop_to_n {
 			  and	$field = 'Y'
 		};
 		my $sth = $stab->prepare($q) || $stab->return_db_err;
-		$sth->execute($devid) || $stab->return_db_err($sth);
+		$sth->execute($devid)        || $stab->return_db_err($sth);
 		($old_count) = $sth->fetchrow_array;
 	}
 
@@ -2861,7 +2836,7 @@ sub switch_all_ni_prop_to_n {
 			where  device_id = ?
 		};
 		my $sth = $stab->prepare($q) || $stab->return_db_err;
-		$sth->execute($devid) || $stab->return_db_err($sth);
+		$sth->execute($devid)        || $stab->return_db_err($sth);
 	}
 	$old_count;
 }
@@ -2876,8 +2851,7 @@ sub reset_serial_to_default {
 sub find_phys_con_endpoint_from_port {
 	my ( $stab, $pportid ) = @_;
 
-	my $sth = $stab->prepare(
-		qq{
+	my $sth = $stab->prepare( qq{
 		select * from v_physical_connection
 		where layer1_physical_port1_id = ?
 	}
@@ -2979,7 +2953,7 @@ sub delete_device_power {
 			 where	device_id = ?
 		};
 		my $sth = $stab->prepare($q) || $stab->return_db_err($stab);
-		$sth->execute($devid) || $stab->return_db_err($stab);
+		$sth->execute($devid)        || $stab->return_db_err($stab);
 		$sth->finish;
 	}
 }
@@ -2987,8 +2961,7 @@ sub delete_device_power {
 sub retire_device {
 	my ( $stab, $devid ) = @_;
 
-	my $sth = $stab->prepare(
-		qq{
+	my $sth = $stab->prepare( qq{
 		SELECT	device_utils.retire_device(
 				in_device_id := ?
 			);

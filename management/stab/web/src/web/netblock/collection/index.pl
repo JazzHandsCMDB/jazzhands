@@ -66,27 +66,23 @@ sub do_netblock_collection_chooser($) {
 	my $cgi = $stab->cgi || die "Could not create cgi";
 
 	print $cgi->header('text/html');
-	print $stab->start_html(
-		{
-			-title      => "Netblock Collection Management",
-			-javascript => 'netblock_collection',
-		}
-	);
+	print $stab->start_html( {
+		-title      => "Netblock Collection Management",
+		-javascript => 'netblock_collection',
+	} );
 
 	print $cgi->div(
 		{ -class => 'ncmanip' },
-		$cgi->start_form(
-			{
-				-class  => 'picker',
-				-method => 'GET',
-				-action => './'
-			}
-		),
+		$cgi->start_form( {
+			-class  => 'picker',
+			-method => 'GET',
+			-action => './'
+		} ),
 		$cgi->div(
 			$cgi->h3('Pick a type:'),
 			$stab->b_dropdown(
 				{ -class => 'coltypepicker', }, undef,
-				'NETBLOCK_COLLECTION_TYPE', undef,
+				'NETBLOCK_COLLECTION_TYPE',     undef,
 				1
 			),
 		),
@@ -95,11 +91,14 @@ sub do_netblock_collection_chooser($) {
 			$cgi->h3("Add a new Collection of this Type"),
 			$cgi->textfield( { -name => 'NETBLOCK_COLLECTION_NAME' } ),
 			$cgi->submit( -name => 'submit', -value => 'Add' ),
-			$cgi->h3('Pick a collection:'),
-			$cgi->start_form( { -method => 'GET', -action => './' } ),
-			$cgi->div( { -id => 'colbox' }, "" ),
-			$cgi->submit( -name => 'submit', -value => 'Modify' ),
-			$cgi->end_form(),
+			$cgi->div(
+				{ -id => 'container_colbox' },
+				$cgi->h3('Pick a collection:'),
+				$cgi->start_form( { -method => 'GET', -action => './' } ),
+				$cgi->div( { -id => 'colbox' }, "" ),
+				$cgi->submit( -name => 'submit', -value => 'Modify' ),
+				$cgi->end_form(),
+			),
 		),
 	);
 	print $cgi->end_html;
@@ -117,15 +116,13 @@ sub add_netblock_collection($$$) {
 	};
 
 	my $numchanges = 0;
-	if (
-		!(
-			$numchanges = $stab->DBInsert(
-				table  => 'netblock_collection',
-				hash   => $hash,
-				errors => \@errs
-			)
+	if ( !(
+		$numchanges = $stab->DBInsert(
+			table  => 'netblock_collection',
+			hash   => $hash,
+			errors => \@errs
 		)
-	  )
+	) )
 	{
 		$stab->error_return( join( " ", @errs ) );
 	}
@@ -143,13 +140,11 @@ sub build_collection_row($$$$;$$) {
 	if ( !$rmheader ) {
 		$rmbox =
 		  ($rmid)
-		  ? $cgi->checkbox(
-			{
-				-name  => $rmid,
-				-id    => $rmid,
-				-label => '',
-			}
-		  )
+		  ? $cgi->checkbox( {
+			-name  => $rmid,
+			-id    => $rmid,
+			-label => '',
+		  } )
 		  : "-";
 	} else {
 		$rmbox = $rmheader;
@@ -175,8 +170,7 @@ sub build_netblock_collection_add_more($) {
 	my ($stab) = @_;
 	my $cgi = $stab->cgi || die "Could not create cgi";
 
-	my $strInsertNetblockButton = $cgi->button(
-		{
+	my $strInsertNetblockButton = $cgi->button( {
 			-type    => 'button',
 			-class   => "",
 			-id      => 'insert_NETBLOCK',
@@ -196,8 +190,7 @@ sub build_collection_members($$) {
 	my ( $stab, $ncid ) = @_;
 	my $cgi = $stab->cgi || die "Could not create cgi";
 
-	my $sth = $stab->prepare(
-		qq{
+	my $sth = $stab->prepare( qq{
 		SELECT	nb.netblock_id,
 				nb.ip_address,
 				nb.is_single_address,
@@ -246,8 +239,7 @@ sub build_child_collection_add_more($) {
 	my ($stab) = @_;
 	my $cgi = $stab->cgi || die "Could not create cgi";
 
-	my $strInsertNetblockButton = $cgi->button(
-		{
+	my $strInsertNetblockButton = $cgi->button( {
 			-type    => 'button',
 			-class   => "",
 			-id      => 'insert_CHILD_COLLECTION',
@@ -267,8 +259,7 @@ sub build_collection_children {
 	my ( $stab, $ncid ) = @_;
 	my $cgi = $stab->cgi || die "Could not create cgi";
 
-	my $sth = $stab->prepare(
-		qq{
+	my $sth = $stab->prepare( qq{
 		SELECT	nc.netblock_collection_id,
 				nc.netblock_collection_name,
 				nc.netblock_collection_type,
@@ -298,8 +289,7 @@ sub build_collection_parents {
 	my ( $stab, $ncid ) = @_;
 	my $cgi = $stab->cgi || die "Could not create cgi";
 
-	my $sth = $stab->prepare(
-		qq{
+	my $sth = $stab->prepare( qq{
 		SELECT	nc.netblock_collection_id,
 				nc.netblock_collection_name,
 				nc.netblock_collection_type,
@@ -356,22 +346,18 @@ sub process_netblock_collection {
 
 	# print $cgi->div({-align=>'center'}, $cgi->submit("Submit Changes"));
 	print $cgi->header('text/html');
-	print $stab->start_html(
-		{
-			-title => "Netblock Collection "
-			  . join( ":",
-				$nc->{ _dbx('NETBLOCK_COLLECTION_TYPE') },
-				$nc->{ _dbx('NETBLOCK_COLLECTION_NAME') } ),
-			-javascript => 'netblock_collection',
-		}
-	);
+	print $stab->start_html( {
+		-title => "Netblock Collection "
+		  . join( ":",
+			$nc->{ _dbx('NETBLOCK_COLLECTION_TYPE') },
+			$nc->{ _dbx('NETBLOCK_COLLECTION_NAME') } ),
+		-javascript => 'netblock_collection',
+	} );
 
-	print $cgi->start_form(
-		{
-			-method => 'GET',
-			-action => 'update_nb.pl',
-		}
-	);
+	print $cgi->start_form( {
+		-method => 'GET',
+		-action => 'update_nb.pl',
+	} );
 
 	print $cgi->ul(
 		{ -class => 'collection' },
