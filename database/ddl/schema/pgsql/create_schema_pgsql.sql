@@ -5778,16 +5778,16 @@ ALTER TABLE service_endpoint_provider_shared_netblock_layer3_interface ADD COLUM
 
 CREATE TABLE service_endpoint_purpose
 ( 
-	w                    integer  NOT NULL ,
+	service_endpoint_id  integer  NOT NULL ,
 	service_endpoint_purpose varchar(50)  NOT NULL 
 );
 
 ALTER TABLE service_endpoint_purpose
-	ADD CONSTRAINT pk_service_endpoint_purpose PRIMARY KEY (w,service_endpoint_purpose);
+	ADD CONSTRAINT pk_service_endpoint_purpose PRIMARY KEY (service_endpoint_id,service_endpoint_purpose);
 
 CREATE INDEX xifsvc_endpoint_purpose_svc_endpoint ON service_endpoint_purpose
 ( 
-	w        ASC
+	service_endpoint_id ASC
 );
 
 CREATE INDEX xifsvc_endpoint_purpose_val_purpose ON service_endpoint_purpose
@@ -5928,7 +5928,7 @@ ALTER TABLE service_endpoint_x509_certificate
 	ADD CONSTRAINT ak_service_endpoint_x509_certificate_endpoint_crt_id UNIQUE (service_endpoint_id,x509_signed_certificate_id);
 
 ALTER TABLE service_endpoint_x509_certificate
-	ADD CONSTRAINT ak_service_endpoint_x509_x509_id_rank UNIQUE (service_endpoint_id,x509_certificate_rank);
+	ADD CONSTRAINT ak_service_endpoint_x509_x509_id_rank UNIQUE (service_endpoint_id,service_endpoint_x509_certificate_purpose,x509_certificate_rank);
 
 CREATE INDEX xifservice_endpoint_x509_certificate_purpose ON service_endpoint_x509_certificate
 ( 
@@ -13662,7 +13662,7 @@ ALTER TABLE service_endpoint_provider_shared_netblock_layer3_interface
 
 
 ALTER TABLE service_endpoint_purpose
-	ADD CONSTRAINT fk_svc_endpoint_purpose_svc_endpoint FOREIGN KEY (w) REFERENCES service_endpoint(service_endpoint_id)
+	ADD CONSTRAINT fk_svc_endpoint_purpose_svc_endpoint FOREIGN KEY (service_endpoint_id) REFERENCES service_endpoint(service_endpoint_id)
 		ON UPDATE NO ACTION
 		ON DELETE NO ACTION;
 

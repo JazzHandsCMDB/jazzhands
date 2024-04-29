@@ -79,7 +79,7 @@ BEGIN
 END;
 $$
 SET search_path=jazzhands
-LANGUAGE plpgsql;
+LANGUAGE plpgsql SECURITY DEFINER;
 
 ------------------------------------------------------------------------------
 --
@@ -167,7 +167,7 @@ BEGIN
 END;
 $$
 SET search_path=jazzhands
-LANGUAGE plpgsql;
+LANGUAGE plpgsql SECURITY DEFINER;
 
 
 ------------------------------------------------------------------------------
@@ -353,8 +353,7 @@ BEGIN
 END;
 $$
 SET search_path=jazzhands
-SECURITY DEFINER
-LANGUAGE plpgsql;
+LANGUAGE plpgsql SECURITY DEFINER;
 
 
 ------------------------------------------------------------------------------
@@ -416,7 +415,7 @@ BEGIN
 END;
 $$
 SET search_path=jazzhands
-LANGUAGE plpgsql;
+LANGUAGE plpgsql SECURITY DEFINER;
 
 ------------------------------------------------------------------------------
 --
@@ -463,7 +462,7 @@ BEGIN
 END;
 $$
 SET search_path=jazzhands
-LANGUAGE plpgsql SECURITY definer;
+LANGUAGE plpgsql SECURITY DEFINER;
 
 ------------------------------------------------------------------------------
 --
@@ -563,7 +562,7 @@ BEGIN
 END;
 $$
 SET search_path=jazzhands
-LANGUAGE plpgsql SECURITY definer;
+LANGUAGE plpgsql SECURITY DEFINER;
 
 ------------------------------------------------------------------------------
 --
@@ -662,7 +661,7 @@ BEGIN
 END;
 $$
 SET search_path=jazzhands
-LANGUAGE plpgsql SECURITY definer;
+LANGUAGE plpgsql SECURITY DEFINER;
 
 ------------------------------------------------------------------------------
 

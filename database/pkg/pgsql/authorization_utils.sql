@@ -46,6 +46,7 @@ $$;
 --- 	"device_id":		id				// optional, one or the other
 --- 	"account_realm_id": id				// has default, one or the other
 --- 	"account_realm_name": id
+---		"property_value": text				// if set, must be this value
 --- }
 ---
 --- retruns true or falsA
@@ -124,17 +125,29 @@ BEGIN
 		SELECT
 			account_collection_id,
 			property_type,
-			property_name
+			property_name,
+			property_value
 		FROM
 			jazzhands.property) p
-		JOIN jazzhands.v_account_collection_account_expanded USING (account_collection_id)
-		JOIN jazzhands.account_collection USING (account_collection_id)
+		JOIN (
+			SELECT
+				r.root_account_collection_id AS account_collection_id,
+				aca.account_id
+			FROM
+				jazzhands_cache.ct_account_collection_hier_recurse r
+				JOIN jazzhands.account_collection_account aca 
+					USING (account_collection_id)
+		) ia USING (account_collection_id)
 		JOIN jazzhands.account USING (account_id)
 	WHERE
 		property_type = split_part(parameters->>'property_role', ':', 1)
 		AND property_name = split_part(parameters->>'property_role', ':', 2)
 		AND account_Id = _aid
-		AND account_realm_Id = _arid;
+		AND account_realm_Id = _arid
+		AND (NOT parameters?'property_value' OR
+				p.property_value = parameters->>'property_value'
+			)
+	;
 
 	IF FOUND THEN
 		RETURN true;
@@ -148,7 +161,7 @@ LANGUAGE plpgsql SECURITY DEFINER;
 
 --
 -- Check if an fqdn is in a dns_domain_collection.  returns true/false;
--- 
+--
 -- If raise_exception, on unknown domain will raise foreign_key_violation
 -- exception, otherwise returns false
 --
