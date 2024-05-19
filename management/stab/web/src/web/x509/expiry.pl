@@ -38,12 +38,10 @@ sub do_cert_expiry_toplevel {
 	my $cgi  = $stab->cgi          || die "Could not create cgi";
 
 	print $cgi->header( { -type => 'text/html' } ), "\n";
-	print $stab->start_html(
-		{
-			-title      => "Expiring Certificates next 120 days",
-			-javascript => 'reporting'
-		}
-	  ),
+	print $stab->start_html( {
+		-title      => "Expiring Certificates next 120 days",
+		-javascript => 'reporting'
+	} ),
 	  "\n";
 
 	print $cgi->h4( { -align => 'center' }, "Expiring Certificates" );
@@ -55,7 +53,7 @@ sub do_cert_expiry_toplevel {
 					c.x509_signed_certificate_id as "ID",
 					c.friendly_name as "Friendly Name",
 					c.valid_to as "Valid To",
-					ca.x509_signed_certificate_id 
+					ca.x509_signed_certificate_id
 						AS ca_x509_signed_certificate_id,
 					ca.friendly_name AS "CA"
 			FROM	x509_signed_certificate c

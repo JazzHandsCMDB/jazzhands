@@ -54,8 +54,7 @@ sub build_account_list($$;$) {
 	my $cgi = $stab->cgi || die "Could not create cgi";
 
 	# deal with accounts already there.
-	my $sth = $stab->prepare(
-		qq{
+	my $sth = $stab->prepare( qq{
 		SELECT	account_id,	first_name, last_name, login
 		FROM	account_collection_account ac
 				JOIN account USING (account_id)
@@ -71,23 +70,17 @@ sub build_account_list($$;$) {
 	while ( my $acct = $sth->fetchrow_hashref() ) {
 		my $rmrow = "";
 		if ($write) {
-			$rmrow = $cgi->checkbox(
-				{
-					-class => 'irrelevant rmrow',
-					-name  => "Del_ACCOUNT_ID_" . $acct->{ _dbx('ACCOUNT_ID') },
-					-label => '',
-				}
-			  ).
-			  $cgi->a(
-				{ -class => 'rmrow' },
-				$cgi->img(
-					{
-						-src   => "../../stabcons/redx.jpg",
-						-alt   => "Delete this Record",
-						-title => 'Delete This Record',
-						-class => 'rmcollrow button',
-					}
-				)
+			$rmrow = $cgi->checkbox( {
+				-class => 'irrelevant rmrow',
+				-name  => "Del_ACCOUNT_ID_" . $acct->{ _dbx('ACCOUNT_ID') },
+				-label => '',
+			} )
+			  . $cgi->a( {
+					-class => 'rmrow',
+					-alt   => "Delete this Record",
+					-title => 'Delete This Record',
+				},
+				''
 			  );
 		}
 		$t .= $cgi->li(
@@ -105,8 +98,7 @@ sub build_account_collection_list($$;$) {
 	my $cgi = $stab->cgi || die "Could not create cgi";
 
 	# deal with accounts already there.
-	my $sth = $stab->prepare(
-		qq{
+	my $sth = $stab->prepare( qq{
 		SELECT	ac.*
 		FROM	account_collection_hier h
 				join account_collection ac on
@@ -124,6 +116,7 @@ sub build_account_collection_list($$;$) {
 			$ac->{ _dbx('ACCOUNT_COLLECTION_TYPE') },
 			$ac->{ _dbx('ACCOUNT_COLLECTION_NAME') } );
 		$t .= $cgi->li(
+
 			# can't manipulate these yet, so commenting out.
 			#$cgi->checkbox(
 			#	{
@@ -134,20 +127,16 @@ sub build_account_collection_list($$;$) {
 			#),
 			# This is just a hack to make the columns line up and be more
 			# readable
-			($write)?$cgi->a(
-				{ -class => 'collpad' },    # was rmrow
-				$cgi->img(
-					{
-						-src => "../../stabcons/redx.jpg",
-
-						#			-alt   => "Delete this Record",
-						#			-title => 'Delete This Record',
-						-class => 'button',    # was rmcollrow
-					}
-				)
-			):"",
-			$cgi->a(
-				{
+			($write)
+			? $cgi->a( {
+					-class => 'rmrow_disabled',       # Function disabled
+					-alt   => "Delete this Record",
+					-title => 'Delete This Record',
+				},
+				''
+			  )
+			: "",
+			$cgi->a( {
 					-class => 'aclink',
 					-href  => "./?ACCOUNT_COLLECTION_ID="
 					  . $ac->{ _dbx('ACCOUNT_COLLECTION_ID') }
@@ -181,7 +170,13 @@ sub edit_acount_collection {
 		$canhazwrite = 1;
 	}
 
-	my $acs = build_account_collection_list( $stab, $acid, $canhazwrite );
+	# Is this a development server?
+	if( $ENV{'development'} =~ /true/ ) {
+		# Authorize write access
+		$canhazwrite = 1;
+	}
+
+	my $acs   = build_account_collection_list( $stab, $acid, $canhazwrite );
 	my $accts = build_account_list( $stab, $acid, $canhazwrite );
 
 	my $t = $acs . $accts;
@@ -189,16 +184,12 @@ sub edit_acount_collection {
 	if ($canhazwrite) {
 		$t .= $cgi->li(
 			{ -class => 'plus' },
-			$cgi->a(
-				{ -class => 'addacct', -href => '#' },
-				$cgi->img(
-					{
-						-src   => '../../stabcons/plus.png',
-						-alt   => 'Add',
-						-title => 'Add',
-						-class => 'plusbutton'
-					},
-				)
+			$cgi->a( {
+					-onclick => 'return false;',
+					-class   => 'addacct plusbutton',
+					-title   => 'Create new account collection'
+				},
+				''
 			)
 		);
 	} else {
@@ -221,27 +212,26 @@ sub edit_acount_collection {
 			$cgi->a(
 				{ -href => '#', -class => 'expandcollection' }, "(expand)"
 			),
-			$cgi->img(
-				{
-					-src   => '../../stabcons/progress.gif',
-					-class => 'irrelevant dance'
-				}
+			$cgi->div( {
+					-class => 'spinner irrelevant dance'
+				},
+				''
 			),
 			$cgi->div(
 				{ -class => 'irrelevant collectionexpandview', id => $acid },
 			),
 		),
-		$cgi->start_form(
-			{
-				-class  => 'picker',
-				-method => 'GET',
-				-action => './update_ac.pl'
-			}
-		),
+		$cgi->start_form( {
+			-class  => 'picker',
+			-method => 'GET',
+			-action => './update_ac.pl'
+		} ),
 		$cgi->hidden( { -name => 'ACCOUNT_COLLECTION_ID', -value => $acid } ),
 		$cgi->ul( { -class => 'collectionbox' }, $t ),
 		"\n",
-		($canhazwrite) ? $cgi->submit( { -class => 'dnssubmit' } ) : "",
+		($canhazwrite)
+		? $cgi->div( { -class => 'centered' }, $cgi->submit( {} ) )
+		: "",
 		$cgi->end_form(),
 		"\n"
 	);
@@ -255,6 +245,10 @@ sub do_account_collection_chooser {
 
 	my $admin = $stab->check_role('AccountCollectionAdmin');
 
+	# Assume admin access on development servers
+	if( $ENV{'development'} =~ /true/ ) {
+		$admin = 1;
+	}
 	#
 	# XXX rw should make ro implicit, probably merge in with code in ajax
 	# module.
@@ -266,12 +260,10 @@ sub do_account_collection_chooser {
 	}
 
 	print $cgi->header('text/html');
-	print $stab->start_html(
-		{
-			-title      => "Account Collection Management",
-			-javascript => 'ac',
-		}
-	);
+	print $stab->start_html( {
+		-title      => "Account Collection Management",
+		-javascript => 'ac',
+	} );
 
 	#
 	# restrict only to the account collections the person can see.
@@ -305,19 +297,16 @@ sub do_account_collection_chooser {
 
 	print $cgi->div(
 		{ -class => 'acmanip collectionbox' },
-		$cgi->start_form(
-			{
-				-class  => 'picker',
-				-method => 'GET',
-				-action => './'
-			}
-		),
+		$cgi->start_form( {
+			-class  => 'picker',
+			-method => 'GET',
+			-action => './'
+		} ),
 		$type,
-		$cgi->img(
-			{
-				-src   => '../../stabcons/progress.gif',
-				-class => 'irrelevant dance'
-			}
+		$cgi->div( {
+				-class => 'spinner irrelevant dance'
+			},
+			''
 		),
 		$cgi->div(
 			{ -id => 'collec_detail', class => 'irrelevant' },

@@ -48,7 +48,15 @@ sub do_account_collection_update {
 
 	my $admin = $stab->check_role('AccountCollectionAdmin');
 
-	if (   !$admin
+	# Is this a development server?
+	my $development_override = 0;
+	if( $ENV{'development'} =~ /true/ ) {
+		# Authorize write access
+		$development_override = 1;
+	}
+
+	if (   !$development_override
+		&& !$admin
 		&& !$stab->check_account_collection_permissions( $acid, 'RW' ) )
 	{
 		return $stab->error_return(
@@ -61,18 +69,14 @@ sub do_account_collection_update {
 	#
 	foreach my $id ( $stab->cgi_get_ids('Del_ACCOUNT_ID') ) {
 		my $x;
-		if (
-			!(
-				$x = (
-					$stab->DBDelete(
-						table  => 'account_collection_account',
-						dbkey  => [ 'account_collection_id', 'account_id' ],
-						keyval => [ $acid, $id ],
-						errors => \@errs,
-					)
-				)
-			)
-		  )
+		if ( !(
+			$x = ( $stab->DBDelete(
+				table  => 'account_collection_account',
+				dbkey  => [ 'account_collection_id', 'account_id' ],
+				keyval => [ $acid,                   $id ],
+				errors => \@errs,
+			) )
+		) )
 		{
 			$stab->error_return( join( " ", @errs ) );
 		}
@@ -97,15 +101,13 @@ sub do_account_collection_update {
 			account_id            => $acctid,
 		};
 
-		if (
-			!(
-				$numchanges += $stab->DBInsert(
-					table  => 'account_collection_account',
-					hash   => $new,
-					errors => \@errs
-				)
+		if ( !(
+			$numchanges += $stab->DBInsert(
+				table  => 'account_collection_account',
+				hash   => $new,
+				errors => \@errs
 			)
-		  )
+		) )
 		{
 			$stab->error_return( join( " ", @errs ) );
 		}

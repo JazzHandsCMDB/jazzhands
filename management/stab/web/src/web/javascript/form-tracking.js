@@ -142,6 +142,34 @@ function preSubmitTrackedElements( submitButton ) {
 }
 
 
+// This function resets all forms in the page and triggers a updates the tracked status of all elements
+// It takes care of removing the rows added in the form for new elements
+// And it also removes the delete flag from elements that were marked for deletion
+function resetForm( form, message = 'All pending changes will be cancelled. Are you sure?' ) {
+	if( ! confirm( message ) ) {
+		return;
+	}
+	// If form is specified, reset only that form, otherwise reset all forms
+	forms = form ? [ form ] : document.querySelectorAll( 'form' );
+	// Loop on forms
+	forms.forEach( ( form ) => {
+		// Reset the form
+		form.reset();
+		// Remove all tr elements with class dnsadd or dnsrefadd in the form
+		form.querySelectorAll( 'tr.dnsadd' ).forEach( ( tr ) => { tr.remove(); });
+		form.querySelectorAll( 'tr.dnsrefadd' ).forEach( ( tr ) => { tr.remove(); });
+		// Remove the class rowrm from all tr elements in the form
+		form.querySelectorAll( 'tr.rowrm' ).forEach( ( tr ) => { tr.classList.remove( 'rowrm' ); });
+		// Remove the class pendingrm from all td elements in the form
+		form.querySelectorAll( 'td.pendingrm' ).forEach( ( td ) => { td.classList.remove( 'pendingrm' ); });
+		// Update the tracked status of all elements
+		form.querySelectorAll( '.tracked' ).forEach( ( element ) => {
+			updateChangeTrackingStatus( element );
+		});
+	});
+
+}
+
 
 // Enable change tracking when the document is loaded
 $(document).ready(function(){

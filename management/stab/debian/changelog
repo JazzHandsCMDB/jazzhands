@@ -1,3 +1,40 @@
+jazzhands-stab (0.98.0) jammy; urgency=medium
+
+  * Upgraded dataTables third-party module from 1.10.9 to 2.0.3 to get support for dark themes on the X509 certificates pages
+  * Upgraded jQuery third-party module from 1.3.0 to 1.4.11
+  * DNS pages now use a paging system to display records in order to address the performance issue with large zones
+  * Added a new DNS search functionality to the main DNS page and the zone pages
+  * Replaced the "single dns record" page by the new paging / scrolling functionality
+  * Layer2 / VLAN information has been integrated in the IP Network device tab
+  * Added form tracking to the SOA section of the DNS zone page
+  * The link on the main page to create support tickets can now be a link or an email
+  * Fixed the DNS NIC vs Database page timing out, and also fixed the incorrect information displayed in that page
+  * Fixed the Layer2 page having invalid links to Layer3 networks
+  * Fixed the missing Layer3 page title and the invalid links to Layer2 networks
+  * Fixed the duplicated empty network interface in the IP Network tab for devices having no interface
+  * Fixed database error when attempting to modify the part number of devices
+  * Fixed database error when clicking on the Reset to Default Nameservers button in the DNS zone page
+  * Fixed the redirect error when deleting or adding a site netblock
+  * Fixed CNAME DNS suggestions not having a trailing dot
+  * Fixed CNAME records sometimes loosing their dns reference on update
+  * Fixed incorrect layout and input fields for SRV records in the DNS zone pages
+  * Fixed incorrect handling of the priority, weight and port fields for records like SRV and MX
+  * Fixed an error when trying to update a dns entry for a /31 netblock
+  * Fixed the help text in the netblock page
+  * Fixed the incorrect ordering of the switch ports in the corresponding device page tab
+  * Fixed a weird behavior when attempting to update a device with no actual change
+  * Fixed a silent JavaScript error when attempting to display an empty netblock collection
+  * Fixed wrong mime type returned by the device and netblock collection ajax scripts
+  * Configured the language suggested by Stab pages to prevent Edge from trying to translate from the wrong language
+  * CSS styling is now done using a dedicated css file instead of a perl script
+  * Replaced the red(delete), octagon(delete), edit, plus, progress and Dell icons for dark themes
+  * Updated axe icon for dark themes
+  * Updated the overall css styles of links, buttons and text to be more readable on dark themes
+  * Added permission overrides for account collections on development instances
+  * Development background watermark replaced by a svg version compatible with dark themes
+
+ -- Stephane Messerli <stephane.messerli@polypode.org>  Fri, 12 Apr 2024 14:15:00 +0200
+
 jazzhands-stab (0.96.0) jammy; urgency=medium
 
   * bump up various debian versions of things to be currentish

@@ -14,6 +14,6 @@ Description:
 
 Package: jazzhands-stab
 Architecture: all
-Depends: jazzhands-perl-mgmt (>= 0.96.0), jazzhands-perl-common (>= 0.96.0), jazzhands-perl-stab (=${binary:Version}), jazzhands-javascript-common  (>= 0.96.0)
+Depends: jazzhands-perl-mgmt (>= 0.96.0), jazzhands-perl-common (>= 0.96.0), jazzhands-perl-stab (=${binary:Version}), jazzhands-javascript-common  (>= 0.98.0)
 Description: 
  JazzHands STAB Web Front End

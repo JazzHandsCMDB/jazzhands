@@ -1,0 +1,19 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32" width="32" height="32" stroke="blue" stroke-width="3" fill="none">
+  <style>
+    @media (prefers-color-scheme: light) {
+      .shadow { 
+        stroke: #0076CE;
+      }
+    }
+    @media (prefers-color-scheme: dark) {
+      .shadow { 
+        stroke: #0076CE;
+        filter: drop-shadow(0 0 2px black);
+      }
+    }
+  </style>
+  <g class="shadow">
+    <circle cx="16" cy="16" r="14" fill="none"/>
+    <path d="M 5 0 l -10 0 l 0 10 l 10 0 M -5 5 l 10 0" stroke-width="3.5" transform="translate(13,12.5) rotate(-32) skewX(24) scale(1.3,0.9)"/>
+  </g>
+</svg>

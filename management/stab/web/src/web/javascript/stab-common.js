@@ -22,10 +22,10 @@ function swaparrows(id, state) {
 	}
 
 	if(state == 'dance') {
-		img.src = img.src.replace(/stabcons\/.*$/gi, "stabcons/progress.gif");
-	} else if(state == 'arrow') {
-		img.src = img.src.replace(/stabcons\/.*$/gi, "stabcons/arrow.png");
-	} else if(state == 'down') {
+		return;
+	}
+
+	if(state == 'down') {
 		img.src = img.src.replace(/stabcons\/.*$/gi, "stabcons/collapse.jpg");
 	} else if(state == 'up') {
 		img.src = img.src.replace(/stabcons\/.*$/gi, "stabcons/expand.jpg");
@@ -54,12 +54,12 @@ function swaparrows_jq(obj, state) {
 		$(obj).removeClass('irrelevant');
 	}
 
-	var thing = $(obj).attr('src');
 	if(state == 'dance') {
-		thing = thing.replace(/stabcons\/.*$/gi, "stabcons/progress.gif");
-	} else if(state == 'arrow') {
-		thing = thing.replace(/stabcons\/.*$/gi, "stabcons/arrow.png");
-	} else if(state == 'down') {
+		return;
+	}
+
+	var thing = $(obj).attr('src');
+	if(state == 'down') {
 		thing = thing.replace(/stabcons\/.*$/gi, "stabcons/collapse.jpg");
 	} else if(state == 'up') {
 		thing = thing.replace(/stabcons\/.*$/gi, "stabcons/expand.jpg");
@@ -69,7 +69,7 @@ function swaparrows_jq(obj, state) {
 }
 
 function toggleon_text(but) {
-	$(but).parent('a').prev(":input").toggleClass('off');
+	$(but).prev(":input").toggleClass('off');
 	$(but).addClass('irrelevant');
 }
 
@@ -97,5 +97,23 @@ function enable_stab_tabs() {
 				}
 			);
 		}
+	});
+}
+
+
+
+// This function is used to process deferred scripts stored in script elements
+// with class 'deferred' and data attribute 'data-code' containing the script code.
+// Those script elements are added to the DOM by the server side code as part of
+// ajax requesuts and are not executed by the browser, mostly because they are
+// not returned as a text/javascript content type.
+function processDeferredScripts() {
+	$('script.deferred').each(function() {
+		var newScript = document.createElement("script");
+		var inlineScript = document.createTextNode($(this).attr('data-code'));
+		newScript.appendChild(inlineScript);
+		document.body.appendChild(newScript);
+		// Remove class deferred from script
+		$(this).removeClass('deferred');
 	});
 }

@@ -1,17 +1,17 @@
 /*
- * Copyright (c) 2017, Todd M. Kover					     
- * All rights reserved.							  
- *									       
- * Licensed under the Apache License, Version 2.0 (the "License");	       
- * you may not use this file except in compliance with the License.	      
- * You may obtain a copy of the License at				       
- *									       
- *       http://www.apache.org/licenses/LICENSE-2.0			      
- *									       
- * Unless required by applicable law or agreed to in writing, software	   
- * distributed under the License is distributed on an "AS IS" BASIS,	     
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.      
- * See the License for the specific language governing permissions and	   
+ * Copyright (c) 2017, Todd M. Kover
+ * All rights reserved.
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *       http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
  * limitations under the License.						
  */
 
@@ -41,8 +41,8 @@ function build_expandlist_box(resp, div) {
 		$(div).append(ul);
 	}
 	$(div).append(
-		$("<a/>", { 
-			href: '#', 
+		$("<a/>", {
+			href: '#',
 			class: 'expandcollection'
 		}).append("(collapse)")
 	);
@@ -54,7 +54,7 @@ function build_expandlist_box(resp, div) {
 //
 function expand_collection(button)  {
 	var pop = $(button).closest('div.collectionname').find('div.collectionexpandview').first();
-	var dance = $(button).closest('div.collectionname').find('img.dance');
+	var dance = $(button).closest('div.collectionname').find('div.dance.spinner');
 
 	var id = $(pop).attr('id');
 
@@ -111,7 +111,7 @@ function change_collection_select(obj) {
 	var coltype = $(typedrop).val();
 
 	if(coltype != '__unknown__') {
-		var dance = $(obj).closest('div.collectionbox').find('img.dance');
+		var dance = $(obj).closest('div.collectionbox').find('div.dance.spinner');
 		swaparrows_jq( dance,  'dance');
 		$(coldiv).empty();
 		$(box).addClass('irrelevant');
@@ -174,11 +174,7 @@ function add_account(plus) {
 
 	$(plus).closest('li').before(
 		$("<li/>").append(
-			$("<a/>", { class: 'rmrow pendingadd'}).
-				append( $("<img/>", {
-					class: 'rmrow button pending',
-					src: '../../stabcons/redx.jpg',
-				})),
+			$("<a/>", { class: 'rmrow pendingadd'}),
 			$("<input/>", {
 				type: 'checkbox',
 				class: 'irrelevant rmcollrow',

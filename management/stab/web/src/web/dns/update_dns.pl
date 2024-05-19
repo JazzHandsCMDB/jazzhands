@@ -70,9 +70,9 @@ sub clear_same_dns_params {
 
 	my $q = qq{
 		select	d.dns_record_id,
-				d.dns_name, d.dns_class, d.dns_type, 
+				d.dns_name, d.dns_class, d.dns_type,
 				d.dns_value, d.dns_ttl, d.is_enabled,
-				d.dns_srv_service, d.dns_srv_protocol, 
+				d.dns_srv_service, d.dns_srv_protocol,
 				d.dns_srv_weight, d.dns_srv_port,
 				d.dns_priority, d.should_generate_ptr,
 				net_manip.inet_dbtop(nb.ip_address) as ip,
@@ -83,7 +83,7 @@ sub clear_same_dns_params {
 		 where	dns_domain_id = ?
 	};
 	my $sth = $stab->prepare($q) || $stab->return_db_err;
-	$sth->execute($domid) || $stab->return_db_err;
+	$sth->execute($domid)        || $stab->return_db_err;
 
 	my $all = $sth->fetchall_hashref( _dbx('DNS_RECORD_ID') )
 	  || $stab->error_return(
@@ -103,9 +103,9 @@ sub clear_same_dns_params {
   DNS: for my $dnsid ( $stab->cgi_get_ids('DNS_RECORD_ID') ) {
 		next if ( $dnsid !~ /^\d+$/ );
 
-		my $in_name  = $stab->cgi_parse_param( 'DNS_NAME',            $dnsid );
-		my $in_class = $stab->cgi_parse_param( 'DNS_CLASS',           $dnsid );
-		my $in_type  = $stab->cgi_parse_param( 'DNS_TYPE',            $dnsid );
+		my $in_name  = $stab->cgi_parse_param( 'DNS_NAME',  $dnsid );
+		my $in_class = $stab->cgi_parse_param( 'DNS_CLASS', $dnsid );
+		my $in_type  = $stab->cgi_parse_param( 'DNS_TYPE',  $dnsid );
 		my $in_ttl   = $cgi->param( 'DNS_TTL_' . $dnsid );
 		my $in_value = $stab->cgi_parse_param( 'DNS_VALUE',           $dnsid );
 		my $in_valid = $stab->cgi_parse_param( 'DNS_VALUE_RECORD_ID', $dnsid );
@@ -245,18 +245,18 @@ sub clear_same_dns_params {
 sub process_dns_update {
 	my ( $stab, $domid, $updateid ) = @_;
 
-	my $cgi = $stab->cgi || die "Could not create cgi";
+	my $cgi        = $stab->cgi || die "Could not create cgi";
 	my $numchanges = 0;
 
 	my $name     = $stab->cgi_parse_param( 'DNS_NAME', $updateid );
 	my $ttl      = $cgi->param( 'DNS_TTL_' . $updateid );
-	my $class    = $stab->cgi_parse_param( 'DNS_CLASS', $updateid );
-	my $type     = $stab->cgi_parse_param( 'DNS_TYPE', $updateid );
-	my $value    = $stab->cgi_parse_param( 'DNS_VALUE', $updateid );
+	my $class    = $stab->cgi_parse_param( 'DNS_CLASS',           $updateid );
+	my $type     = $stab->cgi_parse_param( 'DNS_TYPE',            $updateid );
+	my $value    = $stab->cgi_parse_param( 'DNS_VALUE',           $updateid );
 	my $valrecid = $stab->cgi_parse_param( 'DNS_VALUE_RECORD_ID', $updateid );
 	my $genptr = $stab->cgi_parse_param( 'chk_SHOULD_GENERATE_PTR', $updateid );
 	my $enabled = $stab->cgi_parse_param( 'chk_IS_ENABLED', $updateid );
-	my $ttlonly = $stab->cgi_parse_param( 'ttlonly', $updateid );
+	my $ttlonly = $stab->cgi_parse_param( 'ttlonly',        $updateid );
 
 	my $in_srv_svc    = $stab->cgi_parse_param( "DNS_SRV_SERVICE",  $updateid );
 	my $in_srv_proto  = $stab->cgi_parse_param( "DNS_SRV_PROTOCOL", $updateid );
@@ -284,8 +284,8 @@ sub process_dns_update {
 	if ( $type eq 'MX' ) {
 		$in_srv_svc = $in_srv_proto = $in_srv_weight = $in_srv_port = undef;
 	} elsif ( $type ne 'SRV' ) {
-		$in_srv_svc    = $in_srv_proto = $in_srv_weight =
-		  $in_srv_port = $in_priority  = undef;
+		$in_srv_svc = $in_srv_proto = $in_srv_weight = $in_srv_port =
+		  $in_priority = undef;
 	}
 
 	if ( defined($in_srv_port) && $in_srv_port !~ /^\d+/ ) {
@@ -427,8 +427,8 @@ sub process_dns_add {
 		if ( $type eq 'MX' ) {
 			$in_srv_svc = $in_srv_proto = $in_srv_weight = $in_srv_port = undef;
 		} elsif ( $type ne 'SRV' ) {
-			$in_srv_svc    = $in_srv_proto = $in_srv_weight =
-			  $in_srv_port = $in_priority  = undef;
+			$in_srv_svc = $in_srv_proto = $in_srv_weight = $in_srv_port =
+			  $in_priority = undef;
 		}
 
 		if ( defined($in_srv_port) && $in_srv_port !~ /^\d+/ ) {

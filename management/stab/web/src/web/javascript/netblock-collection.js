@@ -1,17 +1,17 @@
 /*
- * Copyright (c) 2014, Todd M. Kover					     
- * All rights reserved.							  
- *									       
- * Licensed under the Apache License, Version 2.0 (the "License");	       
- * you may not use this file except in compliance with the License.	      
- * You may obtain a copy of the License at				       
- *									       
- *       http://www.apache.org/licenses/LICENSE-2.0			      
- *									       
- * Unless required by applicable law or agreed to in writing, software	   
- * distributed under the License is distributed on an "AS IS" BASIS,	     
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.      
- * See the License for the specific language governing permissions and	   
+ * Copyright (c) 2014, Todd M. Kover
+ * All rights reserved.
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *       http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
  * limitations under the License.						
  */
 
@@ -177,7 +177,15 @@ function build_collection_drop(resp, div) {
 		class: "netcoldrop",
 	});
 	var tally = 0;
-	for(var coll of  resp['NETBLOCK_COLLECTIONS']) {
+	// Loop on the netblock collections, but only if NETBLOCK_COLLECTIONS is defined in the response
+	if( ! ( 'NETBLOCK_COLLECTIONS' in resp ) ) {
+		$(div).empty();
+		// Hide the entire collection picker container div, which id is container_colbox, if there are no collections
+		$('#container_colbox').hide();
+		return;
+	}
+	$('#container_colbox').show();
+	for(var coll of resp['NETBLOCK_COLLECTIONS']) {
 		var id = coll['id'];
 		var desc = coll['human'];
 		var o = $("<option/>", {

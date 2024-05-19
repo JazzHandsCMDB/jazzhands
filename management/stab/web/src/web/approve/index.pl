@@ -64,8 +64,7 @@ sub build_correction($$) {
 		my $ph = "";
 		if ( $cat eq 'department' ) {
 			$ph  = 'Please Select department';
-			$sth = $stab->prepare_cached(
-				qq{
+			$sth = $stab->prepare_cached( qq{
 					SELECT	account_collection_name
 					FROM	account_collection
 							JOIN  department USING (account_collection_id)
@@ -76,8 +75,7 @@ sub build_correction($$) {
 			) || return $stab->return_db_err();
 		} elsif ( $cat eq 'ReportingAttest' ) {
 			$ph  = 'Please Select Manager';
-			$sth = $stab->prepare_cached(
-				qq{
+			$sth = $stab->prepare_cached( qq{
 				WITH x as (
 					select person_id,
 						coalesce(preferred_first_name,first_name) as first_name,
@@ -103,26 +101,22 @@ sub build_correction($$) {
 		while ( my ($name) = $sth->fetchrow_array ) {
 			push( @list, $name );
 		}
-		my $rv = $cgi->popup_menu(
-			{
-				-name               => $newid,
-				-id                 => $newid,
-				-values             => \@list,
-				"-data-placeholder" => $ph,
-				-class              => "chosen-select correction",
-				-tabindex           => 2,
-			}
-		);
+		my $rv = $cgi->popup_menu( {
+			-name               => $newid,
+			-id                 => $newid,
+			-values             => \@list,
+			"-data-placeholder" => $ph,
+			-class              => "chosen-select correction",
+			-tabindex           => 2,
+		} );
 		return $rv;
 	} else {
-		return $cgi->textfield(
-			{
-				-name  => $newid,
-				-id    => $newid,
-				-class => 'correction hint',
-				-value => 'enter correction'
-			}
-		);
+		return $cgi->textfield( {
+			-name  => $newid,
+			-id    => $newid,
+			-class => 'correction hint',
+			-value => 'enter correction'
+		} );
 	}
 	return "";
 }
@@ -132,13 +126,11 @@ sub dump_attest_loop($$;$$) {
 
 	my $cgi = $stab->cgi || die "Could not create cgi";
 
-	my $appall = $cgi->button(
-		{
-			-class => 'approveall',
-			-name  => 'selectall',
-			-value => 'approve all',
-		}
-	);
+	my $appall = $cgi->button( {
+		-class => 'approveall',
+		-name  => 'selectall',
+		-value => 'approve all',
+	} );
 
 	if ($ro) {
 		$appall = "";
@@ -189,8 +181,7 @@ sub dump_attest_loop($$;$$) {
 						$url =
 						  "?APPROVAL_INSTANCE_STEP_ID="
 						  . $hr->{ _dbx('LHS_STEP_ID') };
-						$linkback = $cgi->a(
-							{
+						$linkback = $cgi->a( {
 								-class => 'notreallydisabled',
 								-href  => $url
 							},
@@ -208,8 +199,7 @@ sub dump_attest_loop($$;$$) {
 						$url .=
 						  "?APPROVAL_INSTANCE_STEP_ID="
 						  . $hr->{ _dbx('RHS_STEP_ID') };
-						$linkfwd = $cgi->a(
-							{
+						$linkfwd = $cgi->a( {
 								-class => 'notreallydisabled',
 								-href  => $url
 							},
@@ -230,8 +220,7 @@ sub dump_attest_loop($$;$$) {
 				if ( $hr->{ _dbx('EXTERNAL_REFERENCE_NAME') } ) {
 					my $ref = $hr->{ _dbx('EXTERNAL_REFERENCE_NAME') };
 					if ( $hr->{ _dbx('APPROVAL_TYPE') } eq 'jira-hr' ) {
-						my $sth = $stab->prepare(
-							qq{
+						my $sth = $stab->prepare( qq{
 							select property_value from property
 							where property_name = '_jira_url'
 							and property_type = 'Defaults'
@@ -243,8 +232,7 @@ sub dump_attest_loop($$;$$) {
 						$sth->finish;
 						if ($url) {
 							$url =~ s,/$,,;
-							$ref = $cgi->a(
-								{
+							$ref = $cgi->a( {
 									-href    => "$url/browse/$ref",
 									- target => "stab-$ref"
 								},
@@ -258,8 +246,7 @@ sub dump_attest_loop($$;$$) {
 					  : "";
 					$correction = "$x $ref";
 				} else {
-					$correction = $cgi->div(
-						{
+					$correction = $cgi->div( {
 							-class =>
 							  'correction hidecorrection chosen-workaround',
 							-id => $hr->{ _dbx('approval_instance_item_id') }
@@ -275,8 +262,7 @@ sub dump_attest_loop($$;$$) {
 				if ( $perdudetally == 1 ) {
 
 					# $whocol = $hr->{approved_lhs} || '';
-					$whocol = $cgi->td(
-						{
+					$whocol = $cgi->td( {
 							-class   => $myclass,
 							-rowspan => $numitems
 						},
@@ -296,32 +282,26 @@ sub dump_attest_loop($$;$$) {
 					#	-label => ''}),
 					$approvsw = $cgi->div(
 						{ -class => 'attestbox' },
-						$cgi->hidden(
-							{
-								-class => 'approve_value',
-								-name  => 'ap_'
-								  . $hr->{ _dbx('approval_instance_item_id') },
-								value => ''
-							}
-						),
-						$cgi->button(
-							{
-								-class => 'attesttoggle approve buttonoff',
-								-name  => 'app_'
-								  . $hr->{ _dbx('approval_instance_item_id') },
-								-type  => 'button',
-								-value => 'approve'
-							}
-						),
-						$cgi->button(
-							{
-								-class => 'attesttoggle disapprove buttonoff',
-								-name  => 'dis_'
-								  . $hr->{ _dbx('approval_instance_item_id') },
-								-type  => 'button',
-								-value => 'request change'
-							}
-						),
+						$cgi->hidden( {
+							-class => 'approve_value',
+							-name  => 'ap_'
+							  . $hr->{ _dbx('approval_instance_item_id') },
+							value => ''
+						} ),
+						$cgi->button( {
+							-class => 'attesttoggle approve buttonoff',
+							-name  => 'app_'
+							  . $hr->{ _dbx('approval_instance_item_id') },
+							-type  => 'button',
+							-value => 'approve'
+						} ),
+						$cgi->button( {
+							-class => 'attesttoggle disapprove buttonoff',
+							-name  => 'dis_'
+							  . $hr->{ _dbx('approval_instance_item_id') },
+							-type  => 'button',
+							-value => 'request change'
+						} ),
 					);
 				}
 
@@ -415,12 +395,10 @@ sub dump_attest_loop($$;$$) {
 
 	my $form = $cgi->start_form( { -id => 'attest', -action => "approve.pl" } );
 	if ($acctid) {
-		$form .= $cgi->hidden(
-			{
-				-name    => 'accting_as_account',
-				-default => $acctid
-			}
-		);
+		$form .= $cgi->hidden( {
+			-name    => 'accting_as_account',
+			-default => $acctid
+		} );
 	}
 	print $form;
 
@@ -437,8 +415,7 @@ sub dump_attest_loop($$;$$) {
 			$class .= ' stabtab_off';
 		}
 		my $id = $h->{id};
-		$tabbar .= $cgi->a(
-			{
+		$tabbar .= $cgi->a( {
 				-class => $class,
 				-id    => "tab$id",
 			},
@@ -491,7 +468,7 @@ sub do_my_attest {
 
 	my $acctid = $stab->get_account_id($actas);
 	if (   !$stab->check_management_chain($acctid)
-		&& !$stab->check_approval_delegation( $acctid )
+		&& !$stab->check_approval_delegation($acctid)
 		&& !$stab->check_approval_god_mode()
 		&& !$stab->check_admin() )
 	{
@@ -499,8 +476,7 @@ sub do_my_attest {
 			"You are not permitted to approve on behalf of this person");
 	}
 
-	my $sth = $stab->prepare(
-		qq{
+	my $sth = $stab->prepare( qq{
 		WITH flow AS (
 			select	i.approval_instance_item_id as lhs_item_id,
 						i.approval_instance_step_id as lhs_step_id,
@@ -525,7 +501,7 @@ sub do_my_attest {
 						as due_seconds,
 					ai.description as process_description,
 					approval_utils.message_replace(message::text,
-								ais.approval_instance_step_start::timestamp, 
+								ais.approval_instance_step_start::timestamp,
 								ais.approval_instance_step_due::timestamp)
 									as chain_description
 		FROM	approval_instance ai
@@ -579,8 +555,7 @@ sub show_step_attest {
 
 	print $cgi->h4( { -align => 'center' }, "Approval Step" );
 
-	my $sth = $stab->prepare(
-		qq{
+	my $sth = $stab->prepare( qq{
 		WITH flow AS (
 			select	i.approval_instance_item_id as lhs_item_id,
 						i.approval_instance_step_id as lhs_step_id,

@@ -42,7 +42,7 @@ sub do_search_devices {
 	my $cgi  = $stab->cgi          || die "Could not create cgi";
 	my $dbh  = $stab->dbh          || die "Could not create dbh";
 
-	my $pattern = $cgi->param('pattern')   || undef;
+	my $pattern = $cgi->param('pattern') || undef;
 
 	print $cgi->header("application/json");
 
@@ -54,13 +54,14 @@ sub do_search_devices {
 		order by device_name
 	};
 	my $sth = $stab->prepare($q) || $stab->return_db_error($dbh);
-	$pattern = "%".$pattern."%";
+	$pattern = "%" . $pattern . "%";
 	$sth->execute($pattern) || $stab->return_db_error($sth);
 
 	my $result = $sth->fetchall_arrayref( [] );
+
 	# Just get the first 10 results
 	splice @$result, 10;
-	print to_json( $result ); 
+	print to_json($result);
 	$sth->finish;
 	undef $stab;
 }

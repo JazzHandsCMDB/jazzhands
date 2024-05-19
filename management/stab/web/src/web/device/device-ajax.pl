@@ -56,7 +56,7 @@ do_show_serial();
 sub do_show_serial {
 	my $stab = new JazzHands::STAB( ajax => 'yes' )
 	  || die "Could not create STAB";
-	my $cgi = $stab->cgi || die "Could not create cgi";
+	my $cgi      = $stab->cgi || die "Could not create cgi";
 	my $devid    = $stab->cgi_parse_param('DEVICE_ID')                || undef;
 	my $devnam   = $stab->cgi_parse_param('DEVICE_NAME')              || undef;
 	my $pportid  = $stab->cgi_parse_param('PHYSICAL_PORT_ID')         || undef;
@@ -77,6 +77,7 @@ sub do_show_serial {
 	my $locid    = $stab->cgi_parse_param('RACK_LOCATION_ID')         || undef;
 	my $dropid   = $stab->cgi_parse_param('dropid')                   || undef;
 	my $uniqid   = $stab->cgi_parse_param('uniqid');
+	my $original = $stab->cgi_parse_param('ORIGINAL') || '';
 
 	if ( $what eq 'serial' ) {
 		$what = 'Serial';
@@ -112,7 +113,7 @@ sub do_show_serial {
 		print $cgi->header("text/xml");
 		print "<response>\n";
 	} elsif ( $json eq 'yes' ) {
-		print $cgi->header("text/json");
+		print $cgi->header("application/json");
 	} elsif ( $xml eq 'no' ) {
 		print $cgi->header("text/html");
 	}
@@ -138,6 +139,8 @@ sub do_show_serial {
 		if ($type) {
 			$args->{-portLimit} = $type;
 		}
+		$args->{-class}    = 'tracked';
+		$args->{-original} = '__unknown__';
 		if ( defined($side) ) {
 
 			# [XXX] <- this is such a hack.  need to overhaul all port stuff.
@@ -160,7 +163,7 @@ sub do_show_serial {
 		$values{'P1_POWER_INTERFACE_PORT'} = $piport;
 		if ( $devid && $devid =~ /^\d+/ ) {
 			print $stab->b_dropdown(
-				{ -deviceid => $devid }, _dbx( \%values ),
+				{ -deviceid => $devid },   _dbx( \%values ),
 				'P2_POWER_INTERFACE_PORT', 'P1_POWER_INTERFACE_PORT'
 			);
 		} else {
@@ -215,14 +218,22 @@ sub do_show_serial {
 	} elsif ( $what eq 'SiteRacks' ) {
 		my $p;
 		if ( $locid || $site ) {
-			$p = {};
+			$p                       = {};
 			$p->{RACK_LOCATION_ID}   = $locid if ($locid);
 			$p->{LOCATION_SITE_CODE} = $site  if ($site);
 		}
 		if ( $type && $type eq 'dev' ) {
-			print $stab->b_dropdown(
-				{ -site => $site, -dolinkUpdate => 'rack' },
-				$p, 'LOCATION_RACK_ID', 'RACK_LOCATION_ID', 1 );
+			print $stab->b_dropdown( {
+					-class        => 'tracked',
+					-original     => $original,
+					-site         => $site,
+					-dolinkUpdate => 'rack'
+				},
+				$p,
+				'LOCATION_RACK_ID',
+				'RACK_LOCATION_ID',
+				1
+			);
 		} else {
 			print $stab->b_dropdown( { -site => $site },
 				$p, 'RACK_ID', 'RACK_LOCATION_ID', 1 );
@@ -230,8 +241,7 @@ sub do_show_serial {
 	} elsif ( $what eq 'interfacednsref' ) {
 
 		# XXX - this should go away
-		my $sth = $stab->prepare(
-			qq{
+		my $sth = $stab->prepare( qq{
 			select	dns.dns_record_id,
 					dns.dns_name,
 					dom.soa_name

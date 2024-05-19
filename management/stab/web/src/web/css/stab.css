@@ -1,0 +1,1323 @@
+
+/* Light theme styling variables */
+@media (prefers-color-scheme: light) {
+  :root {
+		--foreground-color: #222;
+		--background-color: #eee;
+
+		--color-error: #b70000;
+		--color-warning: #c19a00;
+
+		--border: 1px solid gray;
+
+		--foreground-color-link: #44a;
+		--background-color-link: #ddd;
+
+		--foreground-color-input: #111;
+		--background-color-input: #fff;
+		--foreground-color-input-disabled: #444;
+		--background-color-input-disabled: #ccc;
+
+		--spinner-color-1: #999;
+		--spinner-color-2: #444;
+
+		--button-filter-hover: saturate(1.0) brightness(0.9);
+		--button-filter-active: saturate(1.0) brightness(0.8);
+
+		--edit-button-filter: saturate(1.0) brightness(0.8);
+		--edit-button-filter-hover: saturate(1.0) brightness(1.2);
+
+    --background-color-box: rgba(211,211,211,0.7);
+
+		--background-color-tabgrouptab: #ccd;
+		--background-color-tabcontent: #dde;
+		--border-color-tab: 1px solid #666;
+		--shadow-color-tab: gray;
+		--shadow-color-tab-active: lightgray;
+		--background-color-subbox-yellow: lightyellow;
+		--background-color-subbox-blue: lightblue;
+
+		--table-input-border: 1px solid lightgray;
+		--table-table-border: 1px solid #888;
+		--table-column-background-odd: #ccc;
+		--table-column-background-even: #eee;
+
+		--table-column-background-odd : #ccc;
+		--table-column-background-even : #eee;
+
+		--background-rackit-even: #FFFF33;
+		--background-rackit-odd: #FFAA33;
+
+		--icon-vendor-filter: brightness(1.0);
+
+		--color-autocomplete-suggestion: #333;
+		--color-autocomplete-suggestion-strong: #0072e5;
+		--background-color-autocomplete-suggestion-selected: rgb(255, 255, 0);
+
+		--color-note-message: green;
+  }
+}
+
+/* Dark theme styling variables */
+@media (prefers-color-scheme: dark) {
+  :root {
+		--foreground-color: #ccc;
+		--background-color: #222;
+
+		--color-error: #ff4343;
+		--color-warning: #fafa00;;
+
+		--border: 1px solid #666;
+
+		--foreground-color-link: #bbf;
+		--background-color-link: #444;
+
+		--foreground-color-input: #eee;
+		--background-color-input: #333;
+		--foreground-color-input-disabled: #aaa;
+		--background-color-input-disabled: #444;
+
+		--spinner-color-1: #aaa;
+		--spinner-color-2: #fff;
+
+		--button-filter-hover: saturate(1.0) brightness(1.3);
+		--button-filter-active: saturate(1.0) brightness(1.2);
+
+		--edit-button-filter: saturate(0.5) brightness(4.0);
+		--edit-button-filter-hover: saturate(0.5) brightness(7.0);
+
+		--background-color-box: rgb(68, 68, 68, 0.7);
+
+		--background-color-tabgrouptab: #445;
+		--background-color-tabcontent: #556;
+		--border-color-tab: 1px solid #888;
+		--shadow-color-tab: #333;
+		--shadow-color-tab-active: #555;
+		--background-color-subbox-yellow: #664;
+		--background-color-subbox-blue: #446;
+
+		--table-input-border: 1px solid #666;
+		--table-table-border: 1px solid #777;
+		--table-column-background-odd: #505050;
+		--table-column-background-even: #444;
+
+		--table-column-background-odd : #444;
+		--table-column-background-even : #333;
+
+		--background-rackit-even: #4a4834;
+		--background-rackit-odd: #433528;
+
+		--icon-vendor-filter: brightness(1.0);
+
+		--color-autocomplete-suggestion: #fff;
+		--color-autocomplete-suggestion-strong: #fff;
+		--background-color-autocomplete-suggestion-selected: rgb(126, 126, 0);
+
+		--color-note-message: #0e0;
+  }
+}
+
+/* Default styling variables for both dark and light themes */
+:root {
+  color: var( --foreground-color );
+  background-color: var( --background-color );
+}
+
+
+
+/* Default styling for links */
+a {
+	color: var( --foreground-color-link );
+
+	&:hover {
+		filter: var( --button-filter-hover );
+	}
+}
+
+/* Default styling for form controls */
+input, select, textarea, button {
+  color: var( --foreground-color-input );
+  background-color: var( --background-color-input );
+	border: 1px solid gray;
+
+  &.off {
+    color: var( --foreground-color-input-disabled );
+    background-color: var( --background-color-input-disabled );
+  }
+}
+
+/* Add some padding and margins for button types */
+input[type=submit], input[type=reset], input[type=button], button {
+	padding: 0.2rem 0.5rem;
+	margin: 0.2rem 0.5rem;
+	&:hover {
+		filter: var( --button-filter-hover );
+	}
+	&:active {
+		filter: var( --button-filter-active );
+		transform: translate(0.05rem, 0.05rem);
+	}
+}
+
+/* Default styling for tables */
+table {
+	border-collapse: collapse;
+	border: none;
+}
+
+/* Spinner (for ajax asynchronous operations) */
+.spinner {
+	bottom: 1.5rem;
+	right: 1rem;
+	/* width and height define the external diameter */
+	width: 0.5rem;
+	height: 0.5rem;
+	/* border and border-top define the internal diameter */
+	border: 0.25rem solid var( --spinner-color-1 );
+	border-top: 0.25rem solid var( --spinner-color-2 );
+	border-radius: 50%;
+	animation: spin 2s linear infinite;
+	z-index: 1001;
+	display: inline-block;
+}
+
+@keyframes spin {
+	0%   { transform: rotate( 0deg ); }
+	100% { transform: rotate( 360deg ); }
+}
+
+/* Styling for specific elements */
+
+/* This adds a background watermark to the page for development instances */
+html:has(body.development) {
+	background-image: url("data:image/svg+xml;charset=UTF-8,%3csvg width='200' height='140' viewBox='0 0 200 140' fill='none' xmlns='http://www.w3.org/2000/svg'%3e%3ctext x='0' y='140' fill='gray' transform='rotate(-30)'%3eDevelopment%3c/text%3e%3c/svg%3e ");
+	background-attachment: fixed;
+}
+
+body {
+	Font-Family: Verdana, Arial, Helvetica, MS Sans Serif;
+	overflow: auto;
+	overflow-y: scroll;
+}
+
+/* The Stab Edit button (red 'e' in a circle) */
+a.stabeditbutton, a.dnsrefouteditbutton {
+	background-image: url("data:image/svg+xml;charset=UTF-8,%3csvg width='16' height='16' fill='none' stroke='red' stroke-width='1.5' xmlns='http://www.w3.org/2000/svg'%3E %3Ccircle cx='7.9' cy='7.9' r='7.3'/%3E %3Cpath d='M 10.8284 10.8284 A 3.75 3.75, 0, 0, 1, 4.5 8.0 M 4.5 8.0 A 3.0 3.0, 0, 0, 1, 11.5 8.0 L 5.0 8.0'/%3E %3C/svg%3E");
+	background-size: 1.0rem;
+	background-repeat: no-repeat;
+	display: inline-block;
+	width: 1.0rem;
+	height: 1.0rem;
+	margin-bottom: -2px;
+  margin-left: 5px;
+	filter: var( --edit-button-filter );
+	&:hover {
+		filter: var( --edit-button-filter-hover );
+		transform: translate(0.05rem, 0.05rem);
+	}
+}
+
+a.dnsrefoutlink {
+	font-size: 0.8rem;
+}
+
+/* The Stab Plus button (black plus sign in a square) */
+a.plusbutton {
+	background-image: url("data:image/svg+xml;charset=UTF-8,%3csvg width='16' height='16' fill='blue' stroke='white' xmlns='http://www.w3.org/2000/svg'%3E %3Cpath d='M 2 10 l 4 0 l 0 4 l 4 0 l 0 -4 l 4 0 l 0 -4 l -4 0 l 0 -4 l -4 0 l 0 4 l -4 0 l 0 4'/%3E %3C/svg%3E");
+	background-size: 1.0rem;
+	background-repeat: no-repeat;
+	border: 1px solid gray;
+	display: inline-block;
+	width: 1.0rem;
+	height: 1.0rem;
+	&:hover {
+		transform: translate(0.05rem, 0.05rem);
+	}
+}
+
+/* The Stab Delete button (white diagnoal cross in a plain red circle) */
+a.rmrow, a.purgerow, a.rmnetblock {
+	background-image: url("data:image/svg+xml;charset=UTF-8,%3csvg width='16' height='16' xmlns='http://www.w3.org/2000/svg'%3E %3Ccircle fill='black' cx='8' cy='8' r='8' /%3E %3Ccircle fill='rgb(216,0,0)' stroke='white' stroke-width='1' cx='8' cy='8' r='7.3' /%3E %3Cpath stroke='white' stroke-width='2.25' d='M 4 4 l 8 8 M 4 12 l 8 -8'/%3E %3C/svg%3E");
+	background-size: 1.0rem;
+	background-repeat: no-repeat;
+	display: inline-block;
+	width: 1.0rem;
+	height: 1.0rem;
+	margin-bottom: -2px;
+	margin-left: 5px;
+	/*filter: var( --edit-button-filter );*/
+	&:hover {
+		/*filter: var( --edit-button-filter-hover );*/
+		transform: translate(0.05rem, 0.05rem);
+	}
+}
+
+/*
+<svg xmlns="http://www.w3.org/2000/svg" stroke="currentColor" fill="rgb(96,96,255)" stroke-linecap="round" stroke-linejoin="round"  viewBox="0 0 16 16">
+  <g transform="scale(1.08) translate(-0.43,-0.5)">
+    <path d="M1,7 A12,12 0 0 1 13 7 L10,9.5 A11,11 0 0 0 2,10.5 L1,7" />
+    <path d="M12,5.6 l0 3.18 5 -5 -5 -5 0 3.18" transform="rotate(20)"/>
+  </g>
+</svg>
+*/
+a.dnsref {
+	background-image: url("data:image/svg+xml;charset=UTF-8,%3csvg xmlns='http://www.w3.org/2000/svg' stroke='currentColor' fill='rgb(96,96,255)' stroke-linecap='round' stroke-linejoin='round'  viewBox='0 0 16 16'%3E %3Cg transform='scale(1.08), translate(-0.43,-0.5)'%3E %3Cpath d='M1,7 A12,12 0 0 1 13 7 L10,9.5 A11,11 0 0 0 2,10.5 L1,7' /%3E %3Cpath d='M12,5.6 l0 3.18 5 -5 -5 -5 0 3.18' transform='rotate(20)'/%3E %3C/g%3E %3C/svg%3E");
+	background-size: 1.0rem;
+	background-repeat: no-repeat;
+	display: inline-block;
+	width: 1.0rem;
+	height: 1.0rem;
+	margin-bottom: -2px;
+	margin-left: 5px;
+	/*filter: var( --edit-button-filter );*/
+	&:hover {
+		/*filter: var( --edit-button-filter-hover );*/
+		transform: translate(0.05rem, 0.05rem);
+	}
+}
+
+ul.main-menu {
+  padding-left: 3rem;
+	margin-left: 3rem;
+}
+
+div.introblurb {
+	margin-left: auto;
+	margin-right: auto;
+	text-align: center;
+	width: 60%;
+}
+
+div.navbar {
+	font-size: 80%;
+	text-align: center;
+	margin-bottom: 1rem;
+
+	&>a {
+    margin-left: 15px;
+		margin-right: 15px;
+		text-decoration: none;
+		border: none;
+		border-bottom: 1px solid darkgray;
+		padding-left: 5px;
+		padding-right: 5px;
+		padding-top: 2px;
+		padding-bottom: 2px;
+		text-align: center;
+
+		&:hover {
+			filter: brightness(1.3);
+			border-bottom: 2px solid gray;
+		}
+	}
+}
+
+div.errmsg {
+	margin: auto;
+	color: red;
+	text-align: center;
+}
+
+div.notemsg {
+	margin: auto;
+	color: var( --color-note-message );
+	text-align: center;
+}
+
+/* device box pretty */
+
+TABLE.dev_checkboxes { background-color: var( --background-color-subbox-yellow ); border: 1px solid;}
+TABLE.rack_summary { background-color: var( --background-color-subbox-yellow ); border: 1px solid;}
+
+/* physical port popup box */
+
+TABLE.primaryinterface { background-color: var( --background-color-subbox-yellow ); }
+TD.header { background-color: orange; }
+div.searchPopup {
+	background: white;
+	border: 1px solid black;
+	border-top: none;
+	font-size: 50%;
+}
+div.physPortPopup {
+	background: var( --background-color-subbox-blue );
+	border: 1px solid black;
+	font-size: 50%;
+}
+table.physPortTitle {
+	background: lightgreen;
+	border: 1px solid black;
+	font-size: 100%;
+	width: 600px;
+}
+
+div.dnsvalueref {
+	margin-left: auto;
+	margin-right: auto;
+	background: var( --background-color-subbox-blue );
+	text-align: center;
+	border: 1px solid;
+}
+
+div#verifybox {
+	border: 2px solid black;
+	padding: 5px;
+	background: red;
+	text-align: center;
+	width: 60%;
+	margin-left: 20%;
+}
+
+div.maindiv {
+	border: 2px solid black;
+	padding: 3px;
+}
+
+/* Tabs */
+
+div.tabgroup {
+	padding-top: 10px;
+}
+
+tabgroup {
+	color: lightgrey
+}
+
+tabgrouptab { padding: 5px 0; }
+
+a.tabgrouptab {
+	margin-top: 10px;
+	padding: 3px 0.5em;
+	margin-left: 3px;
+	border: var( --border-color-tab );
+	border-bottom-width: 1px;
+	background: var( --background-color-tabgrouptab );
+	text-decoration: none;
+	border-radius: 7px 7px 0px 0px;
+	box-shadow: -1px -1px 1px 0px var( --shadow-color-tab );
+}
+
+a.tabgrouptab.active {
+	padding-bottom: 4px;
+	border-bottom-width: 0px;
+	background: var( --background-color-tabcontent );
+	box-shadow: -2px -2px 2px 1px var( --shadow-color-tab-active );
+	padding-top: 5px;
+}
+
+a:hover.tabgrouptab {
+	filter: brightness(1.1);
+}
+
+div.tabcontent {
+	display: none;
+	border: var( --border-color-tab );
+	padding-top: 10px;
+	margin-top: 3px;
+	background: var( --background-color-tabcontent );
+}
+
+div.tabcontent.active {
+	display: block;
+}
+
+/*input#submitdevice { font-size: 60%;}*/
+
+/***************** START OF GENERIC JQUERY TABS ****************************/
+
+/*
+ * tabs default to 'off', but the tab bar item needs class stabbar_off set
+ * because of the hover bits
+ *
+ * to to
+ */
+div.stabtabcontent {
+	background: #DDE;
+	border: 1px solid black;
+	border-radius: 10px;
+	width: 100%;
+	margin:auto;
+	min-width: 100ex;
+}
+
+div.stabtab {
+	padding: 5px 0;
+	display: none;
+	visibility: hidden;
+}
+
+a.stabtab {
+	margin-top: 10px;
+	padding: 3px 0.5em;
+	margin-left: 3px;
+	border: 2px solid black;
+	text-decoration: none;
+	border-radius: 20px 20px 0px 0px;
+	background: #AAB;
+	border-bottom-width: 1px;
+	color: white;
+	padding-top: 10px;
+}
+
+a.stabtab_on {
+	padding-bottom: 4px;
+	background: #DDE;
+	border-bottom-width: 0px;
+	color: blue;
+}
+
+.stabtabbar a:hover.stabtab_off {
+	background: var( --background-color-subbox-blue );;
+	color: black;
+	border-bottom: 5px;
+}
+
+div.stabtab_on {
+	display: block;
+	visibility: visible;
+}
+
+/******************************* END OF NEW TABS **************************/
+
+
+/* 	Device search display */
+table.devicesearch {
+	border-collapse: collapse;
+	margin: auto;
+	border: var( --table-table-border );
+}
+tr.devicesearch:nth-child( even ) {
+	border: 0px solid black;
+	background: var( --table-column-background-even );
+}
+tr.devicesearch:nth-child( odd ) {
+	border: 0px solid black;
+	background: var( --table-column-background-odd );
+}
+td.devicesearch {
+	border: 0px solid black;
+	padding-left: 5px;
+	padding-right: 5px;
+}
+
+/* 	Network ranges display */
+table.networkrange {
+	border-collapse: collapse;
+	margin: auto;
+	border: var( --table-table-border );
+}
+th.networkrange,td.networkrange {
+	border: var( --table-table-border );
+	padding-left: 5px;
+	padding-right: 5px;
+}
+
+/* 	Components display */
+table.components {
+	border-collapse: collapse;
+	margin: auto;
+	border: var( --table-table-border );
+}
+th.components,td.components {
+	border: var( --table-table-border );
+	padding-left: 5px;
+	padding-right: 5px;
+}
+tr.components:nth-child( odd ) {
+	background: var( --table-column-background-odd );
+}
+tr.components:nth-child( even ) {
+	background: var( --table-column-background-even );
+}
+
+/* 	Rack display */
+
+table.rackit {
+	border: var( --table-table-border );
+	background: var( --background-color-subbox-blue );
+}
+
+td.rackit_even {
+	border: var( --table-table-border );
+	background: var( --background-rackit-even );
+}
+td.rackit_odd {
+	border: var( --table-table-border );
+	background: var( --background-rackit-odd );
+}
+td.rackit_infrastructure {
+	border: var( --table-table-border );
+	background: grey;
+}
+td.rackit_vertical {
+	width: 10px;
+	text-align: center;
+	border: 1px solid black;
+	background: lightgrey;
+}
+
+img.icon-vendor {
+	filter: var( --icon-vendor-filter );
+}
+
+/* DNS display */
+
+form.dnspage, form.dnspage table {
+	text-align: center;
+	margin: auto;
+}
+
+table.dnsgentable {
+	text-align: center;
+	margin: auto;
+	border: 2px solid;
+}
+
+table.soatable {
+	text-align: center;
+	margin: auto;
+	background: var( --background-color-box );
+	border: 2px solid;
+}
+
+tr.even {
+	background: transparent;
+}
+
+tr.odd {
+	background: var( --background-color-box );
+}
+
+/* App display */
+
+div.approle_inside {
+	text-align: center;
+	border: 1px solid;
+}
+div.approle {
+	background: #DDE;
+	border: 1px solid;
+}
+div.approle_leaf {
+	color: green;
+}
+div.approle_undecided {
+	/* color: yellow; */
+	color: green;
+}
+a.approle_addchild {
+	font-size: 50%;
+	color: red;
+}
+
+/* Ports */
+
+span.port_label {
+	color: green;
+}
+
+table.center_table, form.center_form {
+	text-align: center;
+}
+
+table.center_table tbody {
+	text-align: left;
+}
+
+div.approles {
+	margin-left: auto;
+	margin-right: auto;
+	background: orange;
+	text-align: center;
+	border: 1px solid;
+}
+
+div.approles > div {
+	text-align: left;
+}
+
+label {
+	font-weight: bold;
+}
+
+/* Editable descriptions */
+
+.hinttext, .hint {
+	color: #808080;
+	font-size: 75%;
+	font-style: italic;
+}
+
+select:invalid {
+	color: gray;
+}
+
+input.editabletext {
+	min-width: 200px;
+}
+
+input.srvnum {
+	width: 5em;
+}
+
+/*
+	 this exists for approval because display: none confuses the chosen
+	jquery plugin
+ */
+.hidecorrection {
+	visibility: hidden;
+}
+
+.irrelevant {
+	display: none;
+	visibility: hidden;
+}
+
+div.chosen-workaround {
+	width: 100% !important;
+}
+
+div.ipdiv {
+	width: 100%;
+}
+
+ul.collection {
+	list-style-type: lower-roman;		/* should be none */
+}
+
+span.netblocksite {
+	min-width: 8ex;
+}
+
+span.netblocklink {
+	min-width: 30ex;
+}
+
+#SOA_MNAME, #SOA_RNAME {
+	width: 35ex;
+}
+
+tr.intadd {
+	background: grey;
+}
+
+td.intadd {
+	background: grey;
+}
+
+table.dnstable {
+	text-align: center;
+	margin: auto;
+	border: 1px solid;
+}
+
+table.dnstable tr.dnsrecord {
+	text-align: left;
+}
+
+table.dnstable input.dnsttl {
+	width: 6em;
+}
+
+table.dnstable input.dnsvalue {
+	width: 29em;
+}
+
+table.dnstable input.dnsname {
+	width: 10em;
+}
+
+select.dnsdomain {
+	width: 25em;
+}
+
+.autocomplete-suggestions { border: 1px solid #999; background: var( --background-color-subbox-yellow ); overflow: auto; font-size: 80%;}
+.autocomplete-suggestion {
+	color: var( --color-autocomplete-suggestion );
+	padding: 2px 5px;
+	white-space: nowrap;
+	overflow: hidden;
+}
+.autocomplete-selected {
+	background: var( --background-color-autocomplete-suggestion-selected );
+}
+.autocomplete-suggestions strong {
+	font-weight: bold;
+	color: var( --color-autocomplete-suggestion-strong );
+	text-decoration: underline;
+}
+.autocomplete-group { padding: 2px 5px; }
+.autocomplete-group strong { display: block; border-bottom: 1px solid #000; }
+
+/* netblock management (pre rewrite */
+table.nblk_ipallocation tr, table.nblk_ipallocation td {
+	border: var( --table-table-border );
+}
+
+img.subnet {
+	width: 1em;
+}
+
+/* This affects both the Add Network Interface and the Add IP Address
+   headers */
+.header_add_item {
+	text-align: center;
+	font-weight: bold;
+	background: orange;
+}
+
+table.interfacetable {
+	border-collapse: collapse;
+	margin: auto;
+	text-align: center;
+	/*border: 1px solid;*/
+	border: none;
+
+	/*tr {
+		border-top: 1px solid;
+		border-bottom: 1px solid;
+	}*/
+
+	tr.network_interface_first_line {
+		border-top: var( --table-table-border );
+	}
+
+	tr.network_interface_last_line {
+		border-top: var( --table-table-border );
+		border-bottom: var( --table-table-border );
+	}
+
+	th,td {
+		border-left: var( --table-table-border );
+		border-right: var( --table-table-border );
+	}
+
+	th {
+		border-top: var( --table-table-border );
+		border-bottom: var( --table-table-border );
+		padding: 0.3rem;
+	}
+
+	td {
+		vertical-align: top;
+		margin: auto;
+		text-align: left;
+	}
+}
+
+table.interfacetable tr th:nth-child(2n), table.interfacetable tr td:nth-child(2n) {
+	background: var( --table-column-background-even );
+}
+table.interfacetable tr th:nth-child(2n+1), table.interfacetable tr td:nth-child(2n+1) {
+	background: var( --table-column-background-odd );
+}
+
+/* This affects the Add Network Interface header */
+table.interfacetable tr.header_add_item {
+	border: none;
+	background: transparent;
+	td {
+		background: transparent;
+		border: none;
+		padding-top: 1rem;
+	}
+}
+
+table.interfacednstable tr th:nth-child(2n), table.interfacednstable tr td:nth-child(2n) {
+	background: transparent;
+}
+table.interfacednstable tr th:nth-child(2n+1), table.interfacednstable tr td:nth-child(2n+1) {
+	background: transparent;
+}
+
+table.interfacetable input, table.interfacetable select {
+	border: var( --table-input-border );
+	border-radius: 1px;
+}
+
+table.interfacednstable td {
+	border: none;
+}
+
+table.interfacetable tr.horizontal_separator {
+	border: none;
+	td {
+		border: none;
+		height: 0.5rem;
+		background-color: transparent;
+  }
+}
+
+table.dnsrefroot {
+	width: 100%;
+}
+
+tr.dnsroot td {
+	text-align: left;
+}
+
+table.intmoretable {
+	background: var( --background-color-subbox-yellow );
+	border-collapse: collapse;
+	border: none;
+	width: 100%;
+}
+
+table.intmoretable td {
+	border-collapse: collapse;
+	border: none;
+	text-align: left;
+}
+
+#verifybox li {
+	list-style-type: none;
+}
+
+div.ncmanip {
+	text-align: center;
+	width: 100%;
+	display: inline-block;
+}
+
+div.attestbox {
+	min-width: 20ex;
+	text-align: center;
+}
+
+
+table.attest {
+	border: 2px solid;
+	margin: auto;
+	background: grey;
+}
+
+table.attest tbody tr.odd {
+	background: lightgrey;
+	border: 1px solid;
+}
+
+table.attest td {
+	background: grey;
+}
+
+table.attest tbody th {
+	background: lightgrey;
+}
+
+table.attest tbody tr.even {
+	background: white;
+}
+
+table.attest tbody tr.even {
+	background: white;
+}
+
+table.attest tbody tr.even td {
+	background-color: white;
+}
+table.attest tbody tr.odd td {
+	background-color: lightgrey;
+}
+
+.error {
+	background-color: red;
+	color: white;
+}
+
+.disabled  {
+	/*pointer-events: none;*/
+	opacity: .9;
+	text-decoration: line-through;
+}
+
+.off  {
+	pointer-events: none;
+	opacity: .9;
+	background-color: lightgrey;
+}
+
+img.button {
+	height: 2ex;
+	vertical-align: middle;
+}
+
+.toggle_container {
+  display: inline-flex;
+  height: 14px;
+  background: lightgray;
+  cursor: pointer;
+  user-select: none;
+  border-radius: 30%;
+  box-shadow: inset 0 0 0 2px gray;
+  color: darkgray;
+  padding-top: 4px;
+  padding-bottom: 0px;
+  padding-left: 4px;
+  padding-right: 16px;
+}
+
+.toggle_container.toggled {
+  background: #bbbbff;
+  padding-left: 16px;
+  padding-right: 4px;
+  color: #0000cc;
+}
+
+.toggle_container:hover {
+  box-shadow: inset 0 0 0 2px #333333;
+  color: black;
+}
+
+.toggle_switch {
+  display: inline-flex;
+  cursor: pointer;
+  user-select: none;
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  background-color: black;
+}
+
+table.interfacetable input.button_switch, table.interfacetable input.button_switch[value='new'] {
+  color: black;
+  padding: 1px 10px;
+  /*text-decoration: none;*/
+  width: 6em;
+	margin-left: 0.5rem;
+	margin-right: 0.5rem;
+	margin-top: 0;
+}
+table.interfacetable input.button_switch[value='new'] {
+	/*color: transparent;
+  background-color: #CCC;*/
+  border: 1px solid transparent;
+  cursor: auto;
+	visibility: hidden;
+}
+table.interfacetable input.button_switch {
+  background-color: var( --background-color-input );
+	color: var( --foreground-color-input );
+  border: 1px solid #808080;
+  cursor: pointer;
+}
+table.interfacetable input.button_switch:not([value='new']):hover {
+  /*border: 1px solid blue;*/
+	filter: brightness(1.1);
+}
+
+tr.marked_for_delete, td.marked_for_delete, input.marked_for_delete, select.marked_for_delete {
+  box-shadow: inset 0 0 0 100px rgba(255, 128, 128, 0.2);
+}
+
+tr.marked_for_unlink, td.marked_for_unlink, input.marked_for_unlink, select.marked_for_unlink {
+  box-shadow: inset 0 0 0 100px rgba(255, 255, 128, 0.2);
+}
+
+tr.marked_for_lock, td.marked_for_lock, input.marked_for_lock, select.marked_for_lock {
+  box-shadow: inset 0 0 0 100px rgba(128, 128, 255, 0.2);
+}
+
+table.interfacetable .dnsptr{
+  width: 2em;
+}
+
+div.description {
+	border-top: 1px solid gray;
+	border-bottom: 1px solid gray;
+	text-align: center;
+	margin: auto;
+	width: 75vw;
+	padding: 0.5rem;
+}
+
+div.directions {
+	text-align: center;
+	margin: auto;
+	width: 60%;
+
+}
+
+div.process { background: orange; }
+div.chain { background: lightgrey; }
+
+div.attestsubmit {
+	width: 100%;
+	text-align: center;
+}
+
+td.correction {
+	min-width: 30ex;
+}
+
+td.correction input {
+	width: 100%;
+}
+
+/* Color for input fields with user-updated value */
+input.tracked.changed, select.tracked.changed, textarea.tracked.changed, tr.dnsadd, tr.dnsrefadd {
+	/*color: blue;*/
+	/*border: 1px solid magenta;*/
+	box-shadow: inset 0 0 0 1px rgb(255, 128, 255, 1.0), 0 0 0 2px rgb(255, 128, 255, 1.0);
+}
+
+input.attestsubmit {
+	background-color: green;
+	color: white;
+	border-radius: 20px;
+	margin: auto;
+	font-size: 130%;
+
+}
+
+.approveall {
+	border: 1px solid;
+	border-radius: 20px;
+	margin: 2px;
+	background: var( --background-color-subbox-yellow );
+}
+
+.attesttoggle {
+	border: 1px solid;
+	border-radius: 20px;
+	margin: 0px;
+	margin: 0px;
+	text-decoration: bold;
+	background: var( --background-color-subbox-yellow );
+}
+
+.approvaldue {
+	margin: auto;
+	text-align: center;
+}
+
+.collectionbox {
+	margin: auto;
+	text-align: center;
+}
+
+.duesoon {
+	background: yellow;
+}
+
+.overdue {
+	background: red;
+	color: white;
+}
+
+tr.rowrm {
+	background: red;
+	text-decoration: line-through;
+}
+
+li.rmrow {
+	background: red;
+	text-decoration: line-through;
+}
+
+.mark_for_delete {
+	background: red;
+	text-decoration: line-through;
+}
+
+/*
+	This is a CSS setup to make an image as the clickable element of an input
+	checkbox
+*/
+
+td.pendingrm * {
+	pointer-events: none;
+	opacity: .5;
+	text-decoration: line-through;
+}
+
+.buttonon {
+	background: var( --background-color-subbox-blue );;
+}
+
+div.reporting {
+	width: 100%;
+	margin: auto;
+}
+
+table.reporting {
+	border: 1px solid;
+	margin: auto;
+	text-align:center;
+}
+
+table.reporting >tbody{
+	text-align:left;
+}
+
+table.reporting > tbody td {
+	border: 1px solid;
+	border-color: grey;
+}
+
+
+div.centered {
+	text-align: center;
+	margin: auto;
+	padding-bottom: 0.2rem;
+}
+
+ul.nbhier {
+	padding-top: 0;
+}
+
+ul.nbhier > li.nbkids {
+	list-style-type: none;
+	margin-left: 0ex;
+}
+
+ul.nbhier > li.nbnokids {
+	list-style-type: none;
+	padding-left: 19px;
+	margin-left: 5ex;
+}
+
+/* account (and eventually other) collection manipulation */
+
+table.nic-database-container {
+	width: fit-content;
+	margin: auto;
+	& th, & td {
+		vertical-align: top;
+	}
+	& td {
+		background-color: var( --table-column-background-even );
+		height: 100%;
+		border: var( --table-table-border );
+		padding: 1rem;
+	}
+}
+
+table.nic-database {
+	width: 100%;
+	& th {
+		background-color: var( --table-column-background-odd );
+		vertical-align: top;
+	}
+	& td {
+		background: none;
+		text-align: center;
+		vertical-align: top;
+		border: none;
+		padding: 0;
+		&.mismatch {
+			color: var( --color-error );
+		}
+		&.missing {
+			color: var( --color-warning );
+		}
+	}
+}
+
+ul.collectionbox li {
+	width: 100%;
+}
+
+ul.collectionbox li.plus {
+	list-style-type: none;
+}
+
+ul.collectionbox input {
+	width: 50%;
+	min-width: 25ex;
+}
+
+form.picker ul {
+	text-align: left;
+	margin: auto;
+}
+
+h2.objectdetails {
+	text-align: center;
+	margin: auto;
+}
+
+div.collectionname {
+	text-align: center;
+	margin: auto;
+}
+
+div.collectionexpandview {
+	position: absolute;
+	border: 2px double;
+	z-index: 2;
+	left: 0;
+	right: 0;
+	margin: auto;
+	text-align: center;
+	vertical-align:center;
+	min-width: 50ex;
+	min-height: 20em;
+	width: 50%;
+	height: 50%;
+	overflow-y: auto;
+	background: var( --background-color-box );
+}
+div.collectionexpandview ul {
+	text-align: left;
+}
+
+/* Style for the netblock ips summary table */
+table.netblock_summary {
+	color: #b17200;
+	border-collapse: collapse;
+}
+th.netblock_summary, td.netblock_summary {
+	text-align: center;
+	border: 1px solid #b17200;
+	padding-left: 10px;
+	padding-right: 10px;
+}
+
+
+button.paging {
+	margin: 0.2rem 0.0rem;
+}
+
+.paging-container {
+	position: relative;
+	min-width: 65rem;
+}
+
+.paging-controls {
+	font-size: 0.8rem;
+}
+
+.paging-info {
+	font-size: 0.8rem;
+	position: absolute;
+	right: 0.5rem;
+	top: 0.2rem;
+	font-style: italic;
+}
+
+table.sites {
+	margin: auto;
+	& > tbody > tr > td {
+		border: 1px solid gray;
+	}
+}
+
+table.site {
+	& td.site-name {
+		background-color: var( --background-rackit-even );
+	}
+
+  & td.site-netblocks {
+		border-top: 1px solid gray;
+	}
+}
+
+a.goto-link {
+	/* Sets the font size to 35% and minimum of 10px */
+	font-size: max(10px, 35%);
+
+	/* This is to ensure that the goto-link is hidden as soon as the input field it relates to has a changed value */
+	input.changed + & {
+		visibility: hidden;
+	}
+}

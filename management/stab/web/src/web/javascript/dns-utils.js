@@ -42,7 +42,7 @@
 //
 
 //
-// converts the query string to a
+// converts the query string to an array
 function QsToObj() {
     var vars = window.location.search.substring(1).split(';');
 	var rv = new Array();
@@ -108,7 +108,7 @@ function dns_debug_addns(button)
 //  builds a drop down based on what was fetched from an ajax server.
 // Optionally takes a hash at the end that contains possible defaults
 //
-function build_dns_drop(in_sel, detail, queryparams, id, prefix) {
+function build_dns_drop(in_sel, detail, queryparams, id, prefix, suffix, placeholder) {
 	var sel = in_sel;
 	if(in_sel == null) {
 		sel = $('<select/>');
@@ -121,10 +121,15 @@ function build_dns_drop(in_sel, detail, queryparams, id, prefix) {
 		if(prefix) {
 			f = prefix + "_" + f;
 		}
+		if(suffix) {
+			f = f + '_' + suffix;
+		}
 		$(sel).attr('name', f);
 		$(sel).attr('id', f);
+		$(sel).attr('required', true );
 		$(sel).addClass('srvnum');
-		$(sel).addClass('hint');
+		//$(sel).addClass('hint');
+		const bOptionSelected = false;
 		for(var key in detail[field]) {
 			var val = (detail[field][key] == null)?key:detail[field][key];
 			var o = $('<option/>', {
@@ -134,39 +139,23 @@ function build_dns_drop(in_sel, detail, queryparams, id, prefix) {
 			if(queryparams != null && field in queryparams) {
 				if(queryparams[field] == val) {
 					$(o).attr('selected', true);
+					bOptionSelected = true;
 				}
 			}
 			$(sel).append(o);
 		}
-	}
-	return(sel);
-}
-
-//
-//  builds a drop down based on what was fetched from an ajax server.
-// Optionally takes a hash at the end that contains possible defaults
-//
-function wtf_build_dns_drop(sel, detail, queryparams) {
-	if(sel == null) {
-		sel = document.createElement("select");
-	}
-	$(detail).each(function(index, in_elem) {
-		for(var field in in_elem) {
-			$(sel).addClass('srvnum');
-			$(sel).addClass('hint');
-			for(var in_key in detail[field]) {
-				var key = $(in_key).get();
-				var val = (detail[field][key] == null)?key:detail[field][key];
-				var o = new Option(key, val);
-				if(queryparams != null && field in queryparams) {
-					if(queryparams[field] == val) {
-						$(o).attr('selected', true);
-					}
-				}
-				sel.add(o);
-			}
+		// Adds a placeholder / hint if no option is selected
+		if( ! bOptionSelected && placeholder ) {
+			var optionPlaceholder = $('<option/>', {
+				text: placeholder,
+				value: '',
+				disabled : true,
+				hidden   : true,
+				selected : true
+			});
+			$(sel).prepend( optionPlaceholder );
 		}
-	});
+	}
 	return(sel);
 }
 
@@ -182,7 +171,7 @@ function make_outref_editable(obj) {
 	var v = $(td).find('a.dnsrefoutlink');
 	var nelem = $('<input/>', {
 		type: 'text',
-		class: 'dnsvalue dnsautocomplete',
+		class: 'dnsvalue dnsautocomplete tracked',
 		name: 'DNS_VALUE_' + id,
 		value: $(v).first().text()
 	});
@@ -203,6 +192,7 @@ function make_outref_editable(obj) {
 function change_dns_record(obj, old) {
 	var prms = QsToObj();
 	var nametr = $(obj).closest('tr').first();
+	console.log(nametr);
 	var nametd = $(obj).closest('tr').find('td.DNS_NAME');
 
 
@@ -253,22 +243,29 @@ function change_dns_record(obj, old) {
 		plusprefix = '';
 	}
 
-	var value = $(obj).closest('tr').find('input[name*="DNS_VALUE"]');
+	// If the new_dns_row_id attribute is set, use it, otherwise use the id attribute
+	if( $(nametr).attr('new_dns_row_id') ) {
+		recordId = $(nametr).attr('new_dns_row_id');
+	} else {
+		recordId = $(nametr).attr('id');
+	}
+
+	var value = $(obj).closest('tr').find('input[name*="DNS_VALUE_"]:not([name*="DNS_VALUE_RECORD"])');
 	if(obj.value == 'SRV' || obj.value == 'MX') {
+		var priority = $(obj).closest('tr').find('input[name*="DNS_PRIORITY"]');
 		if(priority && $(priority).is("input") )  {
 			$(priority).removeClass('irrelevant');
 		} else {
 			// need to fetch from server...
 			var box = $("<input />", {
-				name: plusprefix + 'DNS_PRIORITY' + "_" + $(nametr).attr('id'),
-				id: plusprefix + 'DNS_PRIORITY' + "_" + $(nametr).attr('id'),
-				"class": 'srvnum'
+				name: plusprefix + 'DNS_PRIORITY' + "_" + recordId,
+				id: plusprefix + 'DNS_PRIORITY' + "_" + recordId,
+				'placeholder': 'priority',
+				"class": 'srvnum tracked',
+				'original': ''
 			});
 			if( 'DNS_PRIORITY' in prms) {
 				box.value = prms['DNS_PRIORITY'];
-			} else {
-				$(box).addClass('hint');
-				$(box).val('pri');
 			}
 			$(box).insertBefore(value);
 		}
@@ -277,15 +274,15 @@ function change_dns_record(obj, old) {
 
 	if(obj.value == 'SRV') {
 		var name = $(obj).closest('tr').find('input[name*="DNS_NAME"]');
-		var priority = $(obj).closest('tr').find('input[name*="DNS_PRIORITY"]');
+		//var priority = $(obj).closest('tr').find('input[name*="DNS_PRIORITY"]');
 		var protocol = $(obj).closest('tr').find('select[name*="DNS_SRV_PROTOCOL"]');
 		var weight = $(obj).closest('tr').find('input[name*="DNS_SRV_WEIGHT"]');
 		var port = $(obj).closest('tr').find('input[name*="DNS_SRV_PORT"]');
 		var svc = $(obj).closest('tr').find('select[name*="DNS_SRV_SERVICE"]');
 		var ttl = $(obj).closest('tr').find('input[name*="DNS_TTL"]');
 
-		if(svc && $(svc).is("input") )  {
-			$(priority).removeClass('irrelevant');
+		if(svc && $(svc).is("select") )  {
+			//$(priority).removeClass('irrelevant');
 			$(protocol).removeClass('irrelevant');
 			$(weight).removeClass('irrelevant');
 			$(port).removeClass('irrelevant');
@@ -297,40 +294,37 @@ function change_dns_record(obj, old) {
 			$.getJSON('dns-ajax.pl',
 				'what=Protocols',
 				function(resp) {
-					build_dns_drop(protos, resp, prms, $(nametr).attr('id'), prefix);
+					build_dns_drop(protos, resp, prms, $(nametr).attr('id'), prefix, $(nametr).attr('new_dns_row_id'), 'protocol');
 					$(protos).prependTo(nametd);
 			});
 
 			$.getJSON('dns-ajax.pl',
 				'what=Services',
 				function(resp) {
-					build_dns_drop(services, resp, prms, $(nametr).attr('id'), prefix);
+					build_dns_drop(services, resp, prms, $(nametr).attr('id'), prefix, $(nametr).attr('new_dns_row_id'), 'service');
 					$(services).insertBefore(protos);
 			});
 
-			// need to fetch from server...
 			var box = $("<input />", {
-				name: plusprefix + 'DNS_SRV_WEIGHT' + "_" + $(nametr).attr('id'),
-				id: plusprefix + 'DNS_SRV_WEIGHT' + "_" + $(nametr).attr('id'),
-				"class": 'srvnum'
+				name: plusprefix + 'DNS_SRV_WEIGHT' + "_" + recordId,
+				id: plusprefix + 'DNS_SRV_WEIGHT' + "_" + recordId,
+				'placeholder' : 'weight',
+				"class": 'srvnum tracked',
+				'original': ''
 			});
 			if( 'DNS_SRV_WEIGHT' in prms) {
 				box.value = prms['DNS_SRV_WEIGHT'];
-			} else {
-				$(box).addClass('hint');
-				box.value = 'weight';
 			}
 			$(box).insertBefore(value);
 			var box = $("<input />", {
-				name: plusprefix + 'DNS_SRV_PORT' + "_" + $(nametr).attr('id'),
-				id: plusprefix + 'DNS_SRV_PORT' + "_" + $(nametr).attr('id'),
-				"class": 'srvnum'
+				name: plusprefix + 'DNS_SRV_PORT' + "_" + recordId,
+				id: plusprefix + 'DNS_SRV_PORT' + "_" + recordId,
+				'placeholder' : 'port',
+				"class": 'srvnum tracked',
+				'original': ''
 			});
 			if( 'DNS_SRV_PORT' in prms) {
 				box.value = prms['DNS_SRV_PORT'];
-			} else {
-				$(box).addClass('hint');
-				box.value = 'port';
 			}
 			$(box).insertBefore(value);
 
@@ -384,13 +378,9 @@ function add_new_dns_row(button, resp) {
 	}
 
 	$(button).closest('tr').after(
-		$("<tr/>", {class: myclass}).append(
+		$("<tr/>", {class: myclass, new_dns_row_id: offset}).append(
 			$("<td>").append(
-				$("<a/>", { class: 'purgerow'}).
-					append( $("<img/>", {
-						class: 'rmdnsrow button',
-						src: '../stabcons/redx.jpg',
-					})),
+				$("<a/>", { class: 'purgerow'},'' ),
 				$("<input/>", {
 					type: 'checkbox',
 					name: 'new_IS_ENABLED_'+offset,
@@ -414,14 +404,10 @@ function add_new_dns_row(button, resp) {
 				}),
 				$("<a/>", {
 					href: '#',
-					class: 'stabeditbutton'
-				}).append(
-					$("<img/>", {
-						// class: 'stabeditbutton',
-						src: '../stabcons/e.png',
-						title: 'Edit'
-					})
-			)),
+					class: 'stabeditbutton',
+					title: 'edit',
+				})
+			),
 			$("<td>").append(classes),
 			$("<td>").append(types),
 			$("<td>").append(
@@ -441,7 +427,7 @@ function add_new_dns_row(button, resp) {
 				$("<input/>", {
 					type: 'checkbox',
 					name: 'new_SHOULD_GENERATE_PTR_'+offset,
-					class: 'ptrbox irrelevant'
+					class: 'ptrbox irrelevant',
 				})
 			)
 		)
@@ -465,10 +451,25 @@ function configure_autocomplete(selector) {
 	// Its done this way so that the URL can have the type in it.
 	//
 	$('html').find(selector).each(function(idx, elem) {
-		var type = $(elem).closest('tr').find('select.dnstype').val();
-		var url = 'dns-ajax.pl?what=autocomplete;DNS_TYPE='+ type +';'
+
+		// Get the type select element - this is used in the DNS Zone section
+		var oType = $(elem).closest('tr').find('select.dnstype');
+		// Get the type filter element - this is used on the main DNS page, outside of the DNS Zone section
+		var oTypeFilter = $(elem).closest('tr').find('select.dnstypefilter');
+		// If the dnstype field has been found, we're in the DNS Zone section
+		// If the dnstypefilter field has been found, we're on the main DNS page, outside of the DNS Zone section
+		// Build the initial ajax url
+		var url = 'dns-ajax.pl?what=autocomplete;DNS_TYPE='+ ( oType.val() || oTypeFilter.val() ) +';TARGET_DNS_TYPE_FILTER=' + oTypeFilter.length + ';';
+
+		// Let's update the ajax url if the typefilter has changed
+		// This is only happening on the main DNS page, outside of the DNS Zone section
+		$( oTypeFilter ).on('change', function() {
+			var url = 'dns-ajax.pl?what=autocomplete;DNS_TYPE='+ ( oType.val() || oTypeFilter.val() ) +';TARGET_DNS_TYPE_FILTER=' + oTypeFilter.length + ';';
+			$(elem).devbridgeAutocomplete().setOptions({ serviceUrl: url });
+		});
+
 		$(elem).devbridgeAutocomplete({
-			noCache: false,
+			noCache: true,
 			deferRequestBy: 200,
 			showNoSuggestionNotice: true,
 			noSuggestionNotice: 'No suggested matches.',
@@ -477,6 +478,12 @@ function configure_autocomplete(selector) {
 				var id = $(this).closest('tr').attr('id');
 				var x = $(this).closest('td').find('.valdnsrecid');
 				$(x).val(suggestion.data);
+        // Remove the (TYPE[->value]) prefix from the suggestion value
+				this.value = this.value.replace(/^.*\) /, '');
+				// If the page has the button "Go to Record" (id=gotorecord), enable it by removing the off class
+				$('#gotorecord').removeClass('off');
+				// Set a title attribute to the button "Go to Record" with the suggestion value
+				$('#gotorecord').attr('title', 'Go to record: ' + suggestion.value);
 			},
 			onSearchStart: function(container, suggestion) {
 				$(this).closest('td').find('.valdnsrecid').val(null);
@@ -484,6 +491,26 @@ function configure_autocomplete(selector) {
 		});
 	});
 }
+
+
+
+// This function scrolls the page to the dns record with id dnsrecid
+function scrollToTargetDNSRecord() {
+  // The target dns record is has been added to the page as a global variable dnsrecid
+	// If it doesn't exist, exit the function
+	if (typeof dnsrecid === 'undefined') {
+		return;
+	}
+	// Scroll to the target dns record, and place it in the middle of the page if possible
+	$('html, body').animate({
+		scrollTop: $('#' + dnsrecid).offset().top - $(window).height() / 2
+	}, 500);
+
+	// Then blink the target dns record (this is the tr element)
+	$('#' + dnsrecid).fadeOut(500).fadeIn(500).fadeOut(500).fadeIn(500).fadeOut(500).fadeIn(500);
+}
+
+
 
 $(document).ready(function(){
 	$("table.dnstable").on('focus', "select.dnstype", function(event) {
@@ -501,7 +528,7 @@ $(document).ready(function(){
 	}
 
 	// this causes the grey'd out hint to go away
-	$("table").on('focus', ".hint", function(event) {
+	/*$("table").on('focus', ".hint", function(event) {
 		$(event.target).removeClass('hint');
 		event.target.preservedHint = $(event.target).val();
 		$(event.target).val('');
@@ -512,7 +539,7 @@ $(document).ready(function(){
 			$(event.target).addClass('hint');
 			$(event.target).val( event.target.preservedHint );
 		}
-	});
+	});*/
 
 	// this causes the EDIT button to show up where needed
 	$("table.dnstable").on('click', "a.stabeditbutton", function(event) {
@@ -534,7 +561,33 @@ $(document).ready(function(){
 		return(0);
 	});
 
+
+
+	// Make the page input field act in a specific way when the Enter key is pressed
+	// It will reload the page with the new OFFSET and LIMIT parameters
+	$('input#page').keypress(function(event) {
+		if( event.keyCode == 13 ) {
+			// Don't allow form submission
+			event.preventDefault();
+			// Get the data-limit attribute value
+			var $limit = $(this).data('limit');
+			// Get the data-offset attribute value
+			var $offset = $(this).data('offset');
+			// Get the current window location url
+			var $link = window.location.href;
+			// Remove the OFFSET and LIMIT parameters from the url, if any
+			$link = $link.replace(/;OFFSET=\d+/g, '');
+			$link = $link.replace(/;LIMIT=\d+/g, '');
+			// Get the (page) value of this input field
+			$value = $(this).val();
+			// Redirect to the new url with the new OFFSET and LIMIT parameters
+			window.location = $link + ';OFFSET=' + ($value - 1) * $limit + ';LIMIT=' + $limit;
+		}
+	});
+
 	configure_autocomplete();
 
 	create_dns_reference_jquery("table.dnstable");
+
+	scrollToTargetDNSRecord();
 });

@@ -6,6 +6,7 @@
 /var/www/stab/approve/reporting/index.pl
 /var/www/stab/circuit/index.pl
 /var/www/stab/circuit/trunkgroup/index.pl
+/var/www/stab/css/stab.css
 /var/www/stab/device/ajax-devsearch.pl
 /var/www/stab/device/apps/index.pl
 /var/www/stab/device/certs/index.pl
@@ -37,7 +38,6 @@
 /var/www/stab/dns/write/add_domain.pl
 /var/www/stab/dns/write/update_domain.pl
 /var/www/stab/error.pl
-/var/www/stab/images/development-background.png
 /var/www/stab/images/electric/5-15p.png
 /var/www/stab/images/electric/5-20p.png
 /var/www/stab/images/electric/5-30p.png
@@ -66,7 +66,7 @@
 /var/www/stab/images/electric/unknown.png
 /var/www/stab/images/vendors/avaya.ico
 /var/www/stab/images/vendors/cisco.ico
-/var/www/stab/images/vendors/dell.ico
+/var/www/stab/images/vendors/dell.svg
 /var/www/stab/images/vendors/dothill.ico
 /var/www/stab/images/vendors/emc.ico
 /var/www/stab/images/vendors/force10.ico
@@ -93,6 +93,7 @@
 /var/www/stab/javascript/form-tracking.js
 /var/www/stab/javascript/netblock-collection.js
 /var/www/stab/javascript/netblock.js
+/var/www/stab/javascript/paging.js
 /var/www/stab/javascript/racks.js
 /var/www/stab/javascript/reporting.js
 /var/www/stab/javascript/stab-common.js
@@ -121,17 +122,10 @@
 /var/www/stab/sites/write/edit_site_netblocks.pl
 /var/www/stab/sites/write/retire_site.pl
 /var/www/stab/stabcons/Axe_001.svg
-/var/www/stab/stabcons/Octagon_delete.svg
-/var/www/stab/stabcons/arrow.png 
 /var/www/stab/stabcons/collapse.jpg
-/var/www/stab/stabcons/e.png
 /var/www/stab/stabcons/expand.jpg
 /var/www/stab/stabcons/mystica-Arrow-set-Comic-3.png
-/var/www/stab/stabcons/plus.png
-/var/www/stab/stabcons/progress.gif
-/var/www/stab/stabcons/redx.jpg
 /var/www/stab/stabcons/round_red_x_sign_4229.jpg
 /var/www/stab/stabcons/stab.png
-/var/www/stab/style.pl
 /var/www/stab/x509/index.pl
 /var/www/stab/x509/expiry.pl

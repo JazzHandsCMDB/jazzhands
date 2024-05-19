@@ -77,7 +77,7 @@ sub get_netblock_id {
 		 where	ip_address = net_manip.inet_ptodb(?, 1)
 		   and	family(ip_address) = ?
 	};
-	my $sth = $stab->prepare($q) || $stab->return_db_err($dbh);
+	my $sth = $stab->prepare($q)  || $stab->return_db_err($dbh);
 	$sth->execute( $base, $bits ) || $stab->return_db_err($sth);
 
 	my $x = ( $sth->fetchrow_array )[0];
@@ -97,7 +97,7 @@ sub get_max_level {
 	};
 
 	my $sth = $stab->prepare($q) || $stab->return_db_err($dbh);
-	$sth->execute($start_id) || $stab->return_db_err($sth);
+	$sth->execute($start_id)     || $stab->return_db_err($sth);
 	my $x = ( $sth->fetchrow_array )[0];
 	$sth->finish;
 	$x;
@@ -144,7 +144,7 @@ sub dump_toplevel {
 	};
 
 	my $sth = $stab->prepare($q) || $stab->return_db_err($dbh);
-	$sth->execute || $stab->return_db_err($sth);
+	$sth->execute                || $stab->return_db_err($sth);
 
 	print "<ul>\n";
 	while ( my ( $ip, $id, $stat, $desc, $site ) = $sth->fetchrow_array ) {
@@ -155,22 +155,20 @@ sub dump_toplevel {
 		}
 
 		print "\t"
-		  . $cgi->li(
-			join(
-				" ",
-				$cgi->span( { -class => 'netblocksite' }, $site ),
-				$cgi->span(
-					{ -class => 'netblocklink' },
-					"- ",
-					$cgi->a( { -href => $url }, "$ip" )
-				),
-				$cgi->span(
-					{ -class => 'netblockdesc' },
-					"- " . ( ($desc) ? $desc : "" )
-				),
-				"\n"
-			)
-		  );
+		  . $cgi->li( join(
+			" ",
+			$cgi->span( { -class => 'netblocksite' }, $site ),
+			$cgi->span(
+				{ -class => 'netblocklink' },
+				"- ",
+				$cgi->a( { -href => $url }, "$ip" )
+			),
+			$cgi->span(
+				{ -class => 'netblockdesc' },
+				"- " . ( ($desc) ? $desc : "" )
+			),
+			"\n"
+		  ) );
 	}
 	print "</ul>\n";
 	$sth->finish;
@@ -237,7 +235,7 @@ sub dump_nodes {
 	};
 
 	my $sth = $stab->prepare($q) || $stab->return_db_err;
-	$sth->execute($p_nblkid) || $stab->return_db_err($sth);
+	$sth->execute($p_nblkid)     || $stab->return_db_err($sth);
 
 	if ($showgaps) {
 		my $hashref = $sth->fetchall_hashref( _dbx('IP') );
@@ -280,13 +278,11 @@ sub dump_nodes {
 				$first = 0;
 				my $thegap = $myip->intip() - $nb->intip();
 				if ( $thegap > 0 ) {
-					print $stab->build_netblock_ip_row(
-						{
-							-trgap => $trgap++,
-							-gap   => $thegap,
-							-gapno => $gapno++
-						}
-					);
+					print $stab->build_netblock_ip_row( {
+						-trgap => $trgap++,
+						-gap   => $thegap,
+						-gapno => $gapno++
+					} );
 
 				}
 			}
@@ -298,13 +294,11 @@ sub dump_nodes {
 			if ( defined($lastip) ) {
 				my $thegap = $myip->intip() - $lastip->intip() - 1;
 				if ( $thegap > 0 ) {
-					print $stab->build_netblock_ip_row(
-						{
-							-trgap => $trgap++,
-							-gap   => $thegap,
-							-gapno => $gapno++
-						}
-					);
+					print $stab->build_netblock_ip_row( {
+						-trgap => $trgap++,
+						-gap   => $thegap,
+						-gapno => $gapno++
+					} );
 				}
 			}
 			$lastip = $myip;
@@ -325,13 +319,11 @@ sub dump_nodes {
 		if ( $endoblock->ip() ne $lastip->ip() ) {
 			my $thegap = $endoblock->intip() - $lastip->intip();
 			if ( $thegap > 1 ) {
-				print $stab->build_netblock_ip_row(
-					{
-						-trgap => $trgap++,
-						-gap   => $thegap,
-						-gapno => $gapno++
-					}
-				);
+				print $stab->build_netblock_ip_row( {
+					-trgap => $trgap++,
+					-gap   => $thegap,
+					-gapno => $gapno++
+				} );
 			}
 		}
 	}
@@ -371,25 +363,18 @@ sub get_netblock_link_header {
 		$ops = " - "
 		  . $cgi->a(
 			{ -href => "write/addnetblock.pl?id=$nblkid" },
-			$cgi->img(
-				{
-					-class => 'subnet',
-					-src   => "../stabcons/Axe_001.svg",
-					-alt   => "[Subnet]",
-					-title => "Subnet Network"
-				}
-			)
+			$cgi->img( {
+				-class => 'subnet',
+				-src   => "../stabcons/Axe_001.svg",
+				-alt   => "[Subnet]",
+				-title => "Subnet Network"
+			} )
 		  )
-		  . $cgi->a(
-			{ -href => "write/rmnetblock.pl?id=$nblkid" },
-			$cgi->img(
-				{
-					-class => 'subnet',
-					-src   => "../stabcons/Octagon_delete.svg",
-					-alt   => "[Remove]",
-					-title => "Remove Network",
-				}
-			)
+		  . $cgi->a( {
+				-href  => "write/rmnetblock.pl?id=$nblkid",
+				-class => 'rmnetblock'
+			},
+			''
 		  );
 	}
 
@@ -402,8 +387,7 @@ sub get_netblock_link_header {
 	# processing, which creates the editable field.
 	$descr = CGI::escapeHTML($descr);
 
-	$descr = $cgi->span(
-		{
+	$descr = $cgi->span( {
 			-class => 'editabletext',
 			-id    => $name
 		},
@@ -418,12 +402,10 @@ sub get_netblock_link_header {
 	if ($numkids) {
 		$expand = $cgi->a(
 			{ -class => 'netblkexpand' },
-			$cgi->img(
-				{
-					-class => 'netblkexpand',
-					-src   => '../stabcons/collapse.jpg'
-				}
-			)
+			$cgi->img( {
+				-class => 'netblkexpand',
+				-src   => '../stabcons/collapse.jpg'
+			} )
 		);
 	}
 
@@ -456,7 +438,7 @@ sub num_kids {
 		 where	parent_netblock_id = ?
 		   and	is_single_address = ?
 	};
-	my $sth = $stab->prepare($q) || $stab->return_db_err($dbh);
+	my $sth = $stab->prepare($q)        || $stab->return_db_err($dbh);
 	$sth->execute( $nblkid, $issingle ) || $stab->return_db_err($sth);
 	my $x = ( $sth->fetchrow_array )[0];
 	$sth->finish;
@@ -551,27 +533,24 @@ sub do_dump_netblock {
 	};
 
 	my $sth = $stab->prepare($q) || $stab->return_db_err($dbh);
-	$sth->execute($start_id) || $stab->return_db_err($sth);
+	$sth->execute($start_id)     || $stab->return_db_err($sth);
 
 	my $ipstr = $nblk->{ _dbx('IP_ADDRESS') };
 
-	print $stab->start_html(
-		{
-			-title      => "Netblock $ipstr",
-			-javascript => 'netblock',
-		}
-	);
+	print $stab->start_html( {
+		-title      => "Netblock $ipstr",
+		-javascript => 'netblock',
+	} );
 	print netblock_search_box($stab);
 
-	print $cgi->p(
-		qq{
+	print $cgi->p( qq{
 		This application is used to manage net block allocations as well as
-		the assignment (largely reservation) of IP addresses.  Use the
-		"Subnet this block" (<img class=subnet src="../stabcons/Axe_001.svg">)
-		and "Remove this netblock"
-		(<img class=subnet src="../stabcons/Octagon_delete.svg">) links to
-		further subdivide the network into smaller networks. You may only add
-		subnets or remove netblocks that don't have host IP allocations.
+		the assignment (largely reservation) of IP addresses. To manage the
+		subdvision/chopping up of networks, use the "subnet this block'
+		(<img class=subnet src="../stabcons/Axe_001.svg">) and  "remove this
+		block" (<a class=rmnetblock></a>)
+		icons. You may only add subnets or remove netblocks that don't have
+		host IP allocations.
 		It's possible to edit a netblock description by clicking on the text
 		and confirming the change with the Enter key or the "Submit Netblock
 		Updates" button.
@@ -586,7 +565,7 @@ sub do_dump_netblock {
 		be in use (they're allocation was imported from legacy IP
 		tracking systems that used to be authoritative for this data).
 		Devices marked as 'Allocated' have been assigned to devices
-		and can not be changed from within this part of STAB. 
+		and can not be changed from within this part of STAB.
 		(They should be changed from within the
 	}, $cgi->a( { -href => "../device/" }, "device manager" ), ")."
 	);
@@ -619,7 +598,7 @@ sub do_dump_netblock {
 
 	# This does not work with individual expansion
 	print $cgi->div(
-		{ -class => 'centeredlist' },
+		{ -class => 'centered' },
 		$cgi->a( { -class => 'expandall' }, "Expand All" ),
 		' // ',
 		$cgi->a( { -class => 'collapseall' }, "Collapse All" ),
@@ -790,7 +769,7 @@ sub print_netblock_allocation {
 		group by netblock_status
 	};
 	my $sth = $stab->prepare($q) || $stab->return_db_err($dbh);
-	$sth->execute($nblkid) || $stab->return_db_err($sth);
+	$sth->execute($nblkid)       || $stab->return_db_err($sth);
 
 	my (%breakdown);
 	my $total = 0;
@@ -799,42 +778,96 @@ sub print_netblock_allocation {
 		$total += $tally;
 	}
 
+	my $x       = "";
+	my $tdclass = { -class => 'netblock_summary' };
+	$x .= $cgi->Tr(
+		$cgi->th( { -class => 'netblock_summary', -rowspan => 2 }, 'IPs' ),
+		$cgi->th( { -class => 'netblock_summary', -rowspan => 2 }, 'Count' ),
+		$cgi->th( { -class => 'netblock_summary', -colspan => 2 }, '%' )
+	);
+	$x .= $cgi->Tr(
+		$cgi->th( $tdclass, 'of allocatable' ),
+		$cgi->th( $tdclass, 'of netblock' )
+	);
+
 	#
 	# non-organizational netblocks  end up with their network and
 	# broadcast being consumed. consumed. consumed. consumed.
 	#
-	if ( !$isbroadcast ) {
-		$breakdown{'Allocated'} += 2;
-		$total += 2;
+	my $broadcast_network_count = 0;
+	my $remark                  = '';
+	if ($isbroadcast) {
+		$remark = 'Note: first and last IPs are assigned to network/broadcast';
+		$broadcast_network_count = 2;
 	}
 
-	my $x = "";
+	$x .= $cgi->Tr(
+		$cgi->td( $tdclass, 'In netblock' ),
+		$cgi->td( $tdclass, $size ),
+		$cgi->td( $tdclass, '' ),
+		$cgi->td( $tdclass, '100.00%' )
+	);
+
+	my $allocatable = $size - $broadcast_network_count;
+	$x .= $cgi->Tr(
+		$cgi->td( $tdclass, 'Allocatable' ),
+		$cgi->td( $tdclass, $allocatable ),
+		$cgi->td( $tdclass, '100.00%' ),
+		$cgi->td(
+			$tdclass, sprintf( "%2.2f%%", ( $allocatable / $size ) * 100 )
+		)
+	);
+
+	{
+		my $free = $size - $total - $broadcast_network_count;
+		my $pct  = sprintf( "%2.2f%%", ( $free / $size ) * 100 );
+		my $pct2 = sprintf( "%2.2f%%", ( $free / $allocatable ) * 100 );
+		$x .= $cgi->Tr(
+			$cgi->td( $tdclass, 'Unallocated ("free")' ),
+			$cgi->td( $tdclass, $free ),
+			$cgi->td( $tdclass, $pct2 ),
+			$cgi->td( $tdclass, $pct )
+		);
+	}
+
 	foreach my $what ( sort( keys(%breakdown) ) ) {
 		my $tally = $breakdown{$what};
 		my $pct   = sprintf( "%2.2f%%", ( $tally / $size ) * 100 );
-		$x .= $cgi->div("$what: $tally ($pct)");
+		my $pct2  = sprintf( "%2.2f%%", ( $tally / $allocatable ) * 100 );
+		$x .= $cgi->Tr(
+			$cgi->td( $tdclass, "$what" ),
+			$cgi->td( $tdclass, $tally ),
+			$cgi->td( $tdclass, $pct2 ),
+			$cgi->td( $tdclass, $pct )
+		);
 	}
 
-	{
-		my $free = $size - $total;
-		my $pct  = sprintf( "%2.2f%%", ( $free / $size ) * 100 );
-		$x .= $cgi->div("Unallocated: $free ($pct)");
+	#{
+	#	my $pct = sprintf( "%2.2f%%", ( $total / $size ) * 100 );
+	#	my $pct2 = sprintf( "%2.2f%%", ( $total / $allocatable ) * 100 );
+	#	my $plural = ( $allocatable > 1 ) ? 's':'';
+	#	$x .= $cgi->Tr(
+	#		$cgi->td( $tdclass, "Allocated + Reserved" ),
+	#		$cgi->td( $tdclass, $total ),
+	#		$cgi->td( $tdclass, $pct2 ),
+	#		$cgi->td( $tdclass, $pct )
+	#	);
+	#}
+	if ($remark) {
+		$x .= $cgi->Tr( $cgi->td(
+			{ -class => 'netblock_summary', -colspan => 4 }, $remark
+		) );
 	}
 
-	{
-		my $pct = sprintf( "%2.2f%%", ( $total / $size ) * 100 );
-		$x .= $cgi->div("Total: $total of $size ($pct)");
-	}
-
-	$cgi->div( { -align => 'center', -style => 'color: orange' }, $x );
+	$cgi->div( { -align => 'center' },
+		$cgi->table( { -class => 'netblock_summary' }, $x ) );
 }
 
 sub dump_netblock_routes {
 	my ( $stab, $nblkid, $nb ) = @_;
 	my $cgi = $stab->cgi;
 
-	my $sth = $stab->prepare(
-		qq{
+	my $sth = $stab->prepare( qq{
 		select	srt.STATIC_ROUTE_TEMPLATE_ID,
 				srt.description as ROUTE_DESCRIPTION,
 				snb.netblock_Id as source_netblock_id,
@@ -859,12 +892,10 @@ sub dump_netblock_routes {
 
 	$sth->execute($nblkid) || die $sth->errstr;
 
-	my $tt = $cgi->td(
-		[
-			"Del",         "Source IP", "/", "Bits",
-			"Dest Device", "Dest IP",   "Description"
-		]
-	);
+	my $tt = $cgi->td( [
+		"Del", "Source IP", "/", "Bits",
+		"Dest Device", "Dest IP", "Description"
+	] );
 	while ( my $hr = $sth->fetchrow_hashref ) {
 		$tt .= build_route_Tr( $stab, $hr );
 
@@ -898,27 +929,21 @@ sub build_route_Tr {
 
 	}
 
-	$cgi->Tr(
-		$cgi->td(
-			[
-				$del,
-				$stab->b_textfield(
-					{ -allow_ip0 => 1 }, $hr,
-					'SOURCE_BLOCK_IP', 'STATIC_ROUTE_TEMPLATE_ID'
-				),
-				"/",
-				$stab->b_textfield(
-					$hr, 'SOURCE_MASKLEN', 'STATIC_ROUTE_TEMPLATE_ID'
-				),
-				$dev,
-				$stab->b_textfield(
-					{ -allow_ip0 => 1 }, $hr,
-					'ROUTE_DESTINATION_IP', 'STATIC_ROUTE_TEMPLATE_ID'
-				),
-				$stab->b_textfield(
-					$hr, 'ROUTE_DESCRIPTION', 'STATIC_ROUTE_TEMPLATE_ID'
-				),
-			]
-		)
-	);
+	$cgi->Tr( $cgi->td( [
+		$del,
+		$stab->b_textfield(
+			{ -allow_ip0 => 1 }, $hr,
+			'SOURCE_BLOCK_IP',   'STATIC_ROUTE_TEMPLATE_ID'
+		),
+		"/",
+		$stab->b_textfield( $hr, 'SOURCE_MASKLEN', 'STATIC_ROUTE_TEMPLATE_ID' ),
+		$dev,
+		$stab->b_textfield(
+			{ -allow_ip0 => 1 },    $hr,
+			'ROUTE_DESTINATION_IP', 'STATIC_ROUTE_TEMPLATE_ID'
+		),
+		$stab->b_textfield(
+			$hr, 'ROUTE_DESCRIPTION', 'STATIC_ROUTE_TEMPLATE_ID'
+		),
+	] ) );
 }

@@ -79,8 +79,7 @@ sub retire_site {
 sub check_site_validity {
 	my ( $stab, $site ) = @_;
 
-	my $sth = $stab->prepare(
-		qq{
+	my $sth = $stab->prepare( qq{
 		select	site_status
 		 from	site
 		where	site_code = :1
@@ -95,8 +94,7 @@ sub check_site_validity {
 sub check_for_devices {
 	my ( $stab, $site ) = @_;
 
-	my $sth = $stab->prepare(
-		qq{
+	my $sth = $stab->prepare( qq{
 		select	count(*)
 		  from	device d
 				left join rack_location l
@@ -120,7 +118,6 @@ sub check_for_devices {
 					)
 				   )
 				)
-		  
 	}
 	);
 
@@ -137,8 +134,7 @@ sub get_site_dns_domains {
 	my ( $stab, $site ) = @_;
 
 	$site =~ tr/A-Z/a-z/;
-	my $sth = $stab->prepare(
-		qq{
+	my $sth = $stab->prepare( qq{
 		select	dns_domain_id
 		 from	dns_domain
 		where	regexp_like(lower(soa_name), :1)
@@ -156,8 +152,7 @@ sub get_site_dns_domains {
 sub purge_site_dns_domains {
 	my ($stab) = shift @_;
 
-	my $sth = $stab->prepare(
-		qq{
+	my $sth = $stab->prepare( qq{
 		begin
 			delete from dns_record where dns_domain_id = :1;
 			delete from dns_domain where dns_domain_id= :1;
@@ -175,8 +170,7 @@ sub purge_site_dns_domains {
 sub purge_netblocks_from_site {
 	my ( $stab, $site ) = @_;
 
-	my $sth = $stab->prepare(
-		qq{
+	my $sth = $stab->prepare( qq{
 		begin
 		delete from dns_record where netblock_id in (
 			select netblock_id from
@@ -209,8 +203,7 @@ sub purge_netblocks_from_site {
 sub remove_site_netblocks {
 	my ( $stab, $site ) = @_;
 
-	my $sth = $stab->prepare(
-		qq{
+	my $sth = $stab->prepare( qq{
 		delete from site_netblock where site_code = :1
 	}
 	);
@@ -223,8 +216,7 @@ sub change_site_status {
 
 	$code = 'INACTIVE' if ( !$code );
 
-	my $sth = $stab->prepare(
-		qq{
+	my $sth = $stab->prepare( qq{
 		update site set site_status = :2 where site_code = :1 and
 			site_status <> :2
 	}

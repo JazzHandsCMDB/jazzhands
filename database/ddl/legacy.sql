@@ -2157,6 +2157,9 @@ FROM
 	var_recurse;
 
 --- This is getting dropped completely.
+---
+--- It is possible to get this from the cache tables, _except_ for the
+--- rvs_array_path
 CREATE OR REPLACE VIEW jazzhands_legacy.v_acct_coll_expanded AS
 WITH RECURSIVE acct_coll_recurse (
 	level,
@@ -2199,17 +2202,14 @@ WITH RECURSIVE acct_coll_recurse (
 	FROM
 		acct_coll_recurse;
 
--- XXX there may be some weird definition BS here that needs  to be sorted
--- out
--- Copyright (c) 2013-2019, Todd M. Kover
+--- Copyright (c) 2013-2024, Todd M. Kover
+--- some version of this will be preserved
 CREATE OR REPLACE VIEW jazzhands_legacy.v_acct_coll_acct_expanded AS
-	SELECT DISTINCT
-		ace.account_collection_id,
-		aca.account_id
-	FROM
-		jazzhands_legacy.v_acct_coll_expanded ace JOIN
-		jazzhands.v_account_collection_account aca ON
-			aca.account_collection_id = ace.root_account_collection_id;
+ SELECT DISTINCT r.root_account_collection_id AS account_collection_id,
+        aca.account_id
+   FROM jazzhands_cache.ct_account_collection_hier_recurse r
+        JOIN jazzhands.account_collection_account aca USING (account_collection_id)
+;
 
 
 --- This is getting dropped completely.
@@ -2536,7 +2536,7 @@ FROM (	SELECT
 WHERE xx.rn = 1;
 
 -- Copyright (c) 2016, Kurt Adam
--- Copyright (c) 2020, Todd Kove
+-- Copyright (c) 2020, Todd Kover
 CREATE OR REPLACE VIEW jazzhands_legacy.v_dev_col_device_root AS
 WITH x AS (
 	SELECT
@@ -2993,7 +2993,8 @@ SELECT * FROM  (
 		WHERE dns_domain_id IS NOT NULL
 		) range
 ) u
-WHERE  dns_type NOT IN ('REVERSE_ZONE_BLOCK_PTR', 'DEFAULT_DNS_DOMAIN')
+WHERE	dns_type IN (SELECT dns_type
+	FROM jazzhands.val_dns_type where id_type IN ('ID', 'NON-ID'))
 	UNION ALL
 	SELECT
 		NULL::integer AS dns_record_id,	-- not editable.
@@ -4047,8 +4048,7 @@ GROUP BY device_collection_id, account_collection_id
 -- for credentials management
 --
 CREATE OR REPLACE VIEW jazzhands_legacy.v_unix_mclass_settings AS
-SELECT device_collection_id,
-	array_agg(setting ORDER BY rn) AS mclass_setting
+SELECT device_collection_id, array_agg(setting ORDER BY rn) AS mclass_setting
 FROM (
 	SELECT *, row_number() over () AS rn FROM (
 		SELECT device_collection_id,
@@ -4064,7 +4064,13 @@ FROM (
 							p.property_name
 							ORDER BY dcd.device_collection_level, property_id
 					) AS ord
-			FROM    jazzhands_legacy.v_device_coll_hier_detail dcd
+			FROM    (
+					SELECT device_collection_id,
+							ancestor_device_collection_id
+							AS parent_device_collection_id,
+							device_collection_level
+					FROM jazzhands.v_device_collection_hier_ancestor
+			) dcd
 				INNER JOIN jazzhands_legacy.v_property p on
 						p.device_collection_id = dcd.parent_device_collection_id
 			WHERE	p.property_type IN  ('MclassUnixProp')
@@ -4193,7 +4199,7 @@ FROM (
 GROUP BY device_collection_id, account_id
 ;
 
--- Copyright (c) 2014-2019, Todd M. Kover
+-- Copyright (c) 2014-2024, Todd M. Kover
 --
 -- This query maps device collections to accounts and limits it accounts
 -- that are associated with a mclass/device collection.
@@ -4210,23 +4216,22 @@ GROUP BY device_collection_id, account_id
 CREATE OR REPLACE VIEW jazzhands_legacy.v_device_col_account_cart AS
 SELECT device_collection_id, account_id, setting
 FROM (
-	SELECT x.*,
-		row_number() OVER (partition by device_collection_id,
-			account_id ORDER BY setting) as rn
+	SELECT device_collection_id, account_id, setting
 	FROM (
-		SELECT	device_collection_id, account_id, NULL as setting
-		FROM	jazzhands_legacy.v_device_col_acct_col_unixlogin
-				INNER JOIN jazzhands_legacy.account USING (account_id)
-				INNER JOIN jazzhands_legacy.account_unix_info USING (account_id)
-		UNION ALL select device_collection_id, account_id, setting
-		from jazzhands_legacy.v_unix_account_overrides
-				INNER JOIN jazzhands_legacy.account USING (account_id)
-				INNER JOIN jazzhands_legacy.account_unix_info USING (account_id)
-				INNER JOIN jazzhands_legacy.v_device_col_acct_col_unixlogin
-					USING (device_collection_id, account_id)
-	) x
-) xx
-WHERE rn = 1;
+		SELECT x.*,
+			row_number() OVER (PARTITION BY device_collection_id, account_id ORDER BY setting) AS rn
+		FROM (
+			SELECT device_collection_id, account_id, setting
+			FROM jazzhands_legacy.v_unix_account_overrides
+			INNER JOIN jazzhands_legacy.v_device_col_acct_col_unixlogin USING (device_collection_id, account_id)
+		UNION
+		SELECT device_collection_id, account_id, NULL AS setting
+		FROM jazzhands_legacy.v_device_col_acct_col_unixlogin) x) xx
+	WHERE rn = 1
+) l
+INNER JOIN jazzhands_legacy.account_unix_info
+	USING (account_id);
+
 
 -- Copyright (c) 2014-2019, Todd M. Kover
 CREATE OR REPLACE VIEW jazzhands_legacy.v_device_col_account_col_cart AS
@@ -5819,7 +5824,11 @@ FROM (
 		dcr.device_collection_level,
 		IP_Address as IP_address,
 		rank() OVER
-			(PARTITION BY device_id ORDER BY device_collection_level )
+			(PARTITION BY device_id
+				ORDER BY device_collection_level,
+					CASE WHEN ip_address IS NULL THEN 0 ELSE 1 END,
+					dc.device_collection_id
+			)
 			AS rank
 	FROM	jazzhands_legacy.device_collection dc
 		LEFT JOIN jazzhands_legacy.v_device_coll_hier_detail dcr ON

@@ -95,9 +95,9 @@ function processSearchBox_Breakdown(dropdown_div, dropdownsel) {
 function checkSelectKeypress_Search(ddselect, event) {
 	var keycode, form;
 	if(window.event) { // IE
-		keycode = event.keyCode
+		keycode = event.keyCode;
 	} else if(event.keyCode) { // Netscape/Firefox/Opera
-		keycode = event.which 
+		keycode = event.which;
 	}
 	if(keycode == 13) { // enter
 		// this is so enter doesn't cause the form to submit, if that was
@@ -121,7 +121,7 @@ function checkSelectKeypress_Search(ddselect, event) {
 //
 //
 // dropdown is the select box, whose parent is the popup div that hides
-// relevant values.  popupdiv is the parent div.  
+// relevant values.  popupdiv is the parent div.
 //
 // either of dropdown or popupdiv may not be set.  If dropdown is set, the
 // div can probably be infered if not set. [XXX]
@@ -327,8 +327,8 @@ function showOtherEndDeviceSearchPopup( elementDeviceName, strElementDeviceId, p
 	// Position the top left corner of the popup at the bottom left corner of the parent field
 	// And sets its width to match the width of the parent Other End field
 	const inputRect = elementDeviceName.getBoundingClientRect();
-	elementPopup.style.top = inputRect.bottom + window.scrollY;
-	elementPopup.style.left = inputRect.left + window.scrollX;
+	elementPopup.style.top = inputRect.bottom + window.scrollY + 'px';
+	elementPopup.style.left = inputRect.left + window.scrollX + 'px';
 	elementPopup.style.minWidth = inputRect.width - 30;
 	elementPopup.style.boxShadow = '2px 2px 3px 2px gray';
 
@@ -394,11 +394,11 @@ function getMatchingDevices( elementSearch ) {
 
 	elementSearch.setAttribute( 'lastrequestedsearch', elementSearch.value );
 	const url = 'ajax-devsearch.pl?pattern=' + elementSearch.value;
-        const requestDevicesSearch = createRequest();
-        requestDevicesSearch.open("GET", url, true);
-        requestDevicesSearch.onreadystatechange = function() { updateOtherEndDeviceSearchPopup( requestDevicesSearch, elementSearch ); }
-        requestDevicesSearch.send(null);
-	document.getElementById( elementSearch.getAttribute( 'myajax' ) ).innerHTML = ' <img src=\'../../stabcons/progress.gif\'> Getting devices... ';
+	const requestDevicesSearch = createRequest();
+	requestDevicesSearch.open("GET", url, true);
+	requestDevicesSearch.onreadystatechange = function() { updateOtherEndDeviceSearchPopup( requestDevicesSearch, elementSearch ); }
+	requestDevicesSearch.send(null);
+	document.getElementById( elementSearch.getAttribute( 'myajax' ) ).innerHTML = '<div class="spinner align-middle"></div> Getting devices... ';
 }
 
 //
@@ -521,7 +521,7 @@ function create_search_popup(txtsource, idsave, event, noSubmitForm, ondone) {
 	var y = findPosY(txtsource);
 	y += txtsource.offsetHeight;
 	popup.style.left = x + "px";
-	popup.style.top = y + "px"; 
+	popup.style.top = y + "px";
 	if(noSubmitForm) {
 		popup.noSubmitForm = noSubmitForm;
 	}
@@ -579,20 +579,20 @@ function keyprocess_Search(txtsource, idsave, event, noSubmitForm, ondone) {
 	}
 
 	// only do something if printable keys were pressed
-	// num lock(144), scroll lock(145), pause(19), capslock(20), 
+	// num lock(144), scroll lock(145), pause(19), capslock(20),
 	// shift/ctrl/alt (16-18), open apple (244)
 	// page up/down/end/home/arrows (33-45)
 	var keycode;
 	if(window.event) { // IE
-		keycode = event.keyCode
+		keycode = event.keyCode;
 	} else if(event.keyCode) { // Netscape/Firefox/Opera
-		keycode = event.which 
+		keycode = event.which;
 	}
 	if(keycode == 9) {
 		return;
 	}
 	if(keycode != 40) {
-		if(keycode == 144 || keycode == 145 || keycode == 19 || 
+		if(keycode == 144 || keycode == 145 || keycode == 19 ||
 				keycode == 20 ||  // keycode == 224 ||
 				(keycode >=16 && keycode <= 18) || (keycode >=33 && keycode <=45)) {
 			return;
@@ -682,7 +682,7 @@ function  updatePopUpSearchPage() {
 
 //
 // This is called when the textfield looses focus.
-// 
+//
 // need to be careful not to close the dropdown when that's where the
 // focus is going, however.
 //

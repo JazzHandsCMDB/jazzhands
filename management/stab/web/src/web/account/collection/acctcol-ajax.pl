@@ -32,7 +32,7 @@ do_acctcol_ajax();
 sub do_acctcol_ajax {
 	my $stab = new JazzHands::STAB( ajax => 'yes' )
 	  || die "Could not create STAB";
-	my $cgi = $stab->cgi || die "Could not create cgi";
+	my $cgi      = $stab->cgi || die "Could not create cgi";
 	my $passedin = $stab->cgi_parse_param('passedin') || undef;
 
 	my $mime  = $stab->cgi_parse_param('MIME_TYPE') || 'text';
@@ -62,7 +62,7 @@ sub do_acctcol_ajax {
 		print $cgi->header("text/xml");
 		print '<?xml version="1.0" encoding="utf-8" ?>', "\n\n";
 	} elsif ( $mime ne 'json' ) {
-		print $cgi->header("text/json");
+		print $cgi->header("application/json");
 	} else {
 		print $cgi->header("text/html");
 	}
@@ -72,6 +72,11 @@ sub do_acctcol_ajax {
 	if ( $what eq 'Collections' ) {
 		my $admin = $stab->check_role('AccountCollectionAdmin');
 		my $perms = $stab->get_account_collection_permissions("RO");
+
+		# Assume admin access on development servers
+		if( $ENV{'development'} =~ /true/ ) {
+			$admin = 1;
+		}
 		if ( !$admin && !$perms ) {
 			$stab->error_return("No permission to edit account collections");
 		}
@@ -89,13 +94,12 @@ sub do_acctcol_ajax {
 		# unused at inception and ripped from netblock collections
 		my $r = {};
 		$r->{'ACCOUNT_COLLECTIONS'} = {};
-		my $sth = $stab->prepare(
-			qq{
+		my $sth = $stab->prepare( qq{
 			select  account_collection_id,
 				account_collection_name, description
 			  from  account_collection
 			where	account_collection_type = ?
-			order by account_collection_name, 
+			order by account_collection_name,
 				account_collection_type,
 				account_collection_id
 		}
@@ -114,8 +118,7 @@ sub do_acctcol_ajax {
 		print $j->encode($r);
 	} elsif ( $what eq 'ExpandMembers' ) {
 		my $r   = {};
-		my $sth = $stab->prepare_cached(
-			qq{
+		my $sth = $stab->prepare_cached( qq{
 			SELECT  account_id, first_name, last_name, login
 			FROM    v_acct_coll_acct_expanded_detail
 					JOIN account USING (account_id)
@@ -134,11 +137,10 @@ sub do_acctcol_ajax {
 		print $j->encode($r);
 	} elsif ( $what eq 'autocomplete' ) {
 		if ( $type eq 'account' ) {
-			my $r = { query => 'unit', suggestions => [] };
-			my $sth = $stab->prepare_cached(
-				qq{
+			my $r   = { query => 'unit', suggestions => [] };
+			my $sth = $stab->prepare_cached( qq{
 				SELECT  account_id, first_name, last_name, login
-				FROM    v_corp_family_account 
+				FROM    v_corp_family_account
 						JOIN v_person USING (person_id)
 				WHERE   account_type = 'person' and account_role = 'primary'
 				AND 	is_enabled = 'Y'

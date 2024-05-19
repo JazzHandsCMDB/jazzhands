@@ -90,7 +90,7 @@ sub do_dump_network_ranges {
 			nr.description
 		  from	network_range nr
 				left join dns_domain dom using (dns_domain_id)
-				inner join netblock pnb 
+				inner join netblock pnb
 					on pnb.netblock_id = nr.parent_netblock_id
 				inner join netblock lhs
 					on lhs.netblock_id = nr.start_netblock_id
@@ -99,7 +99,7 @@ sub do_dump_network_ranges {
 		order by lhs.ip_address
 	};
 	my $sth = $stab->prepare($q) || $stab->return_db_err($stab);
-	$sth->execute || $stab->return_db_err($stab);
+	$sth->execute                || $stab->return_db_err($stab);
 
 	print $cgi->start_form(
 		-method => 'POST',
@@ -127,29 +127,18 @@ sub do_dump_network_ranges {
 		)
 	);
 
-	print $cgi->Tr(
-		$cgi->td(
-			{ -colspan => '9' },
-			$cgi->a(
-				{
-					-href  => '#',
-					-class => 'adddnsrec',
-					-onclick =>
-					  "this.style.display = 'none'; document.getElementById('NETWORK_RANGE_NEW').style.display = '';"
-				},
-				$cgi->img(
-					{
-						-src   => '../stabcons/plus.png',
-						-alt   => 'Add',
-						-title => 'Add',
-						-class => 'plusbutton'
-					}
-				)
-			)
+	print $cgi->Tr( $cgi->td(
+		{ -colspan => '9' },
+		$cgi->a( {
+				-href    => '#',
+				-class   => 'adddnsrec plusbutton',
+				-onclick =>
+				  "this.style.display = 'none'; document.getElementById('NETWORK_RANGE_NEW').style.display = '';",
+				-title => 'Add',
+			},
 		)
-	);
-	print $cgi->Tr(
-		{
+	) );
+	print $cgi->Tr( {
 			-id    => 'NETWORK_RANGE_NEW',
 			-style => 'display: none;',
 		},
@@ -158,44 +147,35 @@ sub do_dump_network_ranges {
 			[
 				$cgi->hidden( 'NETWORK_RANGE_ID', 'NEW' ),
 				'<i>(Automatic)</i>',
-				$cgi->textfield(
-					{
-						-size     => 10,
-						-name     => 'NETWORKRANGE_START_IP_NEW',
-						-value    => '',
-						-class    => 'tracked',
-						-original => '',
-					}
-				),
-				$cgi->textfield(
-					{
-						-size     => 10,
-						-name     => 'NETWORKRANGE_STOP_IP_NEW',
-						-value    => '',
-						-class    => 'tracked',
-						-original => '',
-					}
-				),
-				$cgi->textfield(
-					{
-						-size     => 10,
-						-name     => 'NETWORKRANGE_LEASE_TIME_NEW',
-						-value    => '',
-						-class    => 'tracked',
-						-original => '',
-					}
-				),
-				$cgi->textfield(
-					{
-						-size     => 10,
-						-name     => 'NETWORKRANGE_DNS_PREFIX_NEW',
-						-value    => '',
-						-class    => 'tracked',
-						-original => '',
-					}
-				),
-				$stab->b_dropdown(
-					{
+				$cgi->textfield( {
+					-size     => 10,
+					-name     => 'NETWORKRANGE_START_IP_NEW',
+					-value    => '',
+					-class    => 'tracked',
+					-original => '',
+				} ),
+				$cgi->textfield( {
+					-size     => 10,
+					-name     => 'NETWORKRANGE_STOP_IP_NEW',
+					-value    => '',
+					-class    => 'tracked',
+					-original => '',
+				} ),
+				$cgi->textfield( {
+					-size     => 10,
+					-name     => 'NETWORKRANGE_LEASE_TIME_NEW',
+					-value    => '',
+					-class    => 'tracked',
+					-original => '',
+				} ),
+				$cgi->textfield( {
+					-size     => 10,
+					-name     => 'NETWORKRANGE_DNS_PREFIX_NEW',
+					-value    => '',
+					-class    => 'tracked',
+					-original => '',
+				} ),
+				$stab->b_dropdown( {
 						-dnsdomaintype => 'service',
 						-name          => 'NETWORKRANGE_DNS_DOMAIN_NEW',
 						-class         => 'tracked',
@@ -205,8 +185,7 @@ sub do_dump_network_ranges {
 					'DNS_DOMAIN_ID',
 					undef, 1
 				),
-				$stab->b_dropdown(
-					{
+				$stab->b_dropdown( {
 						-name     => 'NETWORKRANGE_TYPE_NEW',
 						-class    => 'tracked',
 						-original => '__unknown__',
@@ -215,15 +194,13 @@ sub do_dump_network_ranges {
 					'NETWORK_RANGE_TYPE',
 					undef, 1
 				),
-				$cgi->textfield(
-					{
-						-size     => 32,
-						-name     => 'NETWORKRANGE_DESCRIPTION_NEW',
-						-value    => '',
-						-class    => 'tracked',
-						-original => '',
-					}
-				),
+				$cgi->textfield( {
+					-size     => 32,
+					-name     => 'NETWORKRANGE_DESCRIPTION_NEW',
+					-value    => '',
+					-class    => 'tracked',
+					-original => '',
+				} ),
 
 			],
 		),
@@ -232,11 +209,9 @@ sub do_dump_network_ranges {
 	# Loop on existing network ranges and display them
 	while ( my $hr = $sth->fetchrow_hashref ) {
 		my $nrid = $hr->{ _dbx('NETWORK_RANGE_ID') };
-		print $cgi->Tr(
-			{
+		print $cgi->Tr( {
 				-class => 'networkrange'
-				  . (
-					(
+				  . ( (
 						$stab->cgi_parse_param(
 							'NETWORK_RANGE_DELETE_' . $nrid
 						) eq 'delete'
@@ -247,29 +222,21 @@ sub do_dump_network_ranges {
 			$cgi->td(
 				{ -class => 'networkrange' },
 				[
-					$cgi->hidden(
-						{
-							-value    => '',
-							-id       => 'NETWORK_RANGE_DELETE_' . $nrid,
-							-name     => 'NETWORK_RANGE_DELETE_' . $nrid,
-							-class    => 'tracked',
-							-original => '',
-						}
-					  )
-					  . $cgi->a(
-						{
-							-class => 'rmrow',
+					$cgi->hidden( {
+						-value    => '',
+						-id       => 'NETWORK_RANGE_DELETE_' . $nrid,
+						-name     => 'NETWORK_RANGE_DELETE_' . $nrid,
+						-class    => 'tracked',
+						-original => '',
+					} )
+					  . $cgi->a( {
+							-class   => 'rmrow',
+							-alt     => "Delete this Network Range",
+							-title   => 'Delete This Network Range',
 							-onclick =>
 							  "let trcl=this.parentElement.parentElement.classList; trcl.toggle('rowrm'); document.getElementById('NETWORK_RANGE_DELETE_$nrid').value = trcl.contains('rowrm') ? 'delete' : '';"
 						},
-						$cgi->img(
-							{
-								-src   => "../stabcons/redx.jpg",
-								-alt   => "Delete this Network Range",
-								-title => 'Delete This Network Range',
-								-class => 'rmdnsrow button',
-							}
-						)
+						''
 					  ),
 					"<a href='/netblock/?nblkid="
 					  . $hr->{ _dbx('parent_netblock_id') } . "'>"
@@ -294,26 +261,21 @@ sub do_dump_network_ranges {
 					#	-class => 'tracked',
 					#	-original => $hr->{ _dbx('STOP_IP') || '' },
 					#}),
-					$cgi->textfield(
-						{
-							-size     => 10,
-							-name     => 'NETWORKRANGE_LEASE_TIME_' . $nrid,
-							-value    => $hr->{ _dbx('LEASE_TIME') || '' },
-							-class    => 'tracked',
-							-original => $hr->{ _dbx('LEASE_TIME') || '' },
-						}
-					),
-					$cgi->textfield(
-						{
-							-size     => 10,
-							-name     => 'NETWORKRANGE_DNS_PREFIX_' . $nrid,
-							-value    => $hr->{ _dbx('DNS_PREFIX') || '' },
-							-class    => 'tracked',
-							-original => $hr->{ _dbx('DNS_PREFIX') || '' },
-						}
-					),
-					$stab->b_dropdown(
-						{
+					$cgi->textfield( {
+						-size     => 10,
+						-name     => 'NETWORKRANGE_LEASE_TIME_' . $nrid,
+						-value    => $hr->{ _dbx('LEASE_TIME') || '' },
+						-class    => 'tracked',
+						-original => $hr->{ _dbx('LEASE_TIME') || '' },
+					} ),
+					$cgi->textfield( {
+						-size     => 10,
+						-name     => 'NETWORKRANGE_DNS_PREFIX_' . $nrid,
+						-value    => $hr->{ _dbx('DNS_PREFIX') || '' },
+						-class    => 'tracked',
+						-original => $hr->{ _dbx('DNS_PREFIX') || '' },
+					} ),
+					$stab->b_dropdown( {
 							-dnsdomaintype => 'service',
 							-name     => 'NETWORKRANGE_DNS_DOMAIN_' . $nrid,
 							-class    => 'tracked',
@@ -346,27 +308,26 @@ sub do_dump_network_ranges {
 					#	undef,
 					#	1
 					#),
-					$cgi->textfield(
-						{
-							-size     => 32,
-							-name     => 'NETWORKRANGE_DESCRIPTION_' . $nrid,
-							-value    => $hr->{ _dbx('description') || '' },
-							-class    => 'tracked',
-							-original => $hr->{ _dbx('description') || '' },
-						}
-					),
+					$cgi->textfield( {
+						-size     => 32,
+						-name     => 'NETWORKRANGE_DESCRIPTION_' . $nrid,
+						-value    => $hr->{ _dbx('description') || '' },
+						-class    => 'tracked',
+						-original => $hr->{ _dbx('description') || '' },
+					} ),
 				]
 			)
 		);
 	}
 
 	print $cgi->end_table;
-	print $cgi->submit(
-		{
-			-class => 'dnssubmit',
+	print $cgi->div(
+		{ -class => 'centered' },
+		$cgi->submit( {
+			-class => '',
 			-name  => "Ranges",
 			-value => "Submit Network Ranges Changes",
-		}
+		} )
 	);
 	print $cgi->end_form, "\n";
 	print $cgi->end_html;
@@ -389,7 +350,7 @@ sub get_networkrange_types {
 			val_network_range_type;
 	};
 	my $sth = $stab->prepare($q) || $stab->return_db_err($stab);
-	$sth->execute || $stab->return_db_err($stab);
+	$sth->execute                || $stab->return_db_err($stab);
 
 	#my %networkrange_types;
 	#while ( my $hr = $sth->fetchrow_hashref ) {

@@ -26,7 +26,7 @@
 
 
 IMAGE_DIR=/prod/www/stab/docs/images
-IMAGES = development-background.png
+#IMAGES = development-background.png
 
 SUBDIRS= electric vendors
 
@@ -37,9 +37,6 @@ all:
 
 install:
 	install -d -o root -g bin $(DESTDIR)/$(IMAGE_DIR)
-	for script in $(IMAGES) ; do \
-		install -o root -g bin -m 755 $$script $(DESTDIR)/$(IMAGE_DIR)/$$script ;\
-	done
 	install -d -o root -g bin $(DESTDIR)/$(STAB_DIR)
 	@for subdir in $(SUBDIRS) ; do \
 		( cd $$subdir && $(MAKE) -e $(MFLAGS) install ) ;\
