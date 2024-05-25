@@ -1,6 +1,6 @@
 #!/usr/bin/env perl
 #
-# Copyright (c) 2013-2023, Todd M. Kover
+# Copyright (c) 2013-2024, Todd M. Kover
 # All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
@@ -1032,6 +1032,7 @@ sub refresh_dns_record {
 		}
 	}
 
+
 	my $match = {
 		dns_name       => $name,
 		dns_type       => $opt->{dns_type},
@@ -1078,7 +1079,6 @@ sub refresh_dns_record {
 
 	my $dnsrecid;
 	if ($dnsrec) {
-
 		# if the reference and value come from the same record, it's bleedover
 		# from another universe and should just ignored.
 		if (   $dnsrec->{ref_record_id}
@@ -1130,7 +1130,7 @@ sub refresh_dns_record {
 			) || die join( " ", @errs );
 		}
 
-		if ( !$rowexists ) {
+		if ( !$rowexists || ! scalar @{$rowexists} ) {
 			$numchanges += $self->DBInsert(
 				table  => 'dns_record',
 				hash   => $new,
