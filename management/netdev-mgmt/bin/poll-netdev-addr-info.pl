@@ -1,7 +1,7 @@
 #!/usr/bin/env perl
 
 # Copyright (c) 2017-2022, Matthew Ragan
-# Copyright (c) 2023, Todd M. Kover
+# Copyright (c) 2023-2024, Todd M. Kover
 # All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");

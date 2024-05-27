@@ -1240,7 +1240,7 @@ sub GetIPAddressInformation {
 		my @ip;
 		push(@ip, @{$v->{virtualIps}}) if($v->{virtualIps});
 		push(@ip, @{$v->{virtualIpv6}}) if($v->{virtualIpv6});
-		push(@{$ifaceinfo->{$v->{interface}}->{virtual_router}}, 
+		push(@{$ifaceinfo->{$v->{interface}}->{virtual_router}},
 			map {
 				eval { NetAddr::IP->new($_) }
 			} @ip
