@@ -21,8 +21,7 @@
 # - generate dns for switchports
 # - zone imports when universe beatings have taken place, (204.141.173 stuff)
 
-
-# Copyright (c) 2013-2023, Todd M. Kover
+# Copyright (c) 2013-2024, Todd M. Kover
 # All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
@@ -68,7 +67,7 @@
 
 use warnings;
 use strict;
-use Getopt::Long qw(:config no_ignore_case bundling);
+use Getopt::Long            qw(:config no_ignore_case bundling);
 use JazzHands::Common::Util qw(_dbx);
 use Pod::Usage;
 use Data::Dumper;
@@ -1096,7 +1095,7 @@ sub process_perserver {
 
 			foreach my $zone ( sort @$$zones ) {
 				my $fqn = "$zonedir";
-				my $zr  = $zoneroot."/$u";
+				my $zr  = $zoneroot . "/$u";
 
 				if ( $zone =~ /in-addr.arpa$/ ) {
 					$zr  .= "/inaddr/$zone";
@@ -1306,6 +1305,405 @@ DESTROY {
 	undef;
 }
 
+#
+# This does all the work
+#
+sub generate_all_zones {
+	my $self = shift @_;
+	my $opt  = &_options;
+
+	my $nosoa       = $opt->{nosoa};
+	my $wait        = $opt->{wait};
+	my $agg         = $opt->{agg};
+	my $debug       = $opt->{debug};
+	my $verbose     = $opt->{verbose};
+	my $genall      = $opt->{genall};
+	my $forcegen    = $opt->{forcegen};
+	my $forcesoa    = $opt->{forcesoa};
+	my $norsynclist = $opt->{norsynclist};
+	my $statsfn     = $opt->{statsfn};
+
+	my $mysite = $opt->{mysite};
+
+	my $me = `hostname`;
+	chomp($me);
+
+	if ( $mysite && $mysite eq 'none' ) {
+		$mysite = undef;
+	}
+
+	if ( !$mysite ) {
+		$mysite = $self->get_my_site_code($me);
+	} elsif ( $mysite eq 'none' ) {
+		$mysite = undef;
+	}
+
+	$self->make_directories();
+
+	# Do not manipulate the change records if the SOA is not to be manipulated.
+	# This is just used to make sure everything on disk is right.
+	my @changeids;
+	if ($nosoa) {
+		#
+		# don't manipulate any changeids.
+		#
+		my @foo;
+		@changeids = @foo;
+	} else {
+		#
+		# if this returns  an empty list, then exit 1
+		# This signals to the caller that it should cease.
+		#
+		my $changeids = $self->lock_db_changes( $wait, $agg );
+
+		if ( !defined($changeids) ) {
+			exit 1;
+		}
+
+		@changeids = @{$changeids};
+	}
+
+	if ($debug) {
+		warn "Got ", scalar @changeids, " change ids to deal with";
+		warn "Number of change records, ", $self->get_change_tally(), "\n";
+	}
+
+	# $generate contains all of the objects that are to be regenerated
+	my $generate = {};
+	if ( scalar @changeids ) {
+		#
+		# Now get all zones eligible for regeneration and save them.
+		#
+		my $dbh = $self->DBHandle();
+		my $sth = $dbh->prepare_cached(
+			qq{
+			SELECT v.*, u.ip_universe_name
+			FROM v_dns_changes_pending v
+			JOIN ip_universe u USING (ip_universe_id)
+	}
+		) || die $dbh->errstr;
+
+		$sth->execute || die $sth->errstr;
+
+		#
+		# build up generate to be a hash of zones to regenerate with a hash of the
+		# change ids that need to later be zapped.
+		#
+		while ( my $hr = $sth->fetchrow_hashref ) {
+			my $dom   = $hr->{ _dbx('SOA_NAME') };
+			my $uname = $hr->{ _dbx('IP_UNIVERSE_NAME') };
+			if ( $#ARGV >= 0 ) {
+				next if ( !$dom || !grep( $_ eq $dom, @ARGV ) );
+			}
+			if ( !$dom ) {
+				if ( defined( $hr->{ _dbx('IP_ADDRESS') } ) ) {
+					if ( $#ARGV < 0 ) {
+						warn "Unable to find zone for ",
+						  $hr->{ _dbx('IP_ADDRESS') }, "\n"
+						  if ($verbose);
+					}
+				} else {
+					warn
+					  "Odd but not a crisis -- this code should not be reached for ",
+					  Dumper($hr);
+				}
+			}
+
+			if ( !$dom ) {
+				$dom = '__unknown__';
+			}
+
+			if ( !defined( $generate->{$dom} ) ) {
+				$generate->{$dom} = {};
+			}
+
+			if ( !defined( $generate->{$dom}->{$uname} ) ) {
+				$generate->{$dom}->{$uname} = {};
+			}
+
+			# There was a change and thus we bump the soa
+			$generate->{$dom}->{$uname}->{bumpsoa} = 1;
+			push( @{ $generate->{$dom}->{$uname}->{rec} }, $hr );
+		}
+	}
+
+	$self->record_event('changerecs');
+
+	#
+	# at this point, generate has a list of all zones that should be generated
+	# and the __unknown__ zone which contains in-addr records which did not have
+	# a matching record.
+	#
+
+	#
+	# look at all existing zones and, based on command line options, see if they
+	# should be generated or not.  This may remove some zones from above, it may
+	# add some.
+	#
+	if (1) {
+		my $dbh = $self->DBHandle();
+		my $sth = $dbh->prepare_cached(
+			qq{
+		WITH uv AS (
+			SELECT ip_universe_Id,visible_ip_universe_id
+				FROM ip_universe_visibility WHERE propagate_dns = 'Y'
+			UNION
+			SELECT ip_universe_id, ip_universe_id FROM ip_universe
+		) SELECT  dns_domain_id, u.ip_universe_id, ip_universe_name,
+				should_generate, last_generated, soa_name,
+				extract(epoch from last_generated) as epoch_gen
+		FROM ip_universe u
+			JOIN uv USING (ip_universe_id)
+			JOIN dns_domain_ip_universe du ON
+				du.ip_universe_id = uv.visible_ip_universe_id
+			JOIN dns_domain d USING (dns_domain_id)
+		WHERE u.should_generate_dns = 'Y'
+		ORDER BY soa_name, ip_universe_id
+	}
+		) || die $dbh->errstr;
+		$sth->execute || die $sth->errstr;
+
+		while ( my $hr = $sth->fetchrow_hashref ) {
+			my $dom = $hr->{ _dbx('SOA_NAME') };
+
+			my $univ = $hr->{ _dbx('IP_UNIVERSE_NAME') };
+
+			#
+			# --genall overrides SHOULD_GENERATE in the db
+			#
+			if ( !$genall && $hr->{ _dbx('SHOULD_GENERATE') } eq 'N' ) {
+				delete $generate->{$dom}->{$univ};
+				next;
+			}
+
+			my $genit = 0;
+			if ( $#ARGV >= 0 ) {
+				if ( !grep( $_ eq $dom, @ARGV ) ) {
+					delete $generate->{$dom}->{$univ};
+					next;
+				} elsif ($forcegen) {
+					$genit = 1;
+				}
+			} elsif ($forcegen) {
+				$genit = 1;
+			}
+
+			if ($genall) {
+				$genit = 1;
+			} else {
+
+				# look for the existing file
+
+				my $zoneroot = $self->{_zoneroot};
+
+				my $fn = "$zoneroot/${univ}/$dom";
+				if ( $dom =~ /\.in-addr\.arpa$/ ) {
+					$fn = "$zoneroot/${univ}/inaddr/$dom";
+				} elsif ( $dom =~ /\.ip6\.arpa$/ ) {
+					$fn = "$zoneroot/${univ}/ip6/$dom";
+				}
+
+				if ( !-f $fn ) {
+					$genit = 1;
+				} else {
+
+					# if the file on disk was generated before
+					# the last generation date, regenerate it.
+					# Its possible it was generated on another
+					# host
+					my ($mtime) = ( stat($fn) )[9];
+					my $epoch = $hr->{ _dbx('EPOCH_GEN') } || 0;
+					$epoch = int($epoch);
+					if ( $mtime != $epoch ) {
+						$genit = 1;
+					}
+
+				}
+			}
+
+			if ($genit) {
+				if ( !$generate->{$dom} ) {
+					$generate->{$dom} = {};
+				}
+
+				if ( !exists( $generate->{$dom}->{$univ} ) ) {
+					$generate->{$dom}->{$univ} = {};
+				} elsif ( exists( $generate->{$dom}->{$univ} ) ) {
+					next;
+				}
+
+				push( @{ $generate->{$dom}->{$univ}->{rec} }, $hr );
+			}
+		}
+		$sth->finish;
+	}
+
+	#
+	# Go through the command line and make  sure they are all there.
+	#
+	# XXX - need to deal with iprgment.
+	foreach my $dom (@ARGV) {
+		if ( !exists( $generate->{$dom} ) ) {
+			if ( !$self->get_dns_domid($dom) ) {
+				die "$dom is not a valid zone\n";
+			}
+		}
+	}
+
+	$self->record_event('startgen');
+	#
+	# NOTE, the setting of $generate->{$dom}->{bumpsoa} is set here and the db
+	# update to set the zone checks it later.
+	#
+	#
+	foreach my $dom ( sort keys( %{$generate} ) ) {
+		next if $dom eq '__unknown__';
+		$self->generation_time( $dom, 'start' );
+		foreach my $univ ( sort keys( %{ $generate->{$dom} } ) ) {
+			my $bumpsoa = 0;
+			if ($nosoa) {
+				$generate->{$dom}->{$univ}->{bumpsoa} = 0;
+			} else {
+				if ($forcesoa) {
+					$bumpsoa = 1;
+					$generate->{$dom}->{$univ}->{bumpsoa} = 1;
+				} else {
+					$bumpsoa = $generate->{$dom}->{$univ}->{bumpsoa} || 0;
+				}
+			}
+
+			# XXX This all needs to be revisited. (for stats)
+			my $domid =
+			  $generate->{$dom}->{$univ}->{rec}->[0]->{ _dbx('DNS_DOMAIN_ID') };
+			my $last = $generate->{$dom}->{$univ}->{rec}->[0]->{last_generated};
+			if ($bumpsoa) {
+				$last = $self->get_now();
+			}
+			my $uid = $generate->{$dom}->{$univ}->{rec}->[0]->{ip_universe_id};
+
+			my $rv =
+			  $self->process_domain( $domid, $dom, $uid, $univ, undef, $last,
+				$bumpsoa );
+			if ( !$rv ) {
+
+				# do not treat it as regenrated.  This may not be smart.
+				$generate->{$dom}->{$univ}->{failed} = 1;
+			} else {
+				print "$dom $univ\n";
+			}
+
+		}
+		$self->generation_time( $dom, 'end' );
+	}
+
+	$self->record_event('donezones');
+	warn "Done Generating Zones\n" if ($verbose);
+
+	my $docommit = 0;
+
+	#
+	# update the db's "last generated" date now.  This is saved to the end so
+	# that all the updates happen quickly, and right before commit so the time
+	# that a modification is lingering is minimized.
+	#
+	foreach my $dom ( sort keys( %{$generate} ) ) {
+		next if ( $dom eq '__unknown__' );
+		foreach my $universe ( sort keys( %{ $generate->{$dom} } ) ) {
+			my $t = $generate->{$dom}->{$universe};
+			if ( $t->{bumpsoa} ) {
+				my $rec   = $t->{rec}->[0];
+				my $domid = $rec->{ _dbx('DNS_DOMAIN_ID') };
+				my $uid   = $rec->{ _dbx('IP_UNIVERSE_ID') };
+				warn "bumping soa for $domid, $dom\n" if ($debug);
+				$self->record_newgen( $domid, $uid );
+				$docommit++;
+			}
+		}
+	}
+	warn "Done bumping SOAs\n" if ($debug);
+	$self->record_event('donesoa');
+
+	warn "Purging processed DNS_CHANGE_RECORD records\n" if ($verbose);
+	#
+	# purge dns change records that were processed
+	#
+	# $nosoa basically means no changes, so thus do not note things as done
+	#
+	if ( !$nosoa ) {
+		if ( scalar keys(%$generate) ) {
+			my $seen = {};
+			my $dbh  = $self->DBHandle();
+			my $sth  = $dbh->prepare_cached(
+				qq{
+			delete from dns_change_record where dns_change_record_id = ?
+		}
+			) || die $dbh->errstr;
+			foreach my $dom ( sort keys( %{$generate} ) ) {
+				foreach my $u ( sort keys %{ $generate->{$dom} } ) {
+					next if ( !defined( $generate->{$dom}->{$u}->{rec} ) );
+					my $b = $generate->{$dom}->{$u};
+					foreach my $hr ( @{ $b->{rec} } ) {
+						my $id = $hr->{ _dbx('DNS_CHANGE_RECORD_ID') };
+
+						# for if something was forced from the command line but did not
+						# have recorded changes
+						next if ( !$id );
+
+						#
+						# only remove ids that were found before processing started.
+						# This allows for transactions commited during the run to get
+						# a chance to regenerate
+						#
+						if ( !grep( $_ == $id, @changeids ) ) {
+							warn
+							  "skipping change record $id, not in initial set\n"
+							  if ($debug);
+							next;
+						}
+						if ( !exists( $seen->{$id} ) ) {
+							warn "deleting change record $id\n"
+							  if ($debug);
+							$sth->execute($id) || die $sth->errstr;
+							$docommit++;
+						}
+						$seen->{$id}++;
+					}
+
+				}
+			}
+		}
+	}
+
+	warn "Generating acl file\n" if ($verbose);
+	$self->generate_named_acl_file("sitecodeacl.conf");
+
+	if ( !$norsynclist ) {
+		warn "Generating rsync list\n" if ($verbose);
+		$self->generate_rsync_list( "rsynchostlist.txt", $mysite );
+	}
+
+	#
+	# Final cleanup
+	#
+	warn "Generating configuration files and whatnot..." if ($debug);
+
+	$self->process_perserver($generate);
+	$self->generate_complete_files($generate);
+
+	$self->DBHandle()->do("SELECT script_hooks.zonegen_post()");
+	warn "Done file generation, about to commit\n" if ($verbose);
+	if ($docommit) {
+		$self->commit;
+	} else {
+
+		# no changes should have been made
+		$self->rollback;
+	}
+
+	$self->record_event('done');
+	$self->process_and_print( @{$statsfn} );
+}
+
 package main;
 
 #############################################################################
@@ -1412,382 +1810,19 @@ if ($dumpzone) {
 	exit(0);
 }
 
-my $me = `hostname`;
-chomp($me);
-
-if ( $mysite && $mysite eq 'none' ) {
-	$mysite = undef;
-}
-
-if ( !$mysite ) {
-	$mysite = $zg->get_my_site_code($me);
-} elsif ( $mysite eq 'none' ) {
-	$mysite = undef;
-}
-
-$zg->make_directories();
-
-# Do not manipulate the change records if the SOA is not to be manipulated.
-# This is just used to make sure everything on disk is right.
-my @changeids;
-if ($nosoa) {
-	#
-	# don't manipulate any changeids.
-	#
-	my @foo;
-	@changeids = @foo;
-} else {
-	#
-	# if this returns  an empty list, then exit 1
-	# This signals to the caller that it should cease.
-	#
-	my $changeids = $zg->lock_db_changes( $wait, $agg );
-
-	if ( !defined($changeids) ) {
-		exit 1;
-	}
-
-	@changeids = @{$changeids};
-}
-
-if ($debug) {
-	warn "Got ", scalar @changeids, " change ids to deal with";
-	warn "Number of change records, ", $zg->get_change_tally(), "\n";
-}
-
-# $generate contains all of the objects that are to be regenerated
-my $generate = {};
-if ( scalar @changeids ) {
-	#
-	# Now get all zones eligible for regeneration and save them.
-	#
-	my $dbh = $zg->DBHandle();
-	my $sth = $dbh->prepare_cached(
-		qq{
-			SELECT v.*, u.ip_universe_name
-			FROM v_dns_changes_pending v
-			JOIN ip_universe u USING (ip_universe_id)
-	}
-	) || die $dbh->errstr;
-
-	$sth->execute || die $sth->errstr;
-
-	#
-	# build up generate to be a hash of zones to regenerate with a hash of the
-	# change ids that need to later be zapped.
-	#
-	while ( my $hr = $sth->fetchrow_hashref ) {
-		my $dom   = $hr->{ _dbx('SOA_NAME') };
-		my $uname = $hr->{ _dbx('IP_UNIVERSE_NAME') };
-		if ( $#ARGV >= 0 ) {
-			next if ( !$dom || !grep( $_ eq $dom, @ARGV ) );
-		}
-		if ( !$dom ) {
-			if ( defined( $hr->{ _dbx('IP_ADDRESS') } ) ) {
-				if ( $#ARGV < 0 ) {
-					warn "Unable to find zone for ",
-					  $hr->{ _dbx('IP_ADDRESS') }, "\n"
-					  if ($verbose);
-				}
-			} else {
-				warn
-				  "Odd but not a crisis -- this code should not be reached for ",
-				  Dumper($hr);
-			}
-		}
-
-		if ( !$dom ) {
-			$dom = '__unknown__';
-		}
-
-		if ( !defined( $generate->{$dom} ) ) {
-			$generate->{$dom} = {};
-		}
-
-		if ( !defined( $generate->{$dom}->{$uname} ) ) {
-			$generate->{$dom}->{$uname} = {};
-		}
-
-		# There was a change and thus we bump the soa
-		$generate->{$dom}->{$uname}->{bumpsoa} = 1;
-		push( @{ $generate->{$dom}->{$uname}->{rec} }, $hr );
-	}
-}
-
-$zg->record_event('changerecs');
-
-#
-# at this point, generate has a list of all zones that should be generated
-# and the __unknown__ zone which contains in-addr records which did not have
-# a matching record.
-#
-
-#
-# look at all existing zones and, based on command line options, see if they
-# should be generated or not.  This may remove some zones from above, it may
-# add some.
-#
-if (1) {
-	my $dbh = $zg->DBHandle();
-	my $sth = $dbh->prepare_cached(
-		qq{
-		WITH uv AS (
-			SELECT ip_universe_Id,visible_ip_universe_id
-				FROM ip_universe_visibility WHERE propagate_dns = 'Y'
-			UNION
-			SELECT ip_universe_id, ip_universe_id FROM ip_universe
-		) SELECT  dns_domain_id, u.ip_universe_id, ip_universe_name,
-				should_generate, last_generated, soa_name,
-				extract(epoch from last_generated) as epoch_gen
-		FROM ip_universe u
-			JOIN uv USING (ip_universe_id)
-			JOIN dns_domain_ip_universe du ON
-				du.ip_universe_id = uv.visible_ip_universe_id
-			JOIN dns_domain d USING (dns_domain_id)
-		WHERE u.should_generate_dns = 'Y'
-		ORDER BY soa_name, ip_universe_id
-	}
-	) || die $dbh->errstr;
-	$sth->execute || die $sth->errstr;
-
-	while ( my $hr = $sth->fetchrow_hashref ) {
-		my $dom = $hr->{ _dbx('SOA_NAME') };
-
-		my $univ = $hr->{ _dbx('IP_UNIVERSE_NAME') };
-
-		#
-		# --genall overrides SHOULD_GENERATE in the db
-		#
-		if ( !$genall && $hr->{ _dbx('SHOULD_GENERATE') } eq 'N' ) {
-			delete $generate->{$dom}->{$univ};
-			next;
-		}
-
-		my $genit = 0;
-		if ( $#ARGV >= 0 ) {
-			if ( !grep( $_ eq $dom, @ARGV ) ) {
-				delete $generate->{$dom}->{$univ};
-				next;
-			} elsif ($forcegen) {
-				$genit = 1;
-			}
-		} elsif ($forcegen) {
-			$genit = 1;
-		}
-
-		if ($genall) {
-			$genit = 1;
-		} else {
-
-			# look for the existing file
-
-			my $zoneroot = $zg->{_zoneroot};
-
-			my $fn = "$zoneroot/${univ}/$dom";
-			if ( $dom =~ /\.in-addr\.arpa$/ ) {
-				$fn = "$zoneroot/${univ}/inaddr/$dom";
-			} elsif ( $dom =~ /\.ip6\.arpa$/ ) {
-				$fn = "$zoneroot/${univ}/ip6/$dom";
-			}
-
-			if ( !-f $fn ) {
-				$genit = 1;
-			} else {
-
-				# if the file on disk was generated before
-				# the last generation date, regenerate it.
-				# Its possible it was generated on another
-				# host
-				my ($mtime) = ( stat($fn) )[9];
-				my $epoch = $hr->{ _dbx('EPOCH_GEN') } || 0;
-				$epoch = int($epoch);
-				if ( $mtime != $epoch ) {
-					$genit = 1;
-				}
-
-			}
-		}
-
-		if ($genit) {
-			if ( !$generate->{$dom} ) {
-				$generate->{$dom} = {};
-			}
-
-			if ( !exists( $generate->{$dom}->{$univ} ) ) {
-				$generate->{$dom}->{$univ} = {};
-			} elsif ( exists( $generate->{$dom}->{$univ} ) ) {
-				next;
-			}
-
-			push( @{ $generate->{$dom}->{$univ}->{rec} }, $hr );
-		}
-	}
-	$sth->finish;
-}
-
-#
-# Go through the command line and make  sure they are all there.
-#
-# XXX - need to deal with iprgment.
-foreach my $dom (@ARGV) {
-	if ( !exists( $generate->{$dom} ) ) {
-		if ( !$zg->get_dns_domid($dom) ) {
-			die "$dom is not a valid zone\n";
-		}
-	}
-}
-
-$zg->record_event('startgen');
-#
-# NOTE, the setting of $generate->{$dom}->{bumpsoa} is set here and the db
-# update to set the zone checks it later.
-#
-#
-foreach my $dom ( sort keys( %{$generate} ) ) {
-	next if $dom eq '__unknown__';
-	$zg->generation_time( $dom, 'start' );
-	foreach my $univ ( sort keys( %{ $generate->{$dom} } ) ) {
-		my $bumpsoa = 0;
-		if ($nosoa) {
-			$generate->{$dom}->{$univ}->{bumpsoa} = 0;
-		} else {
-			if ($forcesoa) {
-				$bumpsoa = 1;
-				$generate->{$dom}->{$univ}->{bumpsoa} = 1;
-			} else {
-				$bumpsoa = $generate->{$dom}->{$univ}->{bumpsoa} || 0;
-			}
-		}
-		# XXX This all needs to be revisited. (for stats)
-		my $domid =
-		  $generate->{$dom}->{$univ}->{rec}->[0]->{ _dbx('DNS_DOMAIN_ID') };
-		my $last = $generate->{$dom}->{$univ}->{rec}->[0]->{last_generated};
-		if ($bumpsoa) {
-			$last = $zg->get_now();
-		}
-		my $uid = $generate->{$dom}->{$univ}->{rec}->[0]->{ip_universe_id};
-
-		my $rv =
-		  $zg->process_domain( $domid, $dom, $uid, $univ, undef, $last,
-			$bumpsoa );
-		if ( !$rv ) {
-
-			# do not treat it as regenrated.  This may not be smart.
-			$generate->{$dom}->{$univ}->{failed} = 1;
-		} else {
-			print "$dom $univ\n";
-		}
-
-	}
-	$zg->generation_time( $dom, 'end' );
-}
-
-$zg->record_event('donezones');
-warn "Done Generating Zones\n" if ($verbose);
-
-my $docommit = 0;
-
-#
-# update the db's "last generated" date now.  This is saved to the end so
-# that all the updates happen quickly, and right before commit so the time
-# that a modification is lingering is minimized.
-#
-foreach my $dom ( sort keys( %{$generate} ) ) {
-	next if ( $dom eq '__unknown__' );
-	foreach my $universe ( sort keys( %{ $generate->{$dom} } ) ) {
-		my $t = $generate->{$dom}->{$universe};
-		if ( $t->{bumpsoa} ) {
-			my $rec   = $t->{rec}->[0];
-			my $domid = $rec->{ _dbx('DNS_DOMAIN_ID') };
-			my $uid   = $rec->{ _dbx('IP_UNIVERSE_ID') };
-			warn "bumping soa for $domid, $dom\n" if ($debug);
-			$zg->record_newgen( $domid, $uid );
-			$docommit++;
-		}
-	}
-}
-warn "Done bumping SOAs\n" if ($debug);
-$zg->record_event('donesoa');
-
-warn "Purging processed DNS_CHANGE_RECORD records\n" if ($verbose);
-#
-# purge dns change records that were processed
-#
-# $nosoa basically means no changes, so thus do not note things as done
-#
-if ( !$nosoa ) {
-	if ( scalar keys(%$generate) ) {
-		my $seen = {};
-		my $dbh  = $zg->DBHandle();
-		my $sth  = $dbh->prepare_cached(
-			qq{
-			delete from dns_change_record where dns_change_record_id = ?
-		}
-		) || die $dbh->errstr;
-		foreach my $dom ( sort keys( %{$generate} ) ) {
-			foreach my $u ( sort keys %{ $generate->{$dom} } ) {
-				next if ( !defined( $generate->{$dom}->{$u}->{rec} ) );
-				my $b = $generate->{$dom}->{$u};
-				foreach my $hr ( @{ $b->{rec} } ) {
-					my $id = $hr->{ _dbx('DNS_CHANGE_RECORD_ID') };
-
-					# for if something was forced from the command line but did not
-					# have recorded changes
-					next if ( !$id );
-
-					#
-					# only remove ids that were found before processing started.
-					# This allows for transactions commited during the run to get
-					# a chance to regenerate
-					#
-					if ( !grep( $_ == $id, @changeids ) ) {
-						warn "skipping change record $id, not in initial set\n"
-						  if ($debug);
-						next;
-					}
-					if ( !exists( $seen->{$id} ) ) {
-						warn "deleting change record $id\n"
-						  if ($debug);
-						$sth->execute($id) || die $sth->errstr;
-						$docommit++;
-					}
-					$seen->{$id}++;
-				}
-
-			}
-		}
-	}
-}
-
-warn "Generating acl file\n" if ($verbose);
-$zg->generate_named_acl_file("sitecodeacl.conf");
-
-if ( !$norsynclist ) {
-	warn "Generating rsync list\n" if ($verbose);
-	$zg->generate_rsync_list( "rsynchostlist.txt", $mysite );
-}
-
-#
-# Final cleanup
-#
-warn "Generating configuration files and whatnot..." if ($debug);
-
-$zg->process_perserver($generate);
-$zg->generate_complete_files($generate);
-
-$zg->DBHandle()->do("SELECT script_hooks.zonegen_post()");
-warn "Done file generation, about to commit\n" if ($verbose);
-if ($docommit) {
-	$zg->commit;
-} else {
-
-	# no changes should have been made
-	$zg->rollback;
-}
-
-$zg->record_event('done');
-
-$zg->process_and_print(@statsfn);
+$zg->generate_all_zones(
+	-mysite      => $mysite,
+	-nosoa       => $nosoa,
+	-wait        => $wait,
+	-agg         => $agg,
+	-debug       => $debug,
+	-verbose     => $verbose,
+	-genall      => $genall,
+	-forcegen    => $forcegen,
+	-forcesoa    => $forcesoa,
+	-norsynclist => $norsynclist,
+	-statsfn     => \@statsfn,
+);
 
 exit 0;
 
