@@ -658,7 +658,7 @@ sub process_all_dns_records {
 		FROM dns
 		order by
 			dns_domain_id,
-			CASE WHEN dns_name IS NULL AND dns_srv_service IS NULL THEN 0 
+			CASE WHEN dns_name IS NULL AND dns_srv_service IS NULL THEN 0
 				WHEN dns_srv_service IS NOT NULL THEN 1
 				ELSE 2 END,
 			CASE WHEN DNS_TYPE IN ('A','AAAA') THEN NULL
@@ -908,15 +908,61 @@ sub generate_complete_files {
 
 	$self->mkdir_p("$cfgdir");
 
+	## This should probably be a view
 	my $sth = $dbh->prepare_cached(
 		qq{
-		SELECT	ip_universe_name, soa_name
+		SELECT	ip_universe_name, dns_domain_name, 'master'::TEXT AS origin,
+				NULL::TEXT[] AS ip_addresses
 		  FROM	dns_domain
 				JOIN dns_domain_ip_universe USING (dns_domain_id)
 				JOIN ip_universe USING (ip_universe_id)
 		 WHERE	should_generate = 'Y'
 		 AND	should_generate_dns = 'Y'
-		ORDER BY ip_universe_name, soa_name
+
+		UNION
+
+		SELECT	DISTINCT
+				CASE WHEN property_name = 'Secondary-All'
+					THEN vipu.ip_universe_name
+					ELSE ipu.ip_universe_name END AS ip_universe_name,
+				dns_domain_name,
+				'slave'::TEXT as origin,
+				ip_addresses
+		  FROM	property p
+				JOIN dns_domain_collection USING (dns_domain_collection_id)
+				JOIN dns_domain_collection_dns_dom
+					USING (dns_domain_collection_id)
+				JOIN dns_domain USING (dns_domain_id)
+				JOIN dns_domain_ip_universe USING (dns_domain_id)
+				JOIN (
+						SELECT ip_universe_id,
+							ip_universe_id AS visible_ip_universe_id
+						FROM ip_universe
+						UNION
+						SELECT ip_universe_id, visible_ip_universe_id
+						FROM ip_universe_visibility
+				) ipv USING (ip_universe_id)
+				JOIN (SELECT ip_universe_id AS visible_ip_universe_id,
+							ip_universe_name
+						FROM ip_universe
+				) vipu USING (visible_ip_universe_id)
+				JOIN ip_universe ipu USING (ip_universe_id)
+				JOIN (
+					SELECT netblock_collection_id
+						AS property_value_nblk_coll_id,
+						array_agg(host(ip_address)
+							ORDER BY netblock_id_rank, ip_address, netblock_id)
+						AS ip_addresses
+					FROM netblock_collection
+						JOIN netblock_collection_netblock
+							USING (netblock_collection_id)
+						JOIN netblock USING (netblock_id)
+					GROUP BY 1
+				) nb USING (property_value_nblk_coll_id)
+		 WHERE	property_type = 'DNSZonegen'
+		 AND	property_name IN ('Secondary', 'Secondary-Visible-Universes')
+
+		ORDER BY ip_universe_name, origin, dns_domain_name
 	}
 	);
 	$sth->execute || die $sth->errstr;
@@ -924,7 +970,9 @@ sub generate_complete_files {
 	my ( $cfgf, $cfgfn, $tmpcfgfn );
 	my $lastu;
 
-	while ( my ( $univ, $zone ) = $sth->fetchrow_array ) {
+	my $outdir = $self->{_output_root};
+
+	while ( my ( $univ, $zone, $origin, $ips ) = $sth->fetchrow_array ) {
 		if ( !$cfgf || $univ ne $lastu ) {
 			$lastu = $univ;
 			if ($cfgf) {
@@ -938,15 +986,47 @@ sub generate_complete_files {
 			$self->print_comments( $cfgf, '#' );
 		}
 
-		my $fn = $zone;
+		my $fn = '';
 		if ( $zone =~ /.in-addr.arpa/ ) {
-			$fn = "inaddr/$zone";
+			$fn = "inaddr";
 		} elsif ( $zone =~ /.ip6.arpa/ ) {
-			$fn = "ip6/$zone";
+			$fn = "ip6";
 		}
-		$cfgf->print(
-			"zone \"$zone\" {\n\ttype master;\n\tfile \"/auto-gen/zones/${univ}/$fn\";\n};\n\n"
-		);
+		if ( $origin eq 'master' ) {
+			my $path = "zones/$univ";
+			$self->mkdir_p("$outdir/$path");
+			my $str = qq{
+					zone '$zone" {
+						type master;
+						file "/auto-gen/$path/$zone";
+					};
+				};
+			my ($beg) = ( $str =~ /^\n*(\s+)\S/ );
+			$str =~ s/^$beg//mg;
+			$str =~ s/(,).\s*$/$1/mg;
+			$cfgf->print($str);
+		} elsif ( $origin eq 'slave' ) {
+			my $path = "secondary/$univ";
+			$self->mkdir_p("$outdir/$path");
+			my $str = qq{
+					zone '$zone" {
+						type slave;
+						file "/auto-gen/$path/$zone";
+						masters {
+							%s
+						};
+					};
+				};
+			my ($beg) = ( $str =~ /^\n*(\s+)\S/ );
+			$str =~ s/^$beg//mg;
+			$str = sprintf "$str", map { "$_; " } @{$ips};
+			$str =~ s/(,).\s*$/$1/mg;
+			$cfgf->print($str);
+		} else {
+
+			# NOTE: Future me will curse past me here.
+			warn "Unknown origin $origin";
+		}
 	}
 	$cfgf->close;
 	$self->safe_mv_if_changed( $tmpcfgfn, $cfgfn, 1 );
@@ -1322,6 +1402,16 @@ sub generate_all_zones {
 	my $forcesoa    = $opt->{forcesoa};
 	my $norsynclist = $opt->{norsynclist};
 	my $statsfn     = $opt->{statsfn};
+
+	#
+	# This should probably move into script_hooks.zonegen_pre().
+	#
+	if ( $agg && $self->DBHandle()->{Driver}->{Name} eq 'Pg' ) {
+		$self->DBHandle()->do("SET TRANSACTION ISOLATION LEVEL REPEATABLE READ")
+		  || die $self->DBHandle()->errstr;
+	}
+
+	$self->DBHandle()->do("SELECT script_hooks.zonegen_pre()");
 
 	my $mysite = $opt->{mysite};
 
@@ -1793,16 +1883,6 @@ my $zg = new JazzHands::ZoneGeneration(
 	output_root => $output_root,
 	hotanddate  => $hostanddate,
 ) || die $JazzHands::ZoneGeneration::errstr;
-
-#
-# This should probably move into script_hooks.zonegen_pre().
-#
-if ( $agg && $zg->DBHandle()->{Driver}->{Name} eq 'Pg' ) {
-	$zg->DBHandle()->do("SET TRANSACTION ISOLATION LEVEL REPEATABLE READ")
-	  || die $zg->DBHandle()->errstr;
-}
-
-$zg->DBHandle()->do("SELECT script_hooks.zonegen_pre()");
 
 if ($dumpzone) {
 	my $domain = shift @ARGV;
