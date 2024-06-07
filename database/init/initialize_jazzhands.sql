@@ -530,12 +530,13 @@ VALUES
 	('Defaults', '_authdns', 'string', true,
 		'Default Nameserver for zone');
 
-insert into val_dns_domain_type (DNS_DOMAIN_TYPE)
+insert into val_dns_domain_type (DNS_DOMAIN_TYPE, CAN_GENERATE)
 VALUES
-	('service'),
-	('reverse'),
-	('retired'),
-	('vanity')
+	('service', true),
+	('reverse', true),
+	('retired', false),
+	('vanity', true),
+	('secondary', false)
 ;
 
 insert into val_dns_class (dns_class) values ('IN');
@@ -591,6 +592,23 @@ INSERT INTO val_dns_type (
 ) VALUES (
         'DEFAULT_DNS_DOMAIN', 'used by integrations to determine associated dns domain', 'LINK'
 );
+
+INSERT INTO val_dns_domain_collection_type (
+	dns_domain_collection_type, description,
+	max_num_collections, can_have_hierarchy
+) VALUES (
+	'zonegen-secondary', 'collection of zones to seconary',
+	1, false
+);
+
+INSERT INTO val_netblock_collection_type (
+	netblock_collection_type, description,
+	can_have_hierarchy
+) VALUES (
+	'master-dns-servers', 'ip addresses to secondary from',
+	false
+);
+
 
 ----------------------- Misc Property Types
 
@@ -1388,6 +1406,24 @@ values (
 	'DNSACLs', 'DNSZonegen',
 	'indicates netblocks that should be in a named acl', true,
 	'string', 'REQUIRED');
+
+insert into val_property
+	(property_name, property_type,
+	 description,
+	 property_data_type,permit_dns_domain_collection_id)
+values (
+	'Secondary', 'DNSZonegen',
+	'axfr list of zones from list of servers',
+	'netblock_collection_id', 'REQUIRED');
+
+insert into val_property
+	(property_name, property_type,
+	 description,
+	 property_data_type,permit_dns_domain_collection_id)
+values (
+	'Secondary-Visible-Universes', 'DNSZonegen',
+	'axfr list of zones from list of servers in all visible ip universes',
+	'netblock_collection_id', 'REQUIRED');
 
 --- approval stuff
 
