@@ -1,25 +1,33 @@
 #!/usr/bin/env perl
 
 # TODO:
+# - not going to do with all these TODOs yet, so make sure I can import my
+#	crazy ass setup using files instead of axfrs, including dealing with
+#   in-addr zones
 # X deal with ordering, TXT records on zone were coming later sometimes
-# - pulling up child zones with ip universe bits properly
+# X pulling up child zones with ip universe bits properly ( I think)
 # - trigger enforcement of various data across ip universes keeping in mind
 #	ip_universe_visibility
 # x zonegen deals with per-server in a sane fashion
 # - dns domain collection association for "put these zones anyway" on per-server
-# - ability to handle things smaller than a /24
+# X ability to handle things smaller than a /24
 # x deal with --nosoa without --genall
 # - figure out how to manage view config files combined (probably) with acls.
 # - what to do about new links to bum zones in perserver dir (currently die)
 # - makesure to regen hard links on *every* regen
 # - zone statistics need to factor in universes somehow
 # - netblock trigger: when updating iP_universe_id and 204.141.173.248/29
-#	it doesn't adjust correctly if they're different universe namespaces
+#	it doesn't fix mask if they're different universe namespaces
 # - how to do 204.141.173.248/29 DNS cross ip universe bullshit
-# - zone import and PTR record when no PTR is set, if anything.
+#   - if the IP appears in the "inside" make dns show up on the "outside"
+#	- without putting everything in the internet side (probably).
 # - document how to do the 204.141.173.248/29 and /23 overlap in a readme.
-# - generate dns for switchports
 # - zone imports when universe beatings have taken place, (204.141.173 stuff)
+# - RPZ
+# - also do forward zones
+# - should site and ip universe be tied together?  Consider how to do
+#		these servers &&|| appenv &&|| sites &&|| universes get X.
+# - command line option _somewhere_ to deal with "this server does this universe"
 
 # Copyright (c) 2013-2024, Todd M. Kover
 # All rights reserved.
@@ -128,7 +136,28 @@ sub new {
 	$self->{_cfgroot}   = $self->{_output_root} . "/etc";
 	$self->{_perserver} = $self->{_output_root} . "/perserver";
 
-	my $dbh = JazzHands::DBI->connect( $self->{_dbuser},
+	$self->{_stats}             = {};
+	$self->{_stats}->{gentimes} = {};
+	$self->{_stats}->{events}   = [];
+
+	$self->reconnect_db();
+
+	$self->record_event('start');
+
+	$self;
+}
+
+sub reconnect_db {
+	my $self = shift @_;
+
+	my $dbh = $self->DBHandle();
+	if ($dbh) {
+		$dbh->rollback;
+		$dbh->disconnect;
+		$dbh = undef;
+	}
+
+	$dbh = JazzHands::DBI->connect( $self->{_dbuser},
 		{ AutoCommit => 0, RaiseError => 1 } );
 	if ( !$dbh ) {
 		$errstr =
@@ -136,14 +165,8 @@ sub new {
 		return undef;
 	}
 
-	$self->{_stats}             = {};
-	$self->{_stats}->{gentimes} = {};
-	$self->{_stats}->{events}   = [];
-
-	$self->record_event('start');
-
 	$self->DBHandle($dbh);
-	$self;
+	$dbh;
 }
 
 sub record_event($$) {
@@ -996,7 +1019,7 @@ sub generate_complete_files {
 			my $path = "zones/$univ";
 			$self->mkdir_p("$outdir/$path");
 			my $str = qq{
-					zone '$zone" {
+					zone "$zone" {
 						type master;
 						file "/auto-gen/$path/$zone";
 					};
@@ -1009,7 +1032,7 @@ sub generate_complete_files {
 			my $path = "secondary/$univ";
 			$self->mkdir_p("$outdir/$path");
 			my $str = qq{
-					zone '$zone" {
+					zone "$zone" {
 						type slave;
 						file "/auto-gen/$path/$zone";
 						masters {
@@ -1019,7 +1042,7 @@ sub generate_complete_files {
 				};
 			my ($beg) = ( $str =~ /^\n*(\s+)\S/ );
 			$str =~ s/^$beg//mg;
-			$str = sprintf "$str", map { "$_; " } @{$ips};
+			$str = sprintf "$str", join( "", map { "$_; " } @{$ips} );
 			$str =~ s/(,).\s*$/$1/mg;
 			$cfgf->print($str);
 		} else {
@@ -1818,32 +1841,37 @@ my $norsynclist = 0;
 my $nogen       = 0;
 my $sleep       = 0;
 my $wait        = 1;
+my $loop        = 0;
 my $agg         = 0;
+my $pgnotify    = "dns_domain_ip_universe_serial_change";
 my @statsfn;
+my $looptimeout = 300;
 
 my $mysite;
 
 my $script_start = time();
 
 GetOptions(
-	'aggressive-lock'  => \$agg,            # aggressively lock db
-	'debug'            => \$debug,          # even more verbosity.
-	'dumpzone'         => \$dumpzone,       # dump a zone to stdout
-	'forcegen|f'       => \$forcegen,       # force generation of zones
-	'forcesoa|s'       => \$forcesoa,       # force bump of SOA record
-	'force|f'          => \$forceall,       # force everything
-	'genall|a'         => \$genall,         # generate all, not just new
-	'help'             => \$help,           # duh.
-	'hostanddate!'     => \$hostanddate,    # include in comments
-	'no-rsync-list'    => \$norsynclist,    # generate rsync list
-	'nogen'            => \$nogen,          # do not generate any zones
-	'nosoa'            => \$nosoa,          # never bump soa record
-	'outdir|o=s'       => \$output_root,    # output directory
-	'random-sleep=i'   => \$sleep,          # how long to sleep up unto;
-	'site=s'           => \$mysite,         # indicate what local machines site
-	'stats-filename=s' => \@statsfn,        # file to optionally save statistics
-	'verbose|v'        => \$verbose,        # duh.
-	'wait!'            => \$wait            # wait on lock in db
+	'aggressive-lock' => \$agg,         # aggressively lock db
+	'debug'           => \$debug,       # even more verbosity.
+	'dumpzone'        => \$dumpzone,    # dump a zone to stdout
+	'pgnotify=s'      => \$pgnotify,    # if looping, what pgnotify to listen to
+	'forcegen|f'      => \$forcegen,    # force generation of zones
+	'forcesoa|s'      => \$forcesoa,    # force bump of SOA record
+	'force|f'         => \$forceall,    # force everything
+	'genall|a'        => \$genall,      # generate all, not just new
+	'help'            => \$help,        # duh.
+	'hostanddate!'    => \$hostanddate, # include in comments
+	'no-rsync-list'   => \$norsynclist, # generate rsync list
+	'nogen'           => \$nogen,       # do not generate any zones
+	'nosoa'           => \$nosoa,       # never bump soa record
+	'outdir|o=s'      => \$output_root, # output directory
+	'random-sleep=i'  => \$sleep,       # how long to sleep up unto;
+	'site=s'          => \$mysite,      # indicate what local machines site
+	'stats-filename=s' => \@statsfn,    # file to optionally save statistics
+	'verbose|v'        => \$verbose,    # duh.
+	'wait!'            => \$wait,       # wait on lock in db
+	'loop!'            => \$loop,       # wait on lock in db
 ) || die pod2usage( -verbose => 1 );
 
 $verbose = 1 if ($debug);
@@ -1890,19 +1918,64 @@ if ($dumpzone) {
 	exit(0);
 }
 
-$zg->generate_all_zones(
-	-mysite      => $mysite,
-	-nosoa       => $nosoa,
-	-wait        => $wait,
-	-agg         => $agg,
-	-debug       => $debug,
-	-verbose     => $verbose,
-	-genall      => $genall,
-	-forcegen    => $forcegen,
-	-forcesoa    => $forcesoa,
-	-norsynclist => $norsynclist,
-	-statsfn     => \@statsfn,
-);
+my $lastcheck = time();
+my $sock;
+my $pgsock = $zg->DBHandle()->{pg_socket};
+if ($loop) {
+	$sock   = IO::Select->new();
+	$pgsock = $zg->DBHandle()->{pg_socket};
+	$sock->add($pgsock);
+}
+
+my $json = new JSON;
+
+do {
+	my $dbh = $zg->DBHandle();
+	if ($sock) {
+		my @ready = $sock->can_read($looptimeout);
+		foreach my $fh (@ready) {
+			if ( $fh == $pgsock ) {
+
+				# should the payload become meaningful, process here
+				while ( my $notify = $dbh->pg_notifies ) {
+					next;
+					my ( $name, $pid, $payload ) = @{$notify};
+					my $decodedpayload;
+					eval { $decodedpayload = $json->decode($payload); };
+					if ($@) {
+
+						# invalid
+						next;
+					}
+				}
+			}
+		}
+	}
+
+	$zg->generate_all_zones(
+		-mysite      => $mysite,
+		-nosoa       => $nosoa,
+		-wait        => $wait,
+		-agg         => $agg,
+		-debug       => $debug,
+		-verbose     => $verbose,
+		-genall      => $genall,
+		-forcegen    => $forcegen,
+		-forcesoa    => $forcesoa,
+		-norsynclist => $norsynclist,
+		-statsfn     => \@statsfn,
+	);
+
+	if ( $sock && ( !$dbh->ping() || time() - $lastcheck > 21600 ) ) {
+		$sock->remove($pgsock);
+		$dbh    = $zg->reconnect_db();
+		$pgsock = $dbh->{pg_socket};
+
+		$sock->add( $dbh->{pg_socket} );
+		$lastcheck = time();
+	}
+	$dbh->do("LISTEN $pgnotify") if ($pgnotify);
+} while ($loop);
 
 exit 0;
 

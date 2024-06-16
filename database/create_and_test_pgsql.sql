@@ -205,4 +205,15 @@ rollback;
 SELECT schema_support.reset_all_schema_table_sequences(schema := 'jazzhands_audit');
 SELECT schema_support.reset_all_schema_table_sequences(schema := 'jazzhands');
 
+GRANT USAGE ON SCHEMA jazzhands TO ro_role;
+GRANT SELECT ON ALL TABLES IN SCHEMA jazzhands TO ro_role;
+GRANT INSERT,UPDATE,DELETE ON ALL TABLES IN SCHEMA jazzhands TO iud_role;
+
+GRANT USAGE ON SCHEMA jazzhands_audit TO ro_role;
+GRANT SELECT ON ALL TABLES IN SCHEMA jazzhands_audit TO ro_role;
+
+GRANT USAGE ON SCHEMA jazzhands_legacy TO ro_role;
+GRANT SELECT ON ALL TABLES IN SCHEMA jazzhands_legacy TO ro_role;
+GRANT INSERT,UPDATE,DELETE ON ALL TABLES IN SCHEMA jazzhands_legacy TO iud_role;
+
 select timeofday(), now();

@@ -15,6 +15,8 @@
  * limitations under the License.
  */
 
+\set ON_ERROR_STOP
+
 /*
 TODO:
  - consider unique record test when one record points to another.
@@ -738,6 +740,51 @@ CREATE TRIGGER trigger_dns_domain_ip_universe_trigger_change
 	ON dns_domain_ip_universe
 	FOR EACH ROW
 	EXECUTE PROCEDURE dns_domain_ip_universe_trigger_change();
+
+---------------------------------------------------------------------------
+CREATE OR REPLACE FUNCTION dns_domain_ip_universe_serial_change()
+RETURNS TRIGGER AS $$
+BEGIN
+	IF ( TG_OP = 'DELETE' AND OLD.should_generate) OR
+		( TG_OP = 'UPDATE' AND OLD.should_generate AND
+			( OLD.dns_domain_id != NEW.dns_domain_id
+			OR OLD.ip_universe_id != NEW.ip_universe_id ) )
+	THEN
+		PERFORM pg_notify('dns_domain_ip_universe_serial_change',
+			jsonb_build_object(
+				'dns_doain_id', OLD.dns_domain_id,
+				'ip_universe_id', OLD.ip_universe_id,
+				'soa_serial', OLD.soa_serial
+			)::text
+		);
+	END IF;
+
+	IF ( TG_OP = 'INSERT' OR TG_OP = 'UPDATE' ) AND NEW.should_generate THEn
+		PERFORM pg_notify('dns_domain_ip_universe_serial_change',
+			jsonb_build_object(
+				'dns_doain_id', NEW.dns_domain_id,
+				'ip_universe_id', NEW.ip_universe_id,
+				'soa_serial', NEW.soa_serial
+			)::text
+		);
+	END IF;
+
+	IF TG_OP = 'INSERT' OR TG_OP = 'UPDATE' THEN
+		RETURN NEW;
+	ELSE
+		RETURN OLD;
+	END If;
+END;
+$$
+LANGUAGE plpgsql SECURITY DEFINER;
+
+DROP TRIGGER IF EXISTS trigger_dns_domain_ip_universe_serial_change
+	ON dns_domain_ip_universe;
+CREATE TRIGGER trigger_dns_domain_ip_universe_serial_change
+	AFTER INSERT OR UPDATE OF soa_serial, should_generate
+	ON dns_domain_ip_universe
+	FOR EACH ROW
+	EXECUTE PROCEDURE dns_domain_ip_universe_serial_change();
 
 ---------------------------------------------------------------------------
 CREATE OR REPLACE FUNCTION dns_domain_ip_universe_trigger_del()
