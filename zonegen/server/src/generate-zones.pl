@@ -1818,6 +1818,9 @@ sub generate_all_zones {
 }
 
 package main;
+use strict;
+use warnings;
+use IO::Select;
 
 #############################################################################
 #
@@ -1871,7 +1874,7 @@ GetOptions(
 	'stats-filename=s' => \@statsfn,    # file to optionally save statistics
 	'verbose|v'        => \$verbose,    # duh.
 	'wait!'            => \$wait,       # wait on lock in db
-	'loop!'            => \$loop,       # wait on lock in db
+	'loop!'            => \$loop,       # loop waiting on pgnotifies and period wake up
 ) || die pod2usage( -verbose => 1 );
 
 $verbose = 1 if ($debug);
