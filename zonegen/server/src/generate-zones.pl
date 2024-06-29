@@ -1932,9 +1932,12 @@ if ($loop) {
 
 my $json = new JSON;
 
+my $iter = 0;
+
 do {
+	warn "looping" if($debug);
 	my $dbh = $zg->DBHandle();
-	if ($sock) {
+	if ($sock && $iter++) {
 		my @ready = $sock->can_read($looptimeout);
 		foreach my $fh (@ready) {
 			if ( $fh == $pgsock ) {
