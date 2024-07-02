@@ -1937,6 +1937,7 @@ my $iter = 0;
 do {
 	warn "looping" if($debug);
 	my $dbh = $zg->DBHandle();
+	$dbh->{AutoCommit} = 1;
 	if ($sock && $iter++) {
 		my @ready = $sock->can_read($looptimeout);
 		foreach my $fh (@ready) {
@@ -1958,6 +1959,7 @@ do {
 		}
 	}
 
+	$dbh->{AutoCommit} = 0;
 	$zg->generate_all_zones(
 		-mysite      => $mysite,
 		-nosoa       => $nosoa,
@@ -1971,6 +1973,7 @@ do {
 		-norsynclist => $norsynclist,
 		-statsfn     => \@statsfn,
 	);
+	$dbh->{AutoCommit} = 1;
 
 	if ( $sock && ( !$dbh->ping() || time() - $lastcheck > 21600 ) ) {
 		$sock->remove($pgsock);
