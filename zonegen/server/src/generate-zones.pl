@@ -906,8 +906,8 @@ sub process_domain {
 			$errmsg = "[WARNING: PUSHING OUT!]";
 		}
 		$output = "" if ( !$output );
-		die "$domain ($uname) was generated with errors $errmsg ($output)\n";
 		if ( !$errcheck ) {
+			$self->Error("$domain ($uname) was generated with errors $errmsg ($output)");
 			return 0;
 		}
 	}
