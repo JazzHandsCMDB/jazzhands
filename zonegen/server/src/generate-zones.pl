@@ -81,6 +81,7 @@ use Pod::Usage;
 use Data::Dumper;
 use Carp;
 use Data::Dumper;
+use Net::DNS::ZoneFile;
 
 ### XXX: SIGALRM that kills after one zone hasn't been processed for 20 mins?
 
@@ -828,6 +829,43 @@ sub process_soa {
 }
 
 #
+# runs through a parser and compares two zone files.  This is generally just
+# used to see if a zone needs to be mv'd into place and reloaded.
+#
+sub compare_zones($$$) {
+	my ( $self, $f1, $f2 ) = @_;
+
+	my ( $z1, $z2 );
+
+	if ( my $p = Net::DNS::ZoneFile->new($f1) ) {
+		my @z;
+		while ( my $rr = $p->read ) {
+			push( @z, $rr->string );
+		}
+		$z1 = join( "\n", sort @z );
+	} else {
+		warn "Could not open first file on compare: $f1";
+		return 0;
+	}
+
+	if ( my $p = Net::DNS::ZoneFile->new($f2) ) {
+		my @z;
+		while ( my $rr = $p->read ) {
+			push( @z, $rr->string );
+		}
+		$z2 = join( "\n", sort @z );
+	} else {
+		return 0;
+	}
+
+	if ( $z1 ne $z2 ) {
+		warn "Could not open second file on compare: $f1";
+		return 1;
+	}
+	return 0;
+}
+
+#
 # if zoneroot is undef, then dump the zone to stdout.
 #
 sub process_domain {
@@ -907,13 +945,22 @@ sub process_domain {
 		}
 		$output = "" if ( !$output );
 		if ( !$errcheck ) {
-			$self->Error("$domain ($uname) was generated with errors $errmsg ($output)");
+			$self->Error(
+				"$domain ($uname) was generated with errors $errmsg ($output)");
 			return 0;
 		}
 	}
 
-	unlink($fn);
-	rename( $tmpfn, $fn );
+	# if new file does not exist or it is different..
+	if ( !-r $fn || $self->compare_zones( $tmpfn, $fn ) ) {
+		unlink($fn);
+		rename( $tmpfn, $fn );
+	} else {
+
+		# zone not actually regenerated, return 0.
+		unlink($tmpfn);
+		return 0;
+	}
 	return 1;
 }
 
@@ -1425,6 +1472,7 @@ sub generate_all_zones {
 	my $forcesoa    = $opt->{forcesoa};
 	my $norsynclist = $opt->{norsynclist};
 	my $statsfn     = $opt->{statsfn};
+	my $perserver   = $opt->{perserver};
 
 	#
 	# This should probably move into script_hooks.zonegen_pre().
@@ -1488,13 +1536,11 @@ sub generate_all_zones {
 		# Now get all zones eligible for regeneration and save them.
 		#
 		my $dbh = $self->DBHandle();
-		my $sth = $dbh->prepare_cached(
-			qq{
+		my $sth = $dbh->prepare_cached( qq{
 			SELECT v.*, u.ip_universe_name
 			FROM v_dns_changes_pending v
 			JOIN ip_universe u USING (ip_universe_id)
-	}
-		) || die $dbh->errstr;
+		} ) || die $dbh->errstr;
 
 		$sth->execute || die $sth->errstr;
 
@@ -1663,6 +1709,7 @@ sub generate_all_zones {
 		}
 	}
 
+	my $subrv = {};
 	$self->record_event('startgen');
 	#
 	# NOTE, the setting of $generate->{$dom}->{bumpsoa} is set here and the db
@@ -1703,6 +1750,8 @@ sub generate_all_zones {
 				$generate->{$dom}->{$univ}->{failed} = 1;
 			} else {
 				print "$dom $univ\n";
+				$subrv->{$univ} = () if ( !exists( $subrv->{$univ} ) );
+				push( @{ $subrv->{$univ} }, $dom );
 			}
 
 		}
@@ -1800,7 +1849,7 @@ sub generate_all_zones {
 	#
 	warn "Generating configuration files and whatnot..." if ($debug);
 
-	$self->process_perserver($generate);
+	$self->process_perserver($generate) if ( $self->{perserver} );
 	$self->generate_complete_files($generate);
 
 	$self->DBHandle()->do("SELECT script_hooks.zonegen_post()");
@@ -1815,6 +1864,8 @@ sub generate_all_zones {
 
 	$self->record_event('done');
 	$self->process_and_print( @{$statsfn} );
+
+	$subrv;
 }
 
 package main;
@@ -1846,9 +1897,12 @@ my $sleep       = 0;
 my $wait        = 1;
 my $loop        = 0;
 my $agg         = 0;
+my $perserver   = 1;
 my $pgnotify    = "dns_domain_ip_universe_serial_change";
 my @statsfn;
 my $looptimeout = 300;
+my $rndc        = 0;
+my $view;
 
 my $mysite;
 
@@ -1873,8 +1927,11 @@ GetOptions(
 	'site=s'          => \$mysite,      # indicate what local machines site
 	'stats-filename=s' => \@statsfn,    # file to optionally save statistics
 	'verbose|v'        => \$verbose,    # duh.
+	'rndc!'            => \$rndc,       # run rndc to reload zones
+	'view=s'           => \$view,       # assumes server only serves _THIS_ view
+	'perserver!'       => \$perserver,  # generate perserver links
 	'wait!'            => \$wait,       # wait on lock in db
-	'loop!'            => \$loop,       # loop waiting on pgnotifies and period wake up
+	'loop!' => \$loop,    # loop waiting on pgnotifies and period wake up
 ) || die pod2usage( -verbose => 1 );
 
 $verbose = 1 if ($debug);
@@ -1935,10 +1992,10 @@ my $json = new JSON;
 my $iter = 0;
 
 do {
-	warn "looping" if($debug);
+	warn "looping" if ($debug);
 	my $dbh = $zg->DBHandle();
 	$dbh->{AutoCommit} = 1;
-	if ($sock && $iter++) {
+	if ( $sock && $iter++ ) {
 		my @ready = $sock->can_read($looptimeout);
 		foreach my $fh (@ready) {
 			if ( $fh == $pgsock ) {
@@ -1960,7 +2017,7 @@ do {
 	}
 
 	$dbh->{AutoCommit} = 0;
-	$zg->generate_all_zones(
+	my $r = $zg->generate_all_zones(
 		-mysite      => $mysite,
 		-nosoa       => $nosoa,
 		-wait        => $wait,
@@ -1971,9 +2028,28 @@ do {
 		-forcegen    => $forcegen,
 		-forcesoa    => $forcesoa,
 		-norsynclist => $norsynclist,
+		-perserver   => $perserver,
 		-statsfn     => \@statsfn,
 	);
 	$dbh->{AutoCommit} = 1;
+
+	if ($rndc) {
+
+		# warn Dumper($r);
+		if ($r) {
+			# XXX only run if config changed, which needs ot be thought
+			# through in a future version
+			system("rndc reconfig");
+			foreach my $univ ( keys( %{$r} ) ) {
+				next if ( $view && $univ ne $view );
+				my $extra = "";
+				$extra = "IN $univ" if ( !$view );
+				foreach my $zone ( @{ $r->{$univ} } ) {
+					system("rndc reload $zone $extra");
+				}
+			}
+		}
+	}
 
 	if ( $sock && ( !$dbh->ping() || time() - $lastcheck > 21600 ) ) {
 		$sock->remove($pgsock);
