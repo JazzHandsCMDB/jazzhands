@@ -83,7 +83,7 @@ $$
 			) RETURNING * INTO dns_nc;
 		END IF;
 
-		RAISE NOTICE 'Fetched netblock_collection %',
+		RAISE INFO 'Fetched netblock_collection %',
 			dns_nc.netblock_collection_id;
 
 		IF dns_nc.netblock_collection_id IS NULL THEN
@@ -217,11 +217,11 @@ $$
 		SELECT
 			device_collection_id INTO dcid
 		FROM
-			device_collection_dc JOIN
+			device_collection dc JOIN
 			device_collection_device dcd USING (device_collection_id)
 		WHERE
 			dc.device_collection_type = 'per-device' AND
-			dcd.device_id = dcid;
+			dcd.device_id = devid;
 
 		IF NOT FOUND THEN
 			RAISE EXCEPTION
@@ -232,14 +232,14 @@ $$
 
 		--
 		-- See if there is a property already created for this site for
-		-- DomainNameServers...
+		-- *DHCPServer...
 		--
 		SELECT
 			p.property_id,
 			p.property_name,
 			p.property_type,
 			p.layer2_network_collection_id,
-			p.property_value_netblock_collection_id
+			p.property_value_device_collection_id
 		INTO prop
 		FROM
 			property p JOIN
@@ -272,7 +272,7 @@ $$
 				property_name,
 				property_type,
 				layer2_network_collection_id,
-				property_value_netblock_collection_id
+				property_value_device_collection_id
 			) SELECT
 				CASE
 					WHEN set_failover THEN 'FailoverDHCPServer'
@@ -280,7 +280,7 @@ $$
 				END,
 				'DHCP',
 				layer2_network_collection_id,
-				dns_nc.netblock_collection_id
+				dcid
 			FROM
 				layer2_network_collection l2c
 			WHERE
@@ -302,10 +302,10 @@ LANGUAGE plpgsql
 SECURITY INVOKER
 SET search_path = 'jazzhands';
 
-CREATE OR REPLACE FUNCTION dhcp_manip.set_site_pxe_servers(
+CREATE OR REPLACE FUNCTION dhcp_manip.set_site_pxe_server(
 	site_code			text,
 	ip_address			inet,
-	ip_universe_id		jazzhands.ip_universe.ip_universe_id%TYPE
+	ip_universe_id		jazzhands.ip_universe.ip_universe_id%TYPE DEFAULT 0
 ) RETURNS boolean AS
 $$
 	DECLARE
@@ -344,7 +344,7 @@ $$
 			) RETURNING * INTO pxe_nc;
 		END IF;
 
-		RAISE NOTICE 'Fetched netblock_collection %',
+		RAISE INFO 'Fetched netblock_collection %',
 			pxe_nc.netblock_collection_id;
 
 		IF pxe_nc.netblock_collection_id IS NULL THEN
