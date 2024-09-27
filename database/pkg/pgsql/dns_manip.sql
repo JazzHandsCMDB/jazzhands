@@ -1,4 +1,4 @@
--- Copyright (c) 2021-2023, Todd M. Kover
+-- Copyright (c) 2021-2024, Todd M. Kover
 -- All rights reserved.
 --
 -- Licensed under the Apache License, Version 2.0 (the "License");
@@ -197,6 +197,7 @@ DECLARE
 	rvs_nblk_id		netblock.netblock_id%type;
 	univ			ip_universe.ip_universe_id%type;
 	can_haz_generate	boolean;
+	re				TEXT;
 BEGIN
 	IF dns_domain_name IS NULL THEN
 		RETURN NULL;
@@ -220,7 +221,7 @@ BEGIN
 		END IF;
 	END LOOP;
 
-	short_name := regexp_replace(dns_domain_name, concat('.', parent_zone), '');
+	short_name := regexp_replace(dns_domain_name, concat('\.', parent_zone), '');
 
 	IF ip_universes IS NULL THEN
 		SELECT array_agg(ip_universe_id)
@@ -302,14 +303,19 @@ BEGIN
 	-- migrate any records _in_ the parent zone over to this zone.
 	--
 	IF short_name IS NOT NULL AND parent_id IS NOT NULL THEN
+		re := regexp_replace(concat('.?', lower(short_name), '$'), '\.', '\\.'
+			 'g');
 		UPDATE  dns_record
 			SET dns_name =
 				CASE WHEN lower(dns_name) = lower(short_name) THEN NULL
-				ELSE regexp_replace(dns_name, concat('.', short_name, '$'), '')
+				ELSE regexp_replace(dns_name,
+					regexp_replace(
+						concat('.', short_name, '$'), '\.', '\\.','i'),
+					'', 'i')
 				END,
 				dns_domain_id =  domain_id
 		WHERE dns_domain_id = parent_id
-		AND lower(dns_name) ~ concat('\.?', lower(short_name), '$');
+		AND lower(dns_name) ~ re;
 
 		--
 		-- check to see if NS servers already exist, in which case, reuse them
