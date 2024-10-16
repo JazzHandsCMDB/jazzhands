@@ -30,19 +30,24 @@ Alternately, include a file that does that.
 
 The TL;DR way to create this from a fresh install of PostgreSQL is:
 
+	psql -U postgres =c 'create SCHEMA pgcrypto';
+	psql -U postgres =c 'create extension pgcrypto WITH SCHEMA pgcrypto';
+	psql -U postgres =c 'create extension plperl';
+
 	psql -U postgres -c 'create role schema_owners';
 	psql -U postgres -c 'create role dba SUPERUSER  NOINHERIT';
 	psql -U postgres -c 'create user jazzhands IN ROLE schema_owners'
 	psql -U postgres -c 'create database jazzhands'
-	psql -U postgres -d test -f create_pgsql_from_scratch.sql
+	psql -U postgres -d jazzhands -f create_pgsql_from_scratch.sql
 
 To also run all the unit tests, do this instead:
 
 	psql -U postgres -c 'create role schema_owners';
+
 	psql -U postgres -c 'create role dba SUPERUSER  NOINHERIT';
 	psql -U postgres -c 'create user jazzhands IN ROLE schema_owners'
 	psql -U postgres -c 'create database jazzhands'
-	psql -U postgres -d test -f create_and_test_pgsql.sql
+	psql -U postgres -d jazzhands -f create_and_test_pgsql.sql
 
 In both cases, the jazzhands database will be dropped and recreated (without
 cascade) after connecting to the template1 database and connecting back
