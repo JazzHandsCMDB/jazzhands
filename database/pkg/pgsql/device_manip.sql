@@ -868,6 +868,7 @@ BEGIN
 	RETURN osrec.operating_system_id;
 END;
 $$ LANGUAGE plpgsql set search_path=jazzhands SECURITY DEFINER;
+
 -------------------------------------------------------------------
 --end device_manip.set_operating_system
 -------------------------------------------------------------------
