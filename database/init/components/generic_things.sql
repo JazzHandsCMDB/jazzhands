@@ -32,6 +32,7 @@
 INSERT INTO val_component_function (component_function, description) VALUES
 	('storage', 'Storage'),
 	('chassis', 'Chassis'),
+	('module', 'Chassis module'),
 	('device', 'Standalone Device'),
 	('virtual', 'Virtual Component');
 

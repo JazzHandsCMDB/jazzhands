@@ -72,7 +72,8 @@ BEGIN
 				'LC',
 				'SC',
 				'10GSFP+Cu',
-				'MXP'
+				'MXP',
+				'fiber'
 			]),
 			'network'
 		;
@@ -82,6 +83,7 @@ BEGIN
 			 description, remote_slot_permitted)
 		VALUES
 			-- Direct attach types
+			('fiber', 'fiber', 'network', 'fiber conection', true),
 			('100BaseTEthernet', 'RJ45', 'network', '100BaseT Ethernet', true),
 			('1000BaseTEthernet', 'RJ45', 'network', '1000BaseT Ethernet', true),
 			('10GBaseTEthernet', 'RJ45', 'network', '10GBaseT Ethernet', true),
@@ -155,8 +157,8 @@ BEGIN
 				rst.slot_type = '40GMPOEthernet') OR
 			(st.slot_type = '10GSFPCuEthernet' AND
 				rst.slot_type = '10GSFPCuEthernet') OR
-			(st.slot_type IN ('10GMPOEthernet','10GLCEthernet','1GLCEthernet') AND
-				rst.slot_type IN ('10GMPOEthernet','10GLCEthernet','1GLCEthernet')) OR
+			(st.slot_type IN ('fiber', '10GMPOEthernet','10GLCEthernet','1GLCEthernet') AND
+				rst.slot_type IN ('fiber','10GMPOEthernet','10GLCEthernet','1GLCEthernet')) OR
 			(st.slot_physical_interface_type = 'RJ45' AND
 				st.slot_physical_interface_type = 'RJ45')
 			);

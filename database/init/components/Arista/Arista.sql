@@ -756,3 +756,4 @@ $$ LANGUAGE plpgsql;
 \ir Arista_720XP.sql
 \ir Arista_7500.sql
 \ir Arista_7800.sql
+\ir Arista_7368.sql
