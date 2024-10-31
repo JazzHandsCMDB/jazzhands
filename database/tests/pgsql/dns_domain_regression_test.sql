@@ -29,7 +29,7 @@ SAVEPOINT dns_domain_trigger_test;
 
 CREATE OR REPLACE FUNCTION validate_dns_domain_triggers() RETURNS BOOLEAN AS $$
 DECLARE
-	_tally			integer;
+	_tally		INTEGER;
 	_dom1		dns_domain.dns_domain_id%TYPE;
 	_dom2		dns_domain.dns_domain_id%TYPE;
 	_dom3		dns_domain.dns_domain_id%TYPE;
@@ -37,10 +37,45 @@ DECLARE
 	_d			RECORD;
 	base1		TEXT;
 	base2		TEXT;
-	_numns			INTEGER;
+	_numns		INTEGER;
 	_i			INTEGER;
+	_numdefns	INTEGER;
 BEGIN
 	RAISE NOTICE '++ Beginning tests of dns_domains ...';
+
+	BEGIN
+		INSERT INTO property (
+			property_type, property_name, property_value
+		) VALUES
+			( 'Defaults', '_authdns', 'ns1.example.com'),
+			( 'Defaults', '_authdns', 'ns2.example.com')
+		ON CONFLICT DO NOTHING;
+	EXCEPTION WHEN unique_violation THEN
+		NULL;
+	END;
+
+	BEGIN
+		INSERT INTO property (
+			property_type, property_name, property_value
+		) VALUES (
+			'Defaults', '_dnsmname', 'ns1.example.com'
+		) ON CONFLICT DO NOTHING;
+	EXCEPTION WHEN unique_violation THEN
+		NULL;
+	END;
+
+	BEGIN
+		INSERT INTO property (
+			property_type, property_name, property_value
+		) VALUES (
+			'Defaults', '_dnsrname', 'hostmaster.example.com'
+		) ON CONFLICT DO NOTHING;
+	EXCEPTION WHEN unique_violation THEN
+		NULL;
+	END;
+
+	SELECT count(*) INTO _numdefns FROM property
+		WHERE property_name = '_authdns' AND property_type = 'Defaults';
 
 	--
 	-- should be randomly generated
@@ -157,7 +192,7 @@ BEGIN
 		AND dns_domain_id = _dom3;
 
 		IF _i != 3 THEN
-			RAISE EXCEPTION 'Initial mismatch of expected NS record % v %', _i, 3;
+			RAISE EXCEPTION 'Initial mismatch of expected A records % v %', _i, 3;
 		END IF;
 
 		_dom2 := dns_manip.add_dns_domain(
@@ -165,17 +200,17 @@ BEGIN
 			dns_domain_type := 'service'
 		);
 
-		SELECT count(*) INTO _i FROM dns_record WHERE dns_type = 'A'
+		SELECT count(*) INTO _i FROM dns_record WHERE dns_type = 'NS'
 		AND dns_domain_id = _dom2;
 
-		IF _i != 2 THEN
+		IF _i != _numdefns THEN
 			RAISE EXCEPTION 'mismatch of expected NS record % v %', _i, 2;
 		END IF;
 
-		SELECT count(*) INTO _i FROM dns_record WHERE dns_type = 'A'
+		SELECT count(*) INTO _i FROM dns_record WHERE dns_type = 'NS'
 		AND dns_domain_id = _dom3;
 
-		IF _i != 1 THEN
+		IF _i != _numdefns THEN
 			RAISE EXCEPTION 'mismatch of expected parent NS record % v %', _i, 1;
 		END IF;
 
@@ -183,7 +218,6 @@ BEGIN
 	EXCEPTION WHEN SQLSTATE 'JH999' THEN
 		RAISE NOTICE 'Success! (%)', SQLERRM;
 	END;
-
 
 	RAISE NOTICE 'Cleaning Up....';
 	RAISE NOTICE '++ End dns_domain tests...';
