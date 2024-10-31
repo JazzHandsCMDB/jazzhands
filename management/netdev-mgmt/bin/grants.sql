@@ -1,17 +1,202 @@
-ALTER USER app_network_manip SET search_path = 'jazzhands';
+DO $$
+BEGIN
+	PERFORM * FROM pg_catalog.pg_roles where rolname = 'net_dev_mgmt_role';
+
+	IF NOT FOUND THEN
+		CREATE ROLE net_dev_mgmt_role NOLOGIN;
+	END IF;
+END;
+$$ language plpgsql;
+
+GRANT USAGE ON SCHEMA
+	company_manip,
+	component_connection_utils,
+	component_manip,
+	component_utils,
+	device_manip,
+	device_utils,
+	dns_manip,
+	dns_utils,
+	jazzhands,
+	layerx_network_manip,
+	logical_port_manip,
+	net_manip,
+	netblock_manip,
+	netblock_utils,
+	port_utils
+TO net_dev_mgmt_role;
+
+GRANT EXECUTE ON ALL FUNCTIONS IN SCHEMA
+	company_manip,
+	component_connection_utils,
+	component_manip,
+	component_utils,
+	device_manip,
+	device_utils,
+	dns_manip,
+	dns_utils,
+	layerx_network_manip,
+	logical_port_manip,
+	net_manip,
+	netblock_manip,
+	netblock_utils,
+	port_utils
+TO net_dev_mgmt_role;
+
+GRANT SELECT, UPDATE, INSERT, DELETE ON
+	jazzhands.asset,
+	jazzhands.circuit,
+	jazzhands.component,
+	jazzhands.component_management_controller,
+	jazzhands.component_property,
+	jazzhands.component_type,
+	jazzhands.component_type_component_function,
+	jazzhands.component_type_slot_template,
+	jazzhands.device,
+	jazzhands.device_collection,
+	jazzhands.device_collection_device,
+	jazzhands.device_collection_hier,
+	jazzhands.device_encapsulation_domain,
+	jazzhands.device_management_controller,
+	jazzhands.device_note,
+	jazzhands.device_type,
+	jazzhands.encapsulation_domain,
+	jazzhands.encapsulation_range,
+	jazzhands.inter_component_connection,
+	jazzhands.ip_universe,
+	jazzhands.ip_universe_visibility,
+	jazzhands.layer2_connection,
+	jazzhands.layer2_connection_layer2_network,
+	jazzhands.layer2_network,
+	jazzhands.layer2_network_collection,
+	jazzhands.layer2_network_collection_hier,
+	jazzhands.layer2_network_collection_layer2_network,
+	jazzhands.layer3_interface,
+	jazzhands.layer3_interface_netblock,
+	jazzhands.layer3_interface_purpose,
+	jazzhands.layer3_network,
+	jazzhands.layer3_network_collection,
+	jazzhands.layer3_network_collection_hier,
+	jazzhands.layer3_network_collection_layer3_network,
+	jazzhands.logical_port,
+	jazzhands.logical_port_slot,
+	jazzhands.mlag_peering,
+	jazzhands.netblock,
+	jazzhands.netblock_collection,
+	jazzhands.netblock_collection_hier,
+	jazzhands.netblock_collection_netblock,
+	jazzhands.network_range,
+	jazzhands.network_service,
+	jazzhands.operating_system,
+	jazzhands.physical_address,
+	jazzhands.physical_connection,
+	jazzhands.property,
+	jazzhands.property_name_collection,
+	jazzhands.property_name_collection_hier,
+	jazzhands.property_name_collection_property_name,
+	jazzhands.rack,
+	jazzhands.rack_location,
+	jazzhands.shared_netblock,
+	jazzhands.shared_netblock_layer3_interface,
+	jazzhands.site,
+	jazzhands.site_encapsulation_domain,
+	jazzhands.site_netblock,
+	jazzhands.slot,
+	jazzhands.slot_type,
+	jazzhands.slot_type_permitted_component_slot_type,
+	jazzhands.slot_type_permitted_remote_slot_type
+TO net_dev_mgmt_role;
 
 GRANT SELECT ON
+	jazzhands.company,
+	jazzhands.company_collection,
+	jazzhands.company_collection_company,
+	jazzhands.company_collection_hier,
+	jazzhands.company_type,
+	jazzhands.v_device_component_summary,
+	jazzhands.v_device_components,
+	jazzhands.v_device_components_expanded,
+	jazzhands.v_device_components_json,
+	jazzhands.v_device_slot_connections,
+	jazzhands.v_device_slots,
+	jazzhands.v_layer2_network_collection_expanded,
+	jazzhands.v_layer2_network_collection_hier_ancestor,
+	jazzhands.v_layer2_network_collection_hier_descendent,
+	jazzhands.v_layer2_network_collection_layer2_network_ancestor,
+	jazzhands.v_layer2_network_collection_layer2_network_descendent,
+	jazzhands.v_layer3_network_collection_expanded,
+	jazzhands.v_layer3_network_collection_hier_ancestor,
+	jazzhands.v_layer3_network_collection_hier_descendent,
+	jazzhands.v_layer3_network_collection_layer3_network_ancestor,
+	jazzhands.v_layer3_network_collection_layer3_network_descendent,
 	jazzhands.v_layerx_network_expanded,
-	jazzhands.device,
-	jazzhands.device_type,
-	jazzhands.network_interface,
-	jazzhands.network_interface_netblock,
-	jazzhands.netblock,
-	jazzhands.device_encapsulation_domain
-TO app_network_manip;
+	jazzhands.v_netblock_collection_expanded,
+	jazzhands.v_netblock_collection_hier_ancestor,
+	jazzhands.v_netblock_collection_hier_descendent,
+	jazzhands.v_netblock_collection_hier_from_ancestor,
+	jazzhands.v_netblock_collection_netblock_ancestor,
+	jazzhands.v_netblock_collection_netblock_descendent,
+	jazzhands.v_netblock_collection_netblock_expanded,
+	jazzhands.v_netblock_hier,
+	jazzhands.v_netblock_hier_expanded,
+	jazzhands.v_network_range_expanded,
+	jazzhands.v_property,
+	jazzhands.v_property_name_collection_hier_ancestor,
+	jazzhands.v_property_name_collection_hier_descendent,
+	jazzhands.v_property_name_collection_property_name_ancestor,
+	jazzhands.v_property_name_collection_property_name_descendent,
+	jazzhands.v_site_netblock_expanded,
+	jazzhands.v_site_netblock_expanded_assigned,
+	jazzhands.val_component_function,
+	jazzhands.val_component_management_controller_type,
+	jazzhands.val_component_property,
+	jazzhands.val_component_property_type,
+	jazzhands.val_component_property_value,
+	jazzhands.val_device_collection_type,
+	jazzhands.val_device_status,
+	jazzhands.val_encapsulation_mode,
+	jazzhands.val_encapsulation_type,
+	jazzhands.val_layer2_network_collection_type,
+	jazzhands.val_layer3_acl_group_type,
+	jazzhands.val_layer3_interface_purpose,
+	jazzhands.val_layer3_interface_type,
+	jazzhands.val_layer3_network_collection_type,
+	jazzhands.val_logical_port_type,
+	jazzhands.val_netblock_collection_type,
+	jazzhands.val_netblock_status,
+	jazzhands.val_netblock_type,
+	jazzhands.val_network_range_type,
+	jazzhands.val_operating_system_family,
+	jazzhands.val_operating_system_snapshot_type,
+	jazzhands.val_ownership_status,
+	jazzhands.val_physical_address_type,
+	jazzhands.val_port_range_type,
+	jazzhands.val_production_state,
+	jazzhands.val_property,
+	jazzhands.val_property_data_type,
+	jazzhands.val_property_name_collection_type,
+	jazzhands.val_property_type,
+	jazzhands.val_property_value,
+	jazzhands.val_rack_type,
+	jazzhands.val_shared_netblock_protocol,
+	jazzhands.val_slot_function,
+	jazzhands.val_slot_physical_interface
+TO net_dev_mgmt_role;
 
-GRANT USAGE ON SCHEMA jazzhands TO app_network_manip;
-GRANT USAGE ON SCHEMA layerx_network_manip TO app_network_manip;
-GRANT EXECUTE ON FUNCTION
-	layerx_network_manip.delete_layer2_network ( integer, boolean)
-TO app_network_manip;
+-- ALTER USER app_network_manip SET search_path = 'jazzhands';
+-- 
+-- GRANT SELECT ON
+-- 	jazzhands.v_layerx_network_expanded,
+-- 	jazzhands.device,
+-- 	jazzhands.device_type,
+-- 	jazzhands.network_interface,
+-- 	jazzhands.network_interface_netblock,
+-- 	jazzhands.netblock,
+-- 	jazzhands.device_encapsulation_domain
+-- TO app_network_manip;
+-- 
+-- GRANT USAGE ON SCHEMA jazzhands TO app_network_manip;
+-- GRANT USAGE ON SCHEMA layerx_network_manip TO app_network_manip;
+-- GRANT EXECUTE ON FUNCTION
+-- 	layerx_network_manip.delete_layer2_network ( integer, boolean)
+-- TO app_network_manip;

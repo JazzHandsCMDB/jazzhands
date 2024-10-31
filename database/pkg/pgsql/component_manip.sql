@@ -2158,16 +2158,11 @@ BEGIN
 	x_offset = 0;
 
 	FOR p IN SELECT jsonb_array_elements(ports) LOOP
-		RAISE INFO '%', jsonb_pretty(jsonb_build_object(
-			'port_offset', port_offset,
-			'x_offset', x_offset,
-			'size_units', size_units,
-			'port', p
-		));
 		INSERT INTO component_type_slot_template (
 			component_type_id,
 			slot_type_id,
 			slot_name_template,
+			child_slot_name_template,
 			physical_label,
 			slot_index,
 			slot_x_offset,
@@ -2176,6 +2171,7 @@ BEGIN
 		) SELECT
 			ctid,
 			slot_type_id,
+			'Ethernet' || (port_offset + x.idx + 1),
 			CASE
 			WHEN slot_physical_interface_type IN (
 				'QSFP', 'QSFP+', 'QSFP28', 'QSFP-DD', 'OSFP'
