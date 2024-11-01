@@ -35,7 +35,7 @@ BEGIN
 	END IF;
 
 --
--- Arista 7800 Chassis
+-- Arista 7368 Chassis
 --
 
 	PERFORM * FROM val_slot_physical_interface WHERE
@@ -87,6 +87,25 @@ BEGIN
 			'Y',
 			4
 		) RETURNING component_type_id INTO ctid;
+
+		--
+		-- Insert device type
+		--
+		INSERT INTO device_type (
+			component_type_id,
+			device_type_name,
+			description,
+			company_id,
+			config_fetch_type,
+			rack_units
+		) VALUES (
+			ctid,
+			'7368',
+			'Arista-7368',
+			cid,
+			'arista',
+			4
+		);
 
 		--
 		-- Supervisor slot

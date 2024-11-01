@@ -73,6 +73,7 @@ BEGIN
 				'SC',
 				'10GSFP+Cu',
 				'MXP',
+				'CFP2',
 				'fiber'
 			]),
 			'network'
@@ -98,6 +99,7 @@ BEGIN
 			('10GQSFP+Ethernet', 'QSFP+', 'network', '10Gbps split QSFP Ethernet', false),
 			('40GQSFP+Ethernet', 'QSFP+', 'network', '40Gbps QSFP Ethernet', false),
 			('100GMXPEthernet', 'MXP', 'network', '100Gbps MXP Ethernet', false),
+			('100GCFP2Ethernet', 'CFP2', 'network', '100Gbps CFP2 Ethernet', false),
 			('100GQSFP28Ethernet', 'QSFP28', 'network', '100Gbps QSFP28 Ethernet', false),
 			('400GQSFP-DDEthernet', 'QSFP-DD', 'network', '400Gbps QSFP-DD Ethernet', false),
 			('400GOSFPEthernet', 'OSFP', 'network', '400Gbps OSFP Ethernet', false),

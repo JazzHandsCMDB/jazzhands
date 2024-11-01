@@ -2063,7 +2063,7 @@ BEGIN
 
 	SELECT * INTO ctrec FROM component_type ct WHERE
 		company_id = cid AND
-		ct.model = 'DCS-' || m;
+		ct.model = m;
 
 	IF FOUND THEN
 		RAISE 'switch model % already exists as component_type_id %',
@@ -2083,7 +2083,7 @@ BEGIN
 	) VALUES (
 		description,
 		NULL,
-		'DCS-' || model,
+		model,
 		cid,
 		true,
 		true,
@@ -2109,7 +2109,7 @@ BEGIN
 		rack_units
 	) VALUES (
 		ctid,
-		'DCS-' || model,
+		model,
 		description,
 		cid,
 		'arista',
@@ -2259,7 +2259,7 @@ BEGIN
 
 	SELECT * INTO ctrec FROM component_type ct WHERE
 		company_id = cid AND
-		ct.model = 'DCS-' || m;
+		ct.model = m;
 
 	IF FOUND THEN
 		RAISE 'optic % already exists as component_type_id %',
