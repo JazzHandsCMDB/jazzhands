@@ -19,7 +19,48 @@ DECLARE
 	switch	RECORD;
 	ports	jsonb;
 	ct		RECORD;
+	cid		jazzhands.company.company_id%TYPE;
+	ccid	jazzhands.company_collection.company_collection_id%TYPE;
 BEGIN
+
+    SELECT company_id INTO cid FROM company WHERE company_name = 'Arista Networks';
+    IF NOT FOUND THEN
+        SELECT company_manip.add_company(
+            company_name := 'Arista Networks',
+            company_types := ARRAY['hardware provider']
+        ) INTO cid;
+    END IF;
+
+	SELECT
+		company_collection_id INTO ccid
+	FROM
+		company_collection cc JOIN
+		company_collection_company ccc using (company_collection_id)
+	WHERE
+		ccc.company_id = cid AND
+		company_collection_type = 'per-company';
+
+	PERFORM property_id FROM
+		property p
+	WHERE
+		(property_name, property_type) =
+			('DeviceVendorProbeString', 'DeviceProvisioning') AND
+		company_collection_id = ccid;
+
+	IF NOT FOUND THEN
+		INSERT INTO property (
+			property_name,
+			property_type,
+			property_value,
+			company_collection_id
+		) VALUES (
+			'DeviceVendorProbeString',
+			'DeviceProvisioning',
+			'Arista',
+			ccid
+		);
+	END IF;
+
 	FOR switch IN SELECT * FROM (VALUES
 
 	--
@@ -122,7 +163,7 @@ BEGIN
 	--
 	-- 7050
 	--
-	
+
 	(
 		'7050S-64', 'Arista 7050, 48xSFP+ & 4xQSFP+ switch', 1,
 		'[

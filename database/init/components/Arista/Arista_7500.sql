@@ -469,7 +469,12 @@ BEGIN
 		s1.slot_type = 'Arista 7500R Linecard' AND
 		s1.slot_function = 'chassis_slot' AND
 		s2.slot_type = 'Arista 7500E Linecard' AND
-		s2.slot_function = 'chassis_slot';
+		s2.slot_function = 'chassis_slot'
+	EXCEPT SELECT
+		slot_type_id,
+		component_slot_type_id
+	FROM
+		slot_type_permitted_component_slot_type;
 		
 	FOREACH chassisdef IN ARRAY ARRAY[
 		'{ "model": "DCS-7504N", "slots": 4, "rack_units": 7 }',
