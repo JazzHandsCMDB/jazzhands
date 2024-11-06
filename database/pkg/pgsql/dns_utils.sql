@@ -457,7 +457,6 @@ LANGUAGE plpgsql;
 -- DNS
 --
 ------------------------------------------------------------------------------
-DROP FUNCTION IF EXISTS dns_utils.add_domains_from_netblock ( integer );
 CREATE OR REPLACE FUNCTION dns_utils.add_domains_from_netblock(
 	netblock_id		netblock.netblock_id%TYPE
 ) returns TABLE(
@@ -488,7 +487,6 @@ LANGUAGE plpgsql SECURITY definer;
 -- if it matches the apex zone, it returns null
 --
 ------------------------------------------------------------------------------
-DROP FUNCTION IF EXISTS dns_utils.find_dns_domain ( text );
 CREATE OR REPLACE FUNCTION dns_utils.find_dns_domain(
 	fqdn	text
 ) returns TABLE(
@@ -530,7 +528,6 @@ LANGUAGE plpgsql SECURITY DEFINER;
 -- The above should go away in favor of this.
 --
 ------------------------------------------------------------------------------
-DROP FUNCTION IF EXISTS dns_utils.find_dns_domain_from_fqdn ( text );
 CREATE OR REPLACE FUNCTION dns_utils.find_dns_domain_from_fqdn(
 	fqdn	text
 ) returns jsonb

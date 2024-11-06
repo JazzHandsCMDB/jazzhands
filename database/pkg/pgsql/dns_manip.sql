@@ -434,7 +434,6 @@ LANGUAGE plpgsql SECURITY DEFINER;
 -- DNS
 --
 ------------------------------------------------------------------------------
-DROP FUNCTION IF EXISTS dns_manip.add_domains_from_netblock ( integer );
 CREATE OR REPLACE FUNCTION dns_manip.add_domains_from_netblock(
 	netblock_id		netblock.netblock_id%TYPE
 ) RETURNS jsonb
@@ -475,7 +474,6 @@ LANGUAGE plpgsql SECURITY DEFINER;
 -- Set DNS for a Network Interface
 --
 ------------------------------------------------------------------------------
-DROP FUNCTION IF EXISTS dns_manip.set_dns_for_interface ( integer, text, integer, boolean );
 CREATE OR REPLACE FUNCTION dns_manip.set_dns_for_interface(
 	netblock_id		netblock.netblock_id%TYPE,
 	layer3_interface_name	TEXT,
@@ -580,7 +578,6 @@ LANGUAGE plpgsql SECURITY DEFINER;
 -- of a layer2 network that has an encapsulation domain
 --
 ------------------------------------------------------------------------------
-DROP FUNCTION IF EXISTS dns_manip.set_dns_for_shared_routing_addresses ( integer, boolean );
 CREATE OR REPLACE FUNCTION dns_manip.set_dns_for_shared_routing_addresses (
 	netblock_id		netblock.netblock_id%TYPE,
 	force			boolean DEFAULT TRUE

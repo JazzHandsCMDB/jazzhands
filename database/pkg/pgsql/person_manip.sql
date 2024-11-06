@@ -770,7 +770,6 @@ SET search_path = jazzhands, pg_temp;
 -- return the matching site_code or physical_address_id
 --------------------------------------------------------------------------------
 
-DROP FUNCTION IF EXISTS person_manip.get_physical_address_from_site_code(varchar);
 CREATE OR REPLACE FUNCTION person_manip.get_physical_address_from_site_code(_site_code VARCHAR)
 	RETURNS INTEGER AS $$
 DECLARE
@@ -786,7 +785,6 @@ $$
 SET search_path=jazzhands
 LANGUAGE plpgsql SECURITY DEFINER;
 
-DROP FUNCTION IF EXISTS person_manip.get_site_code_from_physical_address_id(integer);
 CREATE OR REPLACE FUNCTION person_manip.get_site_code_from_physical_address_id(_physical_address_id INTEGER)
 	RETURNS VARCHAR AS $$
 DECLARE

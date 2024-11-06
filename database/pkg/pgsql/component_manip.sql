@@ -1652,14 +1652,6 @@ SET search_path=jazzhands
 SECURITY DEFINER
 LANGUAGE plpgsql;
 
-DROP FUNCTION IF EXISTS component_manip.fetch_component(
-	jazzhands.component_type.component_type_id%TYPE,
-	text,
-	boolean,
-	text,
-	jazzhands.slot.slot_id%TYPE
-);
-
 CREATE OR REPLACE FUNCTION component_manip.fetch_component(
 	component_type_id	jazzhands.component_type.component_type_id%TYPE,
 	serial_number		text,
@@ -2016,8 +2008,6 @@ $$
 set search_path=jazzhands
 SECURITY DEFINER
 LANGUAGE plpgsql;
-
-DROP FUNCTION IF EXISTS component_manip.insert_arista_switch_type(text, jsonb, text, integer);
 
 CREATE OR REPLACE FUNCTION component_manip.insert_arista_switch_type(
 	model			text,
