@@ -609,6 +609,14 @@ INSERT INTO val_netblock_collection_type (
 	false
 );
 
+INSERT INTO val_netblock_collection_type (
+	netblock_collection_type, description,
+	can_have_hierarchy
+) VALUES (
+	'dns', 'ip addresses to secondary from',
+	false
+);
+
 
 ----------------------- Misc Property Types
 
