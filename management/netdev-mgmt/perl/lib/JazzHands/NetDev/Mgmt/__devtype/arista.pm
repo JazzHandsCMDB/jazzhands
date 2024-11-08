@@ -1872,6 +1872,7 @@ sub GetChassisInfo {
 	my ($major, $minor, $patch) = split /\./, $software->{version}, 3;
 	my $chassis = {
 		model => $inventory->{systemInformation}->{name},
+		description => $inventory->{systemInformation}->{description},
 		manufacturer => 'Arista Networks',
 		manufacture_date => $inventory->{systemInformation}->{mfgDate},
 		hardware_rev => $inventory->{systemInformation}->{hardwareRev},

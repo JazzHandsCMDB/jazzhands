@@ -208,10 +208,10 @@ BEGIN
 	FOREACH elem in ARRAY elements
 	LOOP
 		IF octet_length(sofar) > 0 THEN
-			sofar := sofar || '.';
+			sofar := sofar || '\.';
 		END IF;
 		sofar := sofar || elem;
-		parent_zone := regexp_replace(dns_domain_name, '^'||sofar||'.', '');
+		parent_zone := regexp_replace(dns_domain_name, '^'||sofar||'\.', '');
 		EXECUTE 'SELECT dns_domain_id, dns_domain_type FROM dns_domain
 			WHERE dns_domain_name = $1'
 			INTO parent_id, parent_type
@@ -231,7 +231,7 @@ BEGIN
 	END IF;
 
 	IF dns_domain_type IS NULL THEN
-		IF dns_domain_name ~ '^.*(in-addr|ip6)\.arpa$' THEN
+		IF dns_domain_name ~ '^.*\.(in-addr|ip6)\.arpa$' THEN
 			dns_domain_type := 'reverse';
 		ELSIF parent_type IS NOT NULL THEN
 			dns_domain_type := parent_type;
@@ -303,14 +303,14 @@ BEGIN
 	-- migrate any records _in_ the parent zone over to this zone.
 	--
 	IF short_name IS NOT NULL AND parent_id IS NOT NULL THEN
-		re := regexp_replace(concat('.?', lower(short_name), '$'), '\.', '\\.'
+		re := regexp_replace(concat('\.?', lower(short_name), '$'), '\.', '\\.'
 			 'g');
 		UPDATE  dns_record
 			SET dns_name =
 				CASE WHEN lower(dns_name) = lower(short_name) THEN NULL
 				ELSE regexp_replace(dns_name,
 					regexp_replace(
-						concat('.', short_name, '$'), '\.', '\\.','i'),
+						concat('\.', short_name, '$'), '\.', '\\.','i'),
 					'', 'i')
 				END,
 				dns_domain_id =  domain_id
@@ -434,7 +434,6 @@ LANGUAGE plpgsql SECURITY DEFINER;
 -- DNS
 --
 ------------------------------------------------------------------------------
-DROP FUNCTION IF EXISTS dns_manip.add_domains_from_netblock ( integer );
 CREATE OR REPLACE FUNCTION dns_manip.add_domains_from_netblock(
 	netblock_id		netblock.netblock_id%TYPE
 ) RETURNS jsonb
@@ -475,7 +474,6 @@ LANGUAGE plpgsql SECURITY DEFINER;
 -- Set DNS for a Network Interface
 --
 ------------------------------------------------------------------------------
-DROP FUNCTION IF EXISTS dns_manip.set_dns_for_interface ( integer, text, integer, boolean );
 CREATE OR REPLACE FUNCTION dns_manip.set_dns_for_interface(
 	netblock_id		netblock.netblock_id%TYPE,
 	layer3_interface_name	TEXT,
@@ -580,7 +578,6 @@ LANGUAGE plpgsql SECURITY DEFINER;
 -- of a layer2 network that has an encapsulation domain
 --
 ------------------------------------------------------------------------------
-DROP FUNCTION IF EXISTS dns_manip.set_dns_for_shared_routing_addresses ( integer, boolean );
 CREATE OR REPLACE FUNCTION dns_manip.set_dns_for_shared_routing_addresses (
 	netblock_id		netblock.netblock_id%TYPE,
 	force			boolean DEFAULT TRUE

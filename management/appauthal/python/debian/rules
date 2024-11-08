@@ -7,6 +7,21 @@
 DPKG_EXPORT_BUILDFLAGS = 1
 include /usr/share/dpkg/default.mk
 export PYBUILD_NAME = jazzhands-appauthal
+CODENAME=$(shell lsb_release -sc )
+
+PYTHON_VERSIONS = "python3"
+ifeq "$(CODENAME)" "xenial"
+	PYTHON_VERSIONS = "python3,python2"
+endif
+ifeq "$(CODENAME)" "bionic"
+	PYTHON_VERSIONS = "python3,python2"
+endif
+ifeq "$(CODENAME)" "focal"
+	PYTHON_VERSIONS = "python3,python2"
+endif
+ifeq "$(CODENAME)" "jammy"
+	PYTHON_VERSIONS = "python3,python2"
+endif
 
 %:
-	dh $@ --with python3,python2 --buildsystem=pybuild
+	dh $@ --with $(PYTHON_VERSIONS) --buildsystem=pybuild

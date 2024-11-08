@@ -1,3 +1,9 @@
+python-jazzhands-appauthal (0.98.1) bionic; urgency=medium
+
+  * Added support for 24.04
+
+ -- Stephane Messerli <stephane.messerli@polypode.org>  Fri, 16 Aug 2024 14:32:00 +0200
+
 python-jazzhands-appauthal (0.96.0) bionic; urgency=medium
 
   * bump up various debian versions of things to be currentish

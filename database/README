@@ -37,6 +37,8 @@ The TL;DR way to create this from a fresh install of PostgreSQL is:
 	psql -U postgres -c 'create role schema_owners';
 	psql -U postgres -c 'create role dba SUPERUSER  NOINHERIT';
 	psql -U postgres -c 'create user jazzhands IN ROLE schema_owners'
+	psql -U postgres -c 'create role ro_role'
+	psql -U postgres -c 'create role iud_role'
 	psql -U postgres -c 'create database jazzhands'
 	psql -U postgres -d jazzhands -f create_pgsql_from_scratch.sql
 

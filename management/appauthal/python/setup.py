@@ -14,10 +14,13 @@
 # limitations under the License.
 
 import subprocess
-from distutils.core import setup
+try:
+    from setuptools import setup
+except ImportError:
+    from distutils.core import setup
 
 # this should be pulled in automatically
-version = '0.90.13'
+version = '0.98.0'
 
 classifiers = [
     "Topic :: Utilities",

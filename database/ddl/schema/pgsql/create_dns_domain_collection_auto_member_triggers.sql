@@ -56,7 +56,6 @@ BEGIN
 			WHERE dd.dns_domain_id = OLD.dns_domain_id
 			AND manage_child_domains_automatically
 		) RETURNING * INTO _r;
-		raise notice '%', to_jsonb(_r);
 
 		RETURN OLD;
 	END IF;

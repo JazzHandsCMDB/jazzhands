@@ -403,6 +403,16 @@ BEGIN
 	SELECT service_environment_id INTO se_id FROM service_environment WHERE
 		service_environment_name = 'unallocated';
 
+	--
+	-- This is second to last because the last step is to delete the device
+	-- and these need to happen to cleanup possible foreign keys
+	--
+	BEGIN
+		PERFORM local_hooks.retire_devices_late(device_id_list);
+	EXCEPTION WHEN invalid_schema_name OR undefined_function THEN
+		NULL;
+	END;
+
 	FOREACH dev_id IN ARRAY device_id_list LOOP
 		RAISE LOG 'Deleting device %', dev_id;
 
@@ -430,11 +440,6 @@ BEGIN
 		END;
 	END LOOP;
 
-	BEGIN
-		PERFORM local_hooks.retire_devices_late(device_id_list);
-	EXCEPTION WHEN invalid_schema_name OR undefined_function THEN
-		NULL;
-	END;
 	RETURN;
 END;
 $$ LANGUAGE plpgsql set search_path=jazzhands SECURITY DEFINER;
@@ -863,6 +868,7 @@ BEGIN
 	RETURN osrec.operating_system_id;
 END;
 $$ LANGUAGE plpgsql set search_path=jazzhands SECURITY DEFINER;
+
 -------------------------------------------------------------------
 --end device_manip.set_operating_system
 -------------------------------------------------------------------

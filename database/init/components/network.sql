@@ -72,7 +72,9 @@ BEGIN
 				'LC',
 				'SC',
 				'10GSFP+Cu',
-				'MXP'
+				'MXP',
+				'CFP2',
+				'fiber'
 			]),
 			'network'
 		;
@@ -82,6 +84,7 @@ BEGIN
 			 description, remote_slot_permitted)
 		VALUES
 			-- Direct attach types
+			('fiber', 'fiber', 'network', 'fiber conection', true),
 			('100BaseTEthernet', 'RJ45', 'network', '100BaseT Ethernet', true),
 			('1000BaseTEthernet', 'RJ45', 'network', '1000BaseT Ethernet', true),
 			('10GBaseTEthernet', 'RJ45', 'network', '10GBaseT Ethernet', true),
@@ -96,10 +99,11 @@ BEGIN
 			('10GQSFP+Ethernet', 'QSFP+', 'network', '10Gbps split QSFP Ethernet', false),
 			('40GQSFP+Ethernet', 'QSFP+', 'network', '40Gbps QSFP Ethernet', false),
 			('100GMXPEthernet', 'MXP', 'network', '100Gbps MXP Ethernet', false),
+			('100GCFP2Ethernet', 'CFP2', 'network', '100Gbps CFP2 Ethernet', false),
 			('100GQSFP28Ethernet', 'QSFP28', 'network', '100Gbps QSFP28 Ethernet', false),
 			('400GQSFP-DDEthernet', 'QSFP-DD', 'network', '400Gbps QSFP-DD Ethernet', false),
 			('400GOSFPEthernet', 'OSFP', 'network', '400Gbps OSFP Ethernet', false),
-			('25GSFP28Ethernet', 'QSFP28', 'network', '25Gbps SFP28 Ethernet', false);
+			('25GSFP28Ethernet', 'SFP28', 'network', '25Gbps SFP28 Ethernet', false);
 
 
 		--
@@ -155,8 +159,8 @@ BEGIN
 				rst.slot_type = '40GMPOEthernet') OR
 			(st.slot_type = '10GSFPCuEthernet' AND
 				rst.slot_type = '10GSFPCuEthernet') OR
-			(st.slot_type IN ('10GMPOEthernet','10GLCEthernet','1GLCEthernet') AND
-				rst.slot_type IN ('10GMPOEthernet','10GLCEthernet','1GLCEthernet')) OR
+			(st.slot_type IN ('fiber', '10GMPOEthernet','10GLCEthernet','1GLCEthernet') AND
+				rst.slot_type IN ('fiber','10GMPOEthernet','10GLCEthernet','1GLCEthernet')) OR
 			(st.slot_physical_interface_type = 'RJ45' AND
 				st.slot_physical_interface_type = 'RJ45')
 			);

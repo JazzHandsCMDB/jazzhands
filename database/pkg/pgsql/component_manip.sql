@@ -246,6 +246,7 @@ BEGIN
 			COALESCE(pst.child_slot_name_template, st.slot_name_template)
 				AS slot_name_template,
 			st.slot_index as slot_index,
+			ps.slot_name as parent_slot_name,
 			pst.slot_index as parent_slot_index,
 			pst.child_slot_offset as child_slot_offset
 		FROM
@@ -281,6 +282,13 @@ BEGIN
 				(slot_rec.parent_slot_index + slot_rec.slot_index)::text,
 				'g');
 		END IF;
+		IF slot_rec.parent_slot_name IS NOT NULL THEN
+			sn := regexp_replace(sn,
+				'%\{parent_slot_name\}',
+				slot_rec.parent_slot_name,
+				'g');
+		END IF;
+
 		RAISE DEBUG 'Setting name of slot % to %',
 			slot_rec.slot_id,
 			sn;
@@ -1009,7 +1017,7 @@ BEGIN
 			media_type IS NULL
 		THEN
 			RAISE EXCEPTION 'component_type for %model % not found so vendor_name, bytes, protocol, and media_type must be given',
-				CASE WHEN cid IS NOT NULL THEN 
+				CASE WHEN cid IS NOT NULL THEN
 					('vendor ' || vendor_name)
 				ELSE
 					''
@@ -1644,14 +1652,6 @@ SET search_path=jazzhands
 SECURITY DEFINER
 LANGUAGE plpgsql;
 
-DROP FUNCTION IF EXISTS component_manip.fetch_component(
-	jazzhands.component_type.component_type_id%TYPE,
-	text,
-	boolean,
-	text,
-	jazzhands.slot.slot_id%TYPE
-);
-
 CREATE OR REPLACE FUNCTION component_manip.fetch_component(
 	component_type_id	jazzhands.component_type.component_type_id%TYPE,
 	serial_number		text,
@@ -2009,7 +2009,306 @@ set search_path=jazzhands
 SECURITY DEFINER
 LANGUAGE plpgsql;
 
-GRANT EXECUTE ON FUNCTION component_manip.set_component_network_interface(integer, jsonb)  TO iud_role;
+CREATE OR REPLACE FUNCTION component_manip.insert_arista_switch_type(
+	model			text,
+	ports			jsonb,
+	description		text DEFAULT NULL,
+	size_units		integer DEFAULT 1
+) RETURNS jazzhands.component_type AS $$
+#variable_conflict use_variable
+DECLARE
+	m				ALIAS FOR model;
+	ctrec			RECORD;
+	cid				jazzhands.company.company_id%TYPE;
+	ctid			jazzhands.component_type.component_type_id%TYPE;
+	p				jsonb;
+	port_offset		integer;
+	x_offset		integer;
+BEGIN
+	SELECT company_id INTO cid FROM company WHERE company_name = 'Arista Networks';
+	IF NOT FOUND THEN
+		SELECT company_manip.add_company(
+			company_name := 'Arista Networks',
+			company_types := ARRAY['hardware provider']
+		) INTO cid;
+		INSERT INTO property (
+			property_name,
+			property_type,
+			company_collection_id,
+			property_value
+		)
+		SELECT
+			'DeviceVendorProbeString',
+			'DeviceProvisioning',
+			company_collection_id,
+			'Arista'
+		FROM
+			company_collection cc JOIN
+			company_collection_company ccc USING (company_collection_id) JOIN
+			company c USING (company_id)
+		WHERE
+			company_collection_type = 'per-company' AND
+			company_name = 'Arista Networks';
+	END IF;
+
+	SELECT * INTO ctrec FROM component_type ct WHERE
+		company_id = cid AND
+		ct.model = m;
+
+	IF FOUND THEN
+		RAISE 'switch model % already exists as component_type_id %',
+			m,
+			ctrec.ctid
+		USING ERRCODE = 'unique_violation';
+	END IF;
+
+	INSERT INTO component_type (
+		description,
+		slot_type_id,
+		model,
+		company_id,
+		asset_permitted,
+		is_rack_mountable,
+		size_units
+	) VALUES (
+		description,
+		NULL,
+		model,
+		cid,
+		true,
+		true,
+		size_units
+	) RETURNING * INTO ctrec;
+
+	ctid = ctrec.component_type_id;
+
+	INSERT INTO component_type_component_function (
+		component_type_id,
+		component_function
+	) VALUES (
+		ctid,
+		'device'
+	);
+
+	INSERT INTO device_type (
+		component_type_id,
+		device_type_name,
+		description,
+		company_id,
+		config_fetch_type,
+		rack_units
+	) VALUES (
+		ctid,
+		model,
+		description,
+		cid,
+		'arista',
+		size_units
+	);
+
+	--
+	-- Console port
+	--
+
+	INSERT INTO component_type_slot_template (
+		component_type_id,
+		slot_type_id,
+		slot_name_template,
+		slot_index,
+		slot_y_offset,
+		slot_side
+	) SELECT
+		ctid,
+		slot_type_id,
+		'console',
+		0,
+		0,
+		'FRONT'
+	FROM
+		slot_type st
+	WHERE
+		slot_type = 'RJ45 serial' and slot_function = 'serial';
+
+	--
+	-- Management port
+	--
+	INSERT INTO component_type_slot_template (
+		component_type_id,
+		slot_type_id,
+		slot_name_template,
+		slot_y_offset,
+		slot_side
+	) SELECT
+		ctid,
+		slot_type_id,
+		'Management1',
+		1,
+		'FRONT'
+	FROM
+		slot_type st
+	WHERE
+		slot_type = '1000BaseTEthernet' and slot_function = 'network';
+
+	--
+	-- Switch ports
+	--
+	port_offset = 0;
+	x_offset = 0;
+
+	FOR p IN SELECT jsonb_array_elements(ports) LOOP
+		INSERT INTO component_type_slot_template (
+			component_type_id,
+			slot_type_id,
+			slot_name_template,
+			child_slot_name_template,
+			physical_label,
+			slot_index,
+			slot_x_offset,
+			slot_y_offset,
+			slot_side
+		) SELECT
+			ctid,
+			slot_type_id,
+			'Ethernet' || (port_offset + x.idx + 1),
+			CASE
+			WHEN slot_physical_interface_type IN (
+				'QSFP', 'QSFP+', 'QSFP28', 'QSFP-DD', 'OSFP'
+			) THEN
+				'Ethernet' || (port_offset + x.idx + 1) ||
+				'/%{slot_index}'
+			ELSE
+				'Ethernet' || (port_offset + x.idx + 1)
+			END,
+			'Ethernet' || (port_offset + x.idx + 1),
+			port_offset + x.idx + 1,
+			x_offset + (
+				(x.idx / 2) % (
+					GREATEST((p->>'count')::integer, 2 * size_units) /
+					(2 * size_units)
+				)
+			),
+			(x.idx % 2) + 2 * (
+				x.idx / ((p->>'count')::integer / size_units)
+			),
+			'FRONT'
+		FROM
+			slot_type st,
+			generate_series(0,(p->>'count')::integer - 1) x(idx)
+		WHERE
+			slot_type = p->>'slot_type' and slot_function = 'network';
+
+		port_offset = port_offset + (p->>'count')::integer;
+		x_offset = x_offset +
+			(p->>'count')::integer / (2 * size_units);
+	END LOOP;
+	RETURN ctrec;
+END;
+$$ LANGUAGE plpgsql SECURITY DEFINER;
+
+CREATE OR REPLACE FUNCTION component_manip.insert_arista_optic_type(
+	model			text,
+	slot_type		text,
+	count			integer,
+	media			text,
+	description		text DEFAULT NULL
+) RETURNS jazzhands.component_type AS $$
+#variable_conflict use_variable
+DECLARE
+	cid			jazzhands.company.company_id%TYPE;
+	ctrec		RECORD;
+	m			ALIAS FOR model;
+	slt			ALIAS FOR slot_type;
+	ctid		jazzhands.component_type.component_type_id%TYPE;
+	cnt			ALIAS FOR count;
+BEGIN
+	SELECT company_id INTO cid FROM company WHERE company_name = 'Arista Networks';
+	IF NOT FOUND THEN
+		SELECT company_manip.add_company(
+			company_name := 'Arista Networks',
+			company_types := ARRAY['hardware provider']
+		) INTO cid;
+		INSERT INTO property (
+			property_name,
+			property_type,
+			company_collection_id,
+			property_value
+		)
+		SELECT
+			'DeviceVendorProbeString',
+			'DeviceProvisioning',
+			company_collection_id,
+			'Arista'
+		FROM
+			company_collection cc JOIN
+			company_collection_company ccc USING (company_collection_id) JOIN
+			company c USING (company_id)
+		WHERE
+			company_collection_type = 'per-company' AND
+			company_name = 'Arista Networks';
+	END IF;
+
+	SELECT * INTO ctrec FROM component_type ct WHERE
+		company_id = cid AND
+		ct.model = m;
+
+	IF FOUND THEN
+		RAISE 'optic % already exists as component_type_id %',
+			m,
+			ctrec.ctid
+		USING ERRCODE = 'unique_violation';
+	END IF;
+
+	INSERT INTO component_type (
+		description,
+		slot_type_id,
+		model,
+		company_id,
+		asset_permitted,
+		is_rack_mountable
+	) SELECT
+		description,
+		st.slot_type_id,
+		model,
+		cid,
+		true,
+		false
+	FROM
+		slot_type st
+	WHERE
+		st.slot_type = slt and slot_function = 'network'
+	RETURNING * INTO ctrec;
+
+	ctid = ctrec.component_type_id;
+
+	INSERT INTO component_type_component_function (
+		component_type_id,
+		component_function
+	) VALUES (
+		ctid,
+		'network_transceiver'
+	);
+	--
+	-- ports
+	--
+	INSERT INTO component_type_slot_template (
+		component_type_id,
+		slot_type_id,
+		slot_name_template,
+		slot_index
+	) SELECT
+		ctid,
+		slot_type_id,
+		'%{parent_slot_name}/' || x.idx + 1,
+		x.idx + 1
+	FROM
+		slot_type st,
+		generate_series(0,cnt - 1) x(idx)
+	WHERE
+		st.slot_type = media and slot_function = 'network';
+
+	RETURN ctrec;
+END;
+$$ LANGUAGE plpgsql SECURITY DEFINER;
 
 REVOKE ALL ON SCHEMA component_manip FROM public;
 REVOKE ALL ON ALL FUNCTIONS IN SCHEMA component_manip FROM public;
