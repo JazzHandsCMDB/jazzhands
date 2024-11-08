@@ -19,7 +19,6 @@ DECLARE
 	switch	RECORD;
 	ports	jsonb;
 	ct		RECORD;
-<<<<<<< HEAD
 	cid		jazzhands.company.company_id%TYPE;
 	ccid	jazzhands.company_collection.company_collection_id%TYPE;
 BEGIN
@@ -62,9 +61,6 @@ BEGIN
 		);
 	END IF;
 
-=======
-BEGIN
->>>>>>> 9085778a (Reworked most of the bits to populate Arista hardware)
 	FOR switch IN SELECT * FROM (VALUES
 
 	--
@@ -167,11 +163,7 @@ BEGIN
 	--
 	-- 7050
 	--
-<<<<<<< HEAD
 
-=======
-	
->>>>>>> 9085778a (Reworked most of the bits to populate Arista hardware)
 	(
 		'7050S-64', 'Arista 7050, 48xSFP+ & 4xQSFP+ switch', 1,
 		'[
@@ -308,11 +300,7 @@ BEGIN
 	),
 
 	(
-<<<<<<< HEAD
 		'7060CX2-32S', 'Arista 7060X2, 32xQSFP28 & 2xSFP+ switch', 1,
-=======
-		'7260CX2-32S', 'Arista 7260X2, 32xQSFP28 & 2xSFP+ switch', 1,
->>>>>>> 9085778a (Reworked most of the bits to populate Arista hardware)
 		'[
 			{ "slot_type": "100GQSFP28Ethernet", "count": 32 },
 			{ "slot_type": "10GSFP+Ethernet", "count": 2 }
@@ -320,11 +308,7 @@ BEGIN
 	),
 
 	(
-<<<<<<< HEAD
 		'7060SX2-48YC6', 'Arista 7060X2, 48xSFP28 & 6xQSFP28+ switch', 1,
-=======
-		'7260SX2-48YC6', 'Arista 7260X2, 48xSFP28 & 6xQSFP28+ switch', 1,
->>>>>>> 9085778a (Reworked most of the bits to populate Arista hardware)
 		'[
 			{ "slot_type": "25GSFP28Ethernet", "count": 48 },
 			{ "slot_type": "100GQSFP28Ethernet", "count": 6 }
@@ -446,11 +430,7 @@ BEGIN
 	),
 
 	(
-<<<<<<< HEAD
 		'7280SR2-48YC6', 'Arista 7280R2, 48xSFP28 and 6xQSFP28 switch', 1,
-=======
-		'7280SR2-48YC6', 'Arista 7280R, 48xSFP28 and 6xQSFP28 switch', 1,
->>>>>>> 9085778a (Reworked most of the bits to populate Arista hardware)
 		'[
 			{ "slot_type": "25GSFP+Ethernet", "count": 48 },
 			{ "slot_type": "100GQSFP28Ethernet", "count": 6 }
@@ -458,11 +438,7 @@ BEGIN
 	),
 
 	(
-<<<<<<< HEAD
 		'7280SR2A-48YC6', 'Arista 7280R2, 48xSFP28 and 6xQSFP28 switch, AlgoMatch', 1,
-=======
-		'7280SR2A-48YC6', 'Arista 7280R, 48xSFP28 and 6xQSFP28 switch', 1,
->>>>>>> 9085778a (Reworked most of the bits to populate Arista hardware)
 		'[
 			{ "slot_type": "25GSFP28Ethernet", "count": 48 },
 			{ "slot_type": "100GQSFP28Ethernet", "count": 6 }
@@ -470,7 +446,6 @@ BEGIN
 	),
 
 	(
-<<<<<<< HEAD
 		'7280SR2-48YC6-M', 'Arista 7280R2, 48xSFP28 and 6xQSFP28 switch, expn mem', 1,
 		'[
 			{ "slot_type": "25GSFP+Ethernet", "count": 48 },
@@ -488,9 +463,6 @@ BEGIN
 
 	(
 		'7280SRA-48C6', 'Arista 7280RA, 48xSFP28 and 6xQSFP28 switch', 1,
-=======
-		'7280SRA-48C6', 'Arista 7280R, 48xSFP28 and 6xQSFP28 switch', 1,
->>>>>>> 9085778a (Reworked most of the bits to populate Arista hardware)
 		'[
 			{ "slot_type": "10GSFP+Ethernet", "count": 48 },
 			{ "slot_type": "100GQSFP28Ethernet", "count": 6 }
@@ -498,7 +470,6 @@ BEGIN
 	),
 
 	(
-<<<<<<< HEAD
 		'7280SRA-48C6-M', 'Arista 7280RA, 48xSFP28 and 6xQSFP28 switch, expn mem', 1,
 		'[
 			{ "slot_type": "10GSFP+Ethernet", "count": 48 },
@@ -516,9 +487,6 @@ BEGIN
 
 	(
 		'7280TRA-48C6-M', 'Arista 7280RA, 48x10GBaseT and 6xQSFP28 switch, expn mem', 1,
-=======
-		'7280TRA-48C6', 'Arista 7280R, 48x10GBaseT and 6xQSFP28 switch', 1,
->>>>>>> 9085778a (Reworked most of the bits to populate Arista hardware)
 		'[
 			{ "slot_type": "10GBaseTEthernet", "count": 48 },
 			{ "slot_type": "100GQSFP28Ethernet", "count": 6 }
@@ -568,7 +536,6 @@ BEGIN
 	),
 
 	(
-<<<<<<< HEAD
 		'7280SR2K-48C6', 'Arista 7280R2, 24xSFP28, 24xSFP+ 6xQSFP28 switch', 1,
 		'[
 			{ "slot_type": "25GSFP28Ethernet", "count": 24 },
@@ -579,9 +546,6 @@ BEGIN
 
 	(
 		'7280SR2K-48C6-M', 'Arista 7280R2, 24xSFP28, 24xSFP+ 6xQSFP28 switch, expn mem', 1,
-=======
-		'7280SR2K-48C6', 'Arista 7280R, 24xSFP28, 24xSFP+ 6xQSFP28 switch', 1,
->>>>>>> 9085778a (Reworked most of the bits to populate Arista hardware)
 		'[
 			{ "slot_type": "25GSFP28Ethernet", "count": 24 },
 			{ "slot_type": "10GSFP+Ethernet", "count": 24 },
@@ -742,7 +706,6 @@ BEGIN
 		]'::jsonb
 	),
 
-<<<<<<< HEAD
 	(
 		'7280SR3-48YC8', 'Arista 7280R3, 48xSFP28 8xQSFP28 switch router', 1,
 		'[
@@ -791,8 +754,6 @@ BEGIN
 		]'::jsonb
 	),
 
-=======
->>>>>>> 9085778a (Reworked most of the bits to populate Arista hardware)
 	--
 	-- 7050X3
 	--
@@ -906,11 +867,7 @@ BEGIN
 		RAISE INFO 'Model is %', switch.model;
 		BEGIN
 			SELECT * INTO ct FROM component_manip.insert_arista_switch_type(
-<<<<<<< HEAD
 				model := 'DCS-' || switch.model,
-=======
-				model := switch.model,
->>>>>>> 9085778a (Reworked most of the bits to populate Arista hardware)
 				description := switch.description,
 				size_units := switch.size_units,
 				ports := switch.ports
@@ -929,7 +886,4 @@ $$ LANGUAGE plpgsql;
 \ir Arista_720XP.sql
 \ir Arista_7500.sql
 \ir Arista_7800.sql
-<<<<<<< HEAD
 \ir Arista_7368.sql
-=======
->>>>>>> 9085778a (Reworked most of the bits to populate Arista hardware)
