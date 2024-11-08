@@ -2009,11 +2009,6 @@ set search_path=jazzhands
 SECURITY DEFINER
 LANGUAGE plpgsql;
 
-<<<<<<< HEAD
-=======
-DROP FUNCTION IF EXISTS component_manip.insert_arista_switch_type(text, jsonb, text, integer);
-
->>>>>>> 9085778a (Reworked most of the bits to populate Arista hardware)
 CREATE OR REPLACE FUNCTION component_manip.insert_arista_switch_type(
 	model			text,
 	ports			jsonb,
@@ -2058,17 +2053,10 @@ BEGIN
 
 	SELECT * INTO ctrec FROM component_type ct WHERE
 		company_id = cid AND
-<<<<<<< HEAD
 		ct.model = m;
 
 	IF FOUND THEN
 		RAISE 'switch model % already exists as component_type_id %',
-=======
-		ct.model = 'DCS-' || m;
-
-	IF FOUND THEN
-		RAISE 'Switch type for model % already exists as component_type_id %',
->>>>>>> 9085778a (Reworked most of the bits to populate Arista hardware)
 			m,
 			ctrec.ctid
 		USING ERRCODE = 'unique_violation';
@@ -2085,11 +2073,7 @@ BEGIN
 	) VALUES (
 		description,
 		NULL,
-<<<<<<< HEAD
 		model,
-=======
-		'DCS-' || model,
->>>>>>> 9085778a (Reworked most of the bits to populate Arista hardware)
 		cid,
 		true,
 		true,
@@ -2115,11 +2099,7 @@ BEGIN
 		rack_units
 	) VALUES (
 		ctid,
-<<<<<<< HEAD
 		model,
-=======
-		'DCS-' || model,
->>>>>>> 9085778a (Reworked most of the bits to populate Arista hardware)
 		description,
 		cid,
 		'arista',
@@ -2176,23 +2156,11 @@ BEGIN
 	x_offset = 0;
 
 	FOR p IN SELECT jsonb_array_elements(ports) LOOP
-<<<<<<< HEAD
-=======
-		RAISE INFO '%', jsonb_pretty(jsonb_build_object(
-			'port_offset', port_offset,
-			'x_offset', x_offset,
-			'size_units', size_units,
-			'port', p
-		));
->>>>>>> 9085778a (Reworked most of the bits to populate Arista hardware)
 		INSERT INTO component_type_slot_template (
 			component_type_id,
 			slot_type_id,
 			slot_name_template,
-<<<<<<< HEAD
 			child_slot_name_template,
-=======
->>>>>>> 9085778a (Reworked most of the bits to populate Arista hardware)
 			physical_label,
 			slot_index,
 			slot_x_offset,
@@ -2201,10 +2169,7 @@ BEGIN
 		) SELECT
 			ctid,
 			slot_type_id,
-<<<<<<< HEAD
 			'Ethernet' || (port_offset + x.idx + 1),
-=======
->>>>>>> 9085778a (Reworked most of the bits to populate Arista hardware)
 			CASE
 			WHEN slot_physical_interface_type IN (
 				'QSFP', 'QSFP+', 'QSFP28', 'QSFP-DD', 'OSFP'
@@ -2239,7 +2204,6 @@ BEGIN
 	RETURN ctrec;
 END;
 $$ LANGUAGE plpgsql SECURITY DEFINER;
-<<<<<<< HEAD
 
 CREATE OR REPLACE FUNCTION component_manip.insert_arista_optic_type(
 	model			text,
@@ -2345,8 +2309,6 @@ BEGIN
 	RETURN ctrec;
 END;
 $$ LANGUAGE plpgsql SECURITY DEFINER;
-=======
->>>>>>> 9085778a (Reworked most of the bits to populate Arista hardware)
 
 REVOKE ALL ON SCHEMA component_manip FROM public;
 REVOKE ALL ON ALL FUNCTIONS IN SCHEMA component_manip FROM public;
