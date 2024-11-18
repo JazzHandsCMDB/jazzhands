@@ -1038,8 +1038,8 @@ sub validate_page {
 	my $pages = ceil( $count / $paging_dns_limit );
 
 	# Make sure the page is within the range of pages
-	$paging_dns_page = 1      if $paging_dns_page < 1;
 	$paging_dns_page = $pages if $paging_dns_page > $pages;
+	$paging_dns_page = 1      if $paging_dns_page < 1;
 
 	$paging_dns_page;
 }
