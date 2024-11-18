@@ -1,3 +1,9 @@
+jazzhands-stab (0.98.1) jammy; urgency=medium
+
+  * Fixed error when displaying DNS zone with no record
+
+ -- Stephane Messerli <stephane.messerli@polypode.org>  Mon, 18 Nov 2024 15:34:00 +0100
+
 jazzhands-stab (0.98.0) jammy; urgency=medium
 
   * Upgraded dataTables third-party module from 1.10.9 to 2.0.3 to get support for dark themes on the X509 certificates pages
