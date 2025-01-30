@@ -357,9 +357,10 @@ BEGIN
 	LOOP
 		SELECT * INTO _sep FROM service_endpoint_provider sep WHERE
 			sep.service_endpoint_provider_id = _r.service_endpoint_provider_id;
+
 		DELETE FROM service_endpoint_provider_service_instance
-		WHERE service_endpoint_provider_service_instance_id =
-			_r.service_endpoint_provider_service_instance_id;
+			WHERE service_endpoint_provider_service_instance_id =
+				_r.service_endpoint_provider_service_instance_id;
 
 		DELETE FROM service_endpoint_provider_collection_service_endpoint_provider sepcsep
 		WHERE sepcsep.service_endpoint_provider_id =
@@ -386,12 +387,14 @@ BEGIN
 
 			DELETE FROM service_endpoint
 			WHERE service_endpoint_id = _sesepc.service_endpoint_id;
-
 		ELSE
-			DELETE FROM service_endpoint_provider_service_instance WHERE
-				service_endpoint_provider_id = _sep.service_endpoint_provider_id;
-			DELETE FROM service_endpoint_provider WHERE
-				service_endpoint_provider_id = _sep.service_endpoint_provider_id;
+			--
+			-- This is associated via some load balancer or other mux, so
+			-- just removing membership in that.
+			DELETE FROM service_endpoint_provider_service_instance  x
+			WHERE x.service_endpoint_provider_id
+				= _sep.service_endpoint_provider_id
+			AND x.service_instance_id = _in_si_id;
 		END IF;
 
 	END LOOP;
