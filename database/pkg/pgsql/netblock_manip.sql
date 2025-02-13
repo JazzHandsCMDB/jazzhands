@@ -1619,6 +1619,7 @@ BEGIN
 
 			SELECT
 				l3in.netblock_id,
+				l3i.layer3_interface_id,
 				l3i.device_id
 			INTO l3in_rec
 			FROM
