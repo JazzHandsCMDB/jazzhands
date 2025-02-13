@@ -107,6 +107,7 @@ sub connect {
 				device => $device, 
 				credentials => $opt->{credentials},
 				errors => $errors,
+				timeout => $opt->{timeout},
 				debug => $opt->{debug}
 				)
 			};

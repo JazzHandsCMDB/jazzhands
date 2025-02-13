@@ -25,6 +25,7 @@ use Pod::Usage;
 use Getopt::Long;
 use Socket;
 use JazzHands::DBI;
+use JSON::XS;
 
 use strict;
 use warnings;
@@ -43,6 +44,8 @@ my $commit = 1;
 #my $user = $ENV{'USER'};
 my $user;
 my $password;
+my $site_code;
+my $timeout;
 my $connect_name = undef;
 my $hostname = [];
 my $conf_mgmt_type = undef;
@@ -59,11 +62,14 @@ if (!(GetOptions(
 	'connect-name=s', \$connect_name,
 	'hostname=s', $hostname,
 	'management-type=s', \$conf_mgmt_type,
+	'timeout=i', \$timeout,
+	'site-code=s', \$site_code,
 	'probe-addresses!', \$probe_addresses,
 	'probe-interfaces!', \$probe_interfaces,
 	'debug+', \$debug,
 	'verbose+', \$verbose,
-	'parallel!', \$parallel
+	'parallel!', \$parallel,
+	'file=s', \$filename
 ))) {
 	exit 1;
 };
@@ -117,6 +123,7 @@ if (!($dbh = JazzHands::DBI->new->connect(
 	exit 1;
 }
 
+$dbh->do('SET SESSION CHARACTERISTICS AS TRANSACTION ISOLATION LEVEL REPEATABLE READ');
 my $mgmt = new JazzHands::NetDev::Mgmt;
 
 ##
@@ -183,11 +190,13 @@ $q = q {
 	WITH parms AS (
 		SELECT
 			?::text AS device_name,
-			?::text AS device_type_name
+			?::text AS device_type_name,
+			?::text AS site_code
 	) INSERT INTO device (
 		device_type_id,
 		device_name,
 		physical_label,
+		site_code,
 		device_status,
 		service_environment_id,
 		is_virtual_device
@@ -195,6 +204,7 @@ $q = q {
 		device_type_id,
 		parms.device_name,
 		parms.device_name,
+		parms.site_code,
 		'up',
 		service_environment_id,
 		false
@@ -514,97 +524,177 @@ if (!($dev_asset_sth = $dbh->prepare_cached($q))) {
 	exit 1;
 }
 
+$q = q {
+SELECT
+	operating_system_name,
+	major_version,
+	version
+FROM
+	device d JOIN
+	operating_system os USING (operating_system_id)
+WHERE
+	device_id = ?
+};
+
+my $pull_os_version_sth;
+
+if (!($pull_os_version_sth = $dbh->prepare_cached($q))) {
+	print STDERR $dbh->errstr;
+	exit 1;
+}
+
+$q = q {
+SELECT * FROM device_manip.set_operating_system(
+	device_id := ?,
+	operating_system_name := ?,
+	operating_system_family := ?,
+	operating_system_version := ?,
+	operating_system_major_version := ?,
+	operating_system_company_name := ?
+)
+};
+
+my $set_os_version_sth;
+
+if (!($set_os_version_sth = $dbh->prepare_cached($q))) {
+	print STDERR $dbh->errstr;
+	exit 1;
+}
+
 foreach my $host (@$hostname) {
 	undef @errors;
-	my $connect_host;
-	if ($host =~ /:/) {
-		($host, $connect_host) = $host =~ /(^[^:]+):(.*)/;
-	} else {
-		$connect_host = $host;
-	}
-	if ($verbose && !$parallel) {
-		printf "Probing host %s\n", $host;
-	}
-	my $device;
-	my $packed_ip = gethostbyname($host);
-	my $ip_address;
-	if (defined $packed_ip) {
-		$ip_address = inet_ntoa($packed_ip);
-	}
-	if (!$ip_address) {
-		printf STDERR "Name '%s' does not resolve\n", $host;
-		next;
-	}
-	#
-	# Pull information about this device from the database.  If there are
-	# multiple devices returned, then bail
-	#
-
-	if ($debug) {
-		printf "Getting device from database (IP address: %s, host: %s)\n",
-			$ip_address, $host;
-	}
-	if (!$dev_by_ip_sth->execute($host, $host)) {
-		printf STDERR "Error fetching device from database: %s\n",
-			$dev_by_ip_sth->errstr;
-		exit 1;
-	}
-	if ($debug) {
-		print "Done\n";
-	}
-
-	my $d = [];
-	my $rec;
-	while ($rec = $dev_by_ip_sth->fetchrow_hashref) {
-		push @$d, $rec;
-	}
-
-	if ($#$d > 0) {
-		print STDERR "Multiple devices returned with device_name %s:\n",
-			$host,
-			map {
-				printf "    %6d %-30s %-30s\n", @{$_}[0,1,2];
-			}
-		next;
-	}
-	my $db_dev = $d->[0];
-
-	my $mgmt_type = $conf_mgmt_type || $db_dev->{config_fetch_type};
-
-	if ($debug) {
-		print Data::Dumper->Dump([$db_dev], [qw($db_dev)]);
-	}
-
-	if (!($device = $mgmt->connect(
-			device => {
-				hostname => $connect_host || $host,
-				management_type => $mgmt_type
-			},
-			credentials => $credentials,
-			errors => \@errors))) {
-		printf STDERR "Error connecting to device %s: %s\n",
-			$host,
-			(join "\n", @errors);
-		next;
-	}
 	my $chassisinfo;
-	if (!($chassisinfo = $device->GetChassisInfo (
-			errors => \@errors,
-			))) {
-		printf STDERR "Error retrieving chassis info for %s: %s\n",
-			$host,
-			(join("\n", @errors));
-		next;
-	}
+	my $db_dev;
 
-	if ($debug) {
-		print Data::Dumper->Dump([$chassisinfo], [qw($chassisinfo)]);
-	}
+	if ($filename) {
+		my $fh;
+        if (!(open ($fh, '<', $filename))) {
+            printf STDERR "Unable to open %s: %s\n", $filename, $!;
+            exit 1;
+        }
+        local $/ = undef;
+        my $stuff = <$fh>;
+        close $fh;
+        eval { $chassisinfo = decode_json($stuff) };
+        if (!defined($chassisinfo)) {
+            printf STDERR "Could not read valid JSON from %s\n",
+                $filename;
+            exit 1;
+        }	
 
-	#
-	# Don't really care if this fails
-	#
-	$device->disconnect;
+		if (!$dev_by_ip_sth->execute($host, $host)) {
+			printf STDERR "Error fetching device from database: %s\n",
+				$dev_by_ip_sth->errstr;
+			exit 1;
+		}
+
+		my $d = [];
+		my $rec;
+		while ($rec = $dev_by_ip_sth->fetchrow_hashref) {
+			push @$d, $rec;
+		}
+
+		if ($#$d > 0) {
+			print STDERR "Multiple devices returned with device_name %s:\n",
+				$host,
+				map {
+					printf "    %6d %-30s %-30s\n", @{$_}[0,1,2];
+				}
+			next;
+		}
+		$db_dev = $d->[0];
+	} else {
+		my $connect_host;
+		if ($host =~ /:/) {
+			($host, $connect_host) = $host =~ /(^[^:]+):(.*)/;
+		} else {
+			$connect_host = $host;
+		}
+		if ($verbose && !$parallel) {
+			printf "Probing host %s\n", $host;
+		}
+		my $device;
+		my $packed_ip = gethostbyname($host);
+		my $ip_address;
+		if (defined $packed_ip) {
+			$ip_address = inet_ntoa($packed_ip);
+		}
+		if (!$ip_address) {
+			printf STDERR "Name '%s' does not resolve\n", $host;
+			next;
+		}
+		#
+		# Pull information about this device from the database.  If there are
+		# multiple devices returned, then bail
+		#
+
+		if ($debug) {
+			printf "Getting device from database (IP address: %s, host: %s)\n",
+				$ip_address, $host;
+		}
+		if (!$dev_by_ip_sth->execute($host, $host)) {
+			printf STDERR "Error fetching device from database: %s\n",
+				$dev_by_ip_sth->errstr;
+			exit 1;
+		}
+		if ($debug) {
+			print "Done\n";
+		}
+
+		my $d = [];
+		my $rec;
+		while ($rec = $dev_by_ip_sth->fetchrow_hashref) {
+			push @$d, $rec;
+		}
+
+		if ($#$d > 0) {
+			print STDERR "Multiple devices returned with device_name %s:\n",
+				$host,
+				map {
+					printf "    %6d %-30s %-30s\n", @{$_}[0,1,2];
+				}
+			next;
+		}
+		$db_dev = $d->[0];
+
+		my $mgmt_type = $conf_mgmt_type || $db_dev->{config_fetch_type};
+
+		if ($debug) {
+			print Data::Dumper->Dump([$db_dev], [qw($db_dev)]);
+		}
+
+		if (!($device = $mgmt->connect(
+				device => {
+					hostname => $connect_host || $host,
+					management_type => $mgmt_type
+				},
+				credentials => $credentials,
+				defined($timeout) ? (timeout => $timeout) : (),
+				errors => \@errors))) {
+			printf STDERR "Error connecting to device %s: %s\n",
+				$host,
+				(join "\n", @errors);
+			next;
+		}
+		if (!($chassisinfo = $device->GetChassisInfo (
+				errors => \@errors,
+				))) {
+			printf STDERR "Error retrieving chassis info for %s: %s\n",
+				$host,
+				(join("\n", @errors));
+			next;
+		}
+
+		if ($debug) {
+#			print Data::Dumper->Dump([$chassisinfo], [qw($chassisinfo)]);
+			print JSON::XS->new->pretty(1)->encode ($chassisinfo);
+		}
+
+		#
+		# Don't really care if this fails
+		#
+		$device->disconnect;
+	}
 
 	if (!$db_dev->{device_id}) {
 		if ($verbose) {
@@ -615,7 +705,8 @@ foreach my $host (@$hostname) {
 
 		if (!($ins_dev_sth->execute(
 			$host,
-			$chassisinfo->{model}
+			$chassisinfo->{model},
+			$site_code
 		))) {
 			printf STDERR "Unable to insert device: %s\n",
 				$ins_dev_sth->errstr;
@@ -659,6 +750,7 @@ foreach my $host (@$hostname) {
 			}
 		}
 	}
+
 	if (defined($chassisinfo->{lldp_chassis_id}) &&
 		(!defined($db_dev->{host_id}) || 
 		$db_dev->{host_id} ne $chassisinfo->{lldp_chassis_id})
@@ -870,7 +962,7 @@ foreach my $host (@$hostname) {
 			}
 		}
 	}
-
+	
 	if ($probe_addresses) {
 		if ($debug) {
 			print "Fetching IP address information...\n";
@@ -931,14 +1023,53 @@ foreach my $host (@$hostname) {
 #		}
 	}
 
-	if ($probe_interfaces) {
-		my $ifaceinfo = $device->GetInterfaceInformation(
-			$debug => $debug
-		);
-		if ($debug) {
-			print Data::Dumper->Dump([$ifaceinfo], [qw(ifaceinfo)]);
+	if ($commit) {
+		if (!$dbh->commit) {
+			print STDERR $dbh->errstr;
+		};
+	}
+
+	if (!($pull_os_version_sth->execute(
+		$db_dev->{device_id}
+	))) {
+		printf STDERR "Unable to fetch device operating_system version: %s\n",
+			$pull_os_version_sth->errstr;
+	} else {
+
+		my $osrec = $pull_os_version_sth->fetchrow_hashref;
+		if (
+			!$osrec ||
+			!$osrec->{operating_system_name} ||
+			!$osrec->{major_version} ||
+			!$osrec->{version} ||
+			$osrec->{operating_system_name} ne 
+				$chassisinfo->{software}->{os_name} ||
+			$osrec->{major_version} ne 
+				$chassisinfo->{software}->{major_version} ||
+			$osrec->{version} ne 
+				$chassisinfo->{software}->{version}
+		) {
+			if ($verbose) {
+				printf "Setting OS of %s to %s %s\n",
+					$host,
+					$chassisinfo->{software}->{os_name},
+					$chassisinfo->{software}->{version};
+			}
+
+			if (!($set_os_version_sth->execute(
+				$db_dev->{device_id},
+				$chassisinfo->{software}->{os_name},
+				$chassisinfo->{software}->{os_name},
+				$chassisinfo->{software}->{version},
+				$chassisinfo->{software}->{major_version},
+				$chassisinfo->{manufacturer}
+			))) {
+				printf STDERR "Unable to set device operating_system version: %s\n",
+					$set_os_version_sth->errstr;
+			}
 		}
 	}
+	
 	if ($commit) {
 		if (!$dbh->commit) {
 			print STDERR $dbh->errstr;
@@ -958,6 +1089,8 @@ $upd_ct_sth->finish;
 $ins_asset_sth->finish;
 $ins_component_sth->finish;
 $dev_component_sth->finish;
+$pull_os_version_sth->finish;
+$set_os_version_sth->finish;
 
 if ($commit) {
 	if (!$dbh->commit) {

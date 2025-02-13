@@ -1243,17 +1243,17 @@ BEGIN
 				IF move_addresses IS NULL OR move_addresses != 'always' THEN
 					IF address_errors = 'ignore' THEN
 						RAISE DEBUG 'Netblock % is assigned to a shared_network %, but not forcing, so skipping',
-							nb_rec.netblock_id, sn.shared_netblock_id;
+							nb_rec.netblock_id, sn_rec.shared_netblock_id;
 						CONTINUE;
 					ELSIF address_errors = 'warn' THEN
 						RAISE NOTICE 'Netblock % (%) is assigned to a shared_network %, but not forcing, so skipping',
 							nb_rec.netblock_id, nb_rec.ip_address,
-							sn.shared_netblock_id;
+							sn_rec.shared_netblock_id;
 						CONTINUE;
 					ELSE
 						RAISE 'Netblock % (%) is assigned to a shared_network %, but not forcing, so skipping',
 							nb_rec.netblock_id, nb_rec.ip_address,
-							sn.shared_netblock_id;
+							sn_rec.shared_netblock_id;
 						CONTINUE;
 					END IF;
 				END IF;

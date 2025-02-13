@@ -61,6 +61,10 @@ BEGIN
 		);
 	END IF;
 
+	INSERT INTO val_operating_system_family (operating_system_family)
+	VALUES ('EOS') EXCEPT
+	SELECT operating_system_family FROM val_operating_system_family;
+
 	FOR switch IN SELECT * FROM (VALUES
 
 	--

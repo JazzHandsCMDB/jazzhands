@@ -843,19 +843,24 @@ BEGIN
 		WHERE
 			company_name = operating_system_company_name;
 
-		INSERT INTO operating_system (
-			operating_system_name,
-			company_id,
-			major_version,
-			version,
-			operating_system_family
-		) VALUES (
-			osname,
-			cid,
-			operating_system_major_version,
-			operating_system_version,
-			operating_system_family
-		) RETURNING * INTO osrec;
+		BEGIN
+			INSERT INTO operating_system (
+				operating_system_name,
+				company_id,
+				major_version,
+				version,
+				operating_system_family
+			) VALUES (
+				osname,
+				cid,
+				operating_system_major_version,
+				operating_system_version,
+				operating_system_family
+			) RETURNING * INTO osrec;
+		EXCEPTION
+			WHEN unique_violation THEN
+				RETURN -1;
+		END;
 	END IF;
 
 	UPDATE
