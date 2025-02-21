@@ -47,9 +47,13 @@ CREATE UNIQUE INDEX uq_non_multivalue_property ON property (
 
 */
 
-CREATE UNIQUE INDEX ak_service_instance_device_is_primary
-        ON service_instance ( device_id, is_primary )
-WHERE is_primary;
+ALTER TABLE service_instance
+        ADD CONSTRAINT ak_service_instance_device_is_primary
+        EXCLUDE (
+                device_id WITH =,
+                is_primary WITH =,
+                (CASE WHEN is_primary THEN true ELSE NULL END) WITH =
+        ) DEFERRABLE INITIALLY IMMEDIATE;
 
 create index idx_netblock_host_ip_address  ON netblock
 USING btree (host(ip_address));

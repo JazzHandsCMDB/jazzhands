@@ -73,7 +73,6 @@ if ($authapp) {
 	exit 1;
 }
 
-my @errors;
 if (!defined($filename)) {
 	if (!(open(FH, '<-'))) {
 		print STDERR "Unable to open stdin\n";
@@ -90,6 +89,7 @@ close FH;
 
 my $netconf = new JazzHands::NetDev::Mgmt;
 while (my $device = shift) {
+	my @errors;
 	if (!$parallel) {
 		printf STDERR "%s: ", $device;
 	}

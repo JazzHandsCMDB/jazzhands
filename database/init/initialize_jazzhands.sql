@@ -1302,11 +1302,17 @@ insert into val_shared_netblock_protocol
 	(shared_netblock_protocol) values ('VARP');
 insert into val_shared_netblock_protocol
 	(shared_netblock_protocol) values ('VRRP');
+insert into val_shared_netblock_protocol
+	(shared_netblock_protocol) values ('VTEP');
+insert into val_shared_netblock_protocol
+	(shared_netblock_protocol) values ('unspecified');
 
 insert into val_encapsulation_type
 	(encapsulation_type) values ('802.1q');
 insert into val_encapsulation_type
 	(encapsulation_type) values ('MPLS');
+insert into val_encapsulation_type
+	(encapsulation_type) values ('VXLAN');
 
 insert into val_encapsulation_mode
 	(encapsulation_mode, encapsulation_type) values ('trunk', '802.1q');

@@ -53,6 +53,7 @@ sub new {
 	$self->{credentials} = $opt->{credentials};
 	$self->{device} = $device;
 	$self->{handle} = {};
+	$self->{timeout} = $opt->{timeout};
 	bless $self, $class;
 }
 
@@ -143,7 +144,7 @@ sub SendCommand {
 	my $opt = &_options(@_);
 	my $err = $opt->{errors};
 
-	my $timeout = $opt->{timeout} || 30;
+	my $timeout = $opt->{timeout} || $self->{timeout} || 30;
 	my $credentials = $opt->{credentials} || $self->{credentials};
 	if (!$credentials) {
 		SetError($err,
@@ -1191,22 +1192,28 @@ sub GetIPAddressInformation {
 		$vr = [];
 	}
 
-
-	my $ifaceinfo;
+	my $ifaceinfo = {
+		map {
+			$_ => {
+				loopback_interface => ($_ =~ '^Loopback' ? 1 : 0)
+			}
+		} keys %$ipv4ifaces
+	};
 
 	foreach my $iface (values %$ipv4ifaces) {
+		next if ($iface->{interfaceStatus} eq 'disabled');
 		next if (!$iface->{interfaceAddress}->{primaryIp}->{maskLen});
-		$ifaceinfo->{$iface->{name}} = {
-			ipv4 => [
+		$ifaceinfo->{$iface->{name}}->{ipv4} =
+			[
 				map {
 					NetAddr::IP->new($_->{address}, $_->{maskLen})
 				} ($iface->{interfaceAddress}->{primaryIp},
 					@{$iface->{interfaceAddress}->{secondaryIpsOrderedList}})
-			]
-		};
+			];
 	}
 
 	foreach my $iface (values %$ipv6ifaces) {
+		next if ($iface->{interfaceStatus} eq 'disabled');
 		if (!exists($ifaceinfo->{$iface->{name}})) {
 			$ifaceinfo->{$iface->{name}} = {};
 		}
@@ -1878,7 +1885,7 @@ sub GetChassisInfo {
 		hardware_rev => $inventory->{systemInformation}->{hardwareRev},
 		serial => $inventory->{systemInformation}->{serialNum},
 		software => {
-			os_name => 'EOS',
+			os_name => $software->{architecture} eq 'x86_64' ? 'EOS64' : 'EOS',
 			version => $software->{version},
 			major_version => $major . '.' . $minor
 		}

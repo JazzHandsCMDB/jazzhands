@@ -26,7 +26,7 @@ use Socket;
 use JazzHands::DBI;
 use JazzHands::NetDev::Mgmt;
 use NetAddr::IP;
-use JSON;
+use JSON::XS;
 
 use strict;
 use warnings;
@@ -46,6 +46,7 @@ my $probe_lldp = 0;
 my $address_errors = 'error';
 my $probe_ip = 1;
 my $notreally = 0;
+my $shared_loopbacks = 0;
 my $purge_int = 1;
 my $password;
 my $bgpstate = 'up';
@@ -73,6 +74,7 @@ GetOptions(
 	'probe-ip!', \$probe_ip,
 	'purge-empty-interfaces!', \$purge_int,
 	'notreally!', \$notreally,
+	'shared-loopbacks!', \$shared_loopbacks,
 );
 
 #
@@ -155,29 +157,6 @@ if (!($dev_search_sth = $dbh->prepare_cached($q))) {
 	print STDERR $dbh->errstr;
 	exit 1;
 }
-
-#$q = q {
-#	WITH parms AS (
-#		SELECT ?::integer AS device_id
-#	) SELECT
-#		ni.layer3_interface_id,
-#		ni.layer3_interface_name
-#	FROM
-#		layer3_interface ni JOIN
-#		layer3_interface_netblock USING (layer3_interface_id),
-#		parms
-#	WHERE
-#		ni.device_id = parms.device_id
-#	UNION SELECT
-#		ni.layer3_interface_id,
-#		ni.layer3_interface_name
-#	FROM
-#		layer3_interface ni JOIN
-#		shared_netblock_network_int snni USING (layer3_interface_id),
-#		parms
-#	WHERE
-#		ni.device_id = parms.device_id
-#};
 
 $q = q {
 	SELECT
@@ -358,7 +337,7 @@ foreach my $host (@$hostname) {
 				@errors;
 			next;
 		}
-		foreach my $iname (keys %$info) {
+		foreach my $iname (sort keys %$info) {
 			my $interface = $info->{$iname};
 			#
 			# If we found the interface, then we don't need to process it later
@@ -423,8 +402,10 @@ foreach my $host (@$hostname) {
 				}
 			}
 
-			my $json = JSON->new->utf8->encode({
+			my $json = JSON::XS->new->utf8->encode({
 					ip_addresses =>
+						(!$interface->{loopback_interface} ||
+							!$shared_loopbacks) ?
 						[
 							defined( $interface->{ipv4} ) ?
 								(map {
@@ -436,9 +417,33 @@ foreach my $host (@$hostname) {
 										$_->addr . '/' . $_->masklen
 									} @{$interface->{ipv6}}
 								) : ()
-						],
+						] : [],
 					shared_ip_addresses =>
 						[
+							($interface->{loopback_interface} && 
+								$shared_loopbacks) ?
+							(
+								defined( $interface->{ipv4} ) ?
+									(map
+										{
+											{
+												ip_address => $_->addr . '/' .
+													$_->masklen,
+												protocol => 'unspecified'
+											}
+										} @{$interface->{ipv4}}
+									) : (),
+								defined( $interface->{ipv6} ) ?
+									(map 
+										{
+											{
+												ip_address => $_->addr . '/' .
+													$_->masklen,
+												protocol => 'unspecified'
+											}
+										} @{$interface->{ipv6}}
+									) : ()
+							) : (),
 							defined( $interface->{vrrp}) ?
 								(map {
 									{

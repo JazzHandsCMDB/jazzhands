@@ -3306,6 +3306,8 @@ sub GetIPAddressInformation {
 		my $ifacename = $iface->getElementsByTagName('name')->[0]->
 			getFirstChild->getNodeValue;
 
+		$self->{loopback_interface} = ($ifacename =~ '^lo' ? 1 : 0);
+
 		foreach my $afxml ($iface->getElementsByTagName('address-family')) {
 			my $af = $afxml->getElementsByTagName('address-family-name')->[0]->
 				getFirstChild->getNodeValue;
