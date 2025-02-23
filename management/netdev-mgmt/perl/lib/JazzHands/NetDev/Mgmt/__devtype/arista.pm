@@ -77,10 +77,10 @@ sub commit {
 			defined($opt->{confirmed_timeout_seconds})
 		) {
 			if (!$opt->{confirmed_timeout_seconds}) {
-				$opt->{confirmed_timeout_seconds} = 
+				$opt->{confirmed_timeout_seconds} =
 					$opt->{confirmed_timeout} * 60;
 			}
-			push @$commands, 'commit timer ' .  
+			push @$commands, 'commit timer ' .
 				sprintf("%02d:%02d:%02d",
 					($opt->{confirmed_timeout_seconds} + 0) / 3600,
 					($opt->{confirmed_timeout_seconds} % 3600) / 60,
@@ -440,7 +440,7 @@ sub SetPortVLAN {
 			SetError($err, "vlan parameter must be passed to SetPortVLAN if portmode is access");
 			return undef;
 		}
-		if ($opt->{vlan} !~ /^\d+$/ || 
+		if ($opt->{vlan} !~ /^\d+$/ ||
 			$opt->{vlan} < 1 || $opt->{vlan} > 4095
 		) {
 			SetError($err,
@@ -458,7 +458,7 @@ sub SetPortVLAN {
 				return undef;
 			}
 			if (
-				grep { $_ !~ /^\d+$/ || $_ < 1 || $_ > 4095 } 
+				grep { $_ !~ /^\d+$/ || $_ < 1 || $_ > 4095 }
 					@{$opt->{vlan_list}}
 			) {
 				SetError($err,
@@ -468,7 +468,7 @@ sub SetPortVLAN {
 		}
 
 		if (exists($opt->{native_vlan}) && defined($opt->{native_vlan}) &&
-			($opt->{native_vlan} !~ /^\d+$/ || 
+			($opt->{native_vlan} !~ /^\d+$/ ||
 				$opt->{native_vlan} < 1 || $opt->{native_vlan} > 4095)
 		) {
 			SetError($err,
@@ -611,7 +611,7 @@ sub SetPortLACP {
 	#
 	# Get chassis information to see if we're going to noop or not
 	#
-	
+
 	my $chassisinfo;
 	if (!($chassisinfo = $self->GetChassisInfo (
 			errors => \@errors,
@@ -812,7 +812,7 @@ sub SetBGPPeerStatus {
 		return undef;
 	}
 
-	my ($major, $minor, $patch) = split /\./, 
+	my ($major, $minor, $patch) = split /\./,
 		$chassisinfo->{software}->{version}, 3;
 
 	#
@@ -1160,6 +1160,28 @@ sub GetIPAddressInformation {
 
 	$result = $self->SendCommand(
 		commands => [
+			'show vxlan vni'
+		],
+		timeout => $opt->{timeout}
+	);
+
+	my $vni;
+	if($result) {
+		my $bindings = $result->[0]->{vxlanIntfs}->{Vxlan1}->{vniBindings};
+		foreach my $k (keys %{$bindings}) {
+			my $v = $bindings->{$k};
+
+			next if (! $v->{interfaces} || !$v->{interfaces}->{Vxlan1});
+			# meh
+			my $ifname = "Vlan".$v->{vlan};
+			$vni->{ $ifname }->{interface} = $ifname;
+			$vni->{ $ifname }->{vni} = $k;
+			$vni->{ $ifname }->{vlanid} = $v->{vlan};
+		}
+	}
+
+	$result = $self->SendCommand(
+		commands => [
 			'show vrrp'
 		],
 		timeout => $opt->{timeout},
@@ -1202,7 +1224,14 @@ sub GetIPAddressInformation {
 
 	foreach my $iface (values %$ipv4ifaces) {
 		next if ($iface->{interfaceStatus} eq 'disabled');
-		next if (!$iface->{interfaceAddress}->{primaryIp}->{maskLen});
+		if (!$iface->{interfaceAddress}->{primaryIp}->{maskLen}) {
+			if (my $vip = $iface->{interfaceAddress}->{virtualIp}) {
+				if ($vip->{maskLen}) {
+					$ifaceinfo->{$iface->{name}}->{virtual_router} = [ NetAddr::IP->new($vip->{address}, $vip->{maskLen})  ];
+				}
+			}
+			next;
+		}
 		$ifaceinfo->{$iface->{name}}->{ipv4} =
 			[
 				map {
@@ -1210,6 +1239,19 @@ sub GetIPAddressInformation {
 				} ($iface->{interfaceAddress}->{primaryIp},
 					@{$iface->{interfaceAddress}->{secondaryIpsOrderedList}})
 			];
+	}
+
+	foreach my $v (values %$vni) {
+		my $iface = $v->{interface};
+		if (exists($ifaceinfo->{$iface}) && $ifaceinfo->{$iface}) {
+			$ifaceinfo->{$iface}->{vni} = $v->{vni};
+		}
+	}
+
+
+	foreach my $iface (values %$ipv4ifaces) {
+		next if (!$iface->{vrf});
+		$ifaceinfo->{$iface->{name}}->{vrf} = $iface->{vrf};
 	}
 
 	foreach my $iface (values %$ipv6ifaces) {
