@@ -378,6 +378,12 @@ foreach my $host (@$hostname) {
 					printf "        VARP: %s\n", (join ',',
 						@{$interface->{virtual_router}});
 				}
+				if (exists($interface->{vrf}) && $interface->{vrf}) {
+					printf "        VRF: %s\n", $interface->{vrf};
+				}
+				if (exists($interface->{vni}) && $interface->{vni}) {
+					printf "        VNI: %s\n", $interface->{vni};
+				}
 			}
 
 			# should probably be smarter about mismatches
