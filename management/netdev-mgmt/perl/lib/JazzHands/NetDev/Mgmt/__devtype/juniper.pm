@@ -9,6 +9,7 @@ use JazzHands::Common::Util qw(_options);
 use JazzHands::Common::Error qw(:all);
 use NetAddr::IP qw(:lower);
 use Net::MAC qw(:lower);
+use JazzHands::NetDev::Mgmt::Common qw(:all);
 
 #
 # We need to get rid of using JUNOS::Device, because Juniper sucks and has
@@ -786,7 +787,7 @@ sub GetPortLACP {
 	}
 
 	if (!$opt->{ports}) {
-		GetError($err,
+		SetError($err,
 			"ports parameter must be passed to GetPortLACP");
 		return undef;
 	}
@@ -1328,7 +1329,7 @@ sub SetPrefixLists {
 	}
 
 	if (!ref($opt->{"prefix-lists"})) {
-		GetError($err,
+		SetError($err,
 			"prefix-lists parameter must be passed to SetPrefixLists");
 		return undef;
 	}
@@ -1419,7 +1420,7 @@ sub DeletePrefixLists {
 	}
 
 	if (!defined($opt->{"prefix-list"})) {
-		GetError($err,
+		SetError($err,
 			"prefix-list parameter must be passed to DeleteJuniperPrefixLists");
 		return undef;
 	}
@@ -3055,7 +3056,7 @@ sub GetInterfaceConfig {
 	}
 
 	if (!$opt->{interface_name}) {
-		GetError($err,
+		SetError($err,
 			"interface_name parameter must be passed to GetInterfaceConfig");
 		return undef;
 	}
