@@ -323,7 +323,7 @@ foreach my $host (@$hostname) {
 		# my $ip = $device->GetIPAddressInformation();
 		# die Dumper($vlan, $if, $ip);
 
-		$getedsth->execute($db_dev->{device_id});
+		$getedsth->execute($db_dev->{device_id}) || die $getedsth->errstr;
 		my($encaptype, $encapdomain) = $getedsth->fetchrow_array;
 		$getedsth->finish;
 
@@ -381,8 +381,9 @@ foreach my $host (@$hostname) {
 				if (exists($interface->{vrf}) && $interface->{vrf}) {
 					printf "        VRF: %s\n", $interface->{vrf};
 				}
-				if (exists($interface->{vni}) && $interface->{vni}) {
-					printf "        VNI: %s\n", $interface->{vni};
+				if (exists($interface->{l2vni}) && $interface->{l2vni}) {
+					printf "      L2VNI: %s\n", $interface->{l2vni};
+					printf "      L3VNI: %s\n", $interface->{l3vni};
 				}
 			}
 
