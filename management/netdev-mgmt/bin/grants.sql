@@ -61,6 +61,7 @@ GRANT SELECT, UPDATE, INSERT, DELETE ON
 	jazzhands.device_note,
 	jazzhands.device_type,
 	jazzhands.encapsulation_domain,
+	jazzhands.device_encapsulation_domain,
 	jazzhands.encapsulation_range,
 	jazzhands.inter_component_connection,
 	jazzhands.ip_universe,

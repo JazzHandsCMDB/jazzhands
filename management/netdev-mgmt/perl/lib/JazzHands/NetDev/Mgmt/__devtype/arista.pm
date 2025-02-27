@@ -1165,8 +1165,14 @@ sub GetIPAddressInformation {
 		timeout => $opt->{timeout}
 	);
 
+	my $vrftol3vni;
+
 	my $vni;
 	if($result) {
+		my $l3vni = $result->[0]->{vxlanIntfs}->{Vxlan1}->{vniBindingsToVrf};
+
+		%{$vrftol3vni} = map { $l3vni->{$_}->{vrfName} => $_ } keys %{$l3vni};
+
 		my $bindings = $result->[0]->{vxlanIntfs}->{Vxlan1}->{vniBindings};
 		foreach my $k (keys %{$bindings}) {
 			my $v = $bindings->{$k};
@@ -1244,7 +1250,7 @@ sub GetIPAddressInformation {
 	foreach my $v (values %$vni) {
 		my $iface = $v->{interface};
 		if (exists($ifaceinfo->{$iface}) && $ifaceinfo->{$iface}) {
-			$ifaceinfo->{$iface}->{vni} = $v->{vni};
+			$ifaceinfo->{$iface}->{l2vni} = $v->{vni};
 		}
 	}
 
@@ -1252,6 +1258,9 @@ sub GetIPAddressInformation {
 	foreach my $iface (values %$ipv4ifaces) {
 		next if (!$iface->{vrf});
 		$ifaceinfo->{$iface->{name}}->{vrf} = $iface->{vrf};
+		if($vrftol3vni->{$iface->{vrf}}) {
+			$ifaceinfo->{ $iface->{name} }->{l3vni} = $vrftol3vni->{ $iface->{vrf} };
+		}
 	}
 
 	foreach my $iface (values %$ipv6ifaces) {
