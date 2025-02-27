@@ -1,5 +1,5 @@
--- Copyright (c) 2013-2020, Todd M. Kover
--- Copyright (c) 2013-2023, Matthew Ragan
+-- Copyright (c) 2013-2025, Todd M. Kover
+-- Copyright (c) 2013-2024, Matthew Ragan
 -- All rights reserved.
 --
 -- Licensed under the Apache License, Version 2.0 (the "License");
@@ -926,22 +926,22 @@ SET search_path = jazzhands;
 CREATE OR REPLACE FUNCTION netblock_utils.find_best_ip_universe(
 	ip_address	jazzhands.netblock.ip_address%type,
 	ip_namespace	jazzhands.ip_universe.ip_namespace%type
-				DEFAULT 'default'
+				DEFAULT 'default',
+	netblock_type	TEXT DEFAULT 'default'
 ) RETURNS jazzhands.ip_universe.ip_universe_id%type AS $$
 DECLARE
+	ip	ALIAS FOR ip_address;
+	nsp	ALIAS FOR ip_namespace;
+	in_typ	ALIAS FOR netblock_type;
 	u_id	ip_universe.ip_universe_id%TYPE;
-	ip	inet;
-	nsp	text;
 BEGIN
-	ip := ip_address;
-	nsp := ip_namespace;
-
 	SELECT	nb.ip_universe_id
 	INTO	u_id
 	FROM	netblock nb
 		JOIN ip_universe u USING (ip_universe_id)
 	WHERE	is_single_address = false
 	AND	nb.ip_address >>= ip
+	AND	nb.netblock_type = in_typ
 	AND	u.ip_namespace = 'default'
 	ORDER BY masklen(nb.ip_address) desc
 	LIMIT 1;
@@ -950,7 +950,48 @@ BEGIN
 		RETURN u_id;
 	END IF;
 	RETURN 0;
+END;
+$$
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = jazzhands;
 
+CREATE OR REPLACE FUNCTION netblock_utils.find_best_visible_ip_universe(
+	ip_address	jazzhands.netblock.ip_address%type,
+	ip_universe_id	jazzhands.ip_universe.ip_universe_id%type DEFAULT 0,
+	permitted_ip_universe_ids	INTEGER[] DEFAULT NULL,
+	netblock_type	TEXT DEFAULT 'default'
+) RETURNS jazzhands.ip_universe.ip_universe_id%type AS $$
+DECLARE
+	ip	ALIAS FOR ip_address;
+	myu	ALIAS FOR ip_universe_id;
+	typ	ALIAS FOR netblock_type;
+	u_id	ip_universe.ip_universe_id%TYPE;
+BEGIN
+	SELECT	nb.ip_universe_id
+	INTO	u_id
+	FROM	netblock nb
+	WHERE	(
+			nb.ip_universe_id IN (
+				SELECT v.visible_ip_universe_id
+					FROM ip_universe_visibility  v
+					WHERE v.ip_universe_id = myu
+			) OR nb.ip_universe_id = myu
+	) AND (
+		permitted_ip_universe_ids IS NULL
+		OR
+		nb.ip_universe_id = ANY(permitted_ip_universe_ids)
+	)
+	AND is_single_address = false
+	AND	nb.ip_address >>= ip
+	AND	nb.netblock_type = typ
+	ORDER BY masklen(nb.ip_address) desc
+	LIMIT 1;
+
+	IF u_id IS NOT NULL THEN
+		RETURN u_id;
+	END IF;
+	RETURN NULL;
 END;
 $$
 LANGUAGE plpgsql
