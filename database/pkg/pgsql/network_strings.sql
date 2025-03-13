@@ -1,3 +1,18 @@
+-- Copyright (c) 2025, Matthew Ragan
+-- All rights reserved.
+--
+-- Licensed under the Apache License, Version 2.0 (the "License");
+-- you may not use this file except in compliance with the License.
+-- You may obtain a copy of the License at
+--
+--       http://www.apache.org/licenses/LICENSE-2.0
+--
+-- Unless required by applicable law or agreed to in writing, software
+-- distributed under the License is distributed on an "AS IS" BASIS,
+-- WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+-- See the License for the specific language governing permissions and
+-- limitations under the License.
+
 -- Copyright (c) 2005-2010, Vonage Holdings Corp.
 -- All rights reserved.
 --
@@ -19,9 +34,6 @@
 -- ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT
 -- (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS
 -- SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
-/*
- * $Id$
- */
 
 DO $$
 DECLARE
@@ -39,20 +51,6 @@ BEGIN
         END IF;
 END;
 $$;
-
-
--------------------------------------------------------------------
--- returns the Id tag for CM
--------------------------------------------------------------------
-CREATE OR REPLACE FUNCTION network_strings.id_tag()
-RETURNS VARCHAR AS $$
-BEGIN
-        RETURN('<-- $Id -->');
-END;
-$$ LANGUAGE plpgsql;
--- end of procedure id_tag
--------------------------------------------------------------------
-
 
 -------------------------------------------------------------------
 -- returns something with the different elements split out into
@@ -86,6 +84,53 @@ $$ LANGUAGE plpgsql;
 -- end of function numeric_interface
 -------------------------------------------------------------------
 
+CREATE OR REPLACE FUNCTION network_strings.number_to_asdot(
+	asn	bigint
+) RETURNS text
+AS $$
+BEGIN
+	IF asn < 0 OR asn > 4294967295 THEN
+		RAISE numeric_value_out_of_range;
+	END IF;
+	IF asn < 65535 THEN
+		RETURN asn;
+	ELSE
+		RETURN concat_ws('.', ((asn / 65536)::bigint), ((asn % 65536)::bigint));
+	END IF;
+END
+$$
+LANGUAGE plpgsql
+IMMUTABLE
+RETURNS NULL ON NULL INPUT
+SECURITY INVOKER
+PARALLEL SAFE;
+	
+CREATE OR REPLACE FUNCTION network_strings.asdot_to_number(
+	asn	text
+) RETURNS bigint
+AS $$
+DECLARE
+	astext	text[];
+BEGIN
+	IF asn ~ '^\d+$' THEN
+		RETURN asn;
+	END IF;
+	IF asn !~ '^\d+\.\d+$' THEN
+		RAISE 'ASN not in asdot notation' USING ERRCODE = 'data_exception';
+	END IF;
+	astext := regexp_split_to_array(asn, '\.');
+	IF ((astext[1])::bigint > 65535 OR (astext[2])::bigint > 65535) THEN
+		RAISE numeric_value_out_of_range;
+	END IF;
+	RETURN astext[1]::bigint * 65536 + astext[2]::bigint;
+END
+$$
+LANGUAGE plpgsql
+IMMUTABLE
+RETURNS NULL ON NULL INPUT
+SECURITY INVOKER
+PARALLEL SAFE;
+	
 REVOKE ALL ON SCHEMA network_strings FROM public;
 REVOKE ALL ON ALL FUNCTIONS IN SCHEMA network_strings FROM public;
 
