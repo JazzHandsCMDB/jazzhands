@@ -859,7 +859,7 @@ sub compare_zones($$$) {
 	}
 
 	if ( $z1 ne $z2 ) {
-		warn "Could not open second file on compare: $f1";
+		warn "$f1 and $f2 do not match, returning";
 		return 1;
 	}
 	return 0;
@@ -1056,11 +1056,11 @@ sub generate_complete_files {
 			$self->print_comments( $cfgf, '#' );
 		}
 
-		my $fn = '';
+		my $subdir = '/';
 		if ( $zone =~ /.in-addr.arpa/ ) {
-			$fn = "inaddr";
+			$subdir = "inaddr/";
 		} elsif ( $zone =~ /.ip6.arpa/ ) {
-			$fn = "ip6";
+			$subdir = "ip6/";
 		}
 		if ( $origin eq 'master' ) {
 			my $path = "zones/$univ";
@@ -1068,7 +1068,7 @@ sub generate_complete_files {
 			my $str = qq{
 					zone "$zone" {
 						type master;
-						file "/auto-gen/$path/$zone";
+						file "auto-gen/$path/$subdir/$zone";
 					};
 				};
 			my ($beg) = ( $str =~ /^\n*(\s+)\S/ );
@@ -1081,7 +1081,7 @@ sub generate_complete_files {
 			my $str = qq{
 					zone "$zone" {
 						type slave;
-						file "/auto-gen/$path/$zone";
+						file "auto-gen/$path/$subdir/$zone";
 						masters {
 							%s
 						};
