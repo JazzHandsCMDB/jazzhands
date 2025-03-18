@@ -92,7 +92,7 @@ BEGIN
 	IF asn < 0 OR asn > 4294967295 THEN
 		RAISE numeric_value_out_of_range;
 	END IF;
-	IF asn < 65535 THEN
+	IF asn < 65536 THEN
 		RETURN asn;
 	ELSE
 		RETURN concat_ws('.', ((asn / 65536)::bigint), ((asn % 65536)::bigint));
