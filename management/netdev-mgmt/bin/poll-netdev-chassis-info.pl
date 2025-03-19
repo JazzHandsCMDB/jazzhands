@@ -54,7 +54,6 @@ my $conf_mgmt_type = undef;
 my $authapp        = 'net_dev_probe';
 my $encapdomain;
 my $encaptype;
-my $site;
 
 sub loggit {
 	printf STDERR join "\n", @_;
@@ -66,7 +65,6 @@ if ( !( GetOptions(
 	'commit!',                \$commit,
 	'connect-name=s',         \$connect_name,
 	'hostname=s',             $hostname,
-	'site=s',                 \$site,
 	'encapsulation-domain=s', \$encapdomain,
 	'encapsulation-type=s',   \$encaptype,
 	'management-type=s',      \$conf_mgmt_type,
@@ -92,8 +90,8 @@ if ($encapdomain) {
 	}
 }
 
-if ( $site && !$encapdomain || $encapdomain && !$site ) {
-	die "Must set both site and encapsulation domain or neither.\n";
+if ( $encapdomain && !$site_code ) {
+	die "Must set site with encapsulation domain.\n";
 }
 
 #
@@ -1040,7 +1038,7 @@ foreach my $host (@$hostname) {
 				DO NOTHING;
 		} ) || die $dbh->errstr;
 
-		$ssth->execute( $site, $encapdomain, $encaptype ) || die $ssth->errstr;
+		$ssth->execute( $site_code, $encapdomain, $encaptype ) || die $ssth->errstr;
 
 	}
 
