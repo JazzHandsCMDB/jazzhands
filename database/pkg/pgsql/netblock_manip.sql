@@ -152,6 +152,7 @@ DECLARE
 	loopback_bits	integer;
 	inet_family		integer;
 	ip_addr			ALIAS FOR ip_address;
+	dns_enabled		boolean;
 BEGIN
 	IF parent_netblock_list IS NULL THEN
 		RAISE 'parent_netblock_list must be specified'
@@ -184,6 +185,15 @@ BEGIN
 			RETURN;
 		END IF;
 	END IF;
+
+	SELECT
+		COALESCE(property_value_boolean, true)
+	INTO
+		dns_enabled
+	FROM
+		property p
+	WHERE
+		(property_name, property_type) = ('_enable_automated_dns', 'Defaults');
 
 	-- Lock the parent row, which should keep parallel processes from
 	-- trying to obtain the same address
@@ -285,8 +295,10 @@ BEGIN
 			allocate_netblock.netblock_status
 		) RETURNING * INTO netblock_rec;
 
-		PERFORM dns_utils.add_domains_from_netblock(
-			netblock_id := netblock_rec.netblock_id);
+		IF dns_enabled THEN
+			PERFORM dns_utils.add_domains_from_netblock(
+				netblock_id := netblock_rec.netblock_id);
+		END IF;
 
 		RETURN NEXT netblock_rec;
 		RETURN;
@@ -365,8 +377,10 @@ BEGIN
 			netblock_rec.netblock_id,
 			netblock_rec.ip_address;
 
-		PERFORM dns_utils.add_domains_from_netblock(
-			netblock_id := netblock_rec.netblock_id);
+		IF dns_enabled THEN
+			PERFORM dns_utils.add_domains_from_netblock(
+				netblock_id := netblock_rec.netblock_id);
+		END IF;
 
 		RETURN NEXT netblock_rec;
 		RETURN;
