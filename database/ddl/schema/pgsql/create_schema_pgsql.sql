@@ -851,6 +851,7 @@ CREATE TABLE layer2_network
 	encapsulation_type   varchar(50)  NULL ,
 	encapsulation_tag    INTEGER  NULL ,
 	description          varchar(255)  NULL ,
+	parent_layer2_network_id integer  NULL ,
 	external_id          varchar(255)  NULL ,
 	encapsulation_range_id integer  NULL 
 );
@@ -3997,6 +3998,11 @@ CREATE INDEX xif_l2_net_encap_domain ON layer2_network
 CREATE INDEX xif_l2_net_encap_range_id ON layer2_network
 ( 
 	encapsulation_range_id
+);
+
+CREATE INDEX xif_layer2_network_parent_layer2_network ON layer2_network
+( 
+	parent_layer2_network_id ASC
 );
 
 CREATE INDEX xif_l2netcoll_type ON layer2_network_collection
@@ -12514,6 +12520,11 @@ ALTER TABLE layer2_network
 		ON UPDATE NO ACTION
 		ON DELETE NO ACTION;
 
+ALTER TABLE layer2_network
+	ADD CONSTRAINT fk_layer2_network_parent_layer2_network FOREIGN KEY (parent_layer2_network_id) REFERENCES layer2_network(layer2_network_id)
+		ON UPDATE NO ACTION
+		ON DELETE NO ACTION;
+
 
 ALTER TABLE layer2_network_collection
 	ADD CONSTRAINT fk_l2netcoll_type FOREIGN KEY (layer2_network_collection_type) REFERENCES val_layer2_network_collection_type(layer2_network_collection_type)
@@ -14057,7 +14068,7 @@ ALTER TABLE service_version_collection_permitted_feature
 
 
 ALTER TABLE service_version_collection_purpose
-	ADD CONSTRAINT fkl_service_version_collection_purpose_purpose FOREIGN KEY (service_version_collection_purpose) REFERENCES val_service_version_collection_purpose(service_version_collection_purpose)
+	ADD CONSTRAINT fk_service_version_collection_purpose_purpose FOREIGN KEY (service_version_collection_purpose) REFERENCES val_service_version_collection_purpose(service_version_collection_purpose)
 		ON UPDATE NO ACTION
 		ON DELETE NO ACTION;
 
