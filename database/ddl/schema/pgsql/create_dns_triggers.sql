@@ -454,7 +454,7 @@ LANGUAGE plpgsql SECURITY DEFINER;
 
 DROP TRIGGER IF EXISTS trigger_dns_rec_prevent_dups ON dns_record;
 CREATE CONSTRAINT TRIGGER trigger_dns_rec_prevent_dups
-	AFTEr INSERT OR UPDATE
+	AFTER INSERT OR UPDATE
 	ON dns_record
 	FOR EACH ROW
 	EXECUTE PROCEDURE dns_rec_prevent_dups();
@@ -463,10 +463,21 @@ CREATE CONSTRAINT TRIGGER trigger_dns_rec_prevent_dups
 
 CREATE OR REPLACE FUNCTION dns_record_check_name()
 RETURNS TRIGGER AS $$
+DECLARE
+	_re	TEXT;
 BEGIN
+	--
+	-- may need to consider doing this for refereced records
+	--
+	IF NEW.DNS_TYPE IN ('A', 'AAAA') THEN
+		_re := '[^-a-zA-Z0-9\.\*]+';
+	ELSE
+		_re := '[^-a-zA-Z0-9\._\*]+';
+	END IF;
 	IF NEW.DNS_NAME IS NOT NULL THEN
-		-- rfc rfc952
-		IF NEW.DNS_NAME ~ '[^-a-zA-Z0-9\._\*]+' THEN
+		-- rfc952, rfc1034
+		-- rfc2181#section-11 suggests this is not necessary
+		IF NEW.DNS_NAME ~ _re THEN
 			RAISE EXCEPTION 'Invalid DNS NAME %',
 				NEW.DNS_NAME
 				USING ERRCODE = 'integrity_constraint_violation';
