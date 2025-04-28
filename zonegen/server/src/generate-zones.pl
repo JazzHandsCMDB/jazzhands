@@ -835,7 +835,7 @@ sub process_domain {
 	# failed the test, then spit out an error message and return something
 	# indicating as such.
 	#
-	my $prog = "named-checkzone $domain $tmpfn";
+	my $prog = "named-checkzone -k fail $domain $tmpfn";
 	$self->_Debug( 1, "running '%s'", $prog );
 	my $output = `$prog`;
 	if ( ( $? >> 8 ) ) {
@@ -1280,7 +1280,7 @@ GetOptions(
 	'aggressive-lock'  => \$agg,            # aggressively lock db
 	'debug'            => \$debug,          # even more verbosity.
 	'dumpzone'         => \$dumpzone,       # dump a zone to stdout
-	'forcegen|f'       => \$forcegen,       # force generation of zones
+	'forcegen|g'       => \$forcegen,       # force generation of zones
 	'forcesoa|s'       => \$forcesoa,       # force bump of SOA record
 	'force|f'          => \$forceall,       # force everything
 	'genall|a'         => \$genall,         # generate all, not just new
