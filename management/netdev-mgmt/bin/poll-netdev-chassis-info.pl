@@ -638,10 +638,10 @@ foreach my $host (@$hostname) {
 		if ( defined $packed_ip ) {
 			$ip_address = inet_ntoa($packed_ip);
 		}
-		if ( !$ip_address ) {
-			printf STDERR "Name '%s' does not resolve\n", $host;
-			next;
-		}
+#		if ( !$ip_address ) {
+#			printf STDERR "Name '%s' does not resolve\n", $host;
+#			next;
+#		}
 		#
 		# Pull information about this device from the database.  If there are
 		# multiple devices returned, then bail
@@ -649,7 +649,7 @@ foreach my $host (@$hostname) {
 
 		if ($debug) {
 			printf "Getting device from database (IP address: %s, host: %s)\n",
-			  $ip_address, $host;
+			  ($ip_address || 'not present'), $host;
 		}
 		if ( !$dev_by_ip_sth->execute( $host, $host ) ) {
 			printf STDERR "Error fetching device from database: %s\n",

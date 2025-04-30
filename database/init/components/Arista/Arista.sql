@@ -758,6 +758,14 @@ BEGIN
 		]'::jsonb
 	),
 
+	(
+		'7280CR3AM-32S', 'Arista 7280R3, 30x QSFP100/200 2xQSFP200/QSFP-DD switch router', 1,
+		'[
+			{ "slot_type": "100GQSFP28Ethernet", "count": 30 },
+			{ "slot_type": "400GQSFP-DDEthernet", "count": 2 }
+		]'::jsonb
+	),
+
 	--
 	-- 7050X3
 	--
