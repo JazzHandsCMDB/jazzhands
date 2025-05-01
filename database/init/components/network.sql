@@ -102,7 +102,9 @@ BEGIN
 			('100GCFP2Ethernet', 'CFP2', 'network', '100Gbps CFP2 Ethernet', false),
 			('100GQSFP28Ethernet', 'QSFP28', 'network', '100Gbps QSFP28 Ethernet', false),
 			('400GQSFP-DDEthernet', 'QSFP-DD', 'network', '400Gbps QSFP-DD Ethernet', false),
+			('800GQSFP-DDEthernet', 'QSFP-DD', 'network', '800Gbps QSFP-DD Ethernet', false),
 			('400GOSFPEthernet', 'OSFP', 'network', '400Gbps OSFP Ethernet', false),
+			('800GOSFPEthernet', 'OSFP', 'network', '800Gbps OSFP Ethernet', false),
 			('25GSFP28Ethernet', 'SFP28', 'network', '25Gbps SFP28 Ethernet', false);
 
 
