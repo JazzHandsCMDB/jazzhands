@@ -254,7 +254,7 @@ BEGIN
         RAISE INFO 'Model is %', card.model;
         BEGIN
             SELECT * INTO ct FROM component_manip.insert_arista_linecard_type(
-                model := 'DCS-' || card.model,
+                model := card.model,
                 description := card.description,
 				linecard_type := 'Arista 78XXR4 Linecard',
                 ports := card.ports
