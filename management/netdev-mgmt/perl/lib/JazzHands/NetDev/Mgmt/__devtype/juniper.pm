@@ -3388,6 +3388,7 @@ sub GetLLDPInformation {
 	my $opt = &_options(@_);
 
 	my $err = $opt->{errors};
+	my @errors;
 
 	if (!$opt->{timeout}) {
 		$opt->{timeout} = 30;
@@ -3408,7 +3409,18 @@ sub GetLLDPInformation {
 	}
 
 
-	my $chassis_info = $self->GetChassisInfo;
+	my $chassis_info;
+	if (!($chassis_info = $self->GetChassisInfo (
+		errors => \@errors
+	))) {
+		SetError($err,
+			sprintf("Error retrieving chassis info for %s: %s\n",
+				$device->{hostname},
+				(join("\n", @errors))
+			)
+		);
+		return undef;
+	}
 
 	my $lldp_info = {};
 	$lldp_info->{chassisId} = $chassis_info->{chassisId};
@@ -3835,9 +3847,10 @@ sub GetChassisInfo {
 						{slot_prefix} . $slot_template . $ssmodslot;
 				} else {
 					next if $description eq 'UNKNOWN';
-					printf STDERR "No media interface mapping for %s\n",
-						$description;
-					exit 1;
+					SetError($err,
+						sprintf("No media interface mapping for %s",
+							$description));
+					return undef;
 				}
 
 				$port_inventory->{$ssmodinfo->{name}} = $ssmodinfo;
