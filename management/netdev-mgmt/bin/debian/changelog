@@ -1,3 +1,9 @@
+jazzhands-netdev-mgmt-utils (0.98.1) trusty; urgency=medium
+
+  * Add --site <site> option to poll-netdev-chassis-info.
+
+ -- Thomas Avril <thomas+github@avril.swiss>  Mon, 05 May 2025 07:18:40 +0000
+
 jazzhands-netdev-mgmt-utils (0.96.0) trusty; urgency=medium
 
   * bump up various debian versions of things to be currentish
