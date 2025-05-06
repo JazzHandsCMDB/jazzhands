@@ -161,7 +161,7 @@ BEGIN
 	--
 
 	PERFORM * FROM component_type WHERE
-		model = 'Arista DCS-7800-SUP1S' AND
+		model = 'DCS-7800-SUP1S' AND
 		company_id = cid;
 	
 	IF NOT FOUND THEN
@@ -174,7 +174,7 @@ BEGIN
 			is_rack_mountable
 		) SELECT
 			'Arista DCS-7800-SUP1S',
-			NULL,
+			slot_type_id,
 			'DCS-7800-SUP1S',
 			cid,
 			'Y',

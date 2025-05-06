@@ -2317,15 +2317,14 @@ BEGIN
 		) SELECT
 			ctid,
 			slot_type_id,
-			'Ethernet' || (port_offset + x.idx + 1),
+			'Ethernet%{parent_slot_index}/' || (port_offset + x.idx + 1),
 			CASE
 			WHEN slot_physical_interface_type IN (
 				'QSFP', 'QSFP+', 'QSFP28', 'QSFP-DD', 'OSFP'
 			) THEN
-				'Ethernet' || (port_offset + x.idx + 1) ||
-				'/%{slot_index}'
+				'%{parent_slot_name}/%{slot_index}'
 			ELSE
-				'Ethernet' || (port_offset + x.idx + 1)
+				'%{parent_slot_name}'
 			END,
 			'Ethernet' || (port_offset + x.idx + 1),
 			port_offset + x.idx + 1,
