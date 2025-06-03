@@ -394,9 +394,10 @@ SECURITY DEFINER;
 CREATE OR REPLACE FUNCTION netblock_manip.allocate_netblock_from_pool(
 	netblock_allocation_pool	jazzhands.netblock_collection.netblock_collection_name%TYPE,
 	site_code				jazzhands.site.site_code%TYPE DEFAULT NULL,
+	address_family			integer DEFAULT 4,
 	netmask_bits			integer DEFAULT NULL,
 	address_type			text DEFAULT 'netblock',
-	-- alternatives: 'single', 'loopback'
+	-- alternatives: 'single', 'loopback', 'uplink'
 	can_subnet				boolean DEFAULT true,
 	allocation_method		text DEFAULT NULL,
 	-- alternatives: 'top', 'bottom', 'random',
@@ -423,6 +424,7 @@ BEGIN
 			WHERE
 				netblock_collection_type = 'NetblockAllocationPool' AND
 				netblock_collection_name = netblock_allocation_pool AND
+				family(n.ip_address) = address_family AND
 				(sc IS NULL OR sne.site_code = sc)
 		),
 		netmask_bits := netmask_bits,
