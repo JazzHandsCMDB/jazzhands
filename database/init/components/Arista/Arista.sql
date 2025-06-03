@@ -80,7 +80,23 @@ BEGIN
 	),
 
 	(
-		'7010TX-48', 'Arista 7010T, 48x1000BaseT & 4xSFP+ switch', 1,
+		'7010TX-48', 'Arista 7010TX, 48x1000BaseT & 4xSFP+ switch', 1,
+		'[
+			{ "slot_type": "1000BaseTEthernet", "count": 48 },
+			{ "slot_type": "10GSFP+Ethernet", "count": 4 }
+		]'::jsonb
+	),
+
+	(
+		'7010TX-48C', 'Arista 7010TX, 48x1000BaseT & 4xSFP+ switch', 1,
+		'[
+			{ "slot_type": "1000BaseTEthernet", "count": 48 },
+			{ "slot_type": "10GSFP+Ethernet", "count": 4 }
+		]'::jsonb
+	),
+
+	(
+		'7010TX-48DC', 'Arista 7010TX, 48x1000BaseT & 4xSFP+ switch', 1,
 		'[
 			{ "slot_type": "1000BaseTEthernet", "count": 48 },
 			{ "slot_type": "10GSFP+Ethernet", "count": 4 }
