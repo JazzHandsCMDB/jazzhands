@@ -1137,6 +1137,144 @@ SET search_path=jazzhands
 SECURITY DEFINER
 LANGUAGE plpgsql;
 
+--
+-- Called manually when a insert_disk_component does not work for some
+-- reason, such as there is no company/vendor string (Frigging Dell)
+--
+
+CREATE OR REPLACE FUNCTION component_manip.create_disk_component_type(
+        company_id                      jazzhands.company.company_id%TYPE,
+        model                           jazzhands.component_type.model%TYPE,
+        bytes                           bigint DEFAULT NULL,
+        protocol                        text DEFAULT NULL,
+        media_type                      text DEFAULT NULL,
+        model_probe_string              jazzhands.component_type.model%TYPE DEFAULT NULL
+) RETURNS jazzhands.component_type.component_type_id%TYPE
+AS $$
+DECLARE
+        _component_type_id              jazzhands.component_type.component_type_id%TYPE;
+        _slot_type_id                   jazzhands.slot_type.slot_type_id%TYPE;
+        _company_name                   text;
+BEGIN
+        --
+        -- Validate company_id
+        --
+        IF company_id IS NULL THEN
+                RAISE EXCEPTION 'company_id must be given to create component'
+                        USING ERRCODE = 'JH501';
+        END IF;
+        select
+                company_name
+        FROM
+                company as company
+        WHERE
+                company.company_id = create_component_type.company_id
+        INTO _company_name;
+        IF NOT FOUND THEN
+                RAISE EXCEPTION 'company_id must already exist to create component'
+                        USING ERRCODE = 'JH501';
+        END IF;
+
+        --
+        -- Validate model
+        --
+        IF model IS NULL OR model ~ '^\s*$' THEN
+                RAISE EXCEPTION 'model must be given to create component'
+                        USING ERRCODE = 'JH501';
+        END IF;
+
+        --
+        -- Validate that we have all the parameters that we need to insert
+        -- this component_type.
+        --
+        IF
+                bytes IS NULL OR
+                company_id IS NULL OR
+                protocol IS NULL OR
+                media_type IS NULL
+        THEN
+                RAISE EXCEPTION 'vendor_name, bytes, protocol, and media_type must be given';
+        END IF;
+
+        --
+        -- Fetch the slot type
+        --
+        SELECT
+                slot_type_id
+        FROM
+                slot_type st
+        WHERE
+                st.slot_function = 'disk'
+                AND st.slot_type = protocol
+        INTO
+                _slot_type_id;
+        IF NOT FOUND THEN
+                RAISE EXCEPTION 'slot type % with function disk not found adding component_type',
+                        protocol
+                        USING ERRCODE = 'JH501';
+        END IF;
+
+        --
+        -- Insert the component_type
+        --
+        INSERT INTO component_type (
+                company_id,
+                model,
+                slot_type_id,
+                asset_permitted,
+                description
+        ) VALUES (
+                company_id,
+                model,
+                _slot_type_id,
+                true,
+                concat_ws(' ', _company_name, model, media_type, 'disk')
+        ) RETURNING component_type_id INTO _component_type_id;
+                
+        --
+        -- Insert the DiskModelProbeString
+        --
+        IF model_probe_string != model THEN
+                INSERT INTO jazzhands.component_property (
+                        component_type_id,
+                        component_property_name,
+                        component_property_type,
+                        property_value
+                ) VALUES (
+                        _component_type_id, 'DiskModelProbeString', 'disk', model_probe_string
+                );
+        END IF;
+
+        INSERT INTO jazzhands.component_property (
+                component_type_id,
+                component_property_name,
+                component_property_type,
+                property_value
+        ) VALUES
+                (_component_type_id, 'DiskProtocol', 'disk', protocol),
+                (_component_type_id, 'MediaType', 'disk', media_type),
+                (_component_type_id, 'DiskSize', 'disk', bytes);
+
+        --
+        -- Insert the component functions
+        --
+        INSERT INTO component_type_component_function (
+                component_type_id,
+                component_function
+        ) SELECT DISTINCT
+                _component_type_id,
+                cf
+        FROM
+                unnest(ARRAY['storage', 'disk']) x(cf);
+
+        RETURN _component_type_id;
+END;
+$$
+SET search_path=jazzhands
+SECURITY DEFINER
+LANGUAGE plpgsql;
+
+
 CREATE OR REPLACE FUNCTION component_manip.insert_memory_component(
 	model				text,
 	memory_size			bigint,
