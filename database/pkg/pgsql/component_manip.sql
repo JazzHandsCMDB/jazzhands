@@ -1166,9 +1166,9 @@ BEGIN
         select
                 company_name
         FROM
-                company as company
+                company as c
         WHERE
-                company.company_id = create_component_type.company_id
+                c.company_id = create_disk_component_type.company_id
         INTO _company_name;
         IF NOT FOUND THEN
                 RAISE EXCEPTION 'company_id must already exist to create component'
