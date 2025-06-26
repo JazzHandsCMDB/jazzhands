@@ -963,6 +963,20 @@ BEGIN
 				)
 			);
 		END IF;
+	ELSE
+		SELECT
+			comp.company_id INTO cid
+		FROM
+			company comp JOIN
+			company_collection_company ccc USING (company_id) JOIN
+			property p USING (company_collection_id)
+		WHERE
+			p.property_type = 'DeviceProvisioning' AND
+			p.property_name = 'DiskVendorModelProbeRegexp' AND
+			model ~ p.property_value
+		ORDER BY
+			p.property_id
+		LIMIT 1;
 	END IF;
 
 	--
