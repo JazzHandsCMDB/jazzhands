@@ -21,7 +21,7 @@
 \t on
 
 -- tests this:
-\ir ../../pkg/pgsql/netblock_utils.sql
+-- \ir ../../pkg/pgsql/netblock_utils.sql
 \ir ../../ddl/schema/pgsql/create_dns_triggers.sql
 
 
@@ -725,12 +725,10 @@ BEGIN
 	BEGIN
 		-- this isn't private but the test expects it.
 		INSERT INTO netblock (
-			ip_address, can_subnet, is_single_address, netblock_status,
-			ip_universe_id)
-		SELECT '2001:DB8:f00d::/64', false, false, 'Allocated', ip_universe_id
-			FROM ip_universe where ip_universe_name = 'private'
-			LIMIT 1
-			RETURNING * INTO _nb;
+			ip_address, can_subnet, is_single_address
+		) VALUES (
+			'2001:DB8:f00d::/64', false, false
+		) ON CONFLICT DO NOTHING;
 
 		INSERT INTO dns_record (
 			dns_name, dns_domain_id, dns_type, netblock_id
@@ -750,6 +748,9 @@ BEGIN
 				WHERE netblock_id = _ip1id;
 		EXCEPTION WHEN SQLSTATE 'JH200' THEN
 			RAISE EXCEPTION 'worked' USING ERRCODE = 'JH999';
+		WHEN OTHERS THEN
+			RAISE EXCEPTION 'It failed for another reason: % %', SQLSTATE,
+				SQLERRM;
 		END;
 		RAISE EXCEPTION '.... it did not! (BAD!)';
 	EXCEPTION WHEN SQLSTATE 'JH999' THEN
@@ -1073,6 +1074,73 @@ BEGIN
 	EXCEPTION WHEN SQLSTATE 'JH999' THEN
 		RAISE NOTICE '.... it did!';
 	END;
+
+	RAISE NOTICE 'Checking if A records can not have underscores';
+	BEGIN
+		BEGIN
+			INSERT INTO dns_record (
+				dns_name, dns_domain_id, dns_type, netblock_id, should_generate_ptr
+			) VALUES (
+				'_biteme', _dnsdomid, 'A', _ip1id, true
+			) RETURNING * INTO _dnsrec1;
+
+		EXCEPTION WHEN integrity_constraint_violation THEN
+			RAISE EXCEPTION 'worked' USING ERRCODE = 'JH999';
+		END;
+
+		RAISE EXCEPTION '.... it did not!';
+	EXCEPTION WHEN SQLSTATE 'JH999' THEN
+		RAISE NOTICE '.... it did!';
+	END;
+
+	RAISE NOTICE 'Checking if AAAA records can not have underscores';
+	BEGIN
+		BEGIN
+			INSERT INTO dns_record (
+				dns_name, dns_domain_id, dns_type, netblock_id, should_generate_ptr
+			) VALUES (
+				'_biteme', _dnsdomid, 'AAAA', _ip6id1, true
+			) RETURNING * INTO _dnsrec1;
+
+		EXCEPTION WHEN integrity_constraint_violation THEN
+			RAISE EXCEPTION 'worked' USING ERRCODE = 'JH999';
+		END;
+
+		RAISE EXCEPTION '.... it did not!';
+	EXCEPTION WHEN SQLSTATE 'JH999' THEN
+		RAISE NOTICE '.... it did!';
+	END;
+
+	RAISE NOTICE 'Checking if AAAA records can not have underscores';
+	BEGIN
+		BEGIN
+			INSERT INTO dns_record (
+				dns_name, dns_domain_id, dns_type, netblock_id, should_generate_ptr
+			) VALUES (
+				'_biteme', _dnsdomid, 'AAAA', _ip6id1, true
+			) RETURNING * INTO _dnsrec1;
+
+		EXCEPTION WHEN integrity_constraint_violation THEN
+			RAISE EXCEPTION 'worked' USING ERRCODE = 'JH999';
+		END;
+
+		RAISE EXCEPTION '.... it did not!';
+	EXCEPTION WHEN SQLSTATE 'JH999' THEN
+		RAISE NOTICE '.... it did!';
+	END;
+
+	RAISE NOTICE 'Checking if CANME records can have underscores';
+	BEGIN
+		INSERT INTO dns_record (
+			dns_name, dns_domain_id, dns_type, dns_value
+		) VALUES (
+			'_biteme', _dnsdomid, 'CNAME', 'biteme.jazzhands.net'
+		) RETURNING * INTO _dnsrec1;
+		RAISE EXCEPTION 'worked' USING ERRCODE = 'JH999';
+	EXCEPTION WHEN SQLSTATE 'JH999' THEN
+		RAISE NOTICE '.... it did!';
+	END;
+
 
 	RAISE NOTICE 'Done CNAME and other check tests';
 

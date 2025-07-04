@@ -62,7 +62,7 @@ BEGIN
 	END IF;
 
 	INSERT INTO val_operating_system_family (operating_system_family)
-	VALUES ('EOS') EXCEPT
+	VALUES ('EOS'), ('EOS64') EXCEPT
 	SELECT operating_system_family FROM val_operating_system_family;
 
 	FOR switch IN SELECT * FROM (VALUES
@@ -80,7 +80,23 @@ BEGIN
 	),
 
 	(
-		'7010TX-48', 'Arista 7010T, 48x1000BaseT & 4xSFP+ switch', 1,
+		'7010TX-48', 'Arista 7010TX, 48x1000BaseT & 4xSFP+ switch', 1,
+		'[
+			{ "slot_type": "1000BaseTEthernet", "count": 48 },
+			{ "slot_type": "10GSFP+Ethernet", "count": 4 }
+		]'::jsonb
+	),
+
+	(
+		'7010TX-48C', 'Arista 7010TX, 48x1000BaseT & 4xSFP+ switch', 1,
+		'[
+			{ "slot_type": "1000BaseTEthernet", "count": 48 },
+			{ "slot_type": "10GSFP+Ethernet", "count": 4 }
+		]'::jsonb
+	),
+
+	(
+		'7010TX-48DC', 'Arista 7010TX, 48x1000BaseT & 4xSFP+ switch', 1,
 		'[
 			{ "slot_type": "1000BaseTEthernet", "count": 48 },
 			{ "slot_type": "10GSFP+Ethernet", "count": 4 }
@@ -755,6 +771,14 @@ BEGIN
 		'[
 			{ "slot_type": "10GSFP+Ethernet", "count": 40 },
 			{ "slot_type": "100GQSFP28Ethernet", "count": 6 }
+		]'::jsonb
+	),
+
+	(
+		'7280CR3AM-32S', 'Arista 7280R3, 30x QSFP100/200 2xQSFP200/QSFP-DD switch router', 1,
+		'[
+			{ "slot_type": "100GQSFP28Ethernet", "count": 30 },
+			{ "slot_type": "400GQSFP-DDEthernet", "count": 2 }
 		]'::jsonb
 	),
 

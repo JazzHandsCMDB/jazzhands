@@ -54,7 +54,8 @@ my $conf_mgmt_type = undef;
 my $authapp        = 'net_dev_probe';
 my $encapdomain;
 my $encaptype;
-my $site;
+my $poll                  = undef;
+my $device_function_regex = undef;
 
 sub loggit {
 	printf STDERR join "\n", @_;
@@ -62,22 +63,23 @@ sub loggit {
 }
 
 if ( !( GetOptions(
-	'username=s',             \$user,
-	'commit!',                \$commit,
-	'connect-name=s',         \$connect_name,
-	'hostname=s',             $hostname,
-	'site=s',                 \$site,
-	'encapsulation-domain=s', \$encapdomain,
-	'encapsulation-type=s',   \$encaptype,
-	'management-type=s',      \$conf_mgmt_type,
-	'timeout=i',              \$timeout,
-	'site-code=s',            \$site_code,
-	'probe-addresses!',       \$probe_addresses,
-	'probe-interfaces!',      \$probe_interfaces,
-	'debug+',                 \$debug,
-	'verbose+',               \$verbose,
-	'parallel!',              \$parallel,
-	'file=s',                 \$filename
+	'username=s',              \$user,
+	'commit!',                 \$commit,
+	'connect-name=s',          \$connect_name,
+	'hostname=s',              $hostname,
+	'encapsulation-domain=s',  \$encapdomain,
+	'encapsulation-type=s',    \$encaptype,
+	'management-type=s',       \$conf_mgmt_type,
+	'timeout=i',               \$timeout,
+	'site-code=s',             \$site_code,
+	'probe-addresses!',        \$probe_addresses,
+	'probe-interfaces!',       \$probe_interfaces,
+	'debug+',                  \$debug,
+	'verbose+',                \$verbose,
+	'parallel!',               \$parallel,
+	'file=s',                  \$filename,
+	'poll',                    \$poll,
+	'device-function-regex=s', \$device_function_regex,
 ) ) )
 {
 	exit 1;
@@ -92,8 +94,8 @@ if ($encapdomain) {
 	}
 }
 
-if ( $site && !$encapdomain || $encapdomain && !$site ) {
-	die "Must set both site and encapsulation domain or neither.\n";
+if ( $encapdomain && !$site_code ) {
+	die "Must set site with encapsulation domain.\n";
 }
 
 #
@@ -101,12 +103,22 @@ if ( $site && !$encapdomain || $encapdomain && !$site ) {
 #
 push @$hostname, @ARGV;
 
-my $credentials;
-if ( !@$hostname ) {
-	print STDERR "Must provide --hostname\n";
-	exit 1;
+if ( !@$hostname && !$poll ) {
+	die "Must set either hostname or poll.\n";
+}
+if ( @$hostname && $poll ) {
+	die "Cannot set both hostname and poll.\n";
+}
+if ( $poll && ( !$device_function_regex || !$site_code ) ) {
+	die "Must set device-function-regex and site-code with poll.\n";
 }
 
+if ($device_function_regex) {
+	eval { qr/$device_function_regex/ };
+	die "Invalid regex in --device-function-regex: $@" if $@;
+}
+
+my $credentials;
 if ($user) {
 	print STDERR 'Password: ';
 	ReadMode('noecho');
@@ -122,6 +134,7 @@ if ($user) {
 	$credentials->{password} = $password;
 } else {
 	my $record = JazzHands::AppAuthAL::find_and_parse_auth($authapp);
+
 	if ( !$record || !$record->{network_device} ) {
 		loggit( sprintf( "Unable to find network_device auth entry for %s.",
 			$authapp ) );
@@ -586,6 +599,61 @@ if ( !( $set_os_version_sth = $dbh->prepare_cached($q) ) ) {
 	exit 1;
 }
 
+my %db_hosts_info;
+if ($poll) {
+	if ($verbose) {
+		printf "Getting devices from database for site %s\n", $site_code;
+	}
+
+	my $quoted_device_function_regex = $dbh->quote($device_function_regex);
+	$quoted_device_function_regex =~ s/^'|'$//g;
+
+	# Notes:
+	# - this is the same SELECT as the dev_by_ip_sth
+	# - We cannot use '~' with a bind parameter ... This is a PostgresQL limitation,
+	#   not a PERL or DBI limitation.
+
+	$q = qq {
+	SELECT
+		d.device_id,
+		d.device_name,
+		d.host_id,
+		d.component_id,
+		dt.device_type_id,
+		dt.device_type_name,
+		d.physical_label,
+		dt.config_fetch_type
+	FROM
+		device d
+		JOIN device_type dt USING (device_type_id)
+		JOIN device_collection_device dcd USING (device_id)
+		JOIN device_collection dc USING (device_collection_id)
+	WHERE
+		d.site_code = ?
+		AND dc.device_collection_type = 'device-function'
+		AND device_collection_name ~ '$quoted_device_function_regex'
+		AND d.device_status = 'up'
+	};
+
+	my $rows = [];
+	if ( !(
+		$rows = $dbh->selectall_arrayref( $q, { Slice => {} }, $site_code )
+	) )
+	{
+		print STDERR $dbh->errstr;
+		exit 1;
+	}
+
+	if ($verbose) {
+		printf "%d devices to process\n", scalar(@$rows);
+	}
+	foreach my $row (@$rows) {
+		my $key = $row->{device_name};
+		$db_hosts_info{$key} = $row;
+		push @$hostname, $key;
+	}
+}
+
 foreach my $host (@$hostname) {
 	undef @errors;
 	my $chassisinfo;
@@ -625,55 +693,69 @@ foreach my $host (@$hostname) {
 		}
 		$db_dev = $d->[0];
 	} else {
-		my $connect_host;
-		if ( $host =~ /:/ ) {
-			( $host, $connect_host ) = $host =~ /(^[^:]+):(.*)/;
-		} else {
-			$connect_host = $host;
-		}
-		if ( $verbose && !$parallel ) {
-			printf "Probing host %s\n", $host;
-		}
 		my $device;
-		my $packed_ip = gethostbyname($host);
+		my $packed_ip;
 		my $ip_address;
-		if ( defined $packed_ip ) {
-			$ip_address = inet_ntoa($packed_ip);
-		}
-		if ( !$ip_address ) {
-			printf STDERR "Name '%s' does not resolve\n", $host;
-			next;
-		}
-		#
-		# Pull information about this device from the database.  If there are
-		# multiple devices returned, then bail
-		#
+		my $connect_host;
 
-		if ($debug) {
-			printf "Getting device from database (IP address: %s, host: %s)\n",
-			  $ip_address, $host;
-		}
-		if ( !$dev_by_ip_sth->execute( $host, $host ) ) {
-			printf STDERR "Error fetching device from database: %s\n",
-			  $dev_by_ip_sth->errstr;
-			exit 1;
-		}
-		if ($debug) {
-			print "Done\n";
-		}
+		if ($poll) {
+			$db_dev = $db_hosts_info{$host};
+			my $packed_ip = gethostbyname($host);
+			if ( defined $packed_ip ) {
+				$ip_address = inet_ntoa($packed_ip);
+			}
+		} else {
+			if ( $host =~ /:/ ) {
+				( $host, $connect_host ) = $host =~ /(^[^:]+):(.*)/;
+			} else {
+				$connect_host = $host;
+			}
+			if ( $verbose && !$parallel ) {
+				printf "Probing host %s\n", $host;
+			}
+			my $packed_ip = gethostbyname($host);
+			my $ip_address;
+			if ( defined $packed_ip ) {
+				$ip_address = inet_ntoa($packed_ip);
+			}
 
-		my $d = [];
-		my $rec;
-		while ( $rec = $dev_by_ip_sth->fetchrow_hashref ) {
-			push @$d, $rec;
-		}
+			#		if ( !$ip_address ) {
+			#			printf STDERR "Name '%s' does not resolve\n", $host;
+			#			next;
+			#		}
+			#
+			# Pull information about this device from the database.  If there are
+			# multiple devices returned, then bail
+			#
 
-		if ( $#$d > 0 ) {
-			print STDERR "Multiple devices returned with device_name %s:\n",
-			  $host,
-			  map { printf "    %6d %-30s %-30s\n", @{$_}[ 0, 1, 2 ]; } next;
+			if ($debug) {
+				printf
+				  "Getting device from database (IP address: %s, host: %s)\n",
+				  ( $ip_address || 'not present' ), $host;
+			}
+			if ( !$dev_by_ip_sth->execute( $host, $host ) ) {
+				printf STDERR "Error fetching device from database: %s\n",
+				  $dev_by_ip_sth->errstr;
+				exit 1;
+			}
+			if ($debug) {
+				print "Done\n";
+			}
+
+			my $d = [];
+			my $rec;
+			while ( $rec = $dev_by_ip_sth->fetchrow_hashref ) {
+				push @$d, $rec;
+			}
+
+			if ( $#$d > 0 ) {
+				print STDERR "Multiple devices returned with device_name %s:\n",
+				  $host,
+				  map { printf "    %6d %-30s %-30s\n", @{$_}[ 0, 1, 2 ]; }
+				  next;
+			}
+			$db_dev = $d->[0];
 		}
-		$db_dev = $d->[0];
 
 		my $mgmt_type = $conf_mgmt_type || $db_dev->{config_fetch_type};
 
@@ -712,8 +794,9 @@ foreach my $host (@$hostname) {
 
 		if ($debug) {
 
-			#			print Data::Dumper->Dump([$chassisinfo], [qw($chassisinfo)]);
-			print JSON::XS->new->pretty(1)->encode($chassisinfo);
+			#print Data::Dumper->Dump([$chassisinfo], [qw($chassisinfo)]);
+			print JSON::XS->new->pretty(1)->allow_blessed(1)
+			  ->encode($chassisinfo);
 		}
 
 		#
@@ -1040,7 +1123,8 @@ foreach my $host (@$hostname) {
 				DO NOTHING;
 		} ) || die $dbh->errstr;
 
-		$ssth->execute( $site, $encapdomain, $encaptype ) || die $ssth->errstr;
+		$ssth->execute( $site_code, $encapdomain, $encaptype )
+		  || die $ssth->errstr;
 
 	}
 

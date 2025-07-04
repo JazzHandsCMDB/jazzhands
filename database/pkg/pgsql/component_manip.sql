@@ -963,6 +963,20 @@ BEGIN
 				)
 			);
 		END IF;
+	ELSE
+		SELECT
+			comp.company_id INTO cid
+		FROM
+			company comp JOIN
+			company_collection_company ccc USING (company_id) JOIN
+			property p USING (company_collection_id)
+		WHERE
+			p.property_type = 'DeviceProvisioning' AND
+			p.property_name = 'DiskVendorModelProbeRegexp' AND
+			model ~ p.property_value
+		ORDER BY
+			p.property_id
+		LIMIT 1;
 	END IF;
 
 	--
@@ -1136,6 +1150,144 @@ $$
 SET search_path=jazzhands
 SECURITY DEFINER
 LANGUAGE plpgsql;
+
+--
+-- Called manually when a insert_disk_component does not work for some
+-- reason, such as there is no company/vendor string (Frigging Dell)
+--
+
+CREATE OR REPLACE FUNCTION component_manip.create_disk_component_type(
+        company_id                      jazzhands.company.company_id%TYPE,
+        model                           jazzhands.component_type.model%TYPE,
+        bytes                           bigint DEFAULT NULL,
+        protocol                        text DEFAULT NULL,
+        media_type                      text DEFAULT NULL,
+        model_probe_string              jazzhands.component_type.model%TYPE DEFAULT NULL
+) RETURNS jazzhands.component_type.component_type_id%TYPE
+AS $$
+DECLARE
+        _component_type_id              jazzhands.component_type.component_type_id%TYPE;
+        _slot_type_id                   jazzhands.slot_type.slot_type_id%TYPE;
+        _company_name                   text;
+BEGIN
+        --
+        -- Validate company_id
+        --
+        IF company_id IS NULL THEN
+                RAISE EXCEPTION 'company_id must be given to create component'
+                        USING ERRCODE = 'JH501';
+        END IF;
+        select
+                company_name
+        FROM
+                company as c
+        WHERE
+                c.company_id = create_disk_component_type.company_id
+        INTO _company_name;
+        IF NOT FOUND THEN
+                RAISE EXCEPTION 'company_id must already exist to create component'
+                        USING ERRCODE = 'JH501';
+        END IF;
+
+        --
+        -- Validate model
+        --
+        IF model IS NULL OR model ~ '^\s*$' THEN
+                RAISE EXCEPTION 'model must be given to create component'
+                        USING ERRCODE = 'JH501';
+        END IF;
+
+        --
+        -- Validate that we have all the parameters that we need to insert
+        -- this component_type.
+        --
+        IF
+                bytes IS NULL OR
+                company_id IS NULL OR
+                protocol IS NULL OR
+                media_type IS NULL
+        THEN
+                RAISE EXCEPTION 'vendor_name, bytes, protocol, and media_type must be given';
+        END IF;
+
+        --
+        -- Fetch the slot type
+        --
+        SELECT
+                slot_type_id
+        FROM
+                slot_type st
+        WHERE
+                st.slot_function = 'disk'
+                AND st.slot_type = protocol
+        INTO
+                _slot_type_id;
+        IF NOT FOUND THEN
+                RAISE EXCEPTION 'slot type % with function disk not found adding component_type',
+                        protocol
+                        USING ERRCODE = 'JH501';
+        END IF;
+
+        --
+        -- Insert the component_type
+        --
+        INSERT INTO component_type (
+                company_id,
+                model,
+                slot_type_id,
+                asset_permitted,
+                description
+        ) VALUES (
+                company_id,
+                model,
+                _slot_type_id,
+                true,
+                concat_ws(' ', _company_name, model, media_type, 'disk')
+        ) RETURNING component_type_id INTO _component_type_id;
+                
+        --
+        -- Insert the DiskModelProbeString
+        --
+        IF model_probe_string != model THEN
+                INSERT INTO jazzhands.component_property (
+                        component_type_id,
+                        component_property_name,
+                        component_property_type,
+                        property_value
+                ) VALUES (
+                        _component_type_id, 'DiskModelProbeString', 'disk', model_probe_string
+                );
+        END IF;
+
+        INSERT INTO jazzhands.component_property (
+                component_type_id,
+                component_property_name,
+                component_property_type,
+                property_value
+        ) VALUES
+                (_component_type_id, 'DiskProtocol', 'disk', protocol),
+                (_component_type_id, 'MediaType', 'disk', media_type),
+                (_component_type_id, 'DiskSize', 'disk', bytes);
+
+        --
+        -- Insert the component functions
+        --
+        INSERT INTO component_type_component_function (
+                component_type_id,
+                component_function
+        ) SELECT DISTINCT
+                _component_type_id,
+                cf
+        FROM
+                unnest(ARRAY['storage', 'disk']) x(cf);
+
+        RETURN _component_type_id;
+END;
+$$
+SET search_path=jazzhands
+SECURITY DEFINER
+LANGUAGE plpgsql;
+
 
 CREATE OR REPLACE FUNCTION component_manip.insert_memory_component(
 	model				text,
@@ -2178,6 +2330,153 @@ BEGIN
 				'/%{slot_index}'
 			ELSE
 				'Ethernet' || (port_offset + x.idx + 1)
+			END,
+			'Ethernet' || (port_offset + x.idx + 1),
+			port_offset + x.idx + 1,
+			x_offset + (
+				(x.idx / 2) % (
+					GREATEST((p->>'count')::integer, 2 * size_units) /
+					(2 * size_units)
+				)
+			),
+			(x.idx % 2) + 2 * (
+				x.idx / ((p->>'count')::integer / size_units)
+			),
+			'FRONT'
+		FROM
+			slot_type st,
+			generate_series(0,(p->>'count')::integer - 1) x(idx)
+		WHERE
+			slot_type = p->>'slot_type' and slot_function = 'network';
+
+		port_offset = port_offset + (p->>'count')::integer;
+		x_offset = x_offset +
+			(p->>'count')::integer / (2 * size_units);
+	END LOOP;
+	RETURN ctrec;
+END;
+$$ LANGUAGE plpgsql SECURITY DEFINER;
+
+CREATE OR REPLACE FUNCTION component_manip.insert_arista_linecard_type(
+	model			text,
+	linecard_type	text,
+	ports			jsonb,
+	description		text DEFAULT NULL,
+	size_units		integer DEFAULT 1
+) RETURNS jazzhands.component_type AS $$
+#variable_conflict use_variable
+DECLARE
+	m				ALIAS FOR model;
+	ctrec			RECORD;
+	cid				jazzhands.company.company_id%TYPE;
+	ctid			jazzhands.component_type.component_type_id%TYPE;
+	stid			jazzhands.slot_type.slot_type_id%TYPE;
+	p				jsonb;
+	port_offset		integer;
+	x_offset		integer;
+BEGIN
+	SELECT company_id INTO cid FROM company WHERE company_name = 'Arista Networks';
+	IF NOT FOUND THEN
+		SELECT company_manip.add_company(
+			company_name := 'Arista Networks',
+			company_types := ARRAY['hardware provider']
+		) INTO cid;
+		INSERT INTO property (
+			property_name,
+			property_type,
+			company_collection_id,
+			property_value
+		)
+		SELECT
+			'DeviceVendorProbeString',
+			'DeviceProvisioning',
+			company_collection_id,
+			'Arista'
+		FROM
+			company_collection cc JOIN
+			company_collection_company ccc USING (company_collection_id) JOIN
+			company c USING (company_id)
+		WHERE
+			company_collection_type = 'per-company' AND
+			company_name = 'Arista Networks';
+	END IF;
+
+	SELECT * INTO ctrec FROM component_type ct WHERE
+		company_id = cid AND
+		ct.model = m;
+
+	IF FOUND THEN
+		RAISE 'linecard model % already exists as component_type_id %',
+			m,
+			ctrec.ctid
+		USING ERRCODE = 'unique_violation';
+	END IF;
+
+	SELECT slot_type_id INTO stid FROM slot_type WHERE
+		slot_type = linecard_type AND
+		slot_function = 'chassis_slot';
+
+	IF NOT FOUND THEN
+		RAISE 'linecard_type % does not exist',
+			linecard_type;
+	END IF;
+
+	INSERT INTO component_type (
+		description,
+		slot_type_id,
+		model,
+		company_id,
+		asset_permitted,
+		is_rack_mountable,
+		size_units
+	) VALUES (
+		description,
+		stid,
+		model,
+		cid,
+		true,
+		false,
+		size_units
+	) RETURNING * INTO ctrec;
+
+	ctid = ctrec.component_type_id;
+
+	INSERT INTO component_type_component_function (
+		component_type_id,
+		component_function
+	) VALUES (
+		ctid,
+		'module'
+	);
+
+	--
+	-- Switch ports
+	--
+	port_offset = 0;
+	x_offset = 0;
+
+	FOR p IN SELECT jsonb_array_elements(ports) LOOP
+		INSERT INTO component_type_slot_template (
+			component_type_id,
+			slot_type_id,
+			slot_name_template,
+			child_slot_name_template,
+			physical_label,
+			slot_index,
+			slot_x_offset,
+			slot_y_offset,
+			slot_side
+		) SELECT
+			ctid,
+			slot_type_id,
+			'Ethernet%{parent_slot_index}/' || (port_offset + x.idx + 1),
+			CASE
+			WHEN slot_physical_interface_type IN (
+				'QSFP', 'QSFP+', 'QSFP28', 'QSFP-DD', 'OSFP'
+			) THEN
+				'%{parent_slot_name}/%{slot_index}'
+			ELSE
+				'%{parent_slot_name}'
 			END,
 			'Ethernet' || (port_offset + x.idx + 1),
 			port_offset + x.idx + 1,

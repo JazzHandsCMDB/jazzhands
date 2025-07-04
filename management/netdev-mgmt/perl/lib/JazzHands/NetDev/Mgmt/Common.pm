@@ -26,6 +26,9 @@ sub GetExtendedIPAddressInformation {
 
 	# These are per device-type
 	my $info = $self->GetIPAddressInformation(@_);
+	if (!$info) {
+		return undef;
+	}
 	my $vlan = $self->GetVLANs(@_);
 
 	foreach my $iface (keys %{$info}) {
@@ -35,7 +38,7 @@ sub GetExtendedIPAddressInformation {
 			$info->{$iface}->{encapsulation}->{name} = $xp->{name};
 		}
 	}
-	$info;
+	return $info;
 }
 
 1;

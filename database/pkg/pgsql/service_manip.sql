@@ -365,7 +365,15 @@ BEGIN
 		DELETE FROM service_endpoint_provider_collection_service_endpoint_provider sepcsep
 		WHERE sepcsep.service_endpoint_provider_id =
 			_r.service_endpoint_provider_id
+			AND sepcsep.service_endpoint_provider_id NOT IN (
+				SELECT service_endpoint_provider_id
+				FROM service_endpoint_provider_service_instance
+				WHERE service_endpoint_provider_id = _r.service_endpoint_provider_id
+				GROUP BY 1 HAVING count(*) > 1
+			)
 			RETURNING * INTO _sepcsep;
+
+		RAISE NOTICE '%', to_json(_sepcsep);
 
 		IF _sep.service_endpoint_provider_type = 'direct' THEN
 

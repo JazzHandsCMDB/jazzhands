@@ -1,3 +1,10 @@
+jazzhands-zonegen-server (0.98.0) trusty; urgency=medium
+
+  * add -k option to named-checkzone
+  * make forgen shortoption -g because there was already a -f
+
+ -- Todd M. Kover <kovert@omniscient.com>  Mon, 28 Apr 2025 10:49:32 -0400
+
 jazzhands-zonegen-server (0.96.0) trusty; urgency=medium
 
   * change zonegen stats to be emitted as json

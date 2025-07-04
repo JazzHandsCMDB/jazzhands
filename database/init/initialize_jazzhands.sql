@@ -528,7 +528,10 @@ VALUES
 	('Defaults', '_dnsmname', 'string', false,
 		'Default contact for zone'),
 	('Defaults', '_authdns', 'string', true,
-		'Default Nameserver for zone');
+		'Default Nameserver for zone'),
+	('Defaults', '_enable_automated_dns', 'boolean', true,
+		'enable automated DNS handling');
+
 
 insert into val_dns_domain_type (DNS_DOMAIN_TYPE, CAN_GENERATE)
 VALUES
