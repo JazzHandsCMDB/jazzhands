@@ -21,6 +21,7 @@
 \t on
 
 -- tests this:
+-- \ir ../../ddl/schema/pgsql/create_netblock_triggers.sql
 -- \ir ../../pkg/pgsql/netblock_utils.sql
 \ir ../../ddl/schema/pgsql/create_dns_triggers.sql
 
@@ -183,7 +184,7 @@ BEGIN
 			is_single_address, can_subnet, netblock_status,
 			description
 	) VALUES (
-		'172.31.30.0/24', 'default',
+		'192.0.2.0/24', 'default',
 			false, false, 'Allocated',
 			'JHTEST _blkid'
 	) RETURNING netblock_id INTO _blkid;
@@ -192,7 +193,7 @@ BEGIN
 			is_single_address, can_subnet, netblock_status,
 			description
 	) VALUES (
-		'172.31.30.1/24', 'default',
+		'192.0.2.1/24', 'default',
 			true, false, 'Allocated',
 			'JHTEST _ip1id'
 	) RETURNING netblock_id INTO _ip1id;
@@ -201,7 +202,7 @@ BEGIN
 			is_single_address, can_subnet, netblock_status,
 			description
 	) VALUES (
-		'172.31.30.2/24', 'default',
+		'192.0.2.2/24', 'default',
 			true, false, 'Allocated',
 			'JHTEST _ip2id'
 	) RETURNING netblock_id INTO _ip2id;
