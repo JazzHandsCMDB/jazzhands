@@ -1,4 +1,4 @@
--- Copyright (c) 2021-2024, Todd M. Kover
+-- Copyright (c) 2021-2025, Todd M. Kover
 -- All rights reserved.
 --
 -- Licensed under the Apache License, Version 2.0 (the "License");
@@ -198,6 +198,7 @@ DECLARE
 	univ			ip_universe.ip_universe_id%type;
 	can_haz_generate	boolean;
 	re				TEXT;
+	_r			RECORD;
 BEGIN
 	IF dns_domain_name IS NULL THEN
 		RETURN NULL;
@@ -303,15 +304,11 @@ BEGIN
 	-- migrate any records _in_ the parent zone over to this zone.
 	--
 	IF short_name IS NOT NULL AND parent_id IS NOT NULL THEN
-		re := regexp_replace(concat('\.?', lower(short_name), '$'), '\.', '\\.'
-			 'g');
+		re := concat('\.', lower(short_name), '$');
 		UPDATE  dns_record
 			SET dns_name =
 				CASE WHEN lower(dns_name) = lower(short_name) THEN NULL
-				ELSE regexp_replace(dns_name,
-					regexp_replace(
-						concat('\.', short_name, '$'), '\.', '\\.','i'),
-					'', 'i')
+				ELSE regexp_replace(dns_name, concat('\.', short_name, '$'), '', 'i')
 				END,
 				dns_domain_id =  domain_id
 		WHERE dns_domain_id = parent_id
