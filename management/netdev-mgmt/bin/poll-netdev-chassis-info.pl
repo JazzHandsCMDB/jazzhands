@@ -77,7 +77,7 @@ if ( !( GetOptions(
 	'debug+',                 \$debug,
 	'verbose+',               \$verbose,
 	'parallel!',              \$parallel,
-	'file=s',                 \$filename
+	'file=s',                 \$filename,
 	'poll',                    \$poll,
 	'device-function-regex=s', \$device_function_regex,
 ) ) )

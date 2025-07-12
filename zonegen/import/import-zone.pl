@@ -1053,7 +1053,7 @@ sub refresh_dns_record {
 		table  => 'v_dns',
 		match  => $match,
 		errors => \@errs,
-	) || die join( " ", @errs );
+	) || die join( " ", @errs, Dumper($match), $DBI::lasth->{Statement} );
 
 	my $dnsrec = $rows->[0];
 
