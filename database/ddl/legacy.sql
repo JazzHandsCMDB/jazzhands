@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2019-2024 Todd Kover
+ * Copyright (c) 2019-2025 Todd Kover
  * All rights reserved.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
@@ -3030,8 +3030,12 @@ WHERE	dns_type IN (SELECT dns_type
 )  x;
 
 -- Simple column rename
--- Copyright (c) 2016, Todd M. Kover
+-- Copyright (c) 2016-2025, Todd M. Kover
+-- under some condition making this not an oo clause caused
+-- the family to not prevent the second where clause not to
+-- work
 CREATE OR REPLACE VIEW jazzhands_legacy.v_dns_rvs AS
+WITH oo as (
 SELECT
 	dns_record_id,
 	network_range_id,
@@ -3140,11 +3144,10 @@ UNION ALL
 			'REVERSE_ZONE_BLOCK_PTR'
 	inner join jazzhands.dns_domain dd using (dns_domain_id)
 WHERE
-	family(root.ip_address) = family(ip)
-	AND ( set_masklen(ip, masklen(root.ip_address))
-			    <<= root.ip_address
-		)
-) x;
+	( family(root.ip_address) = family(ip) AND set_masklen(ip, masklen(root.ip_address)) <<= root.ip_address)
+) x
+) SELECT * FROM oo
+;
 
 -- Simple column rename
 -- Copyright (c) 2016-2017, Todd M. Kover

@@ -21,6 +21,8 @@
 \t on
 
 -- tests this:
+
+\ir ../../pkg/pgsql/dns_manip.sql
 \ir ../../pkg/pgsql/dns_utils.sql
 
 
@@ -30,8 +32,10 @@ CREATE OR REPLACE FUNCTION validate_child_zone_checks() RETURNS BOOLEAN AS $$
 DECLARE
 	_tally		INTEGER;
 	_r			RECORD;
+	_dnsr		dns_record;
 	_j			JSONB;
 	_rootd		dns_domain.dns_domain_id%TYPE;
+	_kidd		dns_domain.dns_domain_id%TYPE;
 BEGIN
 	RAISE NOTICE '++ Beginning tests of dns_child_zone...';
 
@@ -109,6 +113,63 @@ BEGIN
 	EXCEPTION WHEN unique_violation THEN NULL;
 	END;
 
+	RAISE NOTICE 'Checking if child records move properly....';
+	BEGIN
+		INSERT INTO dns_record (
+			dns_name, dns_domain_id, dns_type, dns_value
+		) VALUES (
+			'eat.food', _rootd, 'CNAME', 'test.example.org.'
+		) RETURNING * INTO _dnsr;
+
+		SELECT dns_manip.add_dns_domain (
+			dns_domain_name := 'food.example.com',
+			dns_domain_type := 'service'
+		) INTO _kidd;
+
+		SELECT * FROM dns_record INTO _r WHERE dns_record_id = _dnsr.dns_record_id;
+
+		IF ( _r.dns_domain_id != _kidd OR _r.dns_name != 'eat' ) THEN
+			RAISE EXCEPTION 'expecting (''eat'', %) got (''%'', %) root is %',
+				_kidd, _r.dns_name, _r.dns_domain_id, _rootd;
+		END IF;
+
+		RAISE EXCEPTION '%', format('a-ok: %s %s', _r.dns_domain_id, _r.dns_name) USING ERRCODE = 'JH999';
+	EXCEPTION WHEN SQLSTATE 'JH999' THEN
+		RAISE NOTICE '... passed: %', SQLERRM;
+	END;
+
+	RAISE NOTICE 'Checking if child records move improperly....';
+	BEGIN
+		INSERT INTO dns_record (
+			dns_name, dns_domain_id, dns_type, dns_value
+		) VALUES (
+			'eat.food', _rootd, 'CNAME', 'test.examples.org.'
+		);
+
+		INSERT INTO dns_record (
+			dns_name, dns_domain_id, dns_type, dns_value
+		) VALUES (
+			'eatzfood', _rootd, 'CNAME', 'test.examples.org.'
+		) RETURNING * INTO _dnsr;
+
+		SELECT dns_manip.add_dns_domain (
+			dns_domain_name := 'food.example.com',
+			dns_domain_type := 'service'
+		) INTO _kidd;
+
+		SELECT * FROM dns_record INTO _r WHERE dns_record_id = _dnsr.dns_record_id;
+
+		IF ( _r.dns_domain_id != _rootd OR _r.dns_name != 'eatzfood' ) THEN
+			RAISE EXCEPTION 'expecting (''eatzfood'', %) got (''%'', %) root is %',
+				_kidd, _rootd, _r.dns_domain_id, _rootd;
+		END IF;
+
+		RAISE EXCEPTION '%', format('a-ok: %s %s', _r.dns_domain_id, _r.dns_name) USING ERRCODE = 'JH999';
+	EXCEPTION WHEN SQLSTATE 'JH999' THEN
+		RAISE NOTICE '... passed: %', SQLERRM;
+	END;
+
+
 	RAISE NOTICE '++ Completed Testing';
 
 	PERFORM dns_manip.add_dns_domain('test1.example.com', 'service');
@@ -118,7 +179,7 @@ BEGIN
 	SELECT dns_utils.find_dns_domain_from_fqdn(
 			'mumblefoo.example.com'
 		) INTO _j;
-	RAISE NOTICE '%', _j;
+	RAISE NOTICE 'dns_utils.find_dns_domain_from_fqdn says %, need to write a test?', _j;
 
 
 	RAISE NOTICE '++ Ending tests of dns_child_zone...';
