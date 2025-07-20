@@ -5,5 +5,4 @@ use ExtUtils::MakeMaker;
 WriteMakefile(
 	NAME			=> 'JazzHands::DBI',
 	VERSION_FROM	=>  'lib/JazzHands/DBI.pm',
-	INSTALLDIRS		=> 'vendor'
 );

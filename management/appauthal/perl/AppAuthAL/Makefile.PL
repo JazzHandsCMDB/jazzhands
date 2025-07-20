@@ -5,5 +5,4 @@ use ExtUtils::MakeMaker;
 WriteMakefile(
 	NAME			=> 'JazzHands::AppAuthAL',
 	VERSION_FROM	=> 'lib/JazzHands/AppAuthAL.pm', # finds $VERSION
-	INSTALLDIRS		=> 'vendor',
 );
