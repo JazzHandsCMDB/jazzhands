@@ -167,8 +167,8 @@ BEGIN
 
 	IF NOT FOUND THEN
 		RAISE EXCEPTION 'Network slot % does not exist on device %',
-			_slot_name,
-			_device_id;
+			_remote_slot_name,
+			remote_dev_rec.device_id;
 	END IF;
 
 	RAISE DEBUG 'Remote slot is %', row_to_json(remote_slot_rec, true);
