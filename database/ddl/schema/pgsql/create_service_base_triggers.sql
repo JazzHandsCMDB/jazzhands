@@ -58,7 +58,7 @@ BEGIN
 	FROM service
 		JOIN val_service_type USING (service_type)
 	WHERE service_name = NEW.service_name
-	AND service_type  != NEW.service_type
+	AND service_id  != NEW.service_id
 	AND service_namespace = _myns;
 
 	IF _tally > 0 THEN
