@@ -8674,7 +8674,7 @@ ALTER TABLE service_version_collection_purpose
 	ADD CONSTRAINT pk_service_version_collection_purpose PRIMARY KEY (service_version_collection_id,service_version_collection_purpose);
 
 ALTER TABLE service_version_collection_purpose
-	ADD CONSTRAINT ak_service_version_collection_purpose_service UNIQUE (service_version_collection_purpose,service_version_collection_id);
+	ADD CONSTRAINT ak_service_version_collection_purpose_service UNIQUE (service_id,service_version_collection_purpose);
 
 ALTER TABLE service_version_collection_purpose ADD COLUMN data_ins_user varchar(255);
 ALTER TABLE service_version_collection_purpose ADD COLUMN data_ins_date TIMESTAMP WITH TIME ZONE;
