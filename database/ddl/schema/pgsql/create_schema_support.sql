@@ -212,8 +212,12 @@ BEGIN
 			structuser JSONB;
 			c JSONB;
 	    BEGIN
-
-		c := current_setting('request.jwt.claims', true);
+		BEGIN
+			c := current_setting('request.jwt.claims', true);
+			PERFORM c::jsonb WHERE c IS NOT NULL;
+		EXCEPTION WHEN invalid_text_representation THEN
+			c:= NULL;
+		END;
 
 		-- this gets reset later to a more elaborate user. note that the
 		-- session user is no longer there.
@@ -925,7 +929,12 @@ DECLARE
 	act TEXT;
 	sub TEXT;
 BEGIN
-	c := current_setting('request.jwt.claims', true);
+	BEGIN
+		c := current_setting('request.jwt.claims', true);
+		PERFORM c::jsonb WHERE c IS NOT NULL;
+	EXCEPTION WHEN invalid_text_representation THEN
+		c:= NULL;
+	END;
 
 	IF c IS NOT NULL AND c ? 'sub' THEN
 		sub := c->'sub';
