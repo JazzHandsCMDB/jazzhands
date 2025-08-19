@@ -1,4 +1,4 @@
--- Copyright (c) 2023 Todd M. Kover
+-- Copyright (c) 2023-2025 Todd M. Kover
 -- All rights reserved.
 --
 -- Licensed under the Apache License, Version 2.0 (the "License");
@@ -58,8 +58,11 @@ CREATE OR REPLACE FUNCTION authorization_utils.check_property_account_authorizat
 ) RETURNS boolean
 AS $$
 DECLARE
+	_tally	INTEGER;
 	_arid	account_realm.account_realm_id%type;
 	_aid	account_realm.account_realm_id%type;
+	_q		TEXT;
+	_iq		TEXT[];
 BEGIN
 	IF parameters?'login' AND parameters?'account_id' THEN
 		RAISE EXCEPTION 'Must specify either login or account_id, not both.'
@@ -120,8 +123,7 @@ BEGIN
 			USING ERRCODE = 'invalid_parameter_value';
 	END IF;
 
-	PERFORM *
-	FROM (
+	_q := format($str$SELECT count(*) FROM (
 		SELECT
 			account_collection_id,
 			property_type,
@@ -135,21 +137,40 @@ BEGIN
 				aca.account_id
 			FROM
 				jazzhands_cache.ct_account_collection_hier_recurse r
-				JOIN jazzhands.account_collection_account aca 
+				JOIN jazzhands.account_collection_account aca
 					USING (account_collection_id)
 		) ia USING (account_collection_id)
 		JOIN jazzhands.account USING (account_id)
-	WHERE
-		property_type = split_part(parameters->>'property_role', ':', 1)
-		AND property_name = split_part(parameters->>'property_role', ':', 2)
-		AND account_Id = _aid
-		AND account_realm_Id = _arid
-		AND (NOT parameters?'property_value' OR
-				p.property_value = parameters->>'property_value'
-			)
+		WHERE
+			property_type = split_part($1, ':', 1)
+			AND property_name = split_part($1, ':', 2)
+			AND account_id = $2
+			AND account_realm_Id = $3
+			AND ($4 IS NULL OR p.property_value = $4 )
+		%s
+		$str$, CASE WHEN _iq IS NULL THEN ''
+			ELSE concat(' AND ', array_to_string(_iq, ' AND '))
+			END -- CASE
+	);
+
+	RAISE NOTICE '% -> % % % %',
+		_q,
+		parameters->>'property_role',
+		_aid,
+		_arid,
+		parameters->>'property_value'
 	;
 
-	IF FOUND THEN
+	EXECUTE _q INTO _tally USING
+		parameters->>'property_role',
+		_aid,
+		_arid,
+		parameters->>'property_value';
+
+
+	RAISE NOTICE 'tally is %', _tally;
+
+	IF _tally > 0 THEN
 		RETURN true;
 	END IF;
 
