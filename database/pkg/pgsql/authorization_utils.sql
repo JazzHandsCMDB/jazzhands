@@ -13,6 +13,8 @@
 -- See the License for the specific language governing permissions and
 -- limitations under the License.
 
+\set ON_ERROR_STOP
+
 
 DO $$
 DECLARE
@@ -47,6 +49,10 @@ $$;
 --- 	"account_realm_id": id				// has default, one or the other
 --- 	"account_realm_name": id
 ---		"property_value": text				// if set, must be this value
+---		"service_name": "Vv" // if set, limits lhs to a purpose of this service name
+---		"service_collection_purpose": "Vv" // default to current
+---		"service_namespace": "Vv" // if not set, uses "default"
+---		"auth_use_value": boolean				// indicates that the perm is assigned on rhs not lhs
 --- }
 ---
 --- retruns true or falsA
@@ -63,6 +69,8 @@ DECLARE
 	_aid	account_realm.account_realm_id%type;
 	_q		TEXT;
 	_iq		TEXT[];
+	_r		RECORD;
+	_authz_col	TEXT;
 BEGIN
 	IF parameters?'login' AND parameters?'account_id' THEN
 		RAISE EXCEPTION 'Must specify either login or account_id, not both.'
@@ -79,6 +87,18 @@ BEGIN
 	IF NOT parameters?'property_role' THEN
 		RAISE EXCEPTION 'Must specify property role'
 			USING ERRCODE = 'invalid_parameter_value';
+	END IF;
+
+	--
+	-- determines if the account collection with the user to check is on the
+	-- lhs (false) or rhs (true)
+	--
+	IF (NOT parameters?'auth_use_value' OR NOT (parameters->>'auth_use_value')::boolean )
+	THEN
+		_authz_col := 'account_collection_id';
+	ELSE
+		_authz_col := 'property_value_account_collection_id';
+
 	END IF;
 
 	IF parameters?'account_realm_id' AND parameters?'account_realm_name' THEN
@@ -123,43 +143,81 @@ BEGIN
 			USING ERRCODE = 'invalid_parameter_value';
 	END IF;
 
+	-- now getting into the weirder things.
+	IF NOT parameters?'service_name' THEN
+		IF parameters?'service_collection_purpose' THEN
+			RAISE EXCEPTION 'must set service_name if using service_collection_purpose'
+				USING ERRCODE = 'invalid_parameter_value';
+		END IF;
+		IF parameters?'service_namespace' THEN
+			RAISE EXCEPTION 'must set service_name if using service_namespace'
+				USING ERRCODE = 'invalid_parameter_value';
+		END IF;
+	ELSE
+		_iq := array_append(_iq, format($str$ (
+			service_version_collection_id IN (
+				SELECT root_service_version_collection_id
+				FROM	jazzhands_cache.ct_service_version_collection_hier_recurse
+						JOIN service_version_collection_purpose
+							USING (service_version_collection_id)
+						JOIN service USING (service_id)
+						JOIN val_service_type USING (service_type)
+						JOIN val_service_namespace USING (service_namespace)
+				WHERE	service_name = '%s'
+				AND		service_namespace = '%s'
+				AND		service_version_collection_purpose = '%s'
+
+			) ) $str$,
+			parameters->>'service_name',
+			COALESCE(parameters->>'service_namespace', 'default'),
+			COALESCE(parameters->>'service_collection_purpose', 'current')
+		));
+	END IF;
+
+
+	--
+	-- The basic version of this looks for a given account_id (which may be
+	-- set by login or account_id) and an account_realm (which has a default)
+	-- and sees if it is part of the an account collection on the lhs of ra
+	-- property with propety_role set to property_type:proeprty_name .
+	--
+	-- It is possible to extend the rhs of property by adding values to _iq
+	-- (above) that futher restricted by various bits in the incoming json.
+	--
+	-- These will likely be fleshed out over time.
+
 	_q := format($str$SELECT count(*) FROM (
 		SELECT
-			account_collection_id,
+			p.%s,
 			property_type,
 			property_name,
 			property_value
-		FROM
-			jazzhands.property) p
-		JOIN (
+		FROM (
 			SELECT
-				r.root_account_collection_id AS account_collection_id,
+				r.root_account_collection_id AS %s,
 				aca.account_id
 			FROM
 				jazzhands_cache.ct_account_collection_hier_recurse r
 				JOIN jazzhands.account_collection_account aca
 					USING (account_collection_id)
-		) ia USING (account_collection_id)
-		JOIN jazzhands.account USING (account_id)
+		) ia
+		JOIN jazzhands.account a USING (account_id)
+		JOIN property p USING (%s)
 		WHERE
 			property_type = split_part($1, ':', 1)
 			AND property_name = split_part($1, ':', 2)
-			AND account_id = $2
-			AND account_realm_Id = $3
+			AND a.account_id = $2
+			AND a.account_realm_Id = $3
 			AND ($4 IS NULL OR p.property_value = $4 )
 		%s
-		$str$, CASE WHEN _iq IS NULL THEN ''
+		); $str$,
+			_authz_col,
+			_authz_col,
+			_authz_col,
+			CASE WHEN _iq IS NULL THEN ''
 			ELSE concat(' AND ', array_to_string(_iq, ' AND '))
 			END -- CASE
 	);
-
-	RAISE NOTICE '% -> % % % %',
-		_q,
-		parameters->>'property_role',
-		_aid,
-		_arid,
-		parameters->>'property_value'
-	;
 
 	EXECUTE _q INTO _tally USING
 		parameters->>'property_role',
@@ -167,10 +225,7 @@ BEGIN
 		_arid,
 		parameters->>'property_value';
 
-
-	RAISE NOTICE 'tally is %', _tally;
-
-	IF _tally > 0 THEN
+	tIF _tally > 0 THEN
 		RETURN true;
 	END IF;
 
