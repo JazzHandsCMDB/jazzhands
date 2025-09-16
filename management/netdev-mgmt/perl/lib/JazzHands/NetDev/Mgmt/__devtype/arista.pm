@@ -409,6 +409,44 @@ sub GetVLANs {
 	return $vlans;
 }
 
+sub GetVXLANInfo {
+	my $self = shift;
+	my $opt = &_options(@_);
+
+	my $err = $opt->{errors};
+
+	my $device = $self->{device};
+	my $credentials = $self->{credentials};
+
+	my $debug = 0;
+	if ($opt->{debug}) {
+		$debug = 1;
+	}
+
+	my $result = $self->SendCommand(
+		commands => [
+			'show interfaces vxlan 1'
+		],
+		timeout => $opt->{timeout},
+		errors => $err
+	);
+
+	if (!$result) {
+		return undef;
+	}
+
+	my $r = $result->[0]->{interfaces}->{Vxlan1};
+
+	my $vxlan = {
+		src_iface => $r->{srcIpIntf},
+		vlans => $r->{vlanToVniMap},
+		vrfs => $r->{vrfToVniMap},
+		shared_mac_address => $r->{mlagSharedRouterMacAddr},
+	};
+
+	return $vxlan;
+}
+
 sub SetPortVLAN {
 	my $self = shift;
 	my $opt = &_options(@_);

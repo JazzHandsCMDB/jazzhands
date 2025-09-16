@@ -55,6 +55,30 @@ $$ LANGUAGE plpgsql;
 -- end of procedure id_tag
 -------------------------------------------------------------------
 
+--
+-- Create a jazzhands schema
+--
+CREATE OR REPLACE FUNCTION schema_support.create_schema
+	(schema TEXT)
+RETURNS VOID AS $$
+BEGIN
+	PERFORM * FROM pg_catalog.pg_namespace WHERE
+		nspname = create_schema.schema;
+	IF NOT FOUND THEN
+		EXECUTE format('DROP SCHEMA IF EXISTS %I',
+			create_schema.schema);
+		EXECUTE format('CREATE SCHEMA %I AUTHORIZATION jazzhands',
+			create_schema.schema);
+		EXECUTE format('REVOKE ALL ON SCHEMA %I FROM public',
+			create_schema.schema);
+		EXECUTE format('COMMENT ON SCHEMA %I IS %L',
+			create_schema.schema,
+			'part of jazzhands');
+    END IF;
+END;
+$$
+LANGUAGE plpgsql SECURITY INVOKER;
+
 -------------------------------------------------------------------
 --
 -- Reset sequence to the greater of one more than the maximum value or
@@ -3575,6 +3599,9 @@ REVOKE ALL ON ALL FUNCTIONS IN SCHEMA schema_support FROM public;
 
 /**************************************************************
  *  FUNCTIONS
+
+schema_support.create_schema(schema)
+	- creates a schema owned by jazzhands if it does not exist
 
 schema_support.begin_maintenance
 

@@ -1,4 +1,4 @@
--- Copyright (c) 2017-2025, Matthew Ragan
+-- Copyright (c) 2025, Matthew Ragan
 -- All rights reserved.
 --
 -- Licensed under the Apache License, Version 2.0 (the "License");
@@ -13,22 +13,18 @@
 -- See the License for the specific language governing permissions and
 -- limitations under the License.
 
-DO $$
-BEGIN
-    PERFORM * FROM schema_support.create_schema(schema :=
-		'component_connection_utils'
-	);
-END;
-$$;
-
-CREATE OR REPLACE FUNCTION component_connection_utils.create_inter_component_connection (
-	device_id			INOUT jazzhands.device.device_id%TYPE,
-	slot_name			INOUT jazzhands.slot.slot_name%TYPE,
-	remote_slot_name	INOUT jazzhands.slot.slot_name%TYPE,
-	remote_device_id	INOUT jazzhands.device.device_id%TYPE DEFAULT NULL,
-	remote_host_id		jazzhands.device.host_id%TYPE DEFAULT NULL,
-	remote_device_name	jazzhands.device.device_name%TYPE DEFAULT NULL,
-	force				boolean DEFAULT false,
+CREATE OR REPLACE FUNCTION device_manip.create_uplink (
+	layer3_interface_name	INOUT jazzhands.layer3_interface.layer3_interface_name%TYPE,
+	remote_layer3_interface_name	INOUT jazzhands.layer3_interface.layer3_interface_name%TYPE,
+	device_id				INOUT jazzhands.device.device_id%TYPE DEFAULT NULL,
+	device_name				INOUT jazzhands.device.device_id%TYPE DEFAULT NULL,
+	remote_device_id		INOUT jazzhands.device.device_id%TYPE DEFAULT NULL,
+	remote_device_name		INOUT jazzhands.device.device_name%TYPE DEFAULT NULL,
+	create_inter_component_connection	boolean	DEFAULT true,
+	netblock_id			OUT		jazzhands.netblock.netblock_id%TYPE,
+	ip_address			OUT		jazzhands.netblock.ip_address%TYPE,
+	remote_netblock_id	OUT		jazzhands.netblock.netblock_id%TYPE,
+	remote_ip_address	OUT		jazzhands.netblock.ip_address%TYPE
 	inter_component_connection_id	OUT integer,
 	slot_id							OUT integer,
 	slot_index						OUT integer,
@@ -41,19 +37,16 @@ CREATE OR REPLACE FUNCTION component_connection_utils.create_inter_component_con
 	remote_mac_address				OUT macaddr,
 	remote_slot_type_id				OUT integer,
 	remote_slot_type				OUT text,
-	remote_slot_function			OUT text,
-	changed							OUT boolean
+	remote_slot_function			OUT text
 ) RETURNS SETOF RECORD AS $$
 DECLARE
-	remote_dev_rec		RECORD;
-	slot_rec			RECORD;
-	remote_slot_rec		RECORD;
-	_device_id			ALIAS FOR device_id;
-	_slot_name			ALIAS FOR slot_name;
-	_remote_slot_name	ALIAS FOR remote_slot_name;
-	_remote_device_id	ALIAS FOR remote_device_id;
-	_remote_host_id		ALIAS FOR remote_host_id;
-	_remote_device_name	ALIAS FOR remote_device_name;
+	remote_dev_rec			RECORD;
+	slot_rec				RECORD;
+	remote_slot_rec			RECORD;
+	_device_id				ALIAS FOR device_id;
+	_layer3_interface_name	ALIAS FOR layer3_interface_name;
+	_remote_device_id		ALIAS FOR remote_device_id;
+	_remote_device_name		ALIAS FOR remote_device_name;
 BEGIN
 	--
 	-- Validate what's passed
@@ -61,7 +54,7 @@ BEGIN
 	IF remote_device_id IS NULL AND remote_host_id IS NULL AND
 		remote_device_name IS NULL
 	THEN
-		RAISE 'Must pass remote_device_id, remote_host_id, or remote_device_name to create_inter_component_connection()'
+		RAISE 'Must pass remote_device_id, remote_host_id, or remote_device_name to create_inter_component_connection()' 
 			USING ERRCODE = 'null_value_not_allowed';
 	END IF;
 
@@ -167,7 +160,7 @@ BEGIN
 	--
 	-- See if these are already connected
 	--
-	IF slot_rec.inter_component_connection_id =
+	IF slot_rec.inter_component_connection_id = 
 		remote_slot_rec.inter_component_connection_id
 	THEN
 		inter_component_connection_id := slot_rec.inter_component_connection_id;
@@ -202,7 +195,7 @@ BEGIN
 			DELETE FROM
 				inter_component_connection icc
 			WHERE
-				icc.inter_component_connection_id =
+				icc.inter_component_connection_id = 
 					remote_slot_rec.inter_component_connection_id;
 		ELSE
 			RAISE EXCEPTION 'Slot % for device % is already connected to slot % on device %',
@@ -218,7 +211,7 @@ BEGIN
 		DELETE FROM
 			inter_component_connection icc
 		WHERE
-			icc.inter_component_connection_id =
+			icc.inter_component_connection_id = 
 				slot_rec.inter_component_connection_id;
 	END IF;
 

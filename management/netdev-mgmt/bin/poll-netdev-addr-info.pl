@@ -322,6 +322,22 @@ foreach my $host (@$hostname) {
 		# my $if = $device->GetInterfaceConfig();
 		# my $ip = $device->GetIPAddressInformation();
 		# die Dumper($vlan, $if, $ip);
+		my $vxlan;
+
+		#
+		# This doesn't exist yet for JUNOS
+		#
+		eval {
+			my @errors;
+			$vxlan = $device->GetVXLANInfo(
+				errors => \@errors
+			);
+		#	if (!$vxlan) {
+		#		if (@errors) {
+		#			print join("\n", @errors);
+		#		}
+		#	}
+		};
 
 		$getedsth->execute($db_dev->{device_id});
 		my($encaptype, $encapdomain) = $getedsth->fetchrow_array;
@@ -429,7 +445,10 @@ foreach my $host (@$hostname) {
 											{
 												ip_address => $_->addr . '/' .
 													$_->masklen,
-												protocol => 'unspecified'
+												protocol => (
+													defined($vxlan->{src_iface}) &&
+													$vxlan->{src_iface} eq $iname
+												) ? 'VTEP' : 'unspecified'
 											}
 										} @{$interface->{ipv4}}
 									) : (),
