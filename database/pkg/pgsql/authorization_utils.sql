@@ -225,7 +225,7 @@ BEGIN
 		_arid,
 		parameters->>'property_value';
 
-	tIF _tally > 0 THEN
+	IF _tally > 0 THEN
 		RETURN true;
 	END IF;
 
