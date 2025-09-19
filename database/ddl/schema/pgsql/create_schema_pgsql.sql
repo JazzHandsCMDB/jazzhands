@@ -6000,6 +6000,9 @@ ALTER TABLE account_collection
 	ADD CONSTRAINT pk_account_collection PRIMARY KEY (account_collection_id);
 
 ALTER TABLE account_collection
+	ADD CONSTRAINT ak_account_collection_id_name_type UNIQUE (account_collection_id,account_collection_name,account_collection_type);
+
+ALTER TABLE account_collection
 	ADD CONSTRAINT uq_acct_collection_name UNIQUE (account_collection_name,account_collection_type);
 
 ALTER TABLE account_collection ADD COLUMN data_ins_user varchar(255);
@@ -6493,6 +6496,9 @@ ALTER TABLE company_collection
 
 ALTER TABLE company_collection
 	ADD CONSTRAINT ak_company_collection_namtyp UNIQUE (company_collection_name,company_collection_type);
+
+ALTER TABLE company_collection
+	ADD CONSTRAINT ak_company_collection_id_name_type UNIQUE (company_collection_id,company_collection_name,company_collection_type);
 
 ALTER TABLE company_collection ADD COLUMN data_ins_user varchar(255);
 ALTER TABLE company_collection ADD COLUMN data_ins_date TIMESTAMP WITH TIME ZONE;
@@ -7450,6 +7456,9 @@ ALTER TABLE layer3_network_collection
 ALTER TABLE layer3_network_collection
 	ADD CONSTRAINT ak_l3netcoll_name_type UNIQUE (layer3_network_collection_name,layer3_network_collection_type);
 
+ALTER TABLE layer3_network_collection
+	ADD CONSTRAINT al_layer3_network_collection_id_name_type UNIQUE (layer3_network_collection_id,layer3_network_collection_name,layer3_network_collection_type);
+
 ALTER TABLE layer3_network_collection ADD COLUMN data_ins_user varchar(255);
 ALTER TABLE layer3_network_collection ADD COLUMN data_ins_date TIMESTAMP WITH TIME ZONE;
 ALTER TABLE layer3_network_collection ADD COLUMN data_upd_user varchar(255);
@@ -7627,6 +7636,9 @@ ALTER TABLE netblock_collection
 
 ALTER TABLE netblock_collection
 	ADD CONSTRAINT uq_netblock_collection_name UNIQUE (netblock_collection_name,netblock_collection_type);
+
+ALTER TABLE netblock_collection
+	ADD CONSTRAINT ak_netblock_collection_id_name_type UNIQUE (netblock_collection_id,netblock_collection_name,netblock_collection_type);
 
 ALTER TABLE netblock_collection ADD COLUMN data_ins_user varchar(255);
 ALTER TABLE netblock_collection ADD COLUMN data_ins_date TIMESTAMP WITH TIME ZONE;
@@ -8024,6 +8036,9 @@ ALTER TABLE property_name_collection
 ALTER TABLE property_name_collection
 	ADD CONSTRAINT ak_uqpropcoll_name_type UNIQUE (property_name_collection_name,property_name_collection_type);
 
+ALTER TABLE property_name_collection
+	ADD CONSTRAINT ak_property_name_collection_id_name_type UNIQUE (property_name_collection_id,property_name_collection_name,property_name_collection_type);
+
 ALTER TABLE property_name_collection ADD COLUMN data_ins_user varchar(255);
 ALTER TABLE property_name_collection ADD COLUMN data_ins_date TIMESTAMP WITH TIME ZONE;
 ALTER TABLE property_name_collection ADD COLUMN data_upd_user varchar(255);
@@ -8263,6 +8278,9 @@ ALTER TABLE service_endpoint_provider_collection
 ALTER TABLE service_endpoint_provider_collection
 	ADD CONSTRAINT ak_sep_coll_name_type UNIQUE (service_endpoint_provider_collection_name,service_endpoint_provider_collection_type);
 
+ALTER TABLE service_endpoint_provider_collection
+	ADD CONSTRAINT ak_service_endpoint_provider_collection_id_name_type UNIQUE (service_endpoint_provider_collection_id,service_endpoint_provider_collection_name,service_endpoint_provider_collection_type);
+
 ALTER TABLE service_endpoint_provider_collection ADD COLUMN data_ins_user varchar(255);
 ALTER TABLE service_endpoint_provider_collection ADD COLUMN data_ins_date TIMESTAMP WITH TIME ZONE;
 ALTER TABLE service_endpoint_provider_collection ADD COLUMN data_upd_user varchar(255);
@@ -8428,6 +8446,9 @@ ALTER TABLE service_environment_collection
 
 ALTER TABLE service_environment_collection
 	ADD CONSTRAINT ak_val_svc_env_name_type UNIQUE (service_environment_collection_name,service_environment_collection_type);
+
+ALTER TABLE service_environment_collection
+	ADD CONSTRAINT ak_service_environment_collection_id_name_type UNIQUE (service_environment_collection_id,service_environment_collection_name,service_environment_collection_type);
 
 ALTER TABLE service_environment_collection ADD COLUMN data_ins_user varchar(255);
 ALTER TABLE service_environment_collection ADD COLUMN data_ins_date TIMESTAMP WITH TIME ZONE;
@@ -8666,6 +8687,9 @@ ALTER TABLE service_version_artifact ADD COLUMN data_upd_date TIMESTAMP WITH TIM
 
 ALTER TABLE service_version_collection
 	ADD CONSTRAINT pk_service_version_collection PRIMARY KEY (service_version_collection_id);
+
+ALTER TABLE service_version_collection
+	ADD CONSTRAINT ak_service_version_collection_id_name_type UNIQUE (service_version_collection_id,service_version_collection_name,service_version_collection_type);
 
 ALTER TABLE service_version_collection ADD COLUMN data_ins_user varchar(255);
 ALTER TABLE service_version_collection ADD COLUMN data_ins_date TIMESTAMP WITH TIME ZONE;
@@ -9187,6 +9211,9 @@ ALTER TABLE token_collection
 
 ALTER TABLE token_collection
 	ADD CONSTRAINT uq_token_coll_name_type UNIQUE (token_collection_name,token_collection_type);
+
+ALTER TABLE token_collection
+	ADD CONSTRAINT ak_token_collection_id_name_type UNIQUE (token_collection_id,token_collection_name,token_collection_type);
 
 ALTER TABLE token_collection ADD COLUMN data_ins_user varchar(255);
 ALTER TABLE token_collection ADD COLUMN data_ins_date TIMESTAMP WITH TIME ZONE;
