@@ -86,7 +86,7 @@ BEGIN
 				);
 
 			IF v_netblock_id IS NULL THEN
-				RAISE EXCEPTION 'A single address (%) must be the child of a parent netblock, which must have can_subnet=N', NEW.ip_address
+				RAISE EXCEPTION 'Forced Hierarchy: A single address (%) must be the child of a parent netblock, which must have can_subnet=false', NEW.ip_address
 					USING ERRCODE = 'JH105';
 			END IF;
 
@@ -526,7 +526,7 @@ BEGIN
 			NEW.netblock_id;
 
 		IF realnew.is_single_address = true THEN
-			RAISE 'A single address (%) must be the child of a parent netblock, which must have can_subnet=N',
+			RAISE 'Validation: A single address (%) must be the child of a parent netblock, which must have can_subnet=false',
 				realnew.ip_address
 				USING ERRCODE = 'JH105';
 		END IF;
@@ -628,7 +628,7 @@ BEGIN
 				SELECT * INTO nbrec FROM netblock
 					WHERE netblock_id = realnew.parent_netblock_id;
 				IF (nbrec.can_subnet = true) THEN
-					RAISE 'Parent netblock % for single-address % must have can_subnet=N',
+					RAISE 'Parent netblock % for single-address % must have can_subnet=false',
 						nbrec.netblock_id,
 						realnew.ip_address
 						USING ERRCODE = 'JH10D';

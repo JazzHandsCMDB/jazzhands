@@ -106,7 +106,7 @@ BEGIN
 		SET service_namespace = 'default'
 		WHERE service_type = 'jhtype3'
 		RETURNING * INTO _r;
-		RAISE NOTICE 'success!';
+		RAISE  'success!' USING ERRCODE = 'JH999';
 	EXCEPTION WHEN SQLSTATE 'JH999' THEN
 		RAISE NOTICE '... It did (%)', SQLERRM;
 	END;
