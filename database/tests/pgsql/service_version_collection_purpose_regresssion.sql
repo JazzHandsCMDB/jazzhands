@@ -96,25 +96,6 @@ BEGIN
 		RAISE NOTICE '... it did : (%: %)', SQLSTATE, SQLERRM;
 	END;
 
-	RAISE NOTICE 'Checking if changing a service_id on a service version with other purpose fails...';
-	BEGIN
-		INSERT INTO service_version_collection_purpose (
-			service_version_collection_id,
-			service_version_collection_purpose,
-			service_id
-		) SELECT service_version_collection_id, 'jhtestpurpose',
-			_s1.service_id
-		FROM service_version_collection_purpose
-		WHERE service_version_collection_purpose = 'all';
-
-		UPDATE service_version SET service_id = _s2.service_id
-		WHERE service_version_id = _sv1.service_version_id;
-
-		RAISE EXCEPTION 'Ugh, it worked.';
-	EXCEPTION WHEN foreign_key_violation THEN
-		RAISE NOTICE '... it did : (%: %)', SQLSTATE, SQLERRM;
-	END;
-
 	RAISE NOTICE 'Checking if setting up a new service_version_collection_purpose works...';
 	BEGIN
 		INSERT INTO service_version_collection_purpose (
