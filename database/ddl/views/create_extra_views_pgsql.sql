@@ -67,8 +67,6 @@
 
 \ir pgsql/create_v_netblock_collection_expanded.sql
 
-\ir pgsql/create_v_application_role.sql
-
 \ir pgsql/create_v_company_hier.sql
 \ir create_site_netblock.sql
 \ir pgsql/create_v_site_netblock_expanded.sql
