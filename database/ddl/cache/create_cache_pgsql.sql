@@ -1,5 +1,5 @@
 
--- Copyright (c) 2018-2024, Todd Kover
+-- Copyright (c) 2018-2025, Todd Kover
 -- All rights reserved.
 --
 -- Licensed under the Apache License, Version 2.0 (the "License");
@@ -18,11 +18,6 @@
 \ir pgsql/create_ct_device_components.sql
 
 \ir pgsql/create_ct_netblock_hier.sql
-
---- These three are to be deleted once the "recurse" tables are deployed.
-\ir pgsql/create_ct_account_collection_hier_from_ancestor.sql
-\ir pgsql/create_ct_device_collection_hier_from_ancestor.sql
-\ir pgsql/create_ct_netblock_collection_hier_from_ancestor.sql
 
 \ir pgsql/create_ct_account_collection_hier_recurse.sql
 \ir pgsql/create_ct_device_collection_hier_recurse.sql

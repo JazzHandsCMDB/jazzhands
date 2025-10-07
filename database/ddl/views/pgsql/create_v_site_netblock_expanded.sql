@@ -1,4 +1,4 @@
--- Copyright (c) 2013-2019, Todd M. Kover
+-- Copyright (c) 2013-2025, Todd M. Kover
 -- All rights reserved.
 --
 -- Licensed under the Apache License, Version 2.0 (the "License");
@@ -38,7 +38,7 @@ CREATE OR REPLACE VIEW v_site_netblock_expanded AS
 				) as tier
 			FROM property p
 			JOIN netblock_collection nc USING (netblock_collection_id)
-			JOIN jazzhands_cache.ct_netblock_collection_hier_from_ancestor hc
+			JOIN jazzhands_cache.ct_netblock_collection_hier_recurse hc
 				USING (netblock_collection_id)
 			JOIN netblock_collection_netblock ncn
 				USING (netblock_collection_id)
@@ -65,7 +65,7 @@ UNION ALL
 						) as tier
 				FROM property p
 				JOIN netblock_collection nc USING (netblock_collection_id)
-				JOIN jazzhands_cache.ct_netblock_collection_hier_from_ancestor hc
+				JOIN jazzhands_cache.ct_netblock_collection_hier_recurse hc
 					USING (netblock_collection_id)
 				JOIN netblock_collection_netblock ncn
 					USING (netblock_collection_id)

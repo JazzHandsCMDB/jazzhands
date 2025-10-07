@@ -24,9 +24,6 @@ SAVEPOINT ct_device_tests;
 
 SELECT schema_support.reset_table_sequence('jazzhands','device_collection');
 
-ALTER TABLE device_collection DISABLE TRIGGER aaa_device_collection_base_handler;
-ALTER TABLE device_collection_hier DISABLE TRIGGER aaa_device_collection_root_handler;
-
 \ir ../../ddl/cache/pgsql/create_ct_device_collection_hier_recurse.sql
 
 CREATE VIEW jazzhands_legacy.same AS

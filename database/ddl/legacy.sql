@@ -2062,7 +2062,7 @@ from	var_recurse;
 
 CREATE OR REPLACE VIEW jazzhands_legacy.v_account_collection_hier_from_ancestor AS
 SELECT root_account_collection_id,account_collection_id,path,cycle
-FROM jazzhands.v_account_collection_hier_from_ancestor;
+FROM jazzhands_cache.ct_account_collection_hier_recurse;
 
 
 
@@ -2617,7 +2617,7 @@ FROM (
 
 CREATE OR REPLACE VIEW jazzhands_legacy.v_device_collection_hier_from_ancestor AS
 SELECT root_device_collection_id,device_collection_id,path,cycle
-FROM jazzhands.v_device_collection_hier_from_ancestor;
+FROM jazzhands_cache.ct_device_collection_hier_recurse;
 
 
 
@@ -3392,7 +3392,7 @@ FROM jazzhands.v_netblock_collection_expanded;
 
 CREATE OR REPLACE VIEW jazzhands_legacy.v_netblock_collection_hier_from_ancestor AS
 SELECT root_netblock_collection_id,netblock_collection_id,path,cycle
-FROM jazzhands.v_netblock_collection_hier_from_ancestor;
+FROM jazzhands_cache.ct_netblock_collection_hier_recurse;
 
 
 

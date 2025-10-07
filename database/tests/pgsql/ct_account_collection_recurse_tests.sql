@@ -24,9 +24,6 @@ SAVEPOINT ct_account_tests;
 
 SELECT schema_support.reset_table_sequence('jazzhands','account_collection');
 
-ALTER TABLE account_collection DISABLE TRIGGER aaa_account_collection_base_handler;
-ALTER TABLE account_collection_hier DISABLE TRIGGER aaa_account_collection_root_handler;
-
 \ir ../../ddl/cache/pgsql/create_ct_account_collection_hier_recurse.sql
 
 CREATE VIEW jazzhands_legacy.same AS
