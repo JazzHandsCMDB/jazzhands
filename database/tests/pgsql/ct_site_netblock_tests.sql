@@ -24,7 +24,6 @@
 SAVEPOINT ct_site_netblock_tests;
 
 -- \ir ../../ddl/cache/pgsql/create_ct_netblock_hier.sql
--- \ir ../../ddl/cache/pgsql/create_ct_netblock_collection_hier_from_ancestor.sql
 
 --
 -- basically legacy v_site_netblock_expanded view except excluding single
@@ -72,7 +71,7 @@ LEFT JOIN (
 			) as tier
 	FROM property p
 	JOIN netblock_collection nc USING (netblock_collection_id)
-	JOIN jazzhands_cache.ct_netblock_collection_hier_from_ancestor hc
+	JOIN jazzhands_cache.ct_netblock_collection_hier_recurse hc
 		USING (netblock_collection_id)
 	JOIN netblock_collection_netblock ncn
 		USING (netblock_collection_id)

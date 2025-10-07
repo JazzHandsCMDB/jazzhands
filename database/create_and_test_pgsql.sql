@@ -99,9 +99,6 @@ begin;
 
 \ir tests/pgsql/ct_netblock_tests.sql
 \ir tests/pgsql/ct_site_netblock_tests.sql
-\ir tests/pgsql/ct_account_collection_tests_ancestor.sql
-\ir tests/pgsql/ct_netblock_collection_tests_ancestor.sql
-\ir tests/pgsql/ct_device_collection_tests_ancestor.sql
 
 \ir tests/pgsql/ct_account_collection_recurse_tests.sql
 \ir tests/pgsql/ct_device_collection_recurse_tests.sql
