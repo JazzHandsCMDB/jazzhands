@@ -47,6 +47,7 @@
 
 		--background-rackit-even: #FFFF33;
 		--background-rackit-odd: #FFAA33;
+		--background-rackit-vertical: lightgray;
 
 		--icon-vendor-filter: brightness(1.0);
 
@@ -106,6 +107,7 @@
 
 		--background-rackit-even: #4a4834;
 		--background-rackit-odd: #433528;
+		--background-rackit-vertical: #555;
 
 		--icon-vendor-filter: brightness(1.0);
 
@@ -553,7 +555,7 @@ td.rackit_vertical {
 	width: 10px;
 	text-align: center;
 	border: 1px solid black;
-	background: lightgrey;
+	background: var(--background-rackit-vertical);
 }
 
 img.icon-vendor {
