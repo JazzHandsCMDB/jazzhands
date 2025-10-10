@@ -133,6 +133,8 @@ sub new {
 	$self->{_output_root} = $opt->{output_root};
 	$self->{_hostanddate} = $opt->{hostanddate};
 
+	$self->{_universes} = $opt->{universes};
+
 	$self->{_zoneroot}  = $self->{_output_root} . "/zones";
 	$self->{_cfgroot}   = $self->{_output_root} . "/etc";
 	$self->{_perserver} = $self->{_output_root} . "/perserver";
@@ -141,7 +143,7 @@ sub new {
 	$self->{_stats}->{gentimes} = {};
 	$self->{_stats}->{events}   = [];
 
-	$self->reconnect_db();
+	$self->reconnect_db( $opt->{wait_for_db} );
 
 	$self->record_event('start');
 
@@ -149,17 +151,26 @@ sub new {
 }
 
 sub reconnect_db {
-	my $self = shift @_;
+	my $self      = shift @_;
+	my $waitfordb = shift @_;
 
 	my $dbh = $self->DBHandle();
 	if ($dbh) {
-		$dbh->rollback;
+		$dbh->rollback if ( !$dbh->{AutoCommit} );
 		$dbh->disconnect;
 		$dbh = undef;
 	}
 
-	$dbh = JazzHands::DBI->connect( $self->{_dbuser},
-		{ AutoCommit => 0, RaiseError => 1 } );
+	do {
+		$dbh = JazzHands::DBI->connect( $self->{_dbuser},
+			{ AutoCommit => 0, RaiseError => 1 } );
+
+		if ( !$dbh && $waitfordb ) {
+			sleep(30);
+		}
+
+	} while ( !$dbh && $waitfordb );
+
 	if ( !$dbh ) {
 		$errstr =
 		  "Unable to connect to $self->{_dbuser}: " . $JazzHands::DBI::errstr;
@@ -837,9 +848,16 @@ sub compare_zones($$$) {
 
 	my ( $z1, $z2 );
 
+	my $s1;
+	my $s2;
+
 	if ( my $p = Net::DNS::ZoneFile->new($f1) ) {
 		my @z;
 		while ( my $rr = $p->read ) {
+			if ( $rr->type eq 'SOA' ) {
+				$s1 = $rr->serial;
+				$rr->serial(1);
+			}
 			push( @z, $rr->string );
 		}
 		$z1 = join( "\n", sort @z );
@@ -851,6 +869,10 @@ sub compare_zones($$$) {
 	if ( my $p = Net::DNS::ZoneFile->new($f2) ) {
 		my @z;
 		while ( my $rr = $p->read ) {
+			if ( $rr->type eq 'SOA' ) {
+				$s2 = $rr->serial;
+				$rr->serial(1);
+			}
 			push( @z, $rr->string );
 		}
 		$z2 = join( "\n", sort @z );
@@ -858,8 +880,11 @@ sub compare_zones($$$) {
 		return 0;
 	}
 
+	if ( $s1 ne $s2 ) {
+		return 1;
+	}
+
 	if ( $z1 ne $z2 ) {
-		warn "$f1 and $f2 do not match, returning";
 		return 1;
 	}
 	return 0;
@@ -956,6 +981,7 @@ sub process_domain {
 		unlink($fn);
 		rename( $tmpfn, $fn );
 	} else {
+		$self->_Debug( 2, "$domain in $uname unchanged\n" );
 
 		# zone not actually regenerated, return 0.
 		unlink($tmpfn);
@@ -992,7 +1018,7 @@ sub generate_complete_files {
 		UNION
 
 		SELECT	DISTINCT
-				CASE WHEN property_name = 'Secondary-All'
+				CASE WHEN property_name = 'Secondary-Visible-Universes'
 					THEN vipu.ip_universe_name
 					ELSE ipu.ip_universe_name END AS ip_universe_name,
 				dns_domain_name,
@@ -1043,6 +1069,9 @@ sub generate_complete_files {
 	my $outdir = $self->{_output_root};
 
 	while ( my ( $univ, $zone, $origin, $ips ) = $sth->fetchrow_array ) {
+		if ( $self->{_universes} ) {
+			next if !grep( $univ eq $_, @{ $self->{_universes} } );
+		}
 		if ( !$cfgf || $univ ne $lastu ) {
 			$lastu = $univ;
 			if ($cfgf) {
@@ -1603,18 +1632,11 @@ sub generate_all_zones {
 		my $dbh = $self->DBHandle();
 		my $sth = $dbh->prepare_cached(
 			qq{
-		WITH uv AS (
-			SELECT ip_universe_Id,visible_ip_universe_id
-				FROM ip_universe_visibility WHERE propagate_dns = 'Y'
-			UNION
-			SELECT ip_universe_id, ip_universe_id FROM ip_universe
-		) SELECT  dns_domain_id, u.ip_universe_id, ip_universe_name,
+		SELECT  dns_domain_id, u.ip_universe_id, ip_universe_name,
 				should_generate, last_generated, soa_name,
 				extract(epoch from last_generated) as epoch_gen
 		FROM ip_universe u
-			JOIN uv USING (ip_universe_id)
-			JOIN dns_domain_ip_universe du ON
-				du.ip_universe_id = uv.visible_ip_universe_id
+			JOIN dns_domain_ip_universe du USING (ip_universe_id)
 			JOIN dns_domain d USING (dns_domain_id)
 		WHERE u.should_generate_dns = 'Y'
 		ORDER BY soa_name, ip_universe_id
@@ -1626,6 +1648,10 @@ sub generate_all_zones {
 			my $dom = $hr->{ _dbx('SOA_NAME') };
 
 			my $univ = $hr->{ _dbx('IP_UNIVERSE_NAME') };
+
+			if ( $self->{_universes} ) {
+				next if !grep( $univ eq $_, @{ $self->{_universes} } );
+			}
 
 			#
 			# --genall overrides SHOULD_GENERATE in the db
@@ -1902,6 +1928,7 @@ my $pgnotify    = "dns_domain_ip_universe_serial_change";
 my @statsfn;
 my $looptimeout = 300;
 my $rndc        = 0;
+my @universes;
 my $view;
 
 my $mysite;
@@ -1910,7 +1937,7 @@ my $script_start = time();
 
 GetOptions(
 	'aggressive-lock' => \$agg,         # aggressively lock db
-	'debug'           => \$debug,       # even more verbosity.
+	'debug+'          => \$debug,       # even more verbosity.
 	'dumpzone'        => \$dumpzone,    # dump a zone to stdout
 	'pgnotify=s'      => \$pgnotify,    # if looping, what pgnotify to listen to
 	'forcegen|g'      => \$forcegen,    # force generation of zones
@@ -1926,6 +1953,7 @@ GetOptions(
 	'random-sleep=i'  => \$sleep,       # how long to sleep up unto;
 	'site=s'          => \$mysite,      # indicate what local machines site
 	'stats-filename=s' => \@statsfn,    # file to optionally save statistics
+	'limit-universe=s' => \@universes,  # only generate these universes
 	'verbose|v'        => \$verbose,    # duh.
 	'rndc!'            => \$rndc,       # run rndc to reload zones
 	'view=s'           => \$view,       # assumes server only serves _THIS_ view
@@ -1969,8 +1997,12 @@ if ($sleep) {
 
 my $zg = new JazzHands::ZoneGeneration(
 	output_root => $output_root,
-	hotanddate  => $hostanddate,
+	hostanddate => $hostanddate,
+	wait_for_db => $loop,
+	universes   => \@universes,
 ) || die $JazzHands::ZoneGeneration::errstr;
+
+$zg->SetDebug($debug);
 
 if ($dumpzone) {
 	my $domain = shift @ARGV;
@@ -1988,7 +2020,6 @@ if ($loop) {
 }
 
 my $json = new JSON;
-
 my $iter = 0;
 
 do {
@@ -2037,6 +2068,7 @@ do {
 
 		# warn Dumper($r);
 		if ($r) {
+
 			# XXX only run if config changed, which needs ot be thought
 			# through in a future version
 			system("rndc reconfig");
@@ -2053,7 +2085,7 @@ do {
 
 	if ( $sock && ( !$dbh->ping() || time() - $lastcheck > 21600 ) ) {
 		$sock->remove($pgsock);
-		$dbh    = $zg->reconnect_db();
+		$dbh    = $zg->reconnect_db($loop);
 		$pgsock = $dbh->{pg_socket};
 
 		$sock->add( $dbh->{pg_socket} );
