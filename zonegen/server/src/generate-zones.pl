@@ -1069,7 +1069,7 @@ sub generate_complete_files {
 	my $outdir = $self->{_output_root};
 
 	while ( my ( $univ, $zone, $origin, $ips ) = $sth->fetchrow_array ) {
-		if ( $self->{_universes} ) {
+		if ( scalar @{$self->{_universes}} > 0 ) {
 			next if !grep( $univ eq $_, @{ $self->{_universes} } );
 		}
 		if ( !$cfgf || $univ ne $lastu ) {
@@ -1407,7 +1407,7 @@ sub safe_mv_if_changed($$;$) {
 	if ( !-f $final ) {
 		rename( $new, $final );
 	} elsif ( -r $final && ( $allowzero || -s $new ) ) {
-		my $cmd = qq{diff -w -i -I '^\\s*//' "$new" "$final"};
+		my $cmd = qq{diff -w -i -I '^[:space:]*//' "$new" "$final"};
 		system("$cmd > /dev/null");
 		if ( $? >> 8 ) {
 			my $oldfn = "$final.old";
@@ -1649,7 +1649,7 @@ sub generate_all_zones {
 
 			my $univ = $hr->{ _dbx('IP_UNIVERSE_NAME') };
 
-			if ( $self->{_universes} ) {
+			if ( scalar @{$self->{_universes}} > 0 ) {
 				next if !grep( $univ eq $_, @{ $self->{_universes} } );
 			}
 
