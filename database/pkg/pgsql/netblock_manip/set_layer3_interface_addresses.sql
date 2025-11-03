@@ -150,7 +150,7 @@ BEGIN
 		addrs_ary := ip_address_hash->'ip_addresses';
 		c := jsonb_array_length(addrs_ary);
 		i := 0;
-		nb_id_ary := NULL;
+		nb_id_ary := ARRAY[]::integer[];
 		WHILE (i < c) LOOP
 			IF jsonb_typeof(addrs_ary->i) = 'string' THEN
 				--
@@ -625,7 +625,7 @@ BEGIN
 		addrs_ary := ip_address_hash->'shared_ip_addresses';
 		c := jsonb_array_length(addrs_ary);
 		i := 0;
-		nb_id_ary := NULL;
+		nb_id_ary := ARRAY[]::integer[];
 		WHILE (i < c) LOOP
 			IF jsonb_typeof(addrs_ary->i) = 'string' THEN
 				--
@@ -946,6 +946,7 @@ BEGIN
 			IF FOUND THEN
 				IF
 					sn_rec.shared_netblock_protocol != protocol AND
+					protocol != 'unspecified' AND
 					address_errors = 'error'
 				THEN
 					RAISE 'Netblock % (%) is assigned to shared_network %, but the shared_network_protocol does not match (% vs. %)',

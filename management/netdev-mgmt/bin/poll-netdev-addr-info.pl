@@ -47,7 +47,8 @@ my $address_errors = 'error';
 my $probe_ip = 1;
 my $notreally = 0;
 my $shared_loopbacks = 0;
-my $purge_int = 1;
+my $purge_empty = 1;
+my $purge_down = 0;
 my $password;
 my $bgpstate = 'up';
 my $hostname = [];
@@ -59,7 +60,7 @@ sub loggit {
 	print "\n";
 }
 
-GetOptions(
+if (!(GetOptions(
 	'username=s', \$user,
 	'timeout=i', \$timeout,
 	'commit!', \$commit,
@@ -72,10 +73,13 @@ GetOptions(
 	'debug+', \$debug,
 	'probe-lldp!', \$probe_lldp,
 	'probe-ip!', \$probe_ip,
-	'purge-empty-interfaces!', \$purge_int,
+	'purge-empty-interfaces!', \$purge_empty,
+	'purge-down-interfaces!', \$purge_down,
 	'notreally!', \$notreally,
 	'shared-loopbacks!', \$shared_loopbacks,
-);
+))) {
+	exit 1;
+};
 
 #
 # Add the rest of the arguments as additional hosts
@@ -344,9 +348,10 @@ foreach my $host (@$hostname) {
 		$getedsth->finish;
 
 		if (!($info = $device->GetExtendedIPAddressInformation(
-			debug			=> $debug,
-			errors 			=> \@errors,
-			timeout			=> $timeout,
+			debug					=> $debug,
+			errors 					=> \@errors,
+			timeout					=> $timeout,
+			removedowninterfaces	=> $purge_down
 		))) {
 			printf STDERR "Error getting address information on switch %s: %s\n",
 				$host,
@@ -418,7 +423,7 @@ foreach my $host (@$hostname) {
 				}
 			}
 
-			my $json = JSON::XS->new->utf8->encode({
+			my $json = JSON::XS->new->utf8->pretty(1)->encode({
 					ip_addresses =>
 						(!$interface->{loopback_interface} ||
 							!$shared_loopbacks) ?
@@ -510,7 +515,7 @@ foreach my $host (@$hostname) {
 			}
 		}
 		if (%$dev_int || @$unnamed_int) {
-			if ($purge_int) {
+			if ($purge_empty) {
 				if ($verbose) {
 					printf "    Removing layer3 interfaces: %s\n",
 						(join ", ", keys %$dev_int);

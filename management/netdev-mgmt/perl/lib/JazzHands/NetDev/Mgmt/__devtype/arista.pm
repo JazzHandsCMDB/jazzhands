@@ -1240,6 +1240,8 @@ sub GetIPAddressInformation {
 
 	foreach my $iface (values %$ipv4ifaces) {
 		next if ($iface->{interfaceStatus} eq 'disabled');
+		next if ($iface->{interfaceStatus} eq 'notconnect' &&
+			$opt->{removedowninterfaces});
 		next if (!$iface->{interfaceAddress}->{primaryIp}->{maskLen});
 		$ifaceinfo->{$iface->{name}}->{ipv4} =
 			[
@@ -1252,6 +1254,8 @@ sub GetIPAddressInformation {
 
 	foreach my $iface (values %$ipv6ifaces) {
 		next if ($iface->{interfaceStatus} eq 'disabled');
+		next if ($iface->{interfaceStatus} eq 'notconnect' &&
+			$opt->{removedowninterfaces});
 		if (!exists($ifaceinfo->{$iface->{name}})) {
 			$ifaceinfo->{$iface->{name}} = {};
 		}
