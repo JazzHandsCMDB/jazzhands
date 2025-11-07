@@ -65,11 +65,11 @@
 \ir token_utils.sql
 -- \ir time_util.sql
 -- \ir dns_gen_utils.sql
-\ir device_manip.sql
+\ir device_manip/device_manip.sql
 \ir device_utils.sql
 \ir netblock_utils.sql
 \ir property_utils.sql
-\ir netblock_manip.sql
+\ir netblock_manip/netblock_manip.sql
 -- \ir key_crypto.sql
 -- \ir dbms_job_util.sql
 -- \ir appgroup_util.sql

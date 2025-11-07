@@ -8,7 +8,7 @@ use	XML::DOM;
 use JazzHands::Common::Util qw(_options);
 use JazzHands::Common::Error qw(:all);
 use NetAddr::IP qw(:lower);
-use Net::MAC qw(:lower);
+use Net::MAC ; #qw(:lower);
 use JazzHands::NetDev::Mgmt::Common qw(:all);
 
 #

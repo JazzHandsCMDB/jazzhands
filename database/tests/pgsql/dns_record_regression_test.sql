@@ -21,8 +21,8 @@
 \t on
 
 -- tests this:
--- \ir ../../ddl/schema/pgsql/create_netblock_triggers.sql
--- \ir ../../pkg/pgsql/netblock_utils.sql
+\ir ../../pkg/pgsql/netblock_utils.sql
+\ir ../../ddl/schema/pgsql/create_netblock_triggers.sql
 \ir ../../ddl/schema/pgsql/create_dns_triggers.sql
 
 
@@ -745,7 +745,8 @@ BEGIN
 		) RETURNING * INTO _dnsrec2;
 
 		BEGIN
-			UPDATE netblock set ip_address = '2001:DB8:f00d::1'
+			UPDATE netblock set ip_address = '2001:DB8:f00d::1',
+				ip_universe_id = 0
 				WHERE netblock_id = _ip1id;
 		EXCEPTION WHEN SQLSTATE 'JH200' THEN
 			RAISE EXCEPTION 'worked' USING ERRCODE = 'JH999';
@@ -767,8 +768,9 @@ BEGIN
 		) RETURNING * INTO _dnsrec1;
 
 		BEGIN
-			UPDATE dns_record set dns_type = 'AAAA' WHERE
-				dns_record_id = _dnsrec1.dns_record_id;
+			UPDATE dns_record set dns_type = 'AAAA',
+				ip_universe_id = 0
+				WHERE dns_record_id = _dnsrec1.dns_record_id;
 		EXCEPTION WHEN SQLSTATE 'JH200' THEN
 			RAISE EXCEPTION 'worked' USING ERRCODE = 'JH999';
 		END;
@@ -786,8 +788,9 @@ BEGIN
 		) RETURNING * INTO _dnsrec1;
 
 		BEGIN
-			UPDATE dns_record set dns_type = 'A' WHERE
-				dns_record_id = _dnsrec1.dns_record_id;
+			UPDATE dns_record set dns_type = 'A',
+				ip_universe_id = 0
+				WHERE dns_record_id = _dnsrec1.dns_record_id;
 		EXCEPTION WHEN SQLSTATE 'JH200' THEN
 			RAISE EXCEPTION 'worked' USING ERRCODE = 'JH999';
 		END;

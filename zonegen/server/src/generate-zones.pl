@@ -2075,7 +2075,11 @@ do {
 			foreach my $univ ( keys( %{$r} ) ) {
 				next if ( $view && $univ ne $view );
 				my $extra = "";
-				$extra = "IN $univ" if ( !$view );
+				# The way views and universes is done liekly needs to be
+				# thought out after running this in anger.
+				if(!scalar @universes} && !$view) {
+					$extra = "IN $univ";
+				}
 				foreach my $zone ( @{ $r->{$univ} } ) {
 					system("rndc reload $zone $extra");
 				}
