@@ -121,7 +121,8 @@ sub new {
 	my $self = $class->SUPER::new(@_);
 	return undef if ( !$self );
 
-	$self->{_dbuser} = $opt->{dbuser} || 'zonegen';
+	$self->{_binduser} = $opt->{binduser} if ( exists( $opt->{binduser} ) );
+	$self->{_dbuser}   = $opt->{dbuser} || 'zonegen';
 
 	$self->{_debug} = defined( $opt->{debug} ) ? $opt->{debug} : 0;
 
@@ -537,7 +538,7 @@ sub generate_named_acl_file($$$) {
 			qq{
 		SELECT	p.property_value AS acl_name, nb.ip_address, nb.description
 		FROM	v_nblk_coll_netblock_expanded nbe
-				INNER JOIN property p USING (netblock_collection_id)
+				INNER JOIN v_property p USING (netblock_collection_id)
 				INNER JOIN netblock nb USING (netblock_id)
 		WHERE property_name = 'DNSACLs' and property_type = 'DNSZonegen'
 		ORDER BY 1,2;
@@ -1024,7 +1025,7 @@ sub generate_complete_files {
 				dns_domain_name,
 				'slave'::TEXT as origin,
 				ip_addresses
-		  FROM	property p
+		  FROM	v_property p
 				JOIN dns_domain_collection USING (dns_domain_collection_id)
 				JOIN dns_domain_collection_dns_dom
 					USING (dns_domain_collection_id)
@@ -1069,7 +1070,7 @@ sub generate_complete_files {
 	my $outdir = $self->{_output_root};
 
 	while ( my ( $univ, $zone, $origin, $ips ) = $sth->fetchrow_array ) {
-		if ( scalar @{$self->{_universes}} > 0 ) {
+		if ( scalar @{ $self->{_universes} } > 0 ) {
 			next if !grep( $univ eq $_, @{ $self->{_universes} } );
 		}
 		if ( !$cfgf || $univ ne $lastu ) {
@@ -1107,6 +1108,11 @@ sub generate_complete_files {
 		} elsif ( $origin eq 'slave' ) {
 			my $path = "secondary/$univ";
 			$self->mkdir_p("$outdir/$path");
+			if ( $< == 0 && exists( $self->{_binduser} ) ) {
+				my ( $uid, $gid ) = ( getpwnam( $self->{_binduser} ) )[ 2, 3 ];
+				my $x = chown( $uid, $gid, "$outdir/$path" );
+
+			}
 			my $str = qq{
 					zone "$zone" {
 						type slave;
@@ -1649,7 +1655,7 @@ sub generate_all_zones {
 
 			my $univ = $hr->{ _dbx('IP_UNIVERSE_NAME') };
 
-			if ( scalar @{$self->{_universes}} > 0 ) {
+			if ( scalar @{ $self->{_universes} } > 0 ) {
 				next if !grep( $univ eq $_, @{ $self->{_universes} } );
 			}
 
@@ -1930,6 +1936,7 @@ my $looptimeout = 300;
 my $rndc        = 0;
 my @universes;
 my $view;
+my $binduser;
 
 my $mysite;
 
@@ -1957,9 +1964,10 @@ GetOptions(
 	'verbose|v'        => \$verbose,    # duh.
 	'rndc!'            => \$rndc,       # run rndc to reload zones
 	'view=s'           => \$view,       # assumes server only serves _THIS_ view
-	'perserver!'       => \$perserver,  # generate perserver links
-	'wait!'            => \$wait,       # wait on lock in db
-	'loop!' => \$loop,    # loop waiting on pgnotifies and period wake up
+	'bind-user=s' => \$binduser,     # user bind runs as to chown secondary dir
+	'perserver!'  => \$perserver,    # generate perserver links
+	'wait!'       => \$wait,         # wait on lock in db
+	'loop!'       => \$loop,    # loop waiting on pgnotifies and period wake up
 ) || die pod2usage( -verbose => 1 );
 
 $verbose = 1 if ($debug);
@@ -2000,6 +2008,7 @@ my $zg = new JazzHands::ZoneGeneration(
 	hostanddate => $hostanddate,
 	wait_for_db => $loop,
 	universes   => \@universes,
+	binduser    => $binduser,
 ) || die $JazzHands::ZoneGeneration::errstr;
 
 $zg->SetDebug($debug);
@@ -2075,9 +2084,10 @@ do {
 			foreach my $univ ( keys( %{$r} ) ) {
 				next if ( $view && $univ ne $view );
 				my $extra = "";
+
 				# The way views and universes is done liekly needs to be
 				# thought out after running this in anger.
-				if(!scalar @universes} && !$view) {
+				if ( !scalar @universes && !$view ) {
 					$extra = "IN $univ";
 				}
 				foreach my $zone ( @{ $r->{$univ} } ) {
