@@ -31,6 +31,13 @@ GRANT UPDATE ON jazzhands_legacy.dns_domain_ip_universe TO app_zonegen;
 GRANT DELETE ON jazzhands_legacy.dns_change_record TO app_zonegen;
 
 
-grant usage on schema dns_utils to app_zonegen;
-grant execute on function dns_utils.v6_inaddr(inet) to app_zonegen;
-grant usage on schema script_hooks to app_zonegen;
+GRANT USAGE ON schema dns_utils TO app_zonegen;
+GRANT EXECUTE ON function dns_utils.v6_inaddr(inet) TO app_zonegen;
+GRANT USAGE ON schema script_hooks TO app_zonegen;
+
+GRANT SELECT,UPDATE,DELETE ON jazzhands_legacy.dns_change_record TO app_zonegen;
+GRANT EXECUTE ON FUNCTION dns_utils.get_domain_from_cidr(block inet) TO
+        app_zonegen;
+GRANT USAGE ON schema net_manip TO app_zonegen;
+
+alter FUNCTION dns_utils.get_domain_from_cidr(block inet) security definer;
