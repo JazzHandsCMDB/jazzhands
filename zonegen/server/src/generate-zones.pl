@@ -1110,7 +1110,9 @@ sub generate_complete_files {
 			$self->mkdir_p("$outdir/$path");
 			if ( $< == 0 && exists( $self->{_binduser} ) ) {
 				my ( $uid, $gid ) = ( getpwnam( $self->{_binduser} ) )[ 2, 3 ];
-				my $x = chown( $uid, $gid, "$outdir/$path" );
+				if(defined($uid) && defined($gid)) {
+					chown( $uid, $gid, "$outdir/$path" );
+				}
 
 			}
 			my $str = qq{
