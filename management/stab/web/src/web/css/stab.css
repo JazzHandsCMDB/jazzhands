@@ -52,14 +52,12 @@
 		--icon-vendor-filter: brightness(1.0);
 
 		--color-autocomplete-suggestion: #333;
-		--color-autocomplete-suggestion-strong: #0072e5;
-		--background-color-autocomplete-suggestion-selected: rgb(255, 255, 0);
+	--color-autocomplete-suggestion-strong: #0072e5;
+	--background-color-autocomplete-suggestion-selected: rgb(255, 255, 0);
 
-		--color-note-message: green;
+	--color-note-message: green;
   }
-}
-
-/* Dark theme styling variables */
+}/* Dark theme styling variables */
 @media (prefers-color-scheme: dark) {
   :root {
 		--foreground-color: #ccc;
@@ -111,15 +109,13 @@
 
 		--icon-vendor-filter: brightness(1.0);
 
-		--color-autocomplete-suggestion: #fff;
-		--color-autocomplete-suggestion-strong: #fff;
-		--background-color-autocomplete-suggestion-selected: rgb(126, 126, 0);
+	--color-autocomplete-suggestion: #fff;
+	--color-autocomplete-suggestion-strong: #fff;
+	--background-color-autocomplete-suggestion-selected: rgb(126, 126, 0);
 
-		--color-note-message: #0e0;
+	--color-note-message: #0e0;
   }
-}
-
-/* Default styling variables for both dark and light themes */
+}/* Default styling variables for both dark and light themes */
 :root {
   color: var( --foreground-color );
   background-color: var( --background-color );
@@ -687,12 +683,190 @@ ul.collection {
 	list-style-type: lower-roman;		/* should be none */
 }
 
-span.netblocksite {
-	min-width: 8ex;
+/* Netblock wrapper with border */
+div.netblock-wrapper {
+	margin: 1em auto;
+	width: fit-content;
+	border: var(--border);
 }
 
-span.netblocklink {
-	min-width: 30ex;
+/* Netblock search box */
+div.netblock-search-box {
+	margin: 1em auto;
+	width: fit-content;
+	border: 3px double var(--foreground-color);
+	padding: 1em;
+	text-align: center;
+}
+
+div.netblock-search-box div {
+	margin: 0.5em 0;
+}
+
+/* Netblock list container */
+div.netblock-list {
+	display: grid;
+	grid-template-columns: max-content max-content max-content;
+	gap: 0;
+	align-items: stretch;
+	width: fit-content;
+}
+
+/* Header row */
+div.netblock-header {
+	display: contents;
+}
+
+div.netblock-header span {
+	display: block;
+	font-weight: bold;
+	text-align: left;
+	padding: 0.5em 1em;
+	background-color: var(--background-color-tabgrouptab);
+	border-bottom: 2px solid var(--border-color-tab);
+}
+
+div.netblock-header span.netblocksite,
+div.netblock-header span.netblocklink {
+	border-right: var(--border);
+}
+
+/* Individual netblock row */
+div.netblock-row {
+	display: contents;
+}
+
+/* Netblock columns */
+div.netblock-row span.netblocksite {
+	display: block;
+	text-align: left;
+	padding: 0.25em 1em 0.25em 0.5em;
+	border-right: var(--border);
+	min-height: 1.5em;
+}
+
+div.netblock-row span.netblocklink {
+	display: block;
+	text-align: left;
+	padding: 0.25em 1em;
+	border-right: var(--border);
+	min-height: 1.5em;
+}
+
+div.netblock-row span.netblockdesc {
+	display: block;
+	text-align: left;
+	padding: 0.25em 0.5em 0.25em 1em;
+	min-height: 1.5em;
+}
+
+/* Alternating row backgrounds */
+div.netblock-row:nth-child(odd) span {
+	background-color: var(--background-color);
+	filter: brightness(0.6);
+}
+
+div.netblock-row:nth-child(even) span {
+	background-color: var(--background-color);
+}
+
+/* Modal styles for netblock add dialog */
+.netblock-modal {
+	display: none;
+	position: fixed;
+	z-index: 1000;
+	left: 0;
+	top: 0;
+	width: 100%;
+	height: 100%;
+	overflow: auto;
+	background-color: rgba(0, 0, 0, 0.5);
+}
+
+.netblock-modal-content {
+	background-color: var(--background-color);
+	color: var(--foreground-color);
+	margin: 10% auto;
+	padding: 2em;
+	border: var(--border);
+	width: 50%;
+	max-width: 500px;
+	border-radius: 5px;
+	box-shadow: 0 4px 6px rgba(0, 0, 0, 0.3);
+}
+
+.netblock-modal-close {
+	color: var(--foreground-color);
+	float: right;
+	font-size: 28px;
+	font-weight: bold;
+	cursor: pointer;
+	line-height: 20px;
+}
+
+.netblock-modal-close:hover,
+.netblock-modal-close:focus {
+	color: var(--color-error);
+}
+
+.netblock-modal-content h2 {
+	margin-top: 0;
+	text-align: center;
+}
+
+.netblock-form-field {
+	margin: 1em 0;
+}
+
+.netblock-form-field label {
+	display: inline-block;
+	width: 120px;
+	font-weight: bold;
+}
+
+.netblock-form-field input[type="text"] {
+	padding: 0.5em;
+	background-color: var(--background-color-input);
+	color: var(--foreground-color-input);
+	border: var(--table-input-border);
+}
+
+.netblock-form-field input#ip {
+	width: 150px;
+}
+
+.netblock-form-field input#bits {
+	width: 40px;
+}
+
+.netblock-form-field input#description {
+	width: 250px;
+}
+
+.netblock-form-buttons {
+	margin-top: 1.5em;
+	text-align: center;
+}
+
+.netblock-form-buttons button {
+	padding: 0.5em 1.5em;
+	margin: 0 0.5em;
+	cursor: pointer;
+	background-color: var(--background-color-input);
+	color: var(--foreground-color-input);
+	border: var(--border);
+	border-radius: 3px;
+}
+
+.netblock-form-buttons button:hover {
+	filter: var(--button-filter-hover);
+}
+
+.netblock-error-message {
+	color: var(--color-error);
+	margin-top: 1em;
+	text-align: center;
+	font-weight: bold;
 }
 
 #SOA_MNAME, #SOA_RNAME {

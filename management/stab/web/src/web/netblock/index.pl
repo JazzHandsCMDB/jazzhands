@@ -1,6 +1,6 @@
 #!/usr/bin/env perl
 #
-# Copyright (c) 2010-2018 Todd M. Kover
+# Copyright (c) 2010-2025 Todd M. Kover
 # All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
@@ -125,8 +125,39 @@ sub dump_toplevel {
 	);
 	print netblock_search_box($stab);
 
-	print "Please select a block to drill down into, or "
-	  . $cgi->a( { -href => "write/addnetblock.pl" }, "[Add a Netblock]" );
+	print $cgi->div(
+		{ -align => 'center' },
+		"Please select a block to drill down into, or "
+		  . $cgi->a( { -href => "#", -onclick => "openAddNetblockModal(); return false;" }, "[Add a Netblock]" )
+	);
+
+	# Add modal dialog HTML
+	print qq{
+<div id="addNetblockModal" class="netblock-modal">
+	<div class="netblock-modal-content">
+		<span class="netblock-modal-close" onclick="closeAddNetblockModal()">&times;</span>
+		<h2>Add a Netblock</h2>
+		<form id="addNetblockForm" onsubmit="submitAddNetblock(); return false;">
+			<input type="hidden" name="parentnblkid" id="parentnblkid" value="" />
+			<div class="netblock-form-field">
+				<label for="ip">IP/Bits:</label>
+				<input type="text" name="ip" id="ip" size="15" />
+				<span>/</span>
+				<input type="text" name="bits" id="bits" size="2" />
+			</div>
+			<div class="netblock-form-field">
+				<label for="description">Description:</label>
+				<input type="text" name="description" id="description" />
+			</div>
+			<div class="netblock-form-buttons">
+				<button type="submit">Submit</button>
+				<button type="button" onclick="closeAddNetblockModal()">Cancel</button>
+			</div>
+			<div id="addNetblockError" class="netblock-error-message"></div>
+		</form>
+	</div>
+</div>
+};
 
 	my $q = qq{
 		SELECT
@@ -146,31 +177,38 @@ sub dump_toplevel {
 	my $sth = $stab->prepare($q) || $stab->return_db_err($dbh);
 	$sth->execute                || $stab->return_db_err($sth);
 
-	print "<ul>\n";
+	print qq{<div class="netblock-wrapper">\n};
+	print qq{<div class="netblock-list">\n};
+	print qq{	<div class="netblock-header">\n};
+	print qq{		<span class="netblocklink">Network</span>\n};
+	print qq{		<span class="netblockdesc">Description</span>\n};
+	print qq{		<span class="netblocksite">Site</span>\n};
+	print qq{	</div>\n};
 	while ( my ( $ip, $id, $stat, $desc, $site ) = $sth->fetchrow_array ) {
 		next if ( defined($site) && !defined($showsite) );
 		my $url = make_url( $stab, $id );
-		if ( !defined($site) ) {
-			$site = "-";
+
+		my $site_content = "";
+		if ( defined($site) ) {
+			$site_content =
+			  $cgi->a( { -href => "../sites/?sitecode=$site" }, $site );
 		}
 
-		print "\t"
-		  . $cgi->li( join(
-			" ",
-			$cgi->span( { -class => 'netblocksite' }, $site ),
-			$cgi->span(
-				{ -class => 'netblocklink' },
-				"- ",
-				$cgi->a( { -href => $url }, "$ip" )
-			),
-			$cgi->span(
-				{ -class => 'netblockdesc' },
-				"- " . ( ($desc) ? $desc : "" )
-			),
-			"\n"
-		  ) );
+		print "\t<div class=\"netblock-row\">\n";
+		print "\t\t"
+		  . $cgi->span(
+			{ -class => 'netblocklink' },
+			$cgi->a( { -href => $url }, "$ip" )
+		  ) . "\n";
+		print "\t\t"
+		  . $cgi->span( { -class => 'netblockdesc' }, ( ($desc) ? $desc : "" ) )
+		  . "\n";
+		print "\t\t"
+		  . $cgi->span( { -class => 'netblocksite' }, $site_content ) . "\n";
+		print "\t</div>\n";
 	}
-	print "</ul>\n";
+	print "</div>\n";
+	print "</div>\n";
 	$sth->finish;
 
 	print $cgi->end_html, "\n";
@@ -362,23 +400,23 @@ sub get_netblock_link_header {
 	if ( ( my $hassingles = num_kids( $stab, $nblkid, 'Y' ) ) == 0 ) {
 		$ops = " - "
 		  . $cgi->a(
-			{ -href => "write/addnetblock.pl?id=$nblkid" },
+			{ -href => "#", -onclick => "openAddNetblockModal(); return false;" },
 			$cgi->img( {
 				-class => 'subnet',
 				-src   => "../stabcons/Axe_001.svg",
 				-alt   => "[Subnet]",
 				-title => "Subnet Network"
 			} )
-		  )
-		  . $cgi->a( {
-				-href  => "write/rmnetblock.pl?id=$nblkid",
-				-class => 'rmnetblock'
-			},
-			''
-		  );
-	}
-
-	my $name = "NETBLOCK_DESCRIPTION_$nblkid";
+	  )
+	  . $cgi->a( {
+			-href  => "#",
+			-class => 'rmnetblock',
+			'data-nblkid' => $nblkid,
+			'data-block' => $blk
+		},
+		''
+	  );
+}	my $name = "NETBLOCK_DESCRIPTION_$nblkid";
 
 	# We need to escape any html code here, otherwise
 	# html / javascript code would be interpreted (code injection).
@@ -419,9 +457,9 @@ sub get_netblock_link_header {
 			$cgi->a( { -href => $url }, $blk )
 		  )
 		  . "-"
-		  . $displaysite
 		  . $cgi->span( { -class => 'netblockdesc' }, ( $descr || "" ) )
 		  . $ops
+		  . $displaysite
 	);
 }
 
@@ -543,7 +581,36 @@ sub do_dump_netblock {
 	} );
 	print netblock_search_box($stab);
 
-	print $cgi->p( qq{
+	# Add modal dialog HTML
+	print qq{
+<div id="addNetblockModal" class="netblock-modal">
+	<div class="netblock-modal-content">
+		<span class="netblock-modal-close" onclick="closeAddNetblockModal()">&times;</span>
+		<h2>Add a Netblock</h2>
+		<form id="addNetblockForm" onsubmit="submitAddNetblock(); return false;">
+			<input type="hidden" name="parentnblkid" id="parentnblkid" value="" />
+			<div class="netblock-form-field">
+				<label for="ip">IP/Bits:</label>
+				<input type="text" name="ip" id="ip" size="15" />
+				<span>/</span>
+				<input type="text" name="bits" id="bits" size="2" />
+			</div>
+			<div class="netblock-form-field">
+				<label for="description">Description:</label>
+				<input type="text" name="description" id="description" />
+			</div>
+			<div class="netblock-form-buttons">
+				<button type="submit">Submit</button>
+				<button type="button" onclick="closeAddNetblockModal()">Cancel</button>
+			</div>
+			<div id="addNetblockError" class="netblock-error-message"></div>
+		</form>
+	</div>
+</div>
+};
+
+	print $cgi->p(
+		qq{
 		This application is used to manage net block allocations as well as
 		the assignment (largely reservation) of IP addresses. To manage the
 		subdvision/chopping up of networks, use the "subnet this block'
@@ -731,27 +798,22 @@ sub netblock_search_box {
 
 	my $cgi = $stab->cgi;
 
-	$cgi->table(
-		{ -align => 'center' },
-		$cgi->Tr(
-			{ -align => 'center' },
-			$cgi->td(
-				$cgi->start_form(
-					-method => 'POST',
-					-action => 'search.pl'
-				),
-				$cgi->div(
-					$cgi->b("CIDR Search: "),
-					$cgi->textfield( -name => 'bycidr' )
-				),
-				$cgi->div(
-					$cgi->b("Description/Reservation Search: "),
-					$cgi->textfield( -name => 'bydesc' )
-				),
-				$cgi->submit('Search'),
-				$cgi->end_form
-			)
-		)
+	$cgi->div(
+		{ -class => 'netblock-search-box' },
+		$cgi->start_form(
+			-method => 'POST',
+			-action => 'search.pl'
+		),
+		$cgi->div(
+			$cgi->b("CIDR Search: "),
+			$cgi->textfield( -name => 'bycidr' )
+		),
+		$cgi->div(
+			$cgi->b("Description/Reservation Search: "),
+			$cgi->textfield( -name => 'bydesc' )
+		),
+		$cgi->submit('Search'),
+		$cgi->end_form
 	);
 }
 
@@ -867,7 +929,8 @@ sub dump_netblock_routes {
 	my ( $stab, $nblkid, $nb ) = @_;
 	my $cgi = $stab->cgi;
 
-	my $sth = $stab->prepare( qq{
+	my $sth = $stab->prepare(
+		qq{
 		select	srt.STATIC_ROUTE_TEMPLATE_ID,
 				srt.description as ROUTE_DESCRIPTION,
 				snb.netblock_Id as source_netblock_id,
@@ -893,8 +956,8 @@ sub dump_netblock_routes {
 	$sth->execute($nblkid) || die $sth->errstr;
 
 	my $tt = $cgi->td( [
-		"Del", "Source IP", "/", "Bits",
-		"Dest Device", "Dest IP", "Description"
+		"Del",         "Source IP", "/", "Bits",
+		"Dest Device", "Dest IP",   "Description"
 	] );
 	while ( my $hr = $sth->fetchrow_hashref ) {
 		$tt .= build_route_Tr( $stab, $hr );
