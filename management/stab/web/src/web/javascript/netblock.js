@@ -156,4 +156,120 @@ $(document).ready(function() {
 		return(0);
 	});
 
+	$(document).on('click', 'a.rmnetblock', function(event) {
+		event.preventDefault();
+		event.stopPropagation();
+
+		var nblkid = this.getAttribute('data-nblkid');
+		var block = this.getAttribute('data-block');
+		if (!nblkid) {
+			alert('Error: No netblock ID found');
+			return false;
+		}
+
+		var message = 'Are you sure you want to delete the netblock ' + (block || nblkid) + '?';
+		if (confirm(message)) {
+			var form = document.createElement('form');
+			form.method = 'POST';
+			form.action = 'write/rmnetblock.pl';
+
+			var input = document.createElement('input');
+			input.type = 'hidden';
+			input.name = 'id';
+			input.value = nblkid;
+			form.appendChild(input);
+
+			var sureInput = document.createElement('input');
+			sureInput.type = 'hidden';
+			sureInput.name = 'areyousure';
+			sureInput.value = 'y';
+			form.appendChild(sureInput);
+
+			document.body.appendChild(form);
+			form.submit();
+		}
+
+		return false;
+	});
+
 });
+
+// Modal functions for Add Netblock dialog
+function openAddNetblockModal() {
+	document.getElementById('addNetblockModal').style.display = 'block';
+	document.getElementById('addNetblockError').textContent = '';
+	document.getElementById('addNetblockForm').reset();
+	document.getElementById('ip').focus();
+}
+
+function closeAddNetblockModal() {
+	document.getElementById('addNetblockModal').style.display = 'none';
+}
+
+function submitAddNetblock() {
+	var form = document.getElementById('addNetblockForm');
+	var ip = form.ip.value.trim();
+	var bits = form.bits.value.trim();
+	var description = form.description.value.trim();
+	var errorDiv = document.getElementById('addNetblockError');
+
+	errorDiv.textContent = '';
+
+	if (!ip) {
+		errorDiv.textContent = 'IP address is required';
+		return;
+	}
+
+	// Check if IP has embedded /bits notation
+	var ipMatch = ip.match(/\/(\d+)$/);
+	if (ipMatch) {
+		var embedBits = ipMatch[1];
+		if (bits && bits !== embedBits) {
+			errorDiv.textContent = 'Bits do not match';
+			return;
+		}
+		// Use embedded bits if separate bits field is empty
+		if (!bits) {
+			bits = embedBits;
+		}
+	}
+
+	if (!bits) {
+		errorDiv.textContent = 'Bits value is required (either in IP field as /N or in Bits field)';
+		return;
+	}
+
+	// Submit via regular POST
+	var submitForm = document.createElement('form');
+	submitForm.method = 'POST';
+	submitForm.action = 'write/doadd.pl';
+
+	var ipInput = document.createElement('input');
+	ipInput.type = 'hidden';
+	ipInput.name = 'ip';
+	ipInput.value = ip;
+	submitForm.appendChild(ipInput);
+
+	var bitsInput = document.createElement('input');
+	bitsInput.type = 'hidden';
+	bitsInput.name = 'bits';
+	bitsInput.value = bits;
+	submitForm.appendChild(bitsInput);
+
+	var descInput = document.createElement('input');
+	descInput.type = 'hidden';
+	descInput.name = 'description';
+	descInput.value = description;
+	submitForm.appendChild(descInput);
+
+	document.body.appendChild(submitForm);
+	submitForm.submit();
+}
+
+// Close modal when clicking outside of it
+window.onclick = function(event) {
+	var modal = document.getElementById('addNetblockModal');
+	if (event.target === modal) {
+		closeAddNetblockModal();
+	}
+}
