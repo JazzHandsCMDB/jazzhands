@@ -12,7 +12,7 @@
  * distributed under the License is distributed on an "AS IS" BASIS,
  * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
  * See the License for the specific language governing permissions and
- * limitations under the License.						
+ * limitations under the License.
  */
 
 //
@@ -29,6 +29,18 @@ window.location.search.replace(/^\?/,'').split(';').forEach( (v) => {
 });
 
 //
+// Toggle red background on rows marked for removal
+//
+function toggleRemoveHighlight(checkbox) {
+	const row = checkbox.closest('.netblock-row');
+	if (checkbox.checked) {
+		row.classList.add('row-remove');
+	} else {
+		row.classList.remove('row-remove');
+	}
+}
+
+//
 // This functions updates a Collection picker dropdown
 // when another Collection Type is chosen
 // It's used when a netblock collection is displayed
@@ -40,13 +52,10 @@ function update_collection_select( elementCollectionTypeSelect ) {
 	let elementCollectionSelect = document.getElementById( strElementCollectionSelectId );
 
 	// Do we have a collection type selected?
-        if( strSelectedCollectionType === '__unknown__' ) {
+	if( strSelectedCollectionType === '__unknown__' ) {
 		// No, so let's remove the Collection select element if it exists
-		// along with the preceding br and span elements
 		if( elementCollectionSelect ) {
 			elementCollectionSelect.remove();
-			elementCollectionTypeSelect.nextSibling.remove();
-			elementCollectionTypeSelect.nextSibling.remove();
 		}
 		return;
 	}
@@ -54,15 +63,12 @@ function update_collection_select( elementCollectionTypeSelect ) {
 	// At this point we have a valid collection type selected
 	// So let's create the collection picker dropdown if it doesn't exist
 	if( ! elementCollectionSelect ) {
-		elementCollectionTypeSelect.parentElement.appendChild( document.createElement( 'br' ) );
-		let elementSpan = document.createElement( 'span' );
-		elementSpan.className = 'netblocksite';
-		elementSpan.innerHTML = '- ';
-		elementCollectionTypeSelect.parentElement.appendChild( elementSpan );
+		// Add after the collection type select, within the same span
 		elementCollectionSelect = document.createElement( 'select' );
 		elementCollectionSelect.id = strElementCollectionSelectId;
 		elementCollectionSelect.name = strElementCollectionSelectId;
 		elementCollectionSelect.className = 'netcoldrop';
+		elementCollectionSelect.style.marginLeft = '0.5em';
 		elementCollectionTypeSelect.parentElement.appendChild( elementCollectionSelect );
 	} else {
 		elementCollectionSelect.innerHTML = '';
@@ -114,15 +120,25 @@ function populate_collection_types_select( elementSelect ) {
 //
 // This function inserts an additional netblock input row
 //
-var iNumNetblockInputs = 0;
+var iNumNetblockInputs = 1;
 function insert_netblock_input_row() {
 	const elementAddButton = document.getElementById('insert_NETBLOCK');
-	const elementRow = document.createElement('li');
-	iNumNetblockInputs ++;
+	const elementList = document.getElementById('collection-members');
+
+	const elementRow = document.createElement('div');
+	elementRow.className = 'netblock-row';
+	iNumNetblockInputs++;
 	const strId = 'add_NETBLOCK' + iNumNetblockInputs;
-	const strValue = ( strId in hCGIParams ) ? hCGIParams[ strId ] : '';
-	elementRow.innerHTML = '<span class="netblocksite">-</span> <span class="netblocklink"><input type="text" name=\'' + strId + '\' autocomplete="on" value=\''  +strValue + '\'/></span> <span class="netblockdesc"> - NEW NETWORK</span>';
-	elementAddButton.parentElement.parentElement.insertBefore( elementRow, elementAddButton.parentElement );
+	const strRmId = 'rm_add_NETBLOCK' + iNumNetblockInputs;
+	const strRankId = 'rank_add_NETBLOCK' + iNumNetblockInputs;
+	const strValue = (strId in hCGIParams) ? hCGIParams[strId] : '';
+	const strRankValue = (strRankId in hCGIParams) ? hCGIParams[strRankId] : '';
+	elementRow.id = 'netblock-input-row' + iNumNetblockInputs;
+	elementRow.innerHTML = '<span class="netblocksite"><input type="checkbox" name="' + strRmId + '" id="' + strRmId + '" class="remove-checkbox" onchange="toggleRemoveHighlight(this);"/></span><span class="netblocklink"><input type="text" name="' + strId + '" id="' + strId + '" placeholder="New Network" autocomplete="on" value="' + strValue + '" style="width: 95%;"/></span><span class="netblockdesc"></span><span class="netblockrank"><input type="text" name="' + strRankId + '" id="' + strRankId + '" value="' + strRankValue + '" style="width: 4em; text-align: center;"/></span>';
+
+	// Insert before the first netblock input row (above the existing inputs)
+	const firstInputRow = document.getElementById('netblock-input-row1');
+	elementList.insertBefore(elementRow, firstInputRow);
 }
 
 //
@@ -131,12 +147,21 @@ function insert_netblock_input_row() {
 var iNumChildCollectionInputs = 0;
 function insert_child_collection_input_row() {
 	const elementAddButton = document.getElementById('insert_CHILD_COLLECTION');
-	const elementRow = document.createElement('li');
-	iNumChildCollectionInputs ++;
+	const elementList = document.getElementById('collection-members');
+
+	const elementRow = document.createElement('div');
+	elementRow.className = 'netblock-row';
+	iNumChildCollectionInputs++;
 	const strId = 'add_CHILD_COLLECTION' + iNumChildCollectionInputs;
-	elementRow.innerHTML = '<span class="netblocksite">-</span> <span class="netblocklink"><select id=\'' + strId + '\' name=\'' + strId + '\' class="collectiontypepicker" onchange=\'update_collection_select( this );\' my_collection_dropdown=\'pick_NETBLOCK_COLLECTION_ID' + iNumChildCollectionInputs + '\'><option>Loading...</option></select></span> <span class="netblockdesc"> - NEW CHILD COLLECTION</span>';
-	elementAddButton.parentElement.parentElement.insertBefore( elementRow, elementAddButton.parentElement );
-	populate_collection_types_select( document.getElementById( 'add_CHILD_COLLECTION' + iNumChildCollectionInputs ) );
+	const strRmId = 'rm_add_CHILD_COLLECTION' + iNumChildCollectionInputs;
+	elementRow.id = 'child-collection-input-row' + iNumChildCollectionInputs;
+	elementRow.innerHTML = '<span class="netblocksite"><input type="checkbox" name="' + strRmId + '" id="' + strRmId + '" class="remove-checkbox" onchange="toggleRemoveHighlight(this);"/></span><span class="netblocklink"><select id="' + strId + '" name="' + strId + '" class="collectiontypepicker" onchange="update_collection_select( this );" my_collection_dropdown="pick_NETBLOCK_COLLECTION_ID' + iNumChildCollectionInputs + '" style="width: 95%;"><option value="__unknown__">Please Select a Collection Type</option></select></span><span class="netblockdesc"></span><span class="netblockrank"></span>';
+
+	// Find the button's parent row (the netblock-row div containing the button)
+	const buttonRow = elementAddButton.closest('.netblock-row');
+	// Insert before the button row
+	elementList.insertBefore(elementRow, buttonRow);
+	populate_collection_types_select(document.getElementById(strId));
 }
 
 //
@@ -150,11 +175,16 @@ function populate_collections_select( elementSelect, strCollectionType ) {
 		'what=Collections;type=' + strCollectionType,
 		function( data ) {
 			elementSelect.innerHTML = '';
+			// Add "Please Select" option first
+			let elementOption = document.createElement( 'option' );
+			elementOption.value = '';
+			elementOption.text = 'Please Select';
+			elementSelect.add( elementOption );
 			// Get the CGI value, if any
 			const strValue = ( elementSelect.id in hCGIParams ) ? hCGIParams[ elementSelect.id ] : '';
 			if( ! ( 'NETBLOCK_COLLECTIONS' in data ) ) return;
 			for( let i = 0; i < data['NETBLOCK_COLLECTIONS'].length; i++ ) {
-				let elementOption = document.createElement( 'option' );
+				elementOption = document.createElement( 'option' );
 		                elementOption.value = data['NETBLOCK_COLLECTIONS'][i]['id'];
 		                elementOption.text = data['NETBLOCK_COLLECTIONS'][i]['human'];
 				if( strValue === elementOption.value ) {
@@ -176,6 +206,14 @@ function build_collection_drop(resp, div) {
 		name: "pick_NETBLOCK_COLLECTION_ID",
 		class: "netcoldrop",
 	});
+
+	// Add "Please Select" as the first option
+	var pleaseSelect = $("<option/>", {
+		value: "",
+		text: "Please Select"
+	});
+	$(sel).append(pleaseSelect);
+
 	var tally = 0;
 	// Loop on the netblock collections, but only if NETBLOCK_COLLECTIONS is defined in the response
 	if( ! ( 'NETBLOCK_COLLECTIONS' in resp ) ) {
@@ -243,22 +281,25 @@ $(document).ready(function(){
 	$(".coltypepicker").val("__unknown__");
 	$('.ncmanip').find('div#colbox').empty();
 
-	// Repopulate netblock input fields after a failed updated, if any
+	// Repopulate netblock input fields after a failed update, if any
 	if( document.getElementById('insert_NETBLOCK') ) {
-		// Check if we have add_NETBLOCK parameters, indicating a failed update
+		// Restore add_NETBLOCK1 value if it exists in CGI params
+		const firstInput = document.getElementById('add_NETBLOCK1');
+		if( firstInput && 'add_NETBLOCK1' in hCGIParams ) {
+			firstInput.value = hCGIParams['add_NETBLOCK1'];
+		}
+
+		// Check if we have add_NETBLOCK2+ parameters, indicating a failed update with multiple entries
 		const iNumAddNetblockParams = Object.keys( hCGIParams ).filter(key => key.match( /^add_NETBLOCK\d+$/ ) ).length;
-		if( iNumAddNetblockParams > 0 ) {
-			// Loop on all add_NETBLOCK parameters
-			for( let i = 0; i < iNumAddNetblockParams; i++ ) {
+		if( iNumAddNetblockParams > 1 ) {
+			// Loop to add the additional netblock input rows (we already have add_NETBLOCK1)
+			for( let i = 1; i < iNumAddNetblockParams; i++ ) {
 				insert_netblock_input_row();
 			}
-		// This is not a failed update, we just add one empty input row
-		} else {
-			insert_netblock_input_row();
 		}
 	}
 
-	// Repopulate child collection input fields after a failed updated, if any
+	// Repopulate child collection input fields after a failed update, if any
 	if( document.getElementById('insert_CHILD_COLLECTION') ) {
 		// Check if we have add_CHILD_COLLECTION parameters, indicating a failed update
 		const iNumAddCollectionParams = Object.keys( hCGIParams ).filter(key => key.match( /^add_CHILD_COLLECTION\d+$/ ) ).length
@@ -267,9 +308,6 @@ $(document).ready(function(){
 			for( let i = 0; i < iNumAddCollectionParams; i++ ) {
 				insert_child_collection_input_row();
 			}
-		// This is not a failed update, we just add one empty input row
-		} else {
-			insert_child_collection_input_row();
 		}
 	}
 });
