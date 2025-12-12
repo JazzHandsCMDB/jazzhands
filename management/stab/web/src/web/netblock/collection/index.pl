@@ -70,6 +70,9 @@ sub do_netblock_collection_chooser($) {
 		-javascript => 'netblock_collection',
 	} );
 
+	print $cgi->div( { -class => 'netblock-search-box' },
+		$cgi->p('Select a collection type to view or manage collections') );
+
 	print $cgi->div(
 		{ -class => 'ncmanip' },
 		$cgi->start_form( {
@@ -77,26 +80,75 @@ sub do_netblock_collection_chooser($) {
 			-method => 'GET',
 			-action => './'
 		} ),
-		$cgi->div(
-			$cgi->h3('Pick a type:'),
-			$stab->b_dropdown(
-				{ -class => 'coltypepicker', }, undef,
-				'NETBLOCK_COLLECTION_TYPE',     undef,
-				1
+		$cgi->div( {
+				-class => 'netblock-wrapper',
+				-style => 'margin: 2em auto; padding: 1.5em;'
+			},
+			$cgi->h3(
+				{ -style => 'margin: 0 0 1em 0; text-align: center;' },
+				'Select Collection Type'
+			),
+			$cgi->div(
+				{ -style => 'text-align: center; margin: 1em 0;' },
+				$stab->b_dropdown( {
+						-class => 'coltypepicker',
+						-style => 'width: 300px; padding: 0.5em;'
+					},
+					undef,
+					'NETBLOCK_COLLECTION_TYPE',
+					undef, 1
+				),
 			),
 		),
 		$cgi->div(
 			{ -id => 'collec_detail', class => 'irrelevant' },
-			$cgi->h3("Add a new Collection of this Type"),
-			$cgi->textfield( { -name => 'NETBLOCK_COLLECTION_NAME' } ),
-			$cgi->submit( -name => 'submit', -value => 'Add' ),
-			$cgi->div(
-				{ -id => 'container_colbox' },
-				$cgi->h3('Pick a collection:'),
-				$cgi->start_form( { -method => 'GET', -action => './' } ),
-				$cgi->div( { -id => 'colbox' }, "" ),
-				$cgi->submit( -name => 'submit', -value => 'Modify' ),
+			$cgi->div( {
+					-id    => 'container_colbox',
+					-class => 'netblock-wrapper',
+					-style => 'margin: 2em auto; padding: 1.5em;'
+				},
+				$cgi->h3(
+					{ -style => 'margin: 0 0 1em 0; text-align: center;' },
+					'Pick a Collection to Modify'
+				),
+				$cgi->div(
+					{ -style => 'text-align: center; margin: 1em 0;' },
+					$cgi->div( { -id => 'colbox' }, "" ),
+				),
+				$cgi->div(
+					{ -style => 'text-align: center; margin: 1em 0;' },
+					$cgi->submit( {
+						-name  => 'submit',
+						-value => 'Modify',
+						-style => 'padding: 0.5em 2em;'
+					} ),
+				),
 				$cgi->end_form(),
+			),
+			$cgi->div( {
+					-class => 'netblock-wrapper',
+					-style => 'margin: 2em auto; padding: 1.5em;'
+				},
+				$cgi->h3(
+					{ -style => 'margin: 0 0 1em 0; text-align: center;' },
+					"Add a New Collection of this Type"
+				),
+				$cgi->div(
+					{ -style => 'text-align: center; margin: 1em 0;' },
+					$cgi->textfield( {
+						-name        => 'NETBLOCK_COLLECTION_NAME',
+						-placeholder => 'Enter new collection name',
+						-style       => 'width: 300px; padding: 0.5em;'
+					} ),
+				),
+				$cgi->div(
+					{ -style => 'text-align: center; margin: 1em 0;' },
+					$cgi->submit( {
+						-name  => 'submit',
+						-value => 'Add',
+						-style => 'padding: 0.5em 2em;'
+					} ),
+				),
 			),
 		),
 	);
@@ -130,21 +182,23 @@ sub add_netblock_collection($$$) {
 }
 
 #
-# returns an li with proper linkage and a remove checkbox.
+# returns a grid row with proper linkage and a remove checkbox.
 #
-sub build_collection_row($$$$;$$) {
-	my ( $cgi, $link, $rmid, $label, $desc, $rmheader ) = @_;
+sub build_collection_row($$$;$$$$) {
+	my ( $cgi, $link, $rmid, $label, $rmheader, $description, $rank ) = @_;
 
 	my $rmbox;
 	if ( !$rmheader ) {
 		$rmbox =
 		  ($rmid)
 		  ? $cgi->checkbox( {
-			-name  => $rmid,
-			-id    => $rmid,
-			-label => '',
+			-name     => $rmid,
+			-id       => $rmid,
+			-label    => '',
+			-class    => 'remove-checkbox',
+			-onchange => 'toggleRemoveHighlight(this);',
 		  } )
-		  : "-";
+		  : "";
 	} else {
 		$rmbox = $rmheader;
 	}
@@ -153,36 +207,109 @@ sub build_collection_row($$$$;$$) {
 		$label = $cgi->a( { -href => $link }, "$label" ),;
 	}
 
-	$cgi->li(
-		$cgi->span( { -class => 'netblocksite' }, $rmbox ),
-		$cgi->span( { -class => 'netblocklink' }, $label ),
-		$cgi->span(
-			{ -class => 'netblockdesc' },
-			( ($desc) ? " - $desc " : "" )
-		),
-	);
+	my $row = "";
+	$row .= $cgi->span( { -class => 'netblocksite' }, $rmbox );
+	$row .= $cgi->span( { -class => 'netblocklink' }, $label );
+	$row .= $cgi->span( { -class => 'netblockdesc' }, $description || '' );
+
+	my $rank_field = '';
+	if ( defined($rmid) && $rmid =~ /^rm_NETBLOCK_ID_/ ) {
+
+		# Extract the ID from the remove checkbox name
+		my $field_id = $rmid;
+		$field_id =~ s/^rm_/rank_/;
+		$rank_field = $cgi->textfield( {
+			-name        => $field_id,
+			-id          => $field_id,
+			-value       => $rank,
+			-placeholder => '',
+			-style       => 'width: 4em; text-align: center;',
+		} );
+	} elsif ( defined($rmheader) ) {
+		$rank_field = $rank || '';
+	} else {
+		$rank_field = $rank || '';
+	}
+	$row .= $cgi->span( { -class => 'netblockrank' }, $rank_field );
+
+	$cgi->div( { -class => 'netblock-row' }, $row );
 }
 
-# This function displays a button to add a new network input row
-# It's added in a div and not a li element because it shouldn't be numbered
-sub build_netblock_collection_add_more($) {
+#
+# returns a grid header row
+#
+sub build_collection_row_header($$;$$$) {
+	my ( $cgi, $col1, $col2, $col3, $col4 ) = @_;
+
+	my $row = "";
+	$row .= $cgi->span( { -class => 'netblocksite' }, $col1 );
+	$row .= $cgi->span( { -class => 'netblocklink' }, $col2 );
+	$row .= $cgi->span( { -class => 'netblockdesc' }, $col3 || 'Description' );
+	$row .= $cgi->span( { -class => 'netblockrank' }, $col4 || 'Rank' );
+
+	$cgi->div( { -class => 'netblock-header' }, $row );
+}
+
+# This function displays a row to add a new network
+sub build_netblock_collection_add_row($) {
 	my ($stab) = @_;
 	my $cgi = $stab->cgi || die "Could not create cgi";
 
-	my $strInsertNetblockButton = $cgi->button( {
-			-type    => 'button',
-			-class   => "",
-			-id      => 'insert_NETBLOCK',
-			-name    => 'insert_NETBLOCK',
-			-title   => 'Add one more network',
-			-state   => "Add Network",
-			-label   => "Add Network",
-			-onclick => "insert_netblock_input_row( this );",
-		},
-		'Add Network'
+	my $row = "";
+	$row .= $cgi->span(
+		{ -class => 'netblocksite' },
+		$cgi->checkbox( {
+			-name     => 'rm_add_NETBLOCK1',
+			-id       => 'rm_add_NETBLOCK1',
+			-label    => '',
+			-class    => 'remove-checkbox',
+			-onchange => 'toggleRemoveHighlight(this);',
+		} )
+	);
+	$row .= $cgi->span(
+		{ -class => 'netblocklink' },
+		$cgi->textfield( {
+			-name         => 'add_NETBLOCK1',
+			-id           => 'add_NETBLOCK1',
+			-value        => '',
+			-placeholder  => 'New Network',
+			-style        => 'width: 95%;',
+			-autocomplete => 'on',
+		} )
+	);
+	$row .= $cgi->span( { -class => 'netblockdesc' }, '' );
+	$row .= $cgi->span(
+		{ -class => 'netblockrank' },
+		$cgi->textfield( {
+			-name        => 'rank_add_NETBLOCK1',
+			-id          => 'rank_add_NETBLOCK1',
+			-value       => '',
+			-placeholder => '',
+			-style       => 'width: 4em; text-align: center;',
+		} )
 	);
 
-	$cgi->div( {}, "-", $strInsertNetblockButton ),;
+	my $buttonrow = "";
+	$buttonrow .= $cgi->span( { -class => 'netblocksite' }, '' );
+	$buttonrow .= $cgi->span( { -class => 'netblockdesc' }, '' );
+	$buttonrow .= $cgi->span( { -class => 'netblockrank' }, '' );
+	$buttonrow .= $cgi->span(
+		{ -class => 'netblocklink' },
+		$cgi->button( {
+				-type    => 'button',
+				-class   => "",
+				-id      => 'insert_NETBLOCK',
+				-name    => 'insert_NETBLOCK',
+				-title   => 'Add one more network',
+				-label   => "Add Network",
+				-onclick => "insert_netblock_input_row( this );",
+			},
+			'Add Network'
+		)
+	);
+
+	$cgi->div( { -class => 'netblock-row', -id => 'netblock-input-row1' },
+		$row ) . $cgi->div( { -class => 'netblock-row' }, $buttonrow );
 }
 
 sub build_collection_members($$) {
@@ -195,13 +322,14 @@ sub build_collection_members($$) {
 				nb.ip_address,
 				nb.is_single_address,
 				nb.description,
+				ncn.netblock_id_rank,
 				d.device_id,
 				d.device_name
 		FROM	netblock nb
-				INNER JOIN netblock_collection_netblock USING (netblock_id)
+				INNER JOIN netblock_collection_netblock ncn USING (netblock_id)
 				LEFT JOIN network_interface_netblock USING (netblock_id)
 				LEFT JOIN device d USING (device_id)
-		WHERE	netblock_collection_id = ?
+		WHERE	ncn.netblock_collection_id = ?
 		ORDER BY nb.ip_address, nb.is_single_address, d.device_id
 	}
 	) || return $stab->return_db_err;
@@ -209,7 +337,7 @@ sub build_collection_members($$) {
 	$sth->execute($ncid) || die $stab->return_db_err();
 
 	my $rv;
-	while ( my ( $id, $ip, $sig, $desc, $devid, $dname ) =
+	while ( my ( $id, $ip, $sig, $desc, $rank, $devid, $dname ) =
 		$sth->fetchrow_array )
 	{
 		my $nblink = "";
@@ -218,9 +346,6 @@ sub build_collection_members($$) {
 			$label =~ s,/\d+$,/32,;
 			if ($devid) {
 				$nblink = "../../device/device.pl?devid=$devid";
-
-				# maybe do this if switching to tables
-				# $label = "$label ($dname)";
 			}
 		} else {
 			$nblink = "../?nblkid=$id";
@@ -228,31 +353,38 @@ sub build_collection_members($$) {
 
 		my $rmid = "rm_NETBLOCK_ID_$id";
 
-		$rv .= build_collection_row( $cgi, $nblink, $rmid, $label, $desc );
+		$rv .=
+		  build_collection_row( $cgi, $nblink, $rmid, $label, undef, $desc,
+			defined($rank) ? $rank : '' );
 	}
 	$rv;
 }
 
-# This function displays a button to add a new child colletion input row
-# It's added in a div and not a li element because it shouldn't be numbered
-sub build_child_collection_add_more($) {
+# This function displays a row to add a new child collection
+sub build_child_collection_add_row($) {
 	my ($stab) = @_;
 	my $cgi = $stab->cgi || die "Could not create cgi";
 
-	my $strInsertNetblockButton = $cgi->button( {
-			-type    => 'button',
-			-class   => "",
-			-id      => 'insert_CHILD_COLLECTION',
-			-name    => 'insert_CHILD_COLLECTION',
-			-title   => 'Add one more child collection',
-			-state   => "Add Child Collection",
-			-label   => "Add Child Collection",
-			-onclick => "insert_child_collection_input_row( this );",
-		},
-		'Add Network'
+	my $row = "";
+	$row .= $cgi->span( { -class => 'netblocksite' }, '' );
+	$row .= $cgi->span(
+		{ -class => 'netblocklink' },
+		$cgi->button( {
+				-type    => 'button',
+				-class   => "",
+				-id      => 'insert_CHILD_COLLECTION',
+				-name    => 'insert_CHILD_COLLECTION',
+				-title   => 'Add one more child collection',
+				-label   => "Add Child Collection",
+				-onclick => "insert_child_collection_input_row( this );",
+			},
+			'Add Child Collection'
+		)
 	);
+	$row .= $cgi->span( { -class => 'netblockdesc' }, '' );
+	$row .= $cgi->span( { -class => 'netblockrank' }, '' );
 
-	$cgi->div( {}, "-", $strInsertNetblockButton ),;
+	$cgi->div( { -class => 'netblock-row' }, $row );
 }
 
 sub build_collection_children {
@@ -281,7 +413,8 @@ sub build_collection_children {
 		my $nblink = "./?NETBLOCK_COLLECTION_ID=$id";
 		my $rmid   = "rm_NETBLOCK_COLLECTION_ID_$id";
 		my $label  = "$type:$name";
-		$rv .= build_collection_row( $cgi, $nblink, $rmid, $label, $desc );
+		$rv .=
+		  build_collection_row( $cgi, $nblink, $rmid, $label, undef, $desc );
 	}
 	$rv;
 }
@@ -313,7 +446,7 @@ sub build_collection_parents {
 		my $nblink = "./?NETBLOCK_COLLECTION_ID=$id";
 		my $rmid   = "rm_NETBLOCK_COLLECTION_ID_$id";
 		my $label  = "$type:$name";
-		$rv .= build_collection_row( $cgi, $nblink, $rmid, $label, $desc, ' ' );
+		$rv .= build_collection_row( $cgi, $nblink, $rmid, $label, ' ', $desc );
 	}
 	$rv;
 }
@@ -361,34 +494,72 @@ sub process_netblock_collection {
 		-action => 'update_nb.pl',
 	} );
 
-	print $cgi->ul(
-		{ -class => 'collection' },
-		$cgi->hidden( 'NETBLOCK_COLLECTION_ID', $ncid ),
-		build_collection_row(
-			$cgi, undef, undef, "Member", "Description", "RM"
+	print $cgi->hidden( 'NETBLOCK_COLLECTION_ID', $ncid );
+
+	# Combined Members Section (netblocks and child collections)
+	my $member_content   = build_collection_members( $stab, $ncid );
+	my $children_content = build_collection_children( $stab, $ncid );
+
+	print $cgi->div(
+		{ -class => 'netblock-wrapper', -style => 'margin: 2em auto;' },
+		$cgi->h3(
+			{ -style => 'margin: 0.5em 1em; text-align: center;' },
+			"Collection Members"
 		),
-		build_collection_members( $stab, $ncid ),
-		build_netblock_collection_add_more($stab),
-		build_collection_children( $stab, $ncid ),
-		build_child_collection_add_more($stab),
-		'<br/>',
-		$cgi->submit(),
+		$cgi->div( {
+				-class => 'netblock-list netblock-list-four-col',
+				-id    => 'collection-members'
+			},
+			build_collection_row_header(
+				$cgi, "Remove", "Member", "Description", "Rank"
+			),
+			$member_content,
+			build_netblock_collection_add_row($stab),
+			$cgi->div( { -class => 'netblock-separator' }, '' ),
+			$children_content,
+			build_child_collection_add_row($stab),
+		),
 	);
 
-	print $cgi->ul(
-		{ -class => 'collection' },
-		'<br/><br/><h2>Parent Collection(s) of '
-		  . join( ":",
-			$nc->{'NETBLOCK_COLLECTION_TYPE'},
-			$nc->{'NETBLOCK_COLLECTION_NAME'},
-			'</h2>' ),
-		build_collection_row(
-			$cgi, undef, undef, "Collection", "Description", " "
-		),
-		build_collection_parents( $stab, $ncid ),
+	# Submit button
+	print $cgi->div(
+		{ -style => 'text-align: center; margin: 2em;' },
+		$cgi->submit( {
+			-value => 'Submit Changes',
+			-style => 'padding: 0.5em 2em; font-size: 1.1em;'
+		} )
 	);
 
 	print $cgi->end_form;
+
+	# Parent Collections Section (read-only)
+	my $parents_content = build_collection_parents( $stab, $ncid );
+	print $cgi->div(
+		{ -class => 'netblock-wrapper', -style => 'margin: 2em auto;' },
+		$cgi->h3(
+			{ -style => 'margin: 0.5em 1em; text-align: center;' },
+			"Parent Collection(s) of "
+			  . join( ":",
+				$nc->{'NETBLOCK_COLLECTION_TYPE'},
+				$nc->{'NETBLOCK_COLLECTION_NAME'} )
+		),
+		$cgi->div(
+			{ -class => 'netblock-list netblock-list-three-col' },
+			build_collection_row_header(
+				$cgi, " ", "Collection", "Description"
+			),
+			$parents_content || $cgi->div(
+				{ -class => 'netblock-row' },
+				$cgi->span( { -class => 'netblocksite' }, '' )
+				  . $cgi->span( {
+						-class => 'netblocklink',
+						-style => 'font-style: italic; color: #888;'
+					},
+					'No parent collections'
+				  )
+			),
+		)
+	);
 
 	print $cgi->end_html;
 

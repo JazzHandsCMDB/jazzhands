@@ -85,6 +85,52 @@ sub do_netblock_collection_update {
 	}
 
 	#
+	# deal with rank updates for existing netblocks
+	#
+	foreach my $p ( $cgi->param ) {
+		if ( $p !~ /^rank_NETBLOCK_ID_([0-9]+)$/i ) { next; }
+		my $id = $1;
+
+		my $new_rank = $stab->cgi_parse_param($p);
+
+		# Get current value from database
+		my $sth = $stab->prepare(
+			qq{
+			SELECT netblock_id_rank
+			FROM netblock_collection_netblock
+			WHERE netblock_collection_id = ?
+			AND netblock_id = ?
+		}
+		) || return $stab->return_db_err;
+
+		$sth->execute( $ncid, $id ) || return $stab->return_db_err;
+		my ($old_rank) = $sth->fetchrow_array;
+		$sth->finish;
+
+		# Convert empty string to NULL for comparison
+		my $old_val = defined($old_rank)                    ? $old_rank : '';
+		my $new_val = defined($new_rank) && $new_rank ne '' ? $new_rank : undef;
+
+		# Only update if changed
+		if ( $old_val ne ( $new_val // '' ) ) {
+			my $hash = { netblock_id_rank => $new_val };
+
+			if ( !(
+				$numchanges += $stab->DBUpdate(
+					table  => 'netblock_collection_netblock',
+					dbkey  => [ 'netblock_collection_id', 'netblock_id' ],
+					keyval => [ $ncid,                    $id ],
+					hash   => $hash,
+					errors => \@errs
+				)
+			) )
+			{
+				$stab->error_return( join( " ", @errs ) );
+			}
+		}
+	}
+
+	#
 	# deal with netblock additions
 	#
 	foreach my $p ( $cgi->param ) {
@@ -101,21 +147,50 @@ sub do_netblock_collection_update {
 			return $stab->error_return("Unable to find netblock $add_nb");
 		}
 
+		# Check if this netblock is already in the collection
+		my $check_sth = $stab->prepare(
+			qq{
+			SELECT COUNT(*) FROM netblock_collection_netblock
+			WHERE netblock_collection_id = ? AND netblock_id = ?
+		}
+		) || return $stab->return_db_err;
+
+		$check_sth->execute( $ncid, $nb->{'netblock_id'} )
+		  || return $stab->return_db_err;
+		my ($exists) = $check_sth->fetchrow_array;
+		$check_sth->finish;
+
+		# Skip if already exists
+		if ($exists) {
+			next;
+		}
+
+		# Get the corresponding rank field if it exists
+		my $rank_param = $p;
+		$rank_param =~ s/^add_/rank_add_/;
+		my $rank = $stab->cgi_parse_param($rank_param);
+
 		my $new = {
 			netblock_collection_id => $ncid,
-			netblock_id            => $nb->{'NETBLOCK_ID'},
+			netblock_id            => $nb->{'netblock_id'},
 		};
 
-		if ( !(
-			$numchanges += $stab->DBInsert(
-				table  => 'netblock_collection_netblock',
-				hash   => $new,
-				errors => \@errs
-			)
-		) )
-		{
-			$stab->error_return( join( " ", @errs ) );
+		# Only add rank if it has a value
+		if ( defined($rank) && $rank ne '' ) {
+			$new->{netblock_id_rank} = $rank;
 		}
+
+		my $x = $stab->DBInsert(
+			table  => 'netblock_collection_netblock',
+			hash   => $new,
+			errors => \@errs
+		);
+
+		if ( !defined($x) ) {
+			my $errmsg = @errs ? join( " ", @errs ) : $stab->errstr;
+			$stab->error_return($errmsg);
+		}
+		$numchanges += $x;
 	}
 
 	#
@@ -129,21 +204,40 @@ sub do_netblock_collection_update {
 		# Ignore the parameter if it has no value
 		if ( !$newncid ) { next; }
 
+		# Check if this child collection is already in the hierarchy
+		my $check_sth = $stab->prepare(
+			qq{
+			SELECT COUNT(*) FROM netblock_collection_hier
+			WHERE netblock_collection_id = ? AND child_netblock_collection_id = ?
+		}
+		) || return $stab->return_db_err;
+
+		$check_sth->execute( $ncid, $newncid )
+		  || return $stab->return_db_err;
+		my ($exists) = $check_sth->fetchrow_array;
+		$check_sth->finish;
+
+		# Skip if already exists
+		if ($exists) {
+			next;
+		}
+
 		my $new = {
 			netblock_collection_id       => $ncid,
 			child_netblock_collection_id => $newncid
 		};
 
-		if ( !(
-			$numchanges += $stab->DBInsert(
-				table  => 'netblock_collection_hier',
-				hash   => $new,
-				errors => \@errs
-			)
-		) )
-		{
-			$stab->error_return( join( " ", @errs ) );
+		my $x = $stab->DBInsert(
+			table  => 'netblock_collection_hier',
+			hash   => $new,
+			errors => \@errs
+		);
+
+		if ( !defined($x) ) {
+			my $errmsg = @errs ? join( " ", @errs ) : $stab->errstr;
+			$stab->error_return($errmsg);
 		}
+		$numchanges += $x;
 	}
 
 	if ($numchanges) {
