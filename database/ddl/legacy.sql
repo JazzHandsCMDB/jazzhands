@@ -3168,7 +3168,8 @@ SELECT d.dns_record_id,
 	d.dns_srv_port,
 	d.is_enabled,
 	d.should_generate_ptr,
-	d.dns_value_record_id
+	d.dns_value_record_id,
+	d.ip_universe_id as origin_ip_universe_id
 FROM (
 	SELECT  ip_universe_id AS real_ip_universe_id, f.*
 	FROM jazzhands_legacy.v_dns_fwd f
@@ -3215,7 +3216,9 @@ SELECT  dns_record_id,
 	CASE WHEN ref_record_id is NOT NULL THEN 2
 		WHEN dns_value_record_id IS NOT NULL THEN 3
 		ELSE 1
-	END as anchor_rank
+	END as anchor_rank,
+	ip_universe_id,
+	origin_ip_universe_id
   FROM	jazzhands_legacy.v_dns
 ORDER BY
 	dns_domain_id,
