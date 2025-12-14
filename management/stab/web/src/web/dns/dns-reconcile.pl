@@ -182,9 +182,23 @@ sub check_soa {
 
 	my $sth = $stab->prepare(
 		qq{
-		select	*
-		 from	v_dns_domain_nouniverse
-		where	soa_name = ?
+		select	d.dns_domain_id,
+			d.dns_domain_name as soa_name,
+			du.soa_class,
+			du.soa_ttl,
+			du.soa_serial,
+			du.soa_refresh,
+			du.soa_retry,
+			du.soa_expire,
+			du.soa_minimum,
+			du.soa_mname,
+			du.soa_rname,
+			d.parent_dns_domain_id,
+			du.should_generate
+		 from	dns_domain d
+			join dns_domain_ip_universe du using (dns_domain_id)
+		where	d.dns_domain_name = ?
+		  and	du.ip_universe_id = 0
 	}
 	) || $stab->return_db_err;
 

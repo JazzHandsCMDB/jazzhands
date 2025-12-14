@@ -250,6 +250,16 @@ function popuplate_dns_domain_dropdown( event ) {
 	// Make sure the dns domains have been populated
 	// This function is already called at the document ready event
 	get_dns_domains();
+	popuplate_dns_domain_dropdown_delayed(event);
+}
+
+function popuplate_dns_domain_dropdown_delayed( event ) {
+	if( !jDnsDomains || !jDnsDomains['domains'] || !jDnsDomains['domains']['options'] ) {
+		setTimeout(function() {
+			popuplate_dns_domain_dropdown_delayed(event);
+		}, 50);
+		return;
+	}
 
 	//console.log( event.currentTarget.options );
 	// Get prepopulated options

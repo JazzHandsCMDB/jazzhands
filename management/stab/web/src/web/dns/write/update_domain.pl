@@ -59,19 +59,25 @@ sub do_domain_update {
 	my $stab = new JazzHands::STAB || die "Could not create STAB";
 	my $dbh  = $stab->dbh          || die "Could not create dbh";
 
-	my $domid   = $stab->cgi_parse_param('DNS_DOMAIN_ID');
-	my $genflip = $stab->cgi_parse_param('AutoGen');
-	my $resetns = $stab->cgi_parse_param('Nameservers');
+	my $domid          = $stab->cgi_parse_param('DNS_DOMAIN_ID');
+	my $ip_universe_id = $stab->cgi_parse_param('IP_UNIVERSE_ID');
+	my $genflip        = $stab->cgi_parse_param('AutoGen');
+	my $resetns        = $stab->cgi_parse_param('Nameservers');
 
 	if ( !defined($domid) ) {
 		$stab->error_return("Unknown Domain");
 	}
 
+	# Default to universe 0 if not specified
+	if ( !defined($ip_universe_id) ) {
+		$ip_universe_id = 0;
+	}
+
 	if ( defined($genflip) ) {
 		if ( $genflip =~ /Off/ ) {
-			toggle_domain_autogen( $stab, $domid, 'N' );
+			toggle_domain_autogen( $stab, $domid, $ip_universe_id, 'N' );
 		} elsif ( $genflip =~ /On/ ) {
-			toggle_domain_autogen( $stab, $domid, 'Y' );
+			toggle_domain_autogen( $stab, $domid, $ip_universe_id, 'Y' );
 		} else {
 			$stab->error_return("Unknown Command.");
 		}
@@ -90,24 +96,26 @@ sub do_domain_update {
 		$stab->msg_return( "Successful update!", undef, 1 );
 	}
 
-	process_domain_soa_changes( $stab, $domid );
+	process_domain_soa_changes( $stab, $domid, $ip_universe_id );
 }
 
 sub toggle_domain_autogen {
-	my ( $stab, $domid, $direction ) = @_;
+	my ( $stab, $domid, $ip_universe_id, $direction ) = @_;
 	my $dbh = $stab->dbh || die "Could not create dbh";
 
 	my $sth = $stab->prepare_cached(
 		qq{
-		update v_dns_domain_nouniverse
+		update dns_domain_ip_universe
 		   set	should_generate = :direction
 		 where	dns_domain_id = :dom
+		   and  ip_universe_id = :ip_universe_id
 	}
 	) || $stab->return_db_err($dbh);
-	$sth->bind_param( ':dom',       $domid ) || $stab->return_db_err($dbh);
-	$sth->bind_param( ':direction', $direction )
+	$sth->bind_param( ':dom',            $domid ) || $stab->return_db_err($dbh);
+	$sth->bind_param( ':ip_universe_id', $ip_universe_id )
 	  || $stab->return_db_err($dbh);
-	$sth->execute || $stab->return_db_err($dbh);
+	$sth->bind_param( ':direction', $direction ) || $stab->return_db_err($dbh);
+	$sth->execute                                || $stab->return_db_err($dbh);
 
 	$dbh->commit;
 	$stab->msg_return( "Auto Generation Configuration Changed", undef, 1 );
@@ -115,7 +123,7 @@ sub toggle_domain_autogen {
 }
 
 sub process_domain_soa_changes {
-	my ( $stab, $domid ) = @_;
+	my ( $stab, $domid, $ip_universe_id ) = @_;
 	my $dbh = $stab->dbh || die "Could not create dbh";
 
 	my $serial  = $stab->cgi_parse_param( 'SOA_SERIAL',  $domid );
@@ -126,20 +134,21 @@ sub process_domain_soa_changes {
 	my $rname   = $stab->cgi_parse_param( 'SOA_RNAME',   $domid );
 	my $mname   = $stab->cgi_parse_param( 'SOA_MNAME',   $domid );
 
-	my $orig      = $stab->get_dns_domain_from_id($domid);
-	
+	my $orig = $stab->get_dns_domain_from_id( $domid, $ip_universe_id );
+
 	# Convert orig keys to lowercase to match DBUpdate expectations
 	my %orig_lower = map { lc($_) => $orig->{$_} } keys %$orig;
-	
+
 	my %newdomain = (
-		dns_domain_id => $domid,
-		soa_serial    => $serial,
-		soa_refresh   => $refresh,
-		soa_retry     => $retry,
-		soa_expire    => $expire,
-		soa_minimum   => $minimum,
-		soa_rname     => $rname,
-		soa_mname     => $mname,
+		dns_domain_id  => $domid,
+		ip_universe_id => $ip_universe_id,
+		soa_serial     => $serial,
+		soa_refresh    => $refresh,
+		soa_retry      => $retry,
+		soa_expire     => $expire,
+		soa_minimum    => $minimum,
+		soa_rname      => $rname,
+		soa_mname      => $mname,
 	);
 	my $diffs = $stab->hash_table_diff( \%orig_lower, \%newdomain );
 	my $tally = keys %$diffs;
@@ -147,9 +156,9 @@ sub process_domain_soa_changes {
 	if ( !$tally ) {
 		$stab->msg_return( "Nothing to Update", undef, 1 );
 	} elsif ( !$stab->DBUpdate(
-		table  => "v_dns_domain_nouniverse",
-		dbkey  => "dns_domain_id",
-		keyval => $domid,
+		table  => "dns_domain_ip_universe",
+		dbkey  => [ "dns_domain_id", "ip_universe_id" ],
+		keyval => [ $domid,          $ip_universe_id ],
 		hash   => $diffs
 	) )
 	{
