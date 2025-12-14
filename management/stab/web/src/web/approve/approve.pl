@@ -26,7 +26,6 @@ use POSIX;
 use Data::Dumper;
 use Carp;
 use JazzHands::STAB;
-use JazzHands::Common qw(_dbx);
 use Net::IP;
 
 return process_attestment();
@@ -40,7 +39,7 @@ sub process_attestment {
 	my $acctid = $stab->cgi_parse_param('accting_as_account');
 
 	if (   !$stab->check_management_chain($acctid)
-		&& !$stab->check_approval_delegation( $acctid )
+		&& !$stab->check_approval_delegation($acctid)
 		&& !$stab->check_approval_god_mode() )
 	{
 		return $stab->error_return(
@@ -90,7 +89,7 @@ sub process_attestment {
 
 	my $count = 0;
 	while ( my $hr = $sth->fetchrow_hashref ) {
-		my $id = $hr->{ _dbx('approval_instance_item_id') };
+		my $id = $hr->{'APPROVAL_INSTANCE_ITEM_ID'};
 
 		my $action = $cgi->param("ap_$id");
 

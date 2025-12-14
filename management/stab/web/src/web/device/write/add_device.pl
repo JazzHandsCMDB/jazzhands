@@ -51,7 +51,6 @@
 use strict;
 use warnings;
 use JazzHands::STAB;
-use JazzHands::Common qw(_dbx);
 use URI;
 use vars qw($stab);
 use vars qw($cgi);
@@ -68,7 +67,7 @@ sub check_for_device {
 		 where	device_name = ?
 	};
 	my $sth = $stab->prepare($q) || $stab->return_db_err($dbh);
-	$sth->execute($name) || $stab->return_db_err($sth);
+	$sth->execute($name)         || $stab->return_db_err($sth);
 	( $sth->fetchrow_array )[0];
 }
 
@@ -178,20 +177,18 @@ sub do_device_add {
 	if ($comptypid) {
 		my $newcomp = { COMPONENT_TYPE_ID => $comptypid, };
 
-		if (
-			!(
-				$numchanges += $stab->DBInsert(
-					table  => 'component',
-					hash   => $newcomp,
-					errors => \@errs
-				)
+		if ( !(
+			$numchanges += $stab->DBInsert(
+				table  => 'component',
+				hash   => $newcomp,
+				errors => \@errs
 			)
-		  )
+		) )
 		{
 			$stab->error_return( join( " ", @errs ) );
 		}
 
-		$compid = $newcomp->{ _dbx('COMPONENT_ID') };
+		$compid = $newcomp->{'COMPONENT_ID'};
 
 		my $newasset = {
 			COMPONENT_ID     => $compid,
@@ -200,19 +197,17 @@ sub do_device_add {
 			OWNERSHIP_STATUS => $owner,
 		};
 
-		if (
-			!(
-				$numchanges += $stab->DBInsert(
-					table  => 'asset',
-					hash   => $newasset,
-					errors => \@errs
-				)
+		if ( !(
+			$numchanges += $stab->DBInsert(
+				table  => 'asset',
+				hash   => $newasset,
+				errors => \@errs
 			)
-		  )
+		) )
 		{
 			$stab->error_return( join( " ", @errs ) );
 		}
-		my $assetid = $newasset->{ _dbx('ASSET_ID') };
+		my $assetid = $newasset->{'ASSET_ID'};
 	}
 
 	my $newdev = {
@@ -231,20 +226,18 @@ sub do_device_add {
 	};
 
 	$numchanges = 0;
-	if (
-		!(
-			$numchanges += $stab->DBInsert(
-				table  => 'device',
-				hash   => $newdev,
-				errors => \@errs
-			)
+	if ( !(
+		$numchanges += $stab->DBInsert(
+			table  => 'device',
+			hash   => $newdev,
+			errors => \@errs
 		)
-	  )
+	) )
 	{
 		$stab->error_return( join( " ", @errs ) );
 	}
 
-	my $devid = $newdev->{ _dbx('DEVICE_ID') };
+	my $devid = $newdev->{'DEVICE_ID'};
 
 	if ( defined($commstr) ) {
 		my $q = qq{

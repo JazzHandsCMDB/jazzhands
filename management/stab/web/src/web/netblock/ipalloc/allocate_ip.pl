@@ -52,7 +52,6 @@
 use strict;
 use warnings;
 use JazzHands::STAB;
-use JazzHands::Common qw(:all);
 use Data::Dumper;
 use Carp;
 use Net::IP;
@@ -104,9 +103,9 @@ sub clear_same_netblock_breakdown_params {
 		next if ( !$hr );
 
 		# if the netblock id changed, preserve, tho this is weird.
-		next if ( $hr->{ _dbx('NETBLOCK_ID') } ne $nbid );
+		next if ( $hr->{'NETBLOCK_ID'} ne $nbid );
 
-		if ( $hr->{ _dbx('DESCRIPTION') } ne $desc ) {
+		if ( $hr->{'DESCRIPTION'} ne $desc ) {
 			next;
 		}
 
@@ -160,7 +159,7 @@ sub process_netblock_reservations {
 				$stab->error_return(
 					"Unable to find IP ($ip) in DB for $inid.  Seek Help");
 			}
-			my $status = $netblock->{ _dbx('NETBLOCK_STATUS') };
+			my $status = $netblock->{'NETBLOCK_STATUS'};
 
 			# do not attempt to deleted allocated ips
 			next
@@ -201,9 +200,8 @@ sub process_netblock_reservations {
 				NETBLOCK_STATUS => $status,
 			);
 			my $diffs =
-			  $stab->hash_table_diff( _dbx($netblock), _dbx( \%newnb ) );
-
-			#- warn " ++ ", Dumper(\%newnb, $diffs, $netblock);
+			  $stab->hash_table_diff( $netblock, \%newnb )
+			  ;    #- warn " ++ ", Dumper(\%newnb, $diffs, $netblock);
 			my $tally   += keys %$diffs;
 			$numchanges += $tally;
 			if (
@@ -222,14 +220,12 @@ sub process_netblock_reservations {
 			# [XXX] need to reconfigure
 			# Netblock can come into existance if it was populated by
 			# a DNS insert previously.
-			if (
-				!(
-					my $xx = $stab->get_netblock_from_ip(
-						ip_address        => $ip,
-						is_single_address => 'Y'
-					)
+			if ( !(
+				my $xx = $stab->get_netblock_from_ip(
+					ip_address        => $ip,
+					is_single_address => 'Y'
 				)
-			  )
+			) )
 			{
 				$inid = ipalloc_get_or_create_netblock_id( $stab, $ip, $nblkid,
 					$indesc, );
@@ -258,7 +254,7 @@ sub remove_dns_record {
 		delete from dns_Record where netblock_id = ?
 	};
 	my $sth = $stab->prepare($q) || $stab->return_db_err($dbh);
-	$sth->execute($id) || $stab->return_db_err($sth);
+	$sth->execute($id)           || $stab->return_db_err($sth);
 }
 
 #
@@ -277,7 +273,7 @@ sub ipalloc_get_or_create_netblock_id {
 			"Unable to find/configure parent IP in DB.  Please seek help");
 	}
 
-	my $pip = new Net::IP( $netblock->{ _dbx('IP_ADDRESS') } )
+	my $pip = new Net::IP( $netblock->{'IP_ADDRESS'} )
 	  || $stab->error_return("Netblock IP is not valid");
 
 	my $nip = new Net::IP($insert_ip)
@@ -290,7 +286,7 @@ sub ipalloc_get_or_create_netblock_id {
 	if ( $pip->ip() ne $nip->ip() ) {
 		if ( $pip->overlaps($nip) != $IP_B_IN_A_OVERLAP ) {
 			$stab->error_return(
-				"$insert_ip is not in " . $netblock->{ _dbx('IP_ADDRESS') } );
+				"$insert_ip is not in " . $netblock->{'IP_ADDRESS'} );
 		}
 	}
 
@@ -399,14 +395,12 @@ sub cleanup_unchanged_routes {
 
 	# check adds..
 	my $add = 0;
-	foreach my $key (
-		qw(
+	foreach my $key ( qw(
 		SOURCE_BLOCK_IP
 		SOURCE_MASKLEN
 		ROUTE_DESTINATION_IP
 		ROUTE_DESCRIPTION
-		)
-	  )
+	) )
 	{
 		my $x = $stab->cgi_parse_param($key);
 		$add++ if ( defined($x) );
@@ -414,14 +408,12 @@ sub cleanup_unchanged_routes {
 	}
 
 	if ( !$add ) {
-		foreach my $key (
-			qw(
+		foreach my $key ( qw(
 			SOURCE_BLOCK_IP
 			SOURCE_MASKLEN
 			ROUTE_DESTINATION_IP
 			ROUTE_DESCRIPTION
-			)
-		  )
+		) )
 		{
 			$cgi->delete($key);
 		}
@@ -441,7 +433,7 @@ sub cleanup_unchanged_netblocks {
 	}
 	);
 	$sth->execute($nblkid) || $stab->return_db_err($sth);
-	my $all = $sth->fetchall_hashref( _dbx('NETBLOCK_ID') );
+	my $all = $sth->fetchall_hashref('NETBLOCK_ID');
 
 	for my $uniqid ( $stab->cgi_get_ids('desc') ) {
 		my $inid   = $stab->cgi_parse_param( 'rowblk', $uniqid );
@@ -460,10 +452,10 @@ sub cleanup_unchanged_netblocks {
 			&& defined( $all->{$inid} ) )
 		{
 			my $x = $all->{$inid};
-			if ( $x->{ _dbx('DESCRIPTION') } && defined($indesc) ) {
+			if ( $x->{'DESCRIPTION'} && defined($indesc) ) {
 				next
-				  if ( $x->{ _dbx('DESCRIPTION') } ne $indesc );
-			} elsif ( !defined( $x->{ _dbx('DESCRIPTION') } )
+				  if ( $x->{'DESCRIPTION'} ne $indesc );
+			} elsif ( !defined( $x->{'DESCRIPTION'} )
 				&& !defined($indesc) )
 			{
 				;
@@ -532,11 +524,10 @@ sub add_netblock_routes {
 		)
 	}
 	);
-	$numchanges += $sth->execute(
-		$nb->{ _dbx('NETBLOCK_ID') },
-		$ni->{ _dbx('NETWORK_INTERFACE_ID') },
-		$nblkid, $desc
-	) || $stab->return_db_err($sth);
+	$numchanges +=
+	  $sth->execute( $nb->{'NETBLOCK_ID'}, $ni->{'NETWORK_INTERFACE_ID'},
+		$nblkid, $desc )
+	  || $stab->return_db_err($sth);
 	$numchanges;
 }
 

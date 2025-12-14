@@ -26,7 +26,6 @@ use POSIX;
 use Data::Dumper;
 use Carp;
 use JazzHands::STAB;
-use JazzHands::Common qw(_dbx);
 use Net::IP;
 
 # causes stack traces on warnings
@@ -180,8 +179,8 @@ sub dump_steps {
 		caption => 'Detailed Completion Information',
 		class   => 'reporting',
 		tableid => 'approvalreport',
-		urlmap  => { 'Relevant User' => '../?actas=%{login}' },
-		hidden  => ['login'],
+		urlmap  => { 'Relevant User' => '../?actas=%{LOGIN}' },
+		hidden  => ['LOGIN'],
 	);
 }
 
@@ -223,8 +222,8 @@ sub dump_peruser {
 		bind    => [$instid],
 		caption => 'State of Each Outstanding Recertification by User',
 		class   => 'reporting',
-		urlmap  => { 'Approving User' => '../?actas=%{login}' },
-		hidden  => ['login'],
+		urlmap  => { 'Approving User' => '../?actas=%{LOGIN}' },
+		hidden  => ['LOGIN'],
 		tableid => 'approvalperuser'
 	);
 }
@@ -234,7 +233,8 @@ sub show_approval_instance {
 
 	my $cgi = $stab->cgi() || die "could not create cgi";
 
-	my $sth = $stab->prepare( qq{
+	my $sth = $stab->prepare(
+		qq{
 		SELECT  *,
 				date_trunc('seconds', approval_start) as start,
 				date_trunc('seconds', approval_end) as end
@@ -251,8 +251,7 @@ sub show_approval_instance {
 	my $title = "Approval Reporting";
 
 	if ($hr) {
-		$title = $hr->{ _dbx('APPROVAL_INSTANCE_NAME') } . " "
-		  . $hr->{ _dbx('DESCRIPTION') };
+		$title = $hr->{'APPROVAL_INSTANCE_NAME'} . " " . $hr->{'DESCRIPTION'};
 	}
 
 	print $cgi->header( { -type => 'text/html' } ), "\n";
@@ -263,8 +262,8 @@ sub show_approval_instance {
 		print $cgi->div( $cgi->table(
 			{ -class => 'reporting' },
 			$cgi->caption("Time Frames"),
-			$cgi->Tr( $cgi->td( [ 'Start', $hr->{ _dbx('START') } ] ) ),
-			$cgi->Tr( $cgi->td( [ 'End',   $hr->{ _dbx('END') } || '' ] ) ),
+			$cgi->Tr( $cgi->td( [ 'Start', $hr->{'START'} ] ) ),
+			$cgi->Tr( $cgi->td( [ 'End',   $hr->{'END'} || '' ] ) ),
 		) );
 	}
 

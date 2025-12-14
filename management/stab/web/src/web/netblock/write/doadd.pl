@@ -41,7 +41,6 @@ use strict;
 use warnings;
 use FileHandle;
 use JazzHands::STAB;
-use JazzHands::Common::Util qw(_dbx);
 
 do_netblock_addition();
 
@@ -171,8 +170,8 @@ sub do_netblock_addition {
 	$me->commit;
 
 	my $refurl = "../";
-	if ( $me->hash->{ _dbx('parent_netblock_id') } ) {
-		$refurl .= "?nblkid=" . $me->hash->{ _dbx('parent_netblock_id') };
+	if ( $me->hash->{'PARENT_NETBLOCK_ID'} ) {
+		$refurl .= "?nblkid=" . $me->hash->{'PARENT_NETBLOCK_ID'};
 	}
 	undef $me;
 	$stab->msg_return( "Child Netblock Added", $refurl, 1 );

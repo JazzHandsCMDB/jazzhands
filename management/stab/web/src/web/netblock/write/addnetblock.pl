@@ -29,7 +29,6 @@ use strict;
 use warnings;
 use FileHandle;
 use JazzHands::STAB;
-use JazzHands::Common::Util qw(_dbx);
 use Data::Dumper;
 
 do_add_child_netblock_prompt();
@@ -65,11 +64,11 @@ sub do_add_child_netblock_prompt {
 			}
 		}
 	}
-	print $cgi->header( { -type => 'text/html' } ), "\n";
+	print $cgi->header(      { -type  => 'text/html' } ),            "\n";
 	print $stab->start_html( { -title => 'STAB: Add a netblock' } ), "\n";
 	if ( defined($blk) ) {
 		print $cgi->h2( "Add a child to ",
-			$blk->IPAddress, ( $blk->hash()->{ _dbx('description') } || "" ) );
+			$blk->IPAddress, ( $blk->hash()->{'DESCRIPTION'} || "" ) );
 	} else {
 		print $cgi->h2("Add a netblock");
 	}
@@ -78,7 +77,7 @@ sub do_add_child_netblock_prompt {
 	print "IP/Bits: "
 	  . $cgi->textfield( { -size => 15, -name => 'ip' } ) . "/"
 	  . $cgi->textfield( { -size => 2,  -name => 'bits' } ) . "\n";
-	print $cgi->br, "\n";
+	print $cgi->br,        "\n";
 	print "Description: ", $cgi->textfield('description') . "\n";
 	print $cgi->submit( { -label => 'Submit' } ), "\n";
 	if ( defined($netblkid) ) {

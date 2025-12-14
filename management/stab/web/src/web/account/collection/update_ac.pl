@@ -23,7 +23,6 @@ use strict;
 use warnings;
 use FileHandle;
 use JazzHands::STAB;
-use JazzHands::Common::Util qw(_dbx);
 use Data::Dumper;
 
 exit do_account_collection_update();
@@ -50,7 +49,8 @@ sub do_account_collection_update {
 
 	# Is this a development server?
 	my $development_override = 0;
-	if( $ENV{'development'} =~ /true/ ) {
+	if ( $ENV{'development'} =~ /true/ ) {
+
 		# Authorize write access
 		$development_override = 1;
 	}

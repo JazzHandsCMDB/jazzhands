@@ -196,6 +196,8 @@ sub new {
 			"Unable to initialize database: " . $JazzHands::DBI::errstr );
 	}
 
+	$self->dbh->{FetchHashKeyName} = 'NAME_uc';
+
 	#
 	# These are used for permissions.
 	#
@@ -291,9 +293,11 @@ sub check_permissions {
 	# Check if we can get the role permission from the _sectionaccess cache
 	# The _sectionaccess cache is a dictionary, where each role is a key
 	# The value of the role can be 0 (access denied) or 1 (access allowed)
-		if( exists( $self->{_sectionaccess} ) ) {
+	if ( exists( $self->{_sectionaccess} ) ) {
+
 		# Check if the role is in the cache
-		if( exists( $self->{_sectionaccess}->{$role} ) ) {
+		if ( exists( $self->{_sectionaccess}->{$role} ) ) {
+
 			# Return its value
 			return $self->{_sectionaccess}->{$role};
 		}
@@ -320,7 +324,7 @@ sub check_permissions {
 	$sth->finish;
 
 	# If the cache doesn't exist, create it
-	if( !exists( $self->{_sectionaccess} ) ) {
+	if ( !exists( $self->{_sectionaccess} ) ) {
 		$self->{_sectionaccess} = {};
 	}
 
@@ -632,7 +636,7 @@ sub start_html {
 				},
 				{
 					-language => 'javascript',
-					-src =>
+					-src      =>
 					  "$root/javascript-common/external/jquery-Autocomplete/jquery.autocomplete.js",
 				},
 				{
@@ -666,7 +670,7 @@ sub start_html {
 				},
 				{
 					-language => 'javascript',
-					-src =>
+					-src      =>
 					  "$root/javascript-common/external/jquery-Autocomplete/jquery.autocomplete.js",
 				},
 				{
@@ -688,7 +692,7 @@ sub start_html {
 				},
 				{
 					-language => 'javascript',
-					-src =>
+					-src      =>
 					  "$root/javascript-common/external/chosen/chosen.jquery.js",
 				},
 				{
@@ -710,7 +714,8 @@ sub start_html {
 				},
 				{
 					-language => 'javascript',
-					-src => "$root/javascript-common/external/datatables/datatables-2.0.3.min.js",
+					-src      =>
+					  "$root/javascript-common/external/datatables/datatables-2.0.3.min.js",
 				},
 				{
 					-language => 'javascript',
@@ -731,7 +736,8 @@ sub start_html {
 				},
 				{
 					-language => 'javascript',
-					-src => "$root/javascript-common/external/datatables/datatables-2.0.3.min.js",
+					-src      =>
+					  "$root/javascript-common/external/datatables/datatables-2.0.3.min.js",
 				},
 				{
 					-language => 'javascript',
@@ -791,37 +797,31 @@ sub start_html {
 	}
 
 	# Define the html tag lang attirbute to "en"
-	$args{ '-lang' } = 'en';
+	$args{'-lang'} = 'en';
 
-	$args{'-head'} = $cgi->Link(
-		{
-			-rel  => 'icon',
-			-href => "$stabroot/stabcons/stab.png",
-			-type => 'image/png'
-		}
-	  )
-	  . $cgi->Link(
-		{
-			-rel  => 'shortcut icon',
-			-href => "$stabroot/stabcons/stab.png",
-			-type => 'image/png'
-		}
-	  )
-		# Define the language
-		. meta(
-		{
-			-http_equiv => 'Content-Language',
-			-content => 'en'
-		}
-		)
-		# Disable automatic translation as Microsoft Edge incorrectly identifies
-		# the source language to Portuguese on the dns page
-		. meta(
-		{
-			-name    => 'google',
-			-content => 'notranslate'
-		}
-		);
+	$args{'-head'} = $cgi->Link( {
+		-rel  => 'icon',
+		-href => "$stabroot/stabcons/stab.png",
+		-type => 'image/png'
+	} )
+	  . $cgi->Link( {
+		-rel  => 'shortcut icon',
+		-href => "$stabroot/stabcons/stab.png",
+		-type => 'image/png'
+	  } )
+
+	  # Define the language
+	  . meta( {
+		-http_equiv => 'Content-Language',
+		-content    => 'en'
+	  } )
+
+	  # Disable automatic translation as Microsoft Edge incorrectly identifies
+	  # the source language to Portuguese on the dns page
+	  . meta( {
+		-name    => 'google',
+		-content => 'notranslate'
+	  } );
 
 	if ( $opts->{'onLoad'} ) {
 		$args{'-onLoad'} = $opts->{'onLoad'};
@@ -832,8 +832,8 @@ sub start_html {
 		'Generator' => "Perl CGI"
 	};
 
-  # This might get around tabindex issues
-  #$args{'-dtd'} = '-//W3C//DTD HTML 3.2//EN';
+	# This might get around tabindex issues
+	#$args{'-dtd'} = '-//W3C//DTD HTML 3.2//EN';
 	# This sets the DOCTYPE to html PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN" "http://www.w3.org/TR/html4/loose.dtd" (Almost Standards / Limited Quirks Mode)
 	# Perl CGI doesn't support the No Quirks mode unfortunately
 	$args{'-dtd'} = ' ';
@@ -846,8 +846,10 @@ sub start_html {
 
 	# If tne environment variable 'production' doesn't exist or is not set to 'true', then it's a development server
 	if ( !exists( $ENV{'production'} ) || $ENV{'production'} ne 'true' ) {
+
 		# Change the title to indicate it's a development server
 		$args{'-title'} =~ s/STAB:/STAB(D):/;
+
 		# Add a class to the body tag to indicate it's a development server
 		# The development background image is set in css/stab.css
 		$args{'-class'} = 'development';
@@ -902,8 +904,7 @@ sub start_html {
 		my $navbar = "";
 		foreach my $p ( sort keys %{$map} ) {
 			if ( $self->check_permissions( $map->{$p} ) ) {
-				$navbar .= $cgi->a(
-					{
+				$navbar .= $cgi->a( {
 						-href => "$stabroot"
 						  . $self->{_permmap}->{ $map->{$p} },
 					},
@@ -1339,7 +1340,7 @@ sub int_mac_from_text {
 		select TO_NUMBER(:1,'XXXXXXXXXXXX') from dual
 	};
 	my $sth = $self->prepare($q) || $self->return_db_err($dbh);
-	$sth->execute($vc_mac) || $self->return_db_err($sth);
+	$sth->execute($vc_mac)       || $self->return_db_err($sth);
 	( $sth->fetchrow_array )[0];
 }
 
@@ -1357,18 +1358,14 @@ sub b_nondbdropdown {
 	}
 	my ( $values, $field, $pkeyfield, $noguessunknown ) = @_;
 
-	# XXX probably should do this elsewhere, but...
-	$field     = _dbx($field)     if ( defined($field) );
-	$pkeyfield = _dbx($pkeyfield) if ( defined($pkeyfield) );
-
 	my $dbh      = $self->dbh;
 	my $cgi      = $self->cgi;
 	my $onchange = $params->{'-onChange'};
 	my $id       = $params->{'-id'};
 	my $class    = $params->{'-class'};
-	my $prefix   = $params->{'-prefix'} || "";
+	my $prefix   = $params->{'-prefix'}   || "";
 	my $preidfix = $params->{'-preidfix'} || "";
-	my $suffix   = $params->{'-suffix'} || "";
+	my $suffix   = $params->{'-suffix'}   || "";
 	my $original = $params->{'-original'};
 
 	my $xml = $params->{'-xml'};
@@ -1525,7 +1522,7 @@ sub b_nondbdropdown {
 	$popup_args->{'-labels'}   = \%list if ( $#list >= 0 );
 	$popup_args->{'-default'}  = $default;
 	$popup_args->{'-onChange'} = $onchange if ($onchange);
-	$popup_args->{'-id'}       = $id if ($id);
+	$popup_args->{'-id'}       = $id       if ($id);
 	$popup_args->{'-original'} = $original if ( defined($original) );
 
 	my $x = $cgi->popup_menu($popup_args);
@@ -1555,17 +1552,13 @@ sub b_dropdown {
 	}
 	my ( $values, $field, $pkeyfield, $noguessunknown ) = @_;
 
-	# XXX probably should do this elsewhere, but...
-	$field     = _dbx($field)     if ( defined($field) );
-	$pkeyfield = _dbx($pkeyfield) if ( defined($pkeyfield) );
-
 	my $dbh      = $self->dbh;
 	my $cgi      = $self->cgi;
 	my $onchange = $params->{'-onChange'};
 	my $class    = $params->{'-class'};
-	my $prefix   = $params->{'-prefix'} || "";
+	my $prefix   = $params->{'-prefix'}   || "";
 	my $preidfix = $params->{'-preidfix'} || "";
-	my $suffix   = $params->{'-suffix'} || "";
+	my $suffix   = $params->{'-suffix'}   || "";
 	my $callback = $params->{'-callback'};
 	my $original = $params->{'-original'};
 
@@ -2161,8 +2154,7 @@ sub b_dropdown {
 			if ($default) {
 				$devlink = "./type/?DEVICE_TYPE_ID=$default";
 			}
-			$redir = $cgi->a(
-				{
+			$redir = $cgi->a( {
 					-target => 'TOP',
 					-id     => $redirid,
 					-href   => $devlink,
@@ -2179,8 +2171,7 @@ sub b_dropdown {
 			if ( $default && $default ne '__unknown__' ) {
 				$devlink = "$root?RACK_ID=$default";
 			}
-			$redir = $cgi->a(
-				{
+			$redir = $cgi->a( {
 					-target => 'TOP',
 					-id     => $redirid,
 					-href   => $devlink,
@@ -2200,7 +2191,7 @@ sub b_dropdown {
 	$popupargs->{-default}    = $default;
 	$popupargs->{-original}   = $original if ( defined($original) );
 	$popupargs->{-onChange}   = $onchange if ( defined($onchange) );
-	$popupargs->{-class}      = $class if ( defined($class) );
+	$popupargs->{-class}      = $class    if ( defined($class) );
 	$popupargs->{-attributes} = \%attr;
 	$popupargs->{-id}         = $id if ( defined($id) );
 
@@ -2282,10 +2273,6 @@ sub b_textfield {
 	}
 	my ( $values, $field, $pkeyfield ) = @_;
 
-	# XXX probably should do this elsewhere, but...
-	$field     = _dbx($field)     if ( defined($field) );
-	$pkeyfield = _dbx($pkeyfield) if ( defined($pkeyfield) );
-
 	my $default      = $params->{'-default'};
 	my $ip0          = $params->{'-allow_ip0'};
 	my $class        = $params->{'-class'};
@@ -2296,10 +2283,10 @@ sub b_textfield {
 	my $pattern      = $params->{'-pattern'};
 	my $defaultValue = $params->{'-defaultValue'};
 	my $original     = $params->{'-original'};
-	my $editoff      = $params->{'-noEdit'} || 'never';
-	my $prefix       = $params->{'-prefix'} || "";
+	my $editoff      = $params->{'-noEdit'}   || 'never';
+	my $prefix       = $params->{'-prefix'}   || "";
 	my $preidfix     = $params->{'-preidfix'} || "";
-	my $suffix       = $params->{'-suffix'} || "";
+	my $suffix       = $params->{'-suffix'}   || "";
 
 	my $cgi = $self->cgi;
 
@@ -2391,8 +2378,7 @@ sub b_textfield {
 
 		if ($id) {
 			my $buttonid = "editbut_$id";
-			$button = $cgi->a(
-				{
+			$button = $cgi->a( {
 					-id      => $buttonid,
 					-class   => 'stabeditbutton',
 					-href    => '#',
@@ -2409,8 +2395,7 @@ sub b_textfield {
 
 		if ( defined($id) ) {
 			my $buttonid = "editbut_$id";
-			$button = $cgi->a(
-				{
+			$button = $cgi->a( {
 					-id    => $buttonid,
 					-class => 'stabeditbutton',
 					-href  => '#',
@@ -2425,17 +2410,17 @@ sub b_textfield {
 	my $args = {};
 	$args->{'-name'}         = $webname;
 	$args->{'-id'}           = $webname;
-	$args->{'-class'}        = $class if ( defined($class) );
-	$args->{'-alt'}          = $alt if ( defined($alt) );
-	$args->{'-onChange'}     = $onchange if ($onchange);
-	$args->{'-onKeyUp'}      = $onkeyup if ($onkeyup);
-	$args->{'-placeholder'}  = $placeholder if ( defined($placeholder) );
-	$args->{'-pattern'}      = $pattern if ( defined($pattern) );
+	$args->{'-class'}        = $class         if ( defined($class) );
+	$args->{'-alt'}          = $alt           if ( defined($alt) );
+	$args->{'-onChange'}     = $onchange      if ($onchange);
+	$args->{'-onKeyUp'}      = $onkeyup       if ($onkeyup);
+	$args->{'-placeholder'}  = $placeholder   if ( defined($placeholder) );
+	$args->{'-pattern'}      = $pattern       if ( defined($pattern) );
 	$args->{'-defaultValue'} = $$defaultValue if ( defined($defaultValue) );
-	$args->{'-default'}      = $allf if ( defined($allf) );
-	$args->{'-original'}     = $original if ( defined($original) );
-	$args->{'-size'}         = $size if ($size);
-	$args->{'-maxlength'} = 2048;    ## [XXX] probably need to rethink!
+	$args->{'-default'}      = $allf          if ( defined($allf) );
+	$args->{'-original'}     = $original      if ( defined($original) );
+	$args->{'-size'}         = $size          if ($size);
+	$args->{'-maxlength'}    = 2048;    ## [XXX] probably need to rethink!
 
 	if ($disabled) {
 		if ( $args->{-class} ) {
@@ -2468,9 +2453,6 @@ sub build_tr {
 	}
 
 	my ( $values, $callback, $header, $field, $pkeyfield ) = @_;
-
-	# XXX probably should do this elsewhere, but...
-	$pkeyfield = _dbx($pkeyfield) if ( defined($pkeyfield) );
 
 	my $cgi = $self->cgi;
 
@@ -2520,10 +2502,6 @@ sub build_checkbox {
 		$field     = $label;
 		$label     = $params->{-label};
 	}
-
-	# XXX probably should do this elsewhere, but...
-	$field     = _dbx($field)     if ( defined($field) );
-	$pkeyfield = _dbx($pkeyfield) if ( defined($pkeyfield) );
 
 	my $cgi = $self->cgi;
 
@@ -2604,6 +2582,7 @@ sub build_table_from_query {
 	my $cgi = $self->cgi;
 	my $sth = $self->prepare( $opt->{query} ) || return $self->return_db_err();
 
+
 	if ( !$opt->{bind} ) {
 		$sth->execute || return $self->return_db_err($sth);
 	} elsif ( ref( $opt->{bind} ) eq 'ARRAY' ) {
@@ -2628,6 +2607,7 @@ sub build_table_from_query {
 	while ( my $hr = $sth->fetchrow_hashref ) {
 		my @foo;
 		foreach my $k ( @{$showcols} ) {
+			my $uck = uc($k);
 
 			#
 			# if there is an entry in urlmap for this column, transform
@@ -2636,13 +2616,14 @@ sub build_table_from_query {
 			#
 			if ( $opt->{urlmap} && exists( $opt->{urlmap}->{$k} ) ) {
 				my $url = $opt->{urlmap}->{$k};
-				foreach my $qcol ( @{ $sth->{NAME} } ) {
+				foreach my $defqcol ( @{ $sth->{NAME} } ) {
+					my $qcol = uc($defqcol);
 					my $v = $hr->{$qcol} || '';
 					$url =~ s,\%\{$qcol\},$v,;
 				}
-				push( @foo, $cgi->a( { -href => $url }, $hr->{$k} ) );
+				push( @foo, $cgi->a( { -href => $url }, $hr->{$uck} ) );
 			} else {
-				push( @foo, $hr->{$k} );
+				push( @foo, $hr->{$uck} );
 			}
 		}
 		for ( my $i = 0 ; $i <= $#foo ; $i++ ) {
@@ -2675,7 +2656,7 @@ sub check_if_sure {
 	my ( $self, $msg ) = @_;
 
 	my $cgi          = $self->cgi;
-	my $areyousure   = $cgi->param('areyousure') || undef;
+	my $areyousure   = $cgi->param('areyousure')   || undef;
 	my $orig_referer = $cgi->param('orig_referer') || undef;
 
 	$msg = "do this" if ( !defined($msg) );
@@ -2688,12 +2669,10 @@ sub check_if_sure {
 
 		print $cgi->header(      { -type  => 'text/html' } ),    "\n";
 		print $self->start_html( { -title => 'Verification' } ), "\n";
-		print $cgi->h2(
-			$cgi->a(
-				{ -href => $n->self_url },
-				"Click if you are you sure you want to ${msg}."
-			)
-		);
+		print $cgi->h2( $cgi->a(
+			{ -href => $n->self_url },
+			"Click if you are you sure you want to ${msg}."
+		) );
 		print $cgi->end_html;
 		exit;
 	} else {
@@ -2767,7 +2746,7 @@ sub parse_netblock_description_search {
 	my $sth = $self->prepare($q) || $self->return_db_err($dbh);
 	$sth->execute($bydesc) || $self->return_db_err($sth);
 
-	my $hr = $sth->fetchall_hashref( _dbx('NETBLOCK_ID') );
+	my $hr = $sth->fetchall_hashref('NETBLOCK_ID');
 	$hr;
 }
 
@@ -2808,8 +2787,7 @@ sub build_ticket_row {
 	# [XXX] probably want to rethink this.
 	my $dropid = $prefix . "APPROVAL_TYPE$idstr";
 	my $txtid  = $prefix . "APPROVAL_REF_NUM$idstr";
-	my $tix    = $self->b_nondbdropdown(
-		{
+	my $tix    = $self->b_nondbdropdown( {
 			-name     => $dropid,
 			-onChange => "tix_sys_toggle(\"$dropid\", \"$txtid\")",
 		},
@@ -2819,7 +2797,7 @@ sub build_ticket_row {
 	  )
 	  . $self->b_textfield(
 		{ -disabled => 'yes', -name => $txtid }, undef,
-		$prefix . 'APPROVAL_REF_NUM', $pkey
+		$prefix . 'APPROVAL_REF_NUM',            $pkey
 	  );
 	$tix;
 }
@@ -2848,9 +2826,9 @@ sub build_trouble_ticket_link {
 }
 
 sub cmpPkgVer {
-	my ( $self, $ver1, $ver2 ) = @_;
+	my ( $self,    $ver1,    $ver2 ) = @_;
 	my ( $ver1Maj, $ver1Min, $ver2Maj, $ver2Min );
-	my ( @ver1, @ver2 );
+	my ( @ver1,    @ver2 );
 
 	return ($ver1) if ( defined($ver1)  && !defined($ver2) );
 	return ($ver2) if ( !defined($ver1) && defined($ver2) );
@@ -2910,20 +2888,32 @@ sub zone_header {
 	$opts->{-class} = 'tracked';
 
 	$self->textfield_sizing(0);
-	$opts->{-original} = defined( $hr->{ _dbx('SOA_SERIAL')} ) ? $hr->{ _dbx('SOA_SERIAL')} : '';
-	my $serial  = $self->b_textfield( $opts, $hr, 'SOA_SERIAL', 'DNS_DOMAIN_ID', 0 );
-	$opts->{-original} = defined( $hr->{ _dbx('SOA_REFRESH')} ) ? $hr->{ _dbx('SOA_REFRESH')} : '';
-	my $refresh = $self->b_textfield( $opts, $hr, 'SOA_REFRESH', 'DNS_DOMAIN_ID', 21600 );
-	$opts->{-original} = defined( $hr->{ _dbx('SOA_RETRY')} ) ? $hr->{ _dbx('SOA_RETRY')} : '';
-	my $retry   = $self->b_textfield( $opts, $hr, 'SOA_RETRY', 'DNS_DOMAIN_ID', 7200 );
-	$opts->{-original} = defined( $hr->{ _dbx('SOA_EXPIRE')} ) ? $hr->{ _dbx('SOA_EXPIRE')} : '';
-	my $expire  = $self->b_textfield( $opts, $hr, 'SOA_EXPIRE', 'DNS_DOMAIN_ID', 2419200 );
-	$opts->{-original} = defined( $hr->{ _dbx('SOA_MINIMUM')} ) ? $hr->{ _dbx('SOA_MINIMUM')} : '';
-	my $minimum = $self->b_textfield( $opts, $hr, 'SOA_MINIMUM', 'DNS_DOMAIN_ID', 3600 );
-	$opts->{-original} = defined( $hr->{ _dbx('SOA_MNAME')} ) ? $hr->{ _dbx('SOA_MNAME')} : '';
-	my $mname   = $self->b_textfield( $opts, $hr, 'SOA_MNAME', 'DNS_DOMAIN_ID' );
-	$opts->{-original} = defined( $hr->{ _dbx('SOA_RNAME')} ) ? $hr->{ _dbx('SOA_RNAME')} : '';
-	my $rname   = $self->b_textfield( $opts, $hr, 'SOA_RNAME', 'DNS_DOMAIN_ID' );
+	$opts->{-original} =
+	  defined( $hr->{'SOA_SERIAL'} ) ? $hr->{'SOA_SERIAL'} : '';
+	my $serial =
+	  $self->b_textfield( $opts, $hr, 'SOA_SERIAL', 'DNS_DOMAIN_ID', 0 );
+	$opts->{-original} =
+	  defined( $hr->{'SOA_REFRESH'} ) ? $hr->{'SOA_REFRESH'} : '';
+	my $refresh =
+	  $self->b_textfield( $opts, $hr, 'SOA_REFRESH', 'DNS_DOMAIN_ID', 21600 );
+	$opts->{-original} =
+	  defined( $hr->{'SOA_RETRY'} ) ? $hr->{'SOA_RETRY'} : '';
+	my $retry =
+	  $self->b_textfield( $opts, $hr, 'SOA_RETRY', 'DNS_DOMAIN_ID', 7200 );
+	$opts->{-original} =
+	  defined( $hr->{'SOA_EXPIRE'} ) ? $hr->{'SOA_EXPIRE'} : '';
+	my $expire =
+	  $self->b_textfield( $opts, $hr, 'SOA_EXPIRE', 'DNS_DOMAIN_ID', 2419200 );
+	$opts->{-original} =
+	  defined( $hr->{'SOA_MINIMUM'} ) ? $hr->{'SOA_MINIMUM'} : '';
+	my $minimum =
+	  $self->b_textfield( $opts, $hr, 'SOA_MINIMUM', 'DNS_DOMAIN_ID', 3600 );
+	$opts->{-original} =
+	  defined( $hr->{'SOA_MNAME'} ) ? $hr->{'SOA_MNAME'} : '';
+	my $mname = $self->b_textfield( $opts, $hr, 'SOA_MNAME', 'DNS_DOMAIN_ID' );
+	$opts->{-original} =
+	  defined( $hr->{'SOA_RNAME'} ) ? $hr->{'SOA_RNAME'} : '';
+	my $rname = $self->b_textfield( $opts, $hr, 'SOA_RNAME', 'DNS_DOMAIN_ID' );
 	$self->textfield_sizing(1);
 
 	my $class = 'IN';
@@ -2931,8 +2921,8 @@ sub zone_header {
 	my $ttl   = 3600;
 
 	if ( defined($hr) ) {
-		$type = $hr->{ _dbx('SOA_TYPE') } || 'SOA';
-		$ttl  = $hr->{ _dbx('TTL') }      || "";
+		$type = $hr->{'SOA_TYPE'} || 'SOA';
+		$ttl  = $hr->{'TTL'}      || "";
 	}
 
 	my $style = '';
@@ -3197,14 +3187,12 @@ sub vendor_logo {
 
 	my $rv = "";
 	if ( $vendor && exists( $ICOMAP{$vendor} ) && $ICOMAP{$vendor} ) {
-		$rv = $cgi->img(
-			{
-				-class => 'icon-vendor',
-				-alt   => $vendor,
-				-align => 'left',
-				-src   => $root . '/images/vendors/' . $ICOMAP{$vendor}
-			}
-		);
+		$rv = $cgi->img( {
+			-class => 'icon-vendor',
+			-alt   => $vendor,
+			-align => 'left',
+			-src   => $root . '/images/vendors/' . $ICOMAP{$vendor}
+		} );
 	}
 	$rv;
 }
@@ -3220,8 +3208,8 @@ sub process_dns_ref_add($$$$) {
 
 	my $p        = 'dnsref_';
 	my $s        = "_dnsref_${recupdid}";
-	my $name     = $self->cgi_parse_param( "${p}DNS_NAME${s}", $refid );
-	my $type     = $self->cgi_parse_param( "${p}DNS_TYPE${s}", $refid );
+	my $name     = $self->cgi_parse_param( "${p}DNS_NAME${s}",      $refid );
+	my $type     = $self->cgi_parse_param( "${p}DNS_TYPE${s}",      $refid );
 	my $refdomid = $self->cgi_parse_param( "${p}DNS_DOMAIN_ID${s}", $refid );
 
 	my $new = {
@@ -3244,8 +3232,8 @@ sub process_dns_ref_updates($$$$) {
 
 	my $p        = 'dnsref_';
 	my $s        = "_dnsref_${recupdid}";
-	my $name     = $self->cgi_parse_param( "${p}DNS_NAME${s}", $refid );
-	my $type     = $self->cgi_parse_param( "${p}DNS_TYPE${s}", $refid );
+	my $name     = $self->cgi_parse_param( "${p}DNS_NAME${s}",      $refid );
+	my $type     = $self->cgi_parse_param( "${p}DNS_TYPE${s}",      $refid );
 	my $refdomid = $self->cgi_parse_param( "${p}DNS_DOMAIN_ID${s}", $refid );
 
 	my $new = {
@@ -3263,16 +3251,14 @@ sub process_dns_ref_updates($$$$) {
 sub process_and_update_dns_record {
 	my ( $self, $opts, $ttlonly ) = @_;
 
-	$opts = _dbx( $opts, 'lower' );
+	$opts->{'IS_ENABLED'} = 'Y' if ( !defined( $opts->{'IS_ENABLED'} ) );
 
-	$opts->{'is_enabled'} = 'Y' if ( !defined( $opts->{'is_enabled'} ) );
+	my $orig = $self->get_dns_record_from_id( $opts->{'DNS_RECORD_ID'} );
 
-	my $orig = $self->get_dns_record_from_id( $opts->{'dns_record_id'} );
-
-	if ( !exists( $opts->{'dns_ttl'} ) ) {
-		$opts->{'dns_ttl'} = $orig->{ _dbx('DNS_TTL') };
-	} elsif ( !length( $opts->{'dns_ttl'} ) ) {
-		$opts->{'dns_ttl'} = undef;
+	if ( !exists( $opts->{'DNS_TTL'} ) ) {
+		$opts->{'DNS_TTL'} = $orig->{'DNS_TTL'};
+	} elsif ( !length( $opts->{'DNS_TTL'} ) ) {
+		$opts->{'DNS_TTL'} = undef;
 	}
 
 	my $newrecord;
@@ -3280,38 +3266,36 @@ sub process_and_update_dns_record {
 	# ttlonly applies only to A/AAAA records anchored to hosts
 	if ($ttlonly) {
 		$newrecord = {
-			DNS_RECORD_ID       => $opts->{'dns_record_id'},
-			DNS_TTL             => $opts->{'dns_ttl'},
-			IS_ENABLED          => $opts->{'is_enabled'},
-			SHOULD_GENERATE_PTR => $opts->{'should_generate_ptr'},
+			DNS_RECORD_ID       => $opts->{'DNS_RECORD_ID'},
+			DNS_TTL             => $opts->{'DNS_TTL'},
+			IS_ENABLED          => $opts->{'IS_ENABLED'},
+			SHOULD_GENERATE_PTR => $opts->{'SHOULD_GENERATE_PTR'},
 		};
 	} else {
 		$newrecord = {
-			DNS_RECORD_ID       => $opts->{'dns_record_id'},
-			DNS_TTL             => $opts->{'dns_ttl'},
-			DNS_NAME            => $opts->{'dns_name'},
-			DNS_VALUE           => $opts->{'dns_value'},
-			DNS_TYPE            => $opts->{'dns_type'},
-			IS_ENABLED          => $opts->{'is_enabled'},
-			SHOULD_GENERATE_PTR => $opts->{'should_generate_ptr'},
-			DNS_PRIORITY        => $opts->{'dns_priority'},
-			DNS_SRV_SERVICE     => $opts->{'dns_srv_service'},
-			DNS_SRV_PROTOCOl    => $opts->{'dns_srv_protocol'},
-			DNS_SRV_WEIGHT      => $opts->{'dns_srv_weight'},
-			DNS_SRV_PORT        => $opts->{'dns_srv_port'},
-			DNS_VALUE_RECORD_ID => $opts->{'dns_value_record_id'},
+			DNS_RECORD_ID       => $opts->{'DNS_RECORD_ID'},
+			DNS_TTL             => $opts->{'DNS_TTL'},
+			DNS_NAME            => $opts->{'DNS_NAME'},
+			DNS_VALUE           => $opts->{'DNS_VALUE'},
+			DNS_TYPE            => $opts->{'DNS_TYPE'},
+			IS_ENABLED          => $opts->{'IS_ENABLED'},
+			SHOULD_GENERATE_PTR => $opts->{'SHOULD_GENERATE_PTR'},
+			DNS_PRIORITY        => $opts->{'DNS_PRIORITY'},
+			DNS_SRV_SERVICE     => $opts->{'DNS_SRV_SERVICE'},
+			DNS_SRV_PROTOCOl    => $opts->{'DNS_SRV_PROTOCOL'},
+			DNS_SRV_WEIGHT      => $opts->{'DNS_SRV_WEIGHT'},
+			DNS_SRV_PORT        => $opts->{'DNS_SRV_PORT'},
+			DNS_VALUE_RECORD_ID => $opts->{'DNS_VALUE_RECORD_ID'},
 		};
 	}
-	if ( defined( $opts->{class} ) ) {
-		$newrecord->{'DNS_CLASS'} = $opts->{dns_class};
+	if ( defined( $opts->{CLASS} ) ) {
+		$newrecord->{'DNS_CLASS'} = $opts->{DNS_CLASS};
 	}
 
 	# This is used for dns references
-	if ( defined( $opts->{dns_domain_id} ) ) {
-		$newrecord->{'DNS_DOMAIN_ID'} = $opts->{dns_domain_id};
+	if ( defined( $opts->{DNS_DOMAIN_ID} ) ) {
+		$newrecord->{'DNS_DOMAIN_ID'} = $opts->{DNS_DOMAIN_ID};
 	}
-
-	$newrecord = _dbx( $newrecord, 'lower' );
 
 	# On update:
 	#	Only pay attention to if the new type is A or AAAA.
@@ -3322,45 +3306,45 @@ sub process_and_update_dns_record {
 	#		to 'N'.
 	#	If it is not a type change, then just obey what it was set to.
 	#
-	if (   $opts->{should_generate_ptr}
-		&& $opts->{'dns_type'} =~ /^A(AAA)?$/ )
+	if (   $opts->{SHOULD_GENERATE_PTR}
+		&& $opts->{'DNS_TYPE'} =~ /^A(AAA)?$/ )
 	{
-		if ( $opts->{should_generate_ptr} eq 'Y' ) {
-			$newrecord->{'should_generate_ptr'} = $opts->{should_generate_ptr};
-		} elsif ( $orig->{'dns_type'} ne $opts->{'dns_type'} ) {
-			if (   !$opts->{dns_value_record_id}
-				&& !$self->get_dns_a_record_for_ptr( $opts->{'dns_value'} ) )
+		if ( $opts->{SHOULD_GENERATE_PTR} eq 'Y' ) {
+			$newrecord->{'SHOULD_GENERATE_PTR'} = $opts->{SHOULD_GENERATE_PTR};
+		} elsif ( $orig->{'DNS_TYPE'} ne $opts->{'DNS_TYPE'} ) {
+			if (   !$opts->{DNS_VALUE_RECORD_ID}
+				&& !$self->get_dns_a_record_for_ptr( $opts->{'DNS_VALUE'} ) )
 			{
-				$newrecord->{'should_generate_ptr'} = 'Y';
+				$newrecord->{'SHOULD_GENERATE_PTR'} = 'Y';
 			} else {
-				$newrecord->{'should_generate_ptr'} =
-				  $opts->{should_generate_ptr};
+				$newrecord->{'SHOULD_GENERATE_PTR'} =
+				  $opts->{SHOULD_GENERATE_PTR};
 			}
 		} else {
-			$newrecord->{'should_generate_ptr'} = $opts->{should_generate_ptr};
+			$newrecord->{'SHOULD_GENERATE_PTR'} = $opts->{SHOULD_GENERATE_PTR};
 		}
 
-		if ( $opts->{should_generate_ptr} eq 'Y' ) {
+		if ( $opts->{SHOULD_GENERATE_PTR} eq 'Y' ) {
 
 			# Get the dns record having the ptr
-			my $recid = $self->get_dns_a_record_for_ptr( $opts->{'dns_value'} );
+			my $recid = $self->get_dns_a_record_for_ptr( $opts->{'DNS_VALUE'} );
 
 			# If there is one, and if it's different than the current record, set ptr = 'N'
-			if ( $recid && $recid != $orig->{'dns_record_id'} ) {
+			if ( $recid && $recid != $orig->{'DNS_RECORD_ID'} ) {
 				$self->run_update_from_hash( "DNS_RECORD",
-					"DNS_RECORD_ID", $recid, { should_generate_ptr => 'N' } );
+					"DNS_RECORD_ID", $recid, { SHOULD_GENERATE_PTR => 'N' } );
 			}
 		}
 	}
 
 	# Wildcard dns records must not have the PTR set
-	if ( $opts->{dns_name} =~ /\*/ ) {
-		$newrecord->{'should_generate_ptr'} = 'N';
+	if ( $opts->{DNS_NAME} =~ /\*/ ) {
+		$newrecord->{'SHOULD_GENERATE_PTR'} = 'N';
 	}
 
 	my $nblkid;
-	if (   defined( $opts->{dns_value} )
-		&& defined( $opts->{dns_value_record_id} ) )
+	if (   defined( $opts->{DNS_VALUE} )
+		&& defined( $opts->{DNS_VALUE_RECORD_ID} ) )
 	{
 		$self->error_return("Must not specify a reference and Value");
 	}
@@ -3368,38 +3352,36 @@ sub process_and_update_dns_record {
 	# if the new type is A/AAAA then find the netblock and create if it
 	# does not exist.
 	# Creation should only happen on a change.
-	if ( $opts->{'dns_type'} =~ /^A(AAA)?/ && !$opts->{dns_value_record_id} ) {
-		if (   $opts->{'dns_value'} !~ /^(\d+\.){3}\d+/
-			&& $opts->{'dns_type'} eq 'A' )
+	if ( $opts->{'DNS_TYPE'} =~ /^A(AAA)?/ && !$opts->{DNS_VALUE_RECORD_ID} ) {
+		if (   $opts->{'DNS_VALUE'} !~ /^(\d+\.){3}\d+/
+			&& $opts->{'DNS_TYPE'} eq 'A' )
 		{
 			$self->error_return(
-				"$opts->{'dns_value'} is not a valid IPv4 address");
-		} elsif ( $opts->{'dns_value'} !~ /^[A-Z0-9:]+$/i
-			&& $opts->{'dns_type'} eq 'AAAA' )
+				"$opts->{'DNS_VALUE'} is not a valid IPv4 address");
+		} elsif ( $opts->{'DNS_VALUE'} !~ /^[A-Z0-9:]+$/i
+			&& $opts->{'DNS_TYPE'} eq 'AAAA' )
 		{
 			$self->error_return(
-				"$opts->{'dns_value'} is not a valid IPv6 address");
+				"$opts->{'DNS_VALUE'} is not a valid IPv6 address");
 		}
 
 		my $block =
-		  $self->get_netblock_from_ip( ip_address => $opts->{'dns_value'} );
+		  $self->get_netblock_from_ip( ip_address => $opts->{'DNS_VALUE'} );
 		if ( !$block ) {
 			$block = $self->get_netblock_from_ip(
-				ip_address    => $opts->{'dns_value'},
+				ip_address    => $opts->{'DNS_VALUE'},
 				netblock_type => 'dns'
 			);
 		}
 		if ( !defined($block) ) {
 			my $h = {
-				ip_address        => $opts->{'dns_value'},
+				ip_address        => $opts->{'DNS_VALUE'},
 				is_single_address => 'Y'
 			};
-			if (
-				!(
-					my $par =
-					$self->guess_parent_netblock_id( $opts->{'dns_value'} )
-				)
-			  )
+			if ( !(
+				my $par =
+				$self->guess_parent_netblock_id( $opts->{'DNS_VALUE'} )
+			) )
 			{
 				# XXX This is outside our IP universe,
 				# which we should probably print a warning
@@ -3410,38 +3392,55 @@ sub process_and_update_dns_record {
 			$nblkid = $self->add_netblock($h)
 			  || die $self->return_db_err();
 		} else {
-			$nblkid = $block->{ _dbx('NETBLOCK_ID') };
+			$nblkid = $block->{'NETBLOCK_ID'};
 		}
 	}
 
 	# if changing from A/AAAA or back then just swap out the netblock id and don't set the
 	# value
-	if (   $orig->{ _dbx('DNS_TYPE') } =~ /^A(AAA)?/
-		&& $opts->{dns_type} =~ /^A(AAA)?/ )
+	if (   $orig->{'DNS_TYPE'} =~ /^A(AAA)?/
+		&& $opts->{DNS_TYPE} =~ /^A(AAA)?/ )
 	{
-		$newrecord->{ _dbx('DNS_VALUE') }   = undef;
-		$newrecord->{ _dbx('NETBLOCK_ID') } = $nblkid;
-	} elsif ( $orig->{ _dbx('DNS_TYPE') } =~ /^A(AAA)?/
-		&& $opts->{dns_type} !~ /^A(AAA)?/ )
+		$newrecord->{'DNS_VALUE'}   = undef;
+		# Only update NETBLOCK_ID if we actually looked it up (i.e., if $nblkid is defined)
+		# Otherwise preserve the original netblock_id
+		if (defined($nblkid)) {
+			$newrecord->{'NETBLOCK_ID'} = $nblkid;
+		} else {
+			$newrecord->{'NETBLOCK_ID'} = $orig->{'NETBLOCK_ID'};
+		}
+	} elsif ( $orig->{'DNS_TYPE'} =~ /^A(AAA)?/
+		&& $opts->{DNS_TYPE} !~ /^A(AAA)?/ )
 	{
-		$newrecord->{ _dbx('DNS_VALUE') }   = $opts->{dns_value};
-		$newrecord->{ _dbx('NETBLOCK_ID') } = undef;
-	} elsif ( $orig->{ _dbx('DNS_TYPE') } !~ /^A(AAA)?/
-		&& $opts->{dns_type} =~ /^A(AAA)?/ )
+		$newrecord->{'DNS_VALUE'}   = $opts->{DNS_VALUE};
+		$newrecord->{'NETBLOCK_ID'} = undef;
+	} elsif ( $orig->{'DNS_TYPE'} !~ /^A(AAA)?/
+		&& $opts->{DNS_TYPE} =~ /^A(AAA)?/ )
 	{
-		$newrecord->{ _dbx('DNS_VALUE') }   = undef;
-		$newrecord->{ _dbx('NETBLOCK_ID') } = $nblkid;
+		$newrecord->{'DNS_VALUE'}   = undef;
+		$newrecord->{'NETBLOCK_ID'} = $nblkid;
 	}
 
-	my $diffs = $self->hash_table_diff( $orig, _dbx($newrecord) );
+	# Convert both hashes to lowercase for comparison and update
+	# Only include keys from newrecord that were explicitly set
+	my %orig_lower = map { lc($_) => $orig->{$_} } keys %$orig;
+	my %newrecord_lower = map { lc($_) => $newrecord->{$_} } keys %$newrecord;
+	
+	# Remove keys from orig_lower that aren't in newrecord_lower
+	# This prevents hash_table_diff from seeing missing keys as changes to undef
+	my %orig_filtered;
+	for my $key (keys %newrecord_lower) {
+		$orig_filtered{$key} = $orig_lower{$key} if exists $orig_lower{$key};
+	}
+
+	my $diffs = $self->hash_table_diff( \%orig_filtered, \%newrecord_lower );
 	my $tally = keys %$diffs;
+	
 	if ( !$tally ) {
 		return 0;
-	} elsif (
-		!$self->run_update_from_hash(
-			"DNS_RECORD", "DNS_RECORD_ID", $orig->{dns_record_id}, $diffs
-		)
-	  )
+	} elsif ( !$self->run_update_from_hash(
+		"dns_record", "dns_record_id", $orig_lower{dns_record_id}, $diffs
+	) )
 	{
 		$self->rollback;
 		$self->return_db_err();

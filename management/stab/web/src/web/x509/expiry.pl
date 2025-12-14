@@ -26,7 +26,6 @@ use POSIX;
 use Data::Dumper;
 use Carp;
 use JazzHands::STAB;
-use JazzHands::Common qw(_dbx);
 
 # causes stack traces on warnings
 # local $SIG{__WARN__} = \&Carp::cluck;
@@ -41,7 +40,7 @@ sub do_cert_expiry_toplevel {
 	print $stab->start_html( {
 		-title      => "Expiring Certificates next 120 days",
 		-javascript => 'reporting'
-	} ),
+	  } ),
 	  "\n";
 
 	print $cgi->h4( { -align => 'center' }, "Expiring Certificates" );

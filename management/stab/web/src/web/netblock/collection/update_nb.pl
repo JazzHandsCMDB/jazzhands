@@ -23,7 +23,6 @@ use strict;
 use warnings;
 use FileHandle;
 use JazzHands::STAB;
-use JazzHands::Common::Util qw(_dbx);
 use Data::Dumper;
 
 exit do_netblock_collection_update();
@@ -51,18 +50,14 @@ sub do_netblock_collection_update {
 	#
 	foreach my $id ( $stab->cgi_get_ids('rm_NETBLOCK_ID') ) {
 		my $x;
-		if (
-			!(
-				$x = (
-					$stab->DBDelete(
-						table  => 'netblock_collection_netblock',
-						dbkey  => [ 'netblock_collection_id', 'netblock_id' ],
-						keyval => [ $ncid, $id ],
-						errors => \@errs,
-					)
-				)
-			)
-		  )
+		if ( !(
+			$x = ( $stab->DBDelete(
+				table  => 'netblock_collection_netblock',
+				dbkey  => [ 'netblock_collection_id', 'netblock_id' ],
+				keyval => [ $ncid,                    $id ],
+				errors => \@errs,
+			) )
+		) )
 		{
 			$stab->error_return( join( " ", @errs ) );
 		}
@@ -74,21 +69,15 @@ sub do_netblock_collection_update {
 	#
 	foreach my $id ( $stab->cgi_get_ids('rm_NETBLOCK_COLLECTION_ID') ) {
 		my $x;
-		if (
-			!(
-				$x = (
-					$stab->DBDelete(
-						table => 'netblock_collection_hier',
-						dbkey => [
-							'netblock_collection_id',
-							'child_netblock_collection_id'
-						],
-						keyval => [ $ncid, $id ],
-						errors => \@errs,
-					)
-				)
-			)
-		  )
+		if ( !(
+			$x = ( $stab->DBDelete(
+				table => 'netblock_collection_hier',
+				dbkey =>
+				  [ 'netblock_collection_id', 'child_netblock_collection_id' ],
+				keyval => [ $ncid, $id ],
+				errors => \@errs,
+			) )
+		) )
 		{
 			$stab->error_return( join( " ", @errs ) );
 		}
@@ -114,18 +103,16 @@ sub do_netblock_collection_update {
 
 		my $new = {
 			netblock_collection_id => $ncid,
-			netblock_id            => $nb->{ _dbx('NETBLOCK_ID') },
+			netblock_id            => $nb->{'NETBLOCK_ID'},
 		};
 
-		if (
-			!(
-				$numchanges += $stab->DBInsert(
-					table  => 'netblock_collection_netblock',
-					hash   => $new,
-					errors => \@errs
-				)
+		if ( !(
+			$numchanges += $stab->DBInsert(
+				table  => 'netblock_collection_netblock',
+				hash   => $new,
+				errors => \@errs
 			)
-		  )
+		) )
 		{
 			$stab->error_return( join( " ", @errs ) );
 		}
@@ -147,15 +134,13 @@ sub do_netblock_collection_update {
 			child_netblock_collection_id => $newncid
 		};
 
-		if (
-			!(
-				$numchanges += $stab->DBInsert(
-					table  => 'netblock_collection_hier',
-					hash   => $new,
-					errors => \@errs
-				)
+		if ( !(
+			$numchanges += $stab->DBInsert(
+				table  => 'netblock_collection_hier',
+				hash   => $new,
+				errors => \@errs
 			)
-		  )
+		) )
 		{
 			$stab->error_return( join( " ", @errs ) );
 		}

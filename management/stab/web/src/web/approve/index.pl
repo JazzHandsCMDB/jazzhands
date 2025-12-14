@@ -26,7 +26,6 @@ use POSIX;
 use Data::Dumper;
 use Carp;
 use JazzHands::STAB;
-use JazzHands::Common qw(_dbx);
 use Net::IP;
 
 # causes stack traces on warnings
@@ -54,8 +53,8 @@ sub build_correction($$) {
 	my ( $stab, $hr ) = @_;
 
 	my $cgi = $stab->cgi || die "Could not create cgi";
-	my $id  = $hr->{ _dbx('APPROVAL_INSTANCE_ITEM_ID') };
-	my $cat = $hr->{ _dbx('approved_category') };
+	my $id  = $hr->{'APPROVAL_INSTANCE_ITEM_ID'};
+	my $cat = $hr->{'APPROVED_CATEGORY'};
 
 	my $newid = "fix_$id";
 
@@ -64,7 +63,8 @@ sub build_correction($$) {
 		my $ph = "";
 		if ( $cat eq 'department' ) {
 			$ph  = 'Please Select department';
-			$sth = $stab->prepare_cached( qq{
+			$sth = $stab->prepare_cached(
+				qq{
 					SELECT	account_collection_name
 					FROM	account_collection
 							JOIN  department USING (account_collection_id)
@@ -75,7 +75,8 @@ sub build_correction($$) {
 			) || return $stab->return_db_err();
 		} elsif ( $cat eq 'ReportingAttest' ) {
 			$ph  = 'Please Select Manager';
-			$sth = $stab->prepare_cached( qq{
+			$sth = $stab->prepare_cached(
+				qq{
 				WITH x as (
 					select person_id,
 						coalesce(preferred_first_name,first_name) as first_name,
@@ -138,12 +139,12 @@ sub dump_attest_loop($$;$$) {
 
 	my $map = {};
 	while ( my $hr = $sth->fetchrow_hashref ) {
-		my $step = $hr->{ _dbx('approval_instance_step_id') };
-		my $item = $hr->{ _dbx('approval_instance_item_id') };
+		my $step = $hr->{'APPROVAL_INSTANCE_STEP_ID'};
+		my $item = $hr->{'APPROVAL_INSTANCE_ITEM_ID'};
 
-		my $label = $hr->{ _dbx('apprved_label') };
-		my $lhs   = $hr->{ _dbx('approved_lhs') };
-		my $rhs   = $hr->{ _dbx('approved_rhs') };
+		my $label = $hr->{'APPRVED_LABEL'};
+		my $lhs   = $hr->{'APPROVED_LHS'};
+		my $rhs   = $hr->{'APPROVED_RHS'};
 
 		$map->{$step}->{lhs}->{$lhs}->{$item}->{label} = $label;
 		$map->{$step}->{lhs}->{$lhs}->{$item}->{rhs}   = $rhs;
@@ -175,12 +176,11 @@ sub dump_attest_loop($$;$$) {
 				  $map->{$step}->{lhs}->{$lhs}->{$item}->{hr};
 				my $linkback = "";
 				my $linkfwd  = "";
-				if ( $hr->{ _dbx('LHS_STEP_ID') } ) {
+				if ( $hr->{'LHS_STEP_ID'} ) {
 					my $url = $cgi->url();
 					if ($url) {
 						$url =
-						  "?APPROVAL_INSTANCE_STEP_ID="
-						  . $hr->{ _dbx('LHS_STEP_ID') };
+						  "?APPROVAL_INSTANCE_STEP_ID=" . $hr->{'LHS_STEP_ID'};
 						$linkback = $cgi->a( {
 								-class => 'notreallydisabled',
 								-href  => $url
@@ -189,16 +189,15 @@ sub dump_attest_loop($$;$$) {
 						);
 					}
 				}
-				if ( $hr->{ _dbx('RHS_STEP_ID') } ) {
+				if ( $hr->{'RHS_STEP_ID'} ) {
 					my $url = $cgi->url();
 					if ($url) {
 						my $app =
-						  ( $hr->{ _dbx('IS_APPROVED') } )
-						  ? $hr->{ _dbx('IS_APPROVED') }
+						  ( $hr->{'IS_APPROVED'} )
+						  ? $hr->{'IS_APPROVED'}
 						  : "";
 						$url .=
-						  "?APPROVAL_INSTANCE_STEP_ID="
-						  . $hr->{ _dbx('RHS_STEP_ID') };
+						  "?APPROVAL_INSTANCE_STEP_ID=" . $hr->{'RHS_STEP_ID'};
 						$linkfwd = $cgi->a( {
 								-class => 'notreallydisabled',
 								-href  => $url
@@ -217,10 +216,11 @@ sub dump_attest_loop($$;$$) {
 					$mytrclass = 'odd';
 				}
 
-				if ( $hr->{ _dbx('EXTERNAL_REFERENCE_NAME') } ) {
-					my $ref = $hr->{ _dbx('EXTERNAL_REFERENCE_NAME') };
-					if ( $hr->{ _dbx('APPROVAL_TYPE') } eq 'jira-hr' ) {
-						my $sth = $stab->prepare( qq{
+				if ( $hr->{'EXTERNAL_REFERENCE_NAME'} ) {
+					my $ref = $hr->{'EXTERNAL_REFERENCE_NAME'};
+					if ( $hr->{'APPROVAL_TYPE'} eq 'jira-hr' ) {
+						my $sth = $stab->prepare(
+							qq{
 							select property_value from property
 							where property_name = '_jira_url'
 							and property_type = 'Defaults'
@@ -241,7 +241,7 @@ sub dump_attest_loop($$;$$) {
 						}
 					}
 					my $x =
-					  ( !$hr->{ _dbx('IS_APPROVED') } )
+					  ( !$hr->{'IS_APPROVED'} )
 					  ? "(pending)"
 					  : "";
 					$correction = "$x $ref";
@@ -249,7 +249,7 @@ sub dump_attest_loop($$;$$) {
 					$correction = $cgi->div( {
 							-class =>
 							  'correction hidecorrection chosen-workaround',
-							-id => $hr->{ _dbx('approval_instance_item_id') }
+							-id => $hr->{'APPROVAL_INSTANCE_ITEM_ID'}
 						},
 						build_correction( $stab, $hr ),
 					);
@@ -261,44 +261,41 @@ sub dump_attest_loop($$;$$) {
 				my $whocol = '';
 				if ( $perdudetally == 1 ) {
 
-					# $whocol = $hr->{approved_lhs} || '';
+					# $whocol = $hr->{APPROVED_LHS} || '';
 					$whocol = $cgi->td( {
 							-class   => $myclass,
 							-rowspan => $numitems
 						},
-						$hr->{approved_lhs} || ''
+						$hr->{APPROVED_LHS} || ''
 					);
 				}
 
 				my $approvsw = "";
-				if ( $hr->{ _dbx('IS_APPROVED') } ) {
+				if ( $hr->{'IS_APPROVED'} ) {
 					$myclass .= " disabled";
 				} elsif ( !$ro ) {
-					$numpending++;
-
-					#$approvsw = $cgi->checkbox({
-					#	-class => 'attesttoggle approve',
-					#	-name => 'app_'.$hr->{_dbx('approval_instance_item_id')},
-					#	-label => ''}),
+					$numpending++;    #$approvsw = $cgi->checkbox({
+									  #	-class => 'attesttoggle approve',
+						#	-name => 'app_'.$hr->{'APPROVAL_INSTANCE_ITEM_ID'},
+						#	-label => ''}),
 					$approvsw = $cgi->div(
 						{ -class => 'attestbox' },
 						$cgi->hidden( {
 							-class => 'approve_value',
-							-name  => 'ap_'
-							  . $hr->{ _dbx('approval_instance_item_id') },
+							-name => 'ap_' . $hr->{'APPROVAL_INSTANCE_ITEM_ID'},
 							value => ''
 						} ),
 						$cgi->button( {
 							-class => 'attesttoggle approve buttonoff',
 							-name  => 'app_'
-							  . $hr->{ _dbx('approval_instance_item_id') },
+							  . $hr->{'APPROVAL_INSTANCE_ITEM_ID'},
 							-type  => 'button',
 							-value => 'approve'
 						} ),
 						$cgi->button( {
 							-class => 'attesttoggle disapprove buttonoff',
 							-name  => 'dis_'
-							  . $hr->{ _dbx('approval_instance_item_id') },
+							  . $hr->{'APPROVAL_INSTANCE_ITEM_ID'},
 							-type  => 'button',
 							-value => 'request change'
 						} ),
@@ -309,7 +306,7 @@ sub dump_attest_loop($$;$$) {
 					{ -class => $mytrclass },
 					$cgi->hidden(
 						-id    => 'approval_category',
-						-value => $hr->{approved_category}
+						-value => $hr->{APPROVED_CATEGORY}
 					),
 
 					# $cgi->td($linkback),
@@ -317,8 +314,8 @@ sub dump_attest_loop($$;$$) {
 					$cgi->td(
 						{ -class => $myclass },
 						[
-							$hr->{approved_label} || '',
-							$hr->{approved_rhs}   || '',
+							$hr->{APPROVED_LABEL} || '',
+							$hr->{APPROVED_RHS}   || '',
 							$approvsw,
 						]
 					),
@@ -338,27 +335,25 @@ sub dump_attest_loop($$;$$) {
 		}
 
 		my $dueclass = 'approvaldue';
-		my $due =
-		  "Due: End of Day " . $shr->{ _dbx('APPROVAL_INSTANCE_STEP_DUE') };
-		if ( $shr->{ _dbx('DUE_SECONDS') } < 0 ) {
-			my $n = int( abs( $shr->{ _dbx('DUE_SECONDS') } ) / 86400 );
+		my $due = "Due: End of Day " . $shr->{'APPROVAL_INSTANCE_STEP_DUE'};
+		if ( $shr->{'DUE_SECONDS'} < 0 ) {
+			my $n = int( abs( $shr->{'DUE_SECONDS'} ) / 86400 );
 			$dueclass .= " overdue";
 			$due = "OVERDUE $n days: $due";
-		} elsif ( $shr->{ _dbx('DUE_SECONDS') } < 86400 ) {
+		} elsif ( $shr->{'DUE_SECONDS'} < 86400 ) {
 			$dueclass .= " duesoon";
 			$due = "DUE SOON: $due";
 		}
 
-		my $msg = $shr->{ _dbx('chain_description') };
+		my $msg = $shr->{'CHAIN_DESCRIPTION'};
 
 		my $tab = join(
 			"\n",
 			$cgi->div(
 				{ -class => 'description process' },
-				$shr->{ _dbx('process_description') }
+				$shr->{'PROCESS_DESCRIPTION'}
 			),
 			$cgi->hr,
-
 			$cgi->div(
 				{ -class => 'description chain' },
 				$msg,
@@ -376,14 +371,14 @@ sub dump_attest_loop($$;$$) {
 			$cgi->div( { -class => $dueclass }, $due ),
 		);
 
-		# hrn = human readnable, id = for web forms
+		# hrn = human readrable, id = for web forms
 		my $id = join( "_",
-			$shr->{ _dbx('APPROVAL_INSTANCE_STEP_ID') },
-			$shr->{ _dbx('APPROVAL_INSTANCE_NAME') } );
+			$shr->{'APPROVAL_INSTANCE_STEP_ID'},
+			$shr->{'APPROVAL_INSTANCE_NAME'} );
 		$id =~ s/\s+//g;
 		my $hrn = join( " ",
-			$shr->{ _dbx('APPROVAL_INSTANCE_NAME') },
-			$shr->{ _dbx('APPROVAL_INSTANCE_STEP_NAME') } );
+			$shr->{'APPROVAL_INSTANCE_NAME'},
+			$shr->{'APPROVAL_INSTANCE_STEP_NAME'} );
 		push( @tabs, { id => $id, name => $hrn, content => $tab } );
 		undef $t;
 		undef $tab;
@@ -476,7 +471,8 @@ sub do_my_attest {
 			"You are not permitted to approve on behalf of this person");
 	}
 
-	my $sth = $stab->prepare( qq{
+	my $sth = $stab->prepare(
+		qq{
 		WITH flow AS (
 			select	i.approval_instance_item_id as lhs_item_id,
 						i.approval_instance_step_id as lhs_step_id,
@@ -555,7 +551,8 @@ sub show_step_attest {
 
 	print $cgi->h4( { -align => 'center' }, "Approval Step" );
 
-	my $sth = $stab->prepare( qq{
+	my $sth = $stab->prepare(
+		qq{
 		WITH flow AS (
 			select	i.approval_instance_item_id as lhs_item_id,
 						i.approval_instance_step_id as lhs_step_id,

@@ -29,7 +29,6 @@ use strict;
 use warnings;
 use FileHandle;
 use JazzHands::STAB;
-use JazzHands::Common qw(:all);
 use Data::Dumper;
 
 exit do_apps();
@@ -63,8 +62,8 @@ sub build_hier {
 		my $canadd = 0;
 		if (
 			$tier->{hr}->{$item}
-			&& (  !$tier->{hr}->{$item}->{ _dbx('NUM_DEVICES') }
-				|| $tier->{hr}->{$item}->{ _dbx('NUM_KIDS') } )
+			&& (  !$tier->{hr}->{$item}->{'NUM_DEVICES'}
+				|| $tier->{hr}->{$item}->{'NUM_KIDS'} )
 		  )
 		{
 			$canadd = 1;
@@ -113,7 +112,7 @@ sub build_hier {
 				-src => "$root/stabcons/$img"
 			} )
 
-			  #"-+>"
+			#"-+>"
 		);
 
 		$a = "" if ( !$y || !length($y) );
@@ -160,7 +159,8 @@ sub do_apps {
 
 	my $cl = {};
 
-	my $sth = $stab->prepare( qq{
+	my $sth = $stab->prepare(
+		qq{
 		select	x.*,
 				coalesce(devs.tally, 0) as num_devices,
 				coalesce(kids.tally, 0) as num_kids
@@ -203,16 +203,15 @@ sub do_apps {
 	$tier->{kids} = {};
 	my $lastroot = "";
 	while ( my $hr = $sth->fetchrow_hashref ) {
-		my $cur = $tier->{kids};
-		my $bo  = $tier;
-		my $fullp =
-		  $hr->{ _dbx('ROLE_PATH') } . "/" . $hr->{ _dbx('ROLE_NAME') };
+		my $cur   = $tier->{kids};
+		my $bo    = $tier;
+		my $fullp = $hr->{'ROLE_PATH'} . "/" . $hr->{'ROLE_NAME'};
 
 		# in oracle, ROLE_PATH was just /, did not include the curent one.
 		# This may make more sense, but the postgresql version does it so the
 		# path is fully qualified.  Need to rethink.  XXX
-		my $splitem = $hr->{ _dbx('ROLE_PATH') };
-		my $rn      = $hr->{ _dbx('ROLE_NAME') };
+		my $splitem = $hr->{'ROLE_PATH'};
+		my $rn      = $hr->{'ROLE_NAME'};
 		$splitem =~ s,$rn$,,;
 		foreach my $elem ( split( '/', $splitem ) ) {
 			next if ( $elem eq '' );
@@ -228,9 +227,9 @@ sub do_apps {
 			$bo->{keys} = [];
 			$bo->{hr}   = {};
 		}
-		push( @{ $bo->{keys} }, $hr->{ _dbx('ROLE_NAME') } );
+		push( @{ $bo->{keys} }, $hr->{'ROLE_NAME'} );
 
-		$bo->{hr}->{ $hr->{ _dbx('ROLE_NAME') } } = $hr;
+		$bo->{hr}->{ $hr->{'ROLE_NAME'} } = $hr;
 	}
 
 	# print $cgi->pre(Dumper ( $tier ) );

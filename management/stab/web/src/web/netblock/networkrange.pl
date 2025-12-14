@@ -46,7 +46,6 @@ use strict;
 use warnings;
 use Net::Netmask;
 use JazzHands::STAB;
-use JazzHands::Common qw(_dbx);
 use Data::Dumper;
 
 do_dump_network_ranges();
@@ -208,7 +207,7 @@ sub do_dump_network_ranges {
 
 	# Loop on existing network ranges and display them
 	while ( my $hr = $sth->fetchrow_hashref ) {
-		my $nrid = $hr->{ _dbx('NETWORK_RANGE_ID') };
+		my $nrid = $hr->{'NETWORK_RANGE_ID'};
 		print $cgi->Tr( {
 				-class => 'networkrange'
 				  . ( (
@@ -239,47 +238,44 @@ sub do_dump_network_ranges {
 						''
 					  ),
 					"<a href='/netblock/?nblkid="
-					  . $hr->{ _dbx('parent_netblock_id') } . "'>"
-					  . $hr->{ _dbx('parent_netblock_ip_address') } . "</a>",
+					  . $hr->{'PARENT_NETBLOCK_ID'} . "'>"
+					  . $hr->{'PARENT_NETBLOCK_IP_ADDRESS'} . "</a>",
 
 					# Note: we don't support editing those start/end netblock fields at the moment
-					$cgi->span( {}, $hr->{ _dbx('START_IP') || '' } ),
-
-					#$cgi->textfield({
-					#	-size => 10,
-					#	-name => 'NETWORKRANGE_START_IP_'.$nrid,
-					#	-value => $hr->{ _dbx('START_IP') || '' },
-					#	-class => 'tracked',
-					#	-original => $hr->{ _dbx('START_IP') || '' },
-					#}),
-					$cgi->span( {}, $hr->{ _dbx('STOP_IP') || '' } ),
-
-					#$cgi->textfield({
-					#	-size => 10,
-					#	-name => 'NETWORKRANGE_STOP_IP_'.$nrid,
-					#	-value => $hr->{ _dbx('STOP_IP') || '' },
-					#	-class => 'tracked',
-					#	-original => $hr->{ _dbx('STOP_IP') || '' },
-					#}),
+					$cgi->span( {}, $hr->{'START_IP'} || '' )
+					,    #$cgi->textfield({
+						 #	-size => 10,
+						 #	-name => 'NETWORKRANGE_START_IP_'.$nrid,
+						 #	-value => $hr->{ 'START_IP' || '' },
+						 #	-class => 'tracked',
+						 #	-original => $hr->{ 'START_IP' || '' },
+						 #}),
+					$cgi->span( {}, $hr->{'STOP_IP'} || '' ), #$cgi->textfield({
+															  #	-size => 10,
+						#	-name => 'NETWORKRANGE_STOP_IP_'.$nrid,
+						#	-value => $hr->{ 'STOP_IP' || '' },
+						#	-class => 'tracked',
+						#	-original => $hr->{ 'STOP_IP' || '' },
+						#}),
 					$cgi->textfield( {
 						-size     => 10,
 						-name     => 'NETWORKRANGE_LEASE_TIME_' . $nrid,
-						-value    => $hr->{ _dbx('LEASE_TIME') || '' },
+						-value    => $hr->{'LEASE_TIME'} || '',
 						-class    => 'tracked',
-						-original => $hr->{ _dbx('LEASE_TIME') || '' },
+						-original => $hr->{'LEASE_TIME'} || '',
 					} ),
 					$cgi->textfield( {
 						-size     => 10,
 						-name     => 'NETWORKRANGE_DNS_PREFIX_' . $nrid,
-						-value    => $hr->{ _dbx('DNS_PREFIX') || '' },
+						-value    => $hr->{'DNS_PREFIX'} || '',
 						-class    => 'tracked',
-						-original => $hr->{ _dbx('DNS_PREFIX') || '' },
+						-original => $hr->{'DNS_PREFIX'} || '',
 					} ),
 					$stab->b_dropdown( {
 							-dnsdomaintype => 'service',
 							-name     => 'NETWORKRANGE_DNS_DOMAIN_' . $nrid,
 							-class    => 'tracked',
-							-original => $hr->{ _dbx('DNS_DOMAIN_ID') || '' },
+							-original => $hr->{'DNS_DOMAIN_ID'} || '',
 						},
 						$hr,
 						'DNS_DOMAIN_ID',
@@ -290,30 +286,28 @@ sub do_dump_network_ranges {
 					# support changing the network type currently
 					$cgi->span(
 						{},
-						$hr->{ _dbx('NETWORK_RANGE_TYPE') || '' },
+						$hr->{'NETWORK_RANGE_TYPE'} || '',
 						$cgi->hidden(
 							'NETWORK_RANGE_TYPE',
-							$hr->{ _dbx('NETWORK_RANGE_TYPE') || '' }
+							$hr->{'NETWORK_RANGE_TYPE'} || ''
 						)
-					),
-
-					#$stab->b_dropdown(
-					#	{
-					#		-name => 'NETWORKRANGE_TYPE_'.$nrid,
-					#		-class => 'tracked',
-					#		-original => $hr->{ _dbx('NETWORK_RANGE_TYPE') || '' },
-					#	},
-					#	$hr,
-					#	'NETWORK_RANGE_TYPE',
-					#	undef,
-					#	1
-					#),
+					),    #$stab->b_dropdown(
+						  #	{
+						  #		-name => 'NETWORKRANGE_TYPE_'.$nrid,
+						  #		-class => 'tracked',
+						  #		-original => $hr->{ 'NETWORK_RANGE_TYPE' || '' },
+						  #	},
+						  #	$hr,
+						  #	'NETWORK_RANGE_TYPE',
+						  #	undef,
+						  #	1
+						  #),
 					$cgi->textfield( {
 						-size     => 32,
 						-name     => 'NETWORKRANGE_DESCRIPTION_' . $nrid,
-						-value    => $hr->{ _dbx('description') || '' },
+						-value    => $hr->{'description'} || '',
 						-class    => 'tracked',
-						-original => $hr->{ _dbx('description') || '' },
+						-original => $hr->{'description'} || '',
 					} ),
 				]
 			)
@@ -352,19 +346,7 @@ sub get_networkrange_types {
 	my $sth = $stab->prepare($q) || $stab->return_db_err($stab);
 	$sth->execute                || $stab->return_db_err($stab);
 
-	#my %networkrange_types;
-	#while ( my $hr = $sth->fetchrow_hashref ) {
-	#	$networkrange_types{ $hr->{ _dbx('network_range_type') } } = {
-	#		description           => _dbx('description') || '',
-	#		dns_domain_required   => _dbx('dns_domain_required') || '',
-	#		default_dns_prefix    => _dbx('default_dns_prefix') || '',
-	#		netblock_type         => _dbx('netblock_type') || '',
-	#		can_overlap           => _dbx('can_overlap') || '',
-	#		require_cidr_boundary => _dbx('require_cidr_boundary') || ''
-	#	};
-	#}
-	#%networkrange_types;
-	my $hr = $sth->fetchall_hashref('network_range_type');
+	my $hr = $sth->fetchall_hashref('NETWORK_RANGE_TYPE');
 	$hr;
 }
 

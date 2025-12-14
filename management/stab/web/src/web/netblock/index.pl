@@ -50,7 +50,6 @@ use warnings;
 use Net::IP;
 use FileHandle;
 use JazzHands::STAB;
-use JazzHands::Common qw(:all);
 use Data::Dumper;
 use Carp;
 use Math::BigFloat;
@@ -128,7 +127,12 @@ sub dump_toplevel {
 	print $cgi->div(
 		{ -align => 'center' },
 		"Please select a block to drill down into, or "
-		  . $cgi->a( { -href => "#", -onclick => "openAddNetblockModal(); return false;" }, "[Add a Netblock]" )
+		  . $cgi->a( {
+				-href    => "#",
+				-onclick => "openAddNetblockModal(); return false;"
+			},
+			"[Add a Netblock]"
+		  )
 	);
 
 	# Add modal dialog HTML
@@ -219,8 +223,8 @@ sub dump_toplevel {
 sub dump_nodes {
 	my ( $stab, $p_nblkid, $nblk ) = @_;
 
-	my $nb       = new Net::IP( $nblk->{ _dbx('IP_ADDRESS') } );
-	my $fam      = $nblk->{ _dbx('FAMILY') } || -1;
+	my $nb       = new Net::IP( $nblk->{'IP_ADDRESS'} );
+	my $fam      = $nblk->{'FAMILY'} || -1;
 	my $showgaps = 1;
 	if ( $fam == 6 ) {
 		$showgaps = 0;
@@ -237,7 +241,7 @@ sub dump_nodes {
 	  "\n";
 
 	my $isbcst;
-	if ( $nblk->{ _dbx('MASKLEN') } <= 30 ) {
+	if ( $nblk->{'MASKLEN'} <= 30 ) {
 		$isbcst = 1;
 	}
 
@@ -276,7 +280,7 @@ sub dump_nodes {
 	$sth->execute($p_nblkid)     || $stab->return_db_err($sth);
 
 	if ($showgaps) {
-		my $hashref = $sth->fetchall_hashref( _dbx('IP') );
+		my $hashref = $sth->fetchall_hashref('IP');
 		$sth->finish;
 
 		my $newnb = new Net::IP( $nb->print );
@@ -305,7 +309,7 @@ sub dump_nodes {
 		# XXX - need to deal with ipv6 in the db, not translate address
 		# here.
 		while ( my $hr = $sth->fetchrow_hashref ) {
-			my $printable = $hr->{ _dbx('IP_ADDRESS') };
+			my $printable = $hr->{'IP_ADDRESS'};
 			$printable =~ s,/\d+$,,;
 			my $myip = new Net::IP($printable)
 			  || die( Net::IP::Error() );
@@ -328,7 +332,7 @@ sub dump_nodes {
 			#
 			# deal with any gaps
 			#
-			my $ip = $hr->{ _dbx('IP_ADDRESS') };
+			my $ip = $hr->{'IP_ADDRESS'};
 			if ( defined($lastip) ) {
 				my $thegap = $myip->intip() - $lastip->intip() - 1;
 				if ( $thegap > 0 ) {
@@ -399,24 +403,27 @@ sub get_netblock_link_header {
 	#
 	if ( ( my $hassingles = num_kids( $stab, $nblkid, 'Y' ) ) == 0 ) {
 		$ops = " - "
-		  . $cgi->a(
-			{ -href => "#", -onclick => "openAddNetblockModal(); return false;" },
+		  . $cgi->a( {
+				-href    => "#",
+				-onclick => "openAddNetblockModal(); return false;"
+			},
 			$cgi->img( {
 				-class => 'subnet',
 				-src   => "../stabcons/Axe_001.svg",
 				-alt   => "[Subnet]",
 				-title => "Subnet Network"
 			} )
-	  )
-	  . $cgi->a( {
-			-href  => "#",
-			-class => 'rmnetblock',
-			'data-nblkid' => $nblkid,
-			'data-block' => $blk
-		},
-		''
-	  );
-}	my $name = "NETBLOCK_DESCRIPTION_$nblkid";
+		  )
+		  . $cgi->a( {
+				-href         => "#",
+				-class        => 'rmnetblock',
+				'data-nblkid' => $nblkid,
+				'data-block'  => $blk
+			},
+			''
+		  );
+	}
+	my $name = "NETBLOCK_DESCRIPTION_$nblkid";
 
 	# We need to escape any html code here, otherwise
 	# html / javascript code would be interpreted (code injection).
@@ -524,7 +531,7 @@ sub do_dump_netblock {
 		if ( !defined($netblock) ) {
 			$stab->error_return("Invalid netblock id ($start_id) specified");
 		}
-		my $base = $netblock->{ _dbx('IP_ADDRESS') };
+		my $base = $netblock->{'IP_ADDRESS'};
 		$nb = new Net::IP($base);
 	}
 
@@ -573,7 +580,7 @@ sub do_dump_netblock {
 	my $sth = $stab->prepare($q) || $stab->return_db_err($dbh);
 	$sth->execute($start_id)     || $stab->return_db_err($sth);
 
-	my $ipstr = $nblk->{ _dbx('IP_ADDRESS') };
+	my $ipstr = $nblk->{'IP_ADDRESS'};
 
 	print $stab->start_html( {
 		-title      => "Netblock $ipstr",
@@ -644,15 +651,14 @@ sub do_dump_netblock {
 
 	print $cgi->p;
 
-	if ( $nblk->{ _dbx('PARENT_NETBLOCK_ID') } ) {
-		my $p =
-		  $stab->get_netblock_from_id( $nblk->{ _dbx('PARENT_NETBLOCK_ID') } );
+	if ( $nblk->{'PARENT_NETBLOCK_ID'} ) {
+		my $p = $stab->get_netblock_from_id( $nblk->{'PARENT_NETBLOCK_ID'} );
 		print $cgi->a(
-			{ -href => "./?nblkid=" . $p->{ _dbx('NETBLOCK_ID') } },
-			"Parent: " . $p->{ _dbx('IP_ADDRESS') },
+			{ -href => "./?nblkid=" . $p->{'NETBLOCK_ID'} },
+			"Parent: " . $p->{'IP_ADDRESS'},
 			(
-				( $p->{ _dbx('DESCRIPTION') } )
-				? $p->{ _dbx('DESCRIPTION') }
+				( $p->{'DESCRIPTION'} )
+				? $p->{'DESCRIPTION'}
 				: ""
 			)
 		);
@@ -980,9 +986,9 @@ sub build_route_Tr {
 	my $dev = "";
 	my $del = "ADD";
 	if ($hr) {
-		my $id = $hr->{ _dbx('STATIC_ROUTE_TEMPLATE_ID') };
+		my $id = $hr->{'STATIC_ROUTE_TEMPLATE_ID'};
 		$dev =
-		  $hr->{ _dbx('DEVICE_NAME') } . ":" . $hr->{ _dbx('INTERFACE_NAME') },
+		  $hr->{'DEVICE_NAME'} . ":" . $hr->{'INTERFACE_NAME'},
 		  $del = $cgi->hidden(
 			-name    => "STATIC_ROUTE_TEMPLATE_ID_$id",
 			-default => $id

@@ -29,7 +29,6 @@ use strict;
 use warnings;
 use FileHandle;
 use JazzHands::STAB;
-use JazzHands::Common qw(:all);
 use Data::Dumper;
 
 edit_netblock();
@@ -77,7 +76,7 @@ sub process_netblock_update {
 		NETBLOCK_ID => $nblkid,
 		DESCRIPTION => $newval,
 	};
-	my $diffs = $stab->hash_table_diff( $orig, _dbx($new) );
+	my $diffs = $stab->hash_table_diff( $orig, $new );
 	my $tally = keys %$diffs;
 	if ($tally) {
 		$stab->run_update_from_hash( 'NETBLOCK', 'NETBLOCK_ID',

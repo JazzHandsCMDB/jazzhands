@@ -23,7 +23,6 @@ use strict;
 use warnings;
 use FileHandle;
 use JazzHands::STAB;
-use JazzHands::Common qw(:all);
 use Data::Dumper;
 
 process_site_netblocks();
@@ -145,7 +144,7 @@ sub update_site_netblock {
 	#	SITE_NETBLOCK_TYPE => $sn_type,
 	#	DESCRIPTION        => $sn_desc
 	#};
-	#my $diffs = $stab->hash_table_diff( $orig, _dbx($new) );
+	#my $diffs = $stab->hash_table_diff( $orig, $new );
 	#my $tally = keys %$diffs;
 	#if ($tally) {
 	#	$stab->run_update_from_hash( 'SITE_NETBLOCK', 'SITE_NETBLOCK__ID',
@@ -167,7 +166,7 @@ sub create_site_netblock {
 		$stab->error_return(
 			"ERROR: the ip $sn_ip doesn't correpond to an existing netblock");
 	}
-	my $netblock_id = $nb->{ _dbx('NETBLOCK_ID') };
+	my $netblock_id = $nb->{'NETBLOCK_ID'};
 
 	my $q = qq{
 		insert into site_netblock
