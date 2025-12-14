@@ -56,9 +56,10 @@ sub do_dns_toplevel {
 	my $stab = new JazzHands::STAB || die "Could not create STAB";
 	my $cgi  = $stab->cgi          || die "Could not create cgi";
 
-	my $dnsdomid  = $stab->cgi_parse_param('dnsdomainid');
-	my $dnsrecid  = $stab->cgi_parse_param('DNS_RECORD_ID');
-	my $dnssearch = $stab->cgi_parse_param('dnssearch');
+	my $dnsdomid       = $stab->cgi_parse_param('dnsdomainid');
+	my $dnsrecid       = $stab->cgi_parse_param('DNS_RECORD_ID');
+	my $dnssearch      = $stab->cgi_parse_param('dnssearch');
+	my $ip_universe_id = $stab->cgi_parse_param('ip_universe_id');
 
 	my $paging_dns_page  = $stab->cgi_parse_param('paging-dns-page')  || '1';
 	my $paging_dns_limit = $stab->cgi_parse_param('paging-dns-limit') || '200';
@@ -76,19 +77,54 @@ sub do_dns_toplevel {
 
 	if ($dnsrecid) {
 		dump_zone( $stab, $dnsdomid, $dnsrecid, $addonly, $paging_dns_page,
-			$paging_dns_limit );
+			$paging_dns_limit, $ip_universe_id );
 	} elsif ( !defined($dnsdomid) ) {
 		dump_all_zones_dropdown($stab);
 	} else {
 		dump_zone( $stab, $dnsdomid, undef, $addonly, $paging_dns_page,
-			$paging_dns_limit );
+			$paging_dns_limit, $ip_universe_id );
 	}
 	undef $stab;
+}
+
+sub get_dns_domain_ip_universes {
+	my ( $stab, $dnsdomainid ) = @_;
+	my $cgi = $stab->cgi || die "Could not create cgi";
+
+	my $q = qq{
+		select ip_universe_id, ip_universe_name
+		  from ip_universe
+			   join dns_domain_ip_universe using (ip_universe_id)
+		 where dns_domain_id = :dns_domain_id
+		order by ip_universe_id
+	};
+	my $sth = $stab->prepare($q) || return $stab->return_db_err;
+	$sth->bind_param( ':dns_domain_id', $dnsdomainid );
+	$sth->execute || return $stab->return_db_err($sth);
+
+	my @universes;
+	while ( my $hr = $sth->fetchrow_hashref ) {
+		push(
+			@universes,
+			{
+				ip_universe_id   => $hr->{'IP_UNIVERSE_ID'},
+				ip_universe_name => $hr->{'IP_UNIVERSE_NAME'}
+			}
+		);
+	}
+	$sth->finish;
+	return \@universes;
 }
 
 sub dump_dns_record_search_section {
 	my ($stab) = @_;
 	my $cgi = $stab->cgi || die "Could not create cgi";
+
+	# Wrap the entire search section in a bordered container
+	print $cgi->start_div( {
+		-style =>
+		  'border: 1px solid var(--border-color-stabtab, #bbb); border-radius: 8px; padding: 15px; margin: 10px auto; max-width: fit-content;'
+	} );
 
 	# Search for a record section
 	print $cgi->start_form( { -class => 'dnspage', -action => "search.pl" } );
@@ -146,14 +182,14 @@ sub dump_dns_record_search_section {
 	);
 	print $cgi->end_form;
 
-	print $cgi->hr;
+	print $cgi->end_div;    # Close bordered container
 }
 
 sub dump_all_zones_dropdown {
 	my ($stab) = @_;
 	my $cgi = $stab->cgi || die "Could not create cgi";
 
-	print $cgi->header( { -type => 'text/html' } ), "\n";
+	print $cgi->header(      { -type  => 'text/html' } );
 	print $stab->start_html( { -title => "DNS Zones", -javascript => 'dns' } ),
 	  "\n";
 
@@ -217,20 +253,22 @@ sub dump_all_zones {
 	  "\n";
 
 	my $q = qq{
-		select 	dns_domain_id,
-			soa_name,
-			soa_class,
-			soa_ttl,
-			soa_serial,
-			soa_refresh,
-			soa_retry,
-			soa_expire,
-			soa_minimum,
-			soa_mname,
-			soa_rname,
-			should_generate,
-			last_generated
-		  from	v_dns_domain_nouniverse
+		select 	d.dns_domain_id,
+			d.dns_domain_name AS soa_name,
+			du.soa_class,
+			du.soa_ttl,
+			du.soa_serial,
+			du.soa_refresh,
+			du.soa_retry,
+			du.soa_expire,
+			du.soa_minimum,
+			du.soa_mname,
+			du.soa_rname,
+			du.should_generate,
+			du.last_generated
+		  from	dns_domain d
+			join dns_domain_ip_universe du using (dns_domain_id)
+		 where du.ip_universe_id = 0
 		order by soa_name
 	};
 	my $sth = $stab->prepare($q) || return $stab->return_db_err;
@@ -321,23 +359,34 @@ sub dump_all_zones {
 }
 
 sub build_dns_zone {
-	my ( $stab, $dnsdomainid, $dnsrecid, $paging_dns_page, $paging_dns_limit )
+	my ( $stab, $dnsdomainid, $dnsrecid, $paging_dns_page, $paging_dns_limit,
+		$ip_universe_id, $show_origin_universe )
 	  = @_;
 
 	my $cgi = $stab->cgi || die "Could not create cgi";
 
+	# Default to showing origin universe column if not specified
+	$show_origin_universe = 1 unless defined($show_origin_universe);
+
 	my @where_condition;
-	push( @where_condition, "dns_domain_id = :dns_domain_id" );
+	push( @where_condition, "d.dns_domain_id = :dns_domain_id" );
+	if ( defined($ip_universe_id) ) {
+		push( @where_condition, "d.ip_universe_id = :ip_universe_id" );
+	}
 
 	# If we have a target dns record id, we want to display the page (offset/limit) that contains it
 	my $query;
 	if ($dnsrecid) {
 		$query = qq {
 			WITH dr as (
-				SELECT row_number() over() r, d.*, device_id
+				SELECT row_number() over() r, d.*, device_id,
+					iu.ip_universe_name,
+					iu_origin.ip_universe_name as origin_ip_universe_name
 				FROM v_dns_sorted d
 				LEFT JOIN network_interface_netblock USING (netblock_id)
-				WHERE dns_domain_id = :dns_domain_id
+				LEFT JOIN ip_universe iu ON iu.ip_universe_id = d.ip_universe_id
+				LEFT JOIN ip_universe iu_origin ON iu_origin.ip_universe_id = d.origin_ip_universe_id
+				WHERE } . join( "\n\t\t\t\t  AND ", @where_condition ) . qq{
 			)
 			SELECT * from dr
 			OFFSET (SELECT floor((r-1)/:limit)*:limit FROM dr WHERE dns_record_id=:dns_record_id)
@@ -345,17 +394,22 @@ sub build_dns_zone {
 		};
 	} else {
 		$query = qq {
-			SELECT row_number() over() r, d.*, device_id
+			SELECT row_number() over() r, d.*, device_id,
+				iu.ip_universe_name,
+				iu_origin.ip_universe_name as origin_ip_universe_name
 			FROM	v_dns_sorted d
 					LEFT JOIN network_interface_netblock USING (netblock_id)
-			WHERE 
+					LEFT JOIN ip_universe iu ON iu.ip_universe_id = d.ip_universe_id
+					LEFT JOIN ip_universe iu_origin ON iu_origin.ip_universe_id = d.origin_ip_universe_id
+			WHERE
 		} . join( "\nAND ", @where_condition ) . ' LIMIT :limit OFFSET :offset';
 	}
-
-
 	my $sth = $stab->prepare($query) || return $stab->return_db_err;
 
 	$sth->bind_param( ':dns_domain_id', $dnsdomainid );
+	if ( defined($ip_universe_id) ) {
+		$sth->bind_param( ':ip_universe_id', $ip_universe_id );
+	}
 	if ($dnsrecid) {
 		$sth->bind_param( ':dns_record_id', $dnsrecid );
 	}
@@ -374,20 +428,31 @@ sub build_dns_zone {
 
 	$sth->execute() || return $stab->return_db_err($sth);
 
-	my $count  = 0;
-	my $offset = -1;
+	my $count              = 0;
+	my $offset             = -1;
+	my $has_cross_universe = 0;
 	while ( my $hr = $sth->fetchrow_hashref ) {
 
 		# Get the offset of the first returned record
 		if ( $offset == -1 ) {
 			$offset = $hr->{'R'};
 		}
-		print build_dns_rec_Tr( $stab, $hr, ( $count++ % 2 ) ? 'even' : 'odd' );
+
+		# Check if this record is from a different universe than the one it's in
+		# (i.e., it was copied from another universe)
+		if (   defined( $hr->{'IP_UNIVERSE_ID'} )
+			&& defined( $hr->{'ORIGIN_IP_UNIVERSE_ID'} )
+			&& $hr->{'ORIGIN_IP_UNIVERSE_ID'} != $hr->{'IP_UNIVERSE_ID'} )
+		{
+			$has_cross_universe = 1;
+		}
+		print build_dns_rec_Tr( $stab, $hr, ( $count++ % 2 ) ? 'even' : 'odd',
+			$ip_universe_id, $show_origin_universe );
 	}
 	$sth->finish;
 
-	# Return the offset of the first record in the set
-	return $offset;
+	# Return the offset of the first record in the set and whether cross-universe records were found
+	return ( $offset, $has_cross_universe );
 }
 
 #
@@ -397,11 +462,29 @@ sub build_dns_zone {
 # records.
 #
 sub build_dns_rec_Tr {
-	my ( $stab, $hr, $basecssclass ) = @_;
+	my ( $stab, $hr, $basecssclass, $current_ip_universe_id,
+		$show_origin_universe )
+	  = @_;
 
 	my $cssclass = 'dnsupdate';
 
 	my $cgi = $stab->cgi || die "Could not create cgi";
+
+	# Default to showing origin universe column if not specified
+	$show_origin_universe = 1 unless defined($show_origin_universe);
+
+	# Check if this record's origin universe matches the universe it's in
+	# Records from other universes get the universe-mismatch class
+	# so they can be toggled with the "Hide Others" button
+	my $universe_mismatch = 0;
+	if ( defined($hr) ) {
+		my $ip_univ = $hr->{'IP_UNIVERSE_ID'};
+		my $origin  = $hr->{'ORIGIN_IP_UNIVERSE_ID'};
+		if ( defined($ip_univ) && defined($origin) && $origin != $ip_univ ) {
+			$universe_mismatch = 1;
+			$cssclass .= ' universe-mismatch';
+		}
+	}
 
 	my $opts = {};
 
@@ -683,12 +766,24 @@ sub build_dns_rec_Tr {
 	} else {    # uneditable.
 		$ttl = "";
 	}
-	return $cgi->Tr(
-		$args,            $cgi->td( $hidden, $enablebox ),
-		$cgi->td($name),  $cgi->td($ttl),
-		$cgi->td($class), $cgi->td($type),
-		$cgi->td($value), $cgi->td( { -class => 'ptrtd' }, $ptrbox ),
+
+	# Add ip_universe_id column
+	my $universe_col = '';
+	if ( defined($hr) && defined( $hr->{'ORIGIN_IP_UNIVERSE_NAME'} ) ) {
+		$universe_col = $hr->{'ORIGIN_IP_UNIVERSE_NAME'};
+	}
+
+	my @cells = (
+		$cgi->td( $hidden, $enablebox ), $cgi->td($name),
+		$cgi->td($ttl),                  $cgi->td($class),
+		$cgi->td($type),                 $cgi->td($value),
+		$cgi->td( { -class => 'ptrtd' }, $ptrbox ),
 	);
+	if ($show_origin_universe) {
+		push @cells, $cgi->td( { -class => 'universeid' }, $universe_col );
+	}
+
+	return $cgi->Tr( $args, @cells );
 }
 
 sub get_domain_from_record {
@@ -717,32 +812,129 @@ sub get_domain_from_record {
 	return ( $dnsname, $dnsdomainid );
 }
 
-sub dump_soa_section {
-	my ( $stab, $dnsdomainid, $dnsrecid, $dnsname, $addonly ) = @_;
+sub dump_secondary_domain_section {
+	my ( $stab, $dnsdomainid, $hr ) = @_;
 	my $cgi = $stab->cgi || die "Could not create cgi";
 
+	# Query the property table to find the Secondary property
+	# property_type = 'DNSZonegen', property_name = 'Secondary'
+	# Join through dns_domain_collection_dns_dom to find matching domain
+	my $q = qq{
+		select p.property_id,
+			p.property_value_nblk_coll_id,
+			nc.netblock_collection_name,
+			nc.netblock_collection_type
+		  from property p
+			join dns_domain_collection_dns_dom ddcd
+				on ddcd.dns_domain_collection_id = p.dns_domain_collection_id
+			left join netblock_collection nc
+				on nc.netblock_collection_id = p.property_value_nblk_coll_id
+		 where p.property_type = 'DNSZonegen'
+		   and p.property_name = 'Secondary'
+		   and ddcd.dns_domain_id = :dns_domain_id
+	};
+
+	my $sth = $stab->prepare($q) || return $stab->return_db_err;
+	$sth->bind_param( ':dns_domain_id', $dnsdomainid );
+	$sth->execute || return $stab->return_db_err($sth);
+
+	my @secondaries;
+	while ( my $row = $sth->fetchrow_hashref ) {
+		push(
+			@secondaries,
+			{
+				property_id                 => $row->{'PROPERTY_ID'},
+				property_value_nblk_coll_id =>
+				  $row->{'PROPERTY_VALUE_NBLK_COLL_ID'},
+				netblock_collection_name => $row->{'NETBLOCK_COLLECTION_NAME'},
+				netblock_collection_type => $row->{'NETBLOCK_COLLECTION_TYPE'}
+			}
+		);
+	}
+	$sth->finish;
+
+	# Build the secondary domain information HTML
+	my $html = '';
+	$html .= $cgi->hr;
+	$html .= $cgi->h3( { -align => 'center' }, "Secondary DNS Zone" );
+	$html .= $cgi->div( { -class => 'centered', -style => 'margin: 20px 0;' },
+		$cgi->p("This is a secondary DNS zone.") );
+
+	if (@secondaries) {
+		$html .= $cgi->div( { -class => 'centered', -style => 'margin: 20px 0;' },
+			$cgi->h4("Secondaries From:") );
+
+		$html .= $cgi->start_table(
+			{ -class => 'secondary-info', -align => 'center', -border => 1 } );
+		$html .= $cgi->Tr( $cgi->th( [ 'Netblock Collection', 'Type' ] ) );
+
+		foreach my $sec (@secondaries) {
+			my $nc_id   = $sec->{property_value_nblk_coll_id};
+			my $nc_name = $sec->{netblock_collection_name} || 'Unknown';
+			my $nc_type = $sec->{netblock_collection_type} || 'Unknown';
+
+			my $link_text = "$nc_name:$nc_type";
+			my $link_url =
+			  "../netblock/collection/?NETBLOCK_COLLECTION_ID=$nc_id";
+
+			$html .= $cgi->Tr(
+				$cgi->td( $cgi->a( { -href => $link_url }, $link_text ) ),
+				$cgi->td($nc_type) );
+		}
+
+		$html .= $cgi->end_table;
+	} else {
+		$html .= $cgi->div(
+			{ -class => 'centered', -style => 'margin: 20px 0;' },
+			$cgi->p(
+				{ -style => 'color: orange;' },
+				"Warning: No secondary configuration found for this zone."
+			)
+		);
+	}
+
+	return $html;
+}
+
+sub dump_soa_section {
+	my ( $stab, $dnsdomainid, $dnsrecid, $dnsname, $addonly, $ip_universe_id,
+		$print_header )
+	  = @_;
+	my $cgi = $stab->cgi || die "Could not create cgi";
+
+	# Default to printing header unless explicitly disabled
+	if ( !defined($print_header) ) {
+		$print_header = 1;
+	}
+
 	my @where_condition;
-	push( @where_condition, "dns_domain_id = :dns_domain_id" );
+	push( @where_condition, "d.dns_domain_id = :dns_domain_id" );
+	push( @where_condition, "du.ip_universe_id = :ip_universe_id" );
 
 	my $q = qq{
-		select 	dns_domain_id,
-			soa_name,
-			soa_class,
-			soa_ttl,
-			soa_serial,
-			soa_refresh,
-			soa_retry,
-			soa_expire,
-			soa_minimum,
-			soa_mname,
-			soa_rname,
-			should_generate,
-			parent_dns_domain_id,
+		select 	d.dns_domain_id,
+			d.dns_domain_name AS soa_name,
+			d.dns_domain_type,
+			du.soa_class,
+			du.soa_ttl,
+			du.soa_serial,
+			du.soa_refresh,
+			du.soa_retry,
+			du.soa_expire,
+			du.soa_minimum,
+			du.soa_mname,
+			du.soa_rname,
+			du.should_generate,
+			du.ip_universe_id,
+			d.parent_dns_domain_id,
 			parent_soa_name,
-			last_generated
-		  from v_dns_domain_nouniverse d1
+			du.last_generated,
+			vdt.can_generate
+		  from dns_domain d
+			join dns_domain_ip_universe du using (dns_domain_id)
+			left join val_dns_domain_type vdt on vdt.dns_domain_type = d.dns_domain_type
 			left join (
-				select dns_domain_id as parent_dns_domain_id,soa_name as parent_soa_name
+				select dns_domain_id as parent_dns_domain_id,dns_domain_name as parent_soa_name
 				from dns_domain
 			) d2 USING(parent_dns_domain_id)
 	};
@@ -753,6 +945,10 @@ sub dump_soa_section {
 
 	if ($dnsdomainid) {
 		$sth->bind_param( ':dns_domain_id', $dnsdomainid )
+		  || return $stab->return_db_err();
+	}
+	if ( defined($ip_universe_id) ) {
+		$sth->bind_param( ':ip_universe_id', $ip_universe_id )
 		  || return $stab->return_db_err();
 	}
 
@@ -778,12 +974,33 @@ sub dump_soa_section {
 		$title = "Add record to " . $title;
 	}
 
-	print $cgi->header(      { -type  => 'text/html' } ),                  "\n";
-	print $stab->start_html( { -title => $title, -javascript => 'dns' } ), "\n";
-
 	# Stop here if we are in addonly mode
 	if ($addonly) {
-		return;
+		if ($print_header) {
+			print $cgi->header( { -type => 'text/html' } ),
+			  $stab->start_html( { -title => $title, -javascript => 'dns' } ), "\n";
+		}
+		return 0;
+	}
+
+	# Handle secondary domains differently
+	my $secondary_html;
+	if ( $hr->{'DNS_DOMAIN_TYPE'} && $hr->{'DNS_DOMAIN_TYPE'} eq 'secondary' ) {
+		$secondary_html = dump_secondary_domain_section( $stab, $dnsdomainid, $hr );
+		if ( !defined($secondary_html) ) {
+			return undef;
+		}
+		if ($print_header) {
+			print $cgi->header( { -type => 'text/html' } ),
+			  $stab->start_html( { -title => $title, -javascript => 'dns' } ), "\n";
+		}
+		print $secondary_html;
+		return 1;
+	}
+
+	if ($print_header) {
+		print $cgi->header( { -type => 'text/html' } ),
+		  $stab->start_html( { -title => $title, -javascript => 'dns' } ), "\n";
 	}
 
 	my $lastgen = 'never';
@@ -804,31 +1021,40 @@ sub dump_soa_section {
 		-name    => 'DNS_DOMAIN_ID',
 		-default => $hr->{'DNS_DOMAIN_ID'}
 	);
-	print $cgi->hr;
-	my $t =
-	  $cgi->Tr( $cgi->td( { -colspan => 2 }, "Last Generated: $lastgen" ) );
-	my $autogen = "";
-
-	if ( $hr->{'SHOULD_GENERATE'} eq 'Y' ) {
-		$autogen = "Turn Off Autogen";
-	} else {
-		$autogen = "Turn On Autogen";
-	}
-	$t .= $cgi->Tr(
-		{ -align => 'center' },
-		$cgi->td( $cgi->submit( {
-			-align => 'center',
-			-name  => "AutoGen",
-			-value => $autogen
-		} ) ),
-		$cgi->td( $cgi->submit( {
-			-align => 'center',
-			-name  => "Nameservers",
-			-value => "Reset to Default Nameservers",
-		} ) )
+	print $cgi->hidden(
+		-name    => 'IP_UNIVERSE_ID',
+		-default => $hr->{'IP_UNIVERSE_ID'}
 	);
+	print $cgi->hr;
 
-	print $cgi->table( { -class => 'dnsgentable' }, $t );
+	# Build the generation table HTML if this domain type can be generated
+	my $gentable = "";
+	if ( $hr->{'CAN_GENERATE'} && $hr->{'CAN_GENERATE'} eq 'Y' ) {
+		my $t =
+		  $cgi->Tr( $cgi->td( { -colspan => 2 }, "Last Generated: $lastgen" ) );
+		my $autogen = "";
+
+		if ( $hr->{'SHOULD_GENERATE'} eq 'Y' ) {
+			$autogen = "Turn Off Autogen";
+		} else {
+			$autogen = "Turn On Autogen";
+		}
+		$t .= $cgi->Tr(
+			{ -align => 'center' },
+			$cgi->td( $cgi->submit( {
+				-align => 'center',
+				-name  => "AutoGen",
+				-value => $autogen
+			} ) ),
+			$cgi->td( $cgi->submit( {
+				-align => 'center',
+				-name  => "Nameservers",
+				-value => "Reset to Default Nameservers",
+			} ) )
+		);
+
+		$gentable = $cgi->table( { -class => 'dnsgentable' }, $t );
+	}
 
 	$parlink = "--none--";
 	if ( $hr->{'PARENT_DNS_DOMAIN_ID'} ) {
@@ -845,14 +1071,22 @@ sub dump_soa_section {
 		$nblink = $cgi->br($nblink);
 	}
 
-	print $cgi->hr;
-
-	print $cgi->div( { -class => 'centered' }, $parlink, $nblink, $zonelink );
-
-	print $stab->zone_header( $hr, 'update' );
-
-	# Add a cancel (reset) button
+	# Add toggle button for domain information section
 	print $cgi->div(
+		{ -class => 'centered', -style => 'margin: 10px 0;' },
+		$cgi->button( {
+			-type    => 'button',
+			-id      => 'toggle-domain-info',
+			-onclick => 'toggleDomainInfo()',
+			-value   => 'Show Domain Information'
+		} )
+	);
+
+	# Create a container div to hold generation table and SOA section side by side
+	my $parlink_div =
+	  $cgi->div( { -class => 'centered' }, $parlink, $nblink, $zonelink );
+	my $soa_header  = $stab->zone_header( $hr, 'update' );
+	my $soa_buttons = $cgi->div(
 		{ -class => 'centered' },
 		$cgi->reset( {
 			-class   => '',
@@ -867,17 +1101,65 @@ sub dump_soa_section {
 			-value => "Submit SOA Changes"
 		  } )
 	);
+
+	# Wrap domain information in a collapsible div (hidden by default) with double border
+	print $cgi->start_div( {
+		-id    => 'domain-info-section',
+		-style =>
+		  'display: none; border: 3px double var(--border-color-stabtab, #bbb); border-radius: 8px; padding: 20px; margin: 10px 0;'
+	} );
+
+	if ($gentable) {
+		print $cgi->div( {
+				-style =>
+				  'display: flex; gap: 20px; align-items: center; justify-content: space-around;'
+			},
+			$cgi->div( { -style => 'flex: 0 0 auto;' }, $gentable ),
+			$cgi->div(
+				{ -style => 'flex: 0 1 auto;' },
+				$parlink_div, $soa_header, $soa_buttons
+			)
+		);
+	} else {
+		print $parlink_div;
+		print $soa_header;
+		print $soa_buttons;
+	}
+
+	print $cgi->end_div;    # Close domain-info-section
+
 	print $cgi->end_form;
 
-	print $cgi->hr;
+	# Add JavaScript for toggle functionality
+	print $cgi->script(
+		{ -type => 'text/javascript' }, qq{
+		function toggleDomainInfo() {
+			var section = document.getElementById('domain-info-section');
+			var button = document.getElementById('toggle-domain-info');
+			if (section.style.display === 'none') {
+				section.style.display = 'block';
+				button.value = 'Hide Domain Information';
+			} else {
+				section.style.display = 'none';
+				button.value = 'Show Domain Information';
+			}
+		}
+	}
+	);
 
+	return 0;
 }
 
 sub dump_records_section {
-	my ( $stab, $dnsdomainid, $dnsrecid, $addonly, $paging_dns_page,
-		$paging_dns_limit )
-	  = @_;
+	my (
+		$stab,           $dnsdomainid,          $dnsrecid,
+		$addonly,        $paging_dns_page,      $paging_dns_limit,
+		$ip_universe_id, $show_origin_universe, $use_tabs
+	) = @_;
 	my $cgi = $stab->cgi || die "Could not create cgi";
+
+	# Default to showing origin universe column if not specified
+	$show_origin_universe = 1 unless defined($show_origin_universe);
 
 	#
 	# second form, second table
@@ -888,12 +1170,17 @@ sub dump_records_section {
 		-name    => 'DNS_DOMAIN_ID',
 		-default => $dnsdomainid
 	);
+	print $cgi->hidden(
+		-name    => 'IP_UNIVERSE_ID',
+		-default => $ip_universe_id
+	);
 
 	# Dump the paging header, but only if we're not just adding a record without displaying the rest of the zone
 	if ( !$addonly ) {
 
 		# Get the total number of records in the zone
-		my $count = get_dns_records_count( $stab, $dnsdomainid );
+		my $count =
+		  get_dns_records_count( $stab, $dnsdomainid, $ip_universe_id );
 
 		# The function returns the validated page, if it's out of range
 		$paging_dns_page =
@@ -903,10 +1190,17 @@ sub dump_records_section {
 		# We just add a paging container div to the top of the tabl
 		# It will be automatically populated by a paging.js function
 		# The required parameters are the count, limit, and offset
+		# Add ip_universe_id to make the ID unique per tab (only when there are multiple universes)
+		# When there's only one universe, use 'paging-dns' to match parameter names
+		my $paging_id =
+		  $use_tabs && defined($ip_universe_id)
+		  ? "paging-dns-$ip_universe_id"
+		  : 'paging-dns';
+		my $paging_colspan = $show_origin_universe ? '8' : '7';
 		print $cgi->Tr( $cgi->td(
-			{ -colspan => '7' },
+			{ -colspan => $paging_colspan },
 			$cgi->div( {
-					-id           => 'paging-dns',
+					-id           => $paging_id,
 					-class        => 'paging-container',
 					'-data-count' => $count,
 					'-data-page'  => $paging_dns_page,
@@ -918,12 +1212,16 @@ sub dump_records_section {
 	}
 
 	# Print the table header
-	print $cgi->Tr( $cgi->th(
-		[ 'Enable', 'Record', 'TTL', 'Class', 'Type', 'Value', 'PTR' ]
-	) );
+	my @headers =
+	  ( 'Enable', 'Record', 'TTL', 'Class', 'Type', 'Value', 'PTR' );
+	if ($show_origin_universe) {
+		push @headers, 'Origin Universe';
+	}
+	print $cgi->Tr( $cgi->th( \@headers ) );
 
+	my $colspan = $show_origin_universe ? '8' : '7';
 	print $cgi->Tr( $cgi->td(
-		{ -colspan => '7', -align => 'left' },
+		{ -colspan => $colspan, -align => 'left' },
 		$cgi->a( {
 				-onclick     => 'return false;',
 				-class       => 'adddnsrec plusbutton',
@@ -932,19 +1230,36 @@ sub dump_records_section {
 		)
 	) );
 
-	my $offset = -1;
+	my $offset             = -1;
+	my $has_cross_universe = 0;
 	if ( !$addonly ) {
-		$offset =
+		( $offset, $has_cross_universe ) =
 		  build_dns_zone( $stab, $dnsdomainid, $dnsrecid, $paging_dns_page,
-			$paging_dns_limit );
+			$paging_dns_limit, $ip_universe_id, $show_origin_universe );
 	}
 
 	print $cgi->end_table;
 
 	# Print a javascript global variable that contains the value of the offset
+	# Make it tab-specific to avoid conflicts when multiple tabs exist
 	if ( $offset != -1 ) {
+		my $paging_id =
+		  $use_tabs && defined($ip_universe_id)
+		  ? "paging-dns-$ip_universe_id"
+		  : 'paging-dns';
 		print $cgi->script( { -type => 'text/javascript' },
-			"var pagingOffset = $offset;" );
+			"window['pagingOffset_" . $paging_id . "'] = $offset;" );
+	}
+
+	# Add a data attribute to indicate if cross-universe records exist
+	# This will be used by JavaScript to show/hide the toggle button
+	if ($has_cross_universe) {
+		my $paging_id =
+		  $use_tabs && defined($ip_universe_id)
+		  ? "paging-dns-$ip_universe_id"
+		  : 'paging-dns';
+		print $cgi->script( { -type => 'text/javascript' },
+			"window['hasCrossUniverse_" . $paging_id . "'] = true;" );
 	}
 
 	# Add a cancel (reset) button
@@ -968,7 +1283,7 @@ sub dump_records_section {
 
 sub dump_zone {
 	my ( $stab, $dnsdomid, $dnsrecid, $addonly, $paging_dns_page,
-		$paging_dns_limit )
+		$paging_dns_limit, $requested_ip_universe_id )
 	  = @_;
 	my $cgi = $stab->cgi || die "Could not create cgi";
 
@@ -976,17 +1291,202 @@ sub dump_zone {
 	my ( $dnsname, $dnsdomainid ) =
 	  get_domain_from_record( $stab, $dnsdomid, $dnsrecid );
 
-	# Dump the soa section
-	dump_soa_section( $stab, $dnsdomainid, $dnsrecid, $dnsname, $addonly );
+	# Get IP universes for this domain
+	my $universes = get_dns_domain_ip_universes( $stab, $dnsdomainid );
 
-	# Search for a record section
-	if ( !$addonly ) {
-		dump_dns_record_search_section($stab);
+	# If there's only one universe or no universes, don't show tabs
+	if ( !$universes || scalar(@$universes) <= 1 ) {
+		my $ip_universe_id =
+			$universes && scalar(@$universes) == 1
+		  ? $universes->[0]->{ip_universe_id}
+		  : 0;
+
+		# Check if there are cross-universe records to determine if we should show the origin universe column
+		my $show_origin_universe =
+		  check_has_cross_universe_records( $stab, $dnsdomainid,
+			$ip_universe_id );
+
+		# Dump the soa section (includes header)
+		my $is_secondary =
+		  dump_soa_section( $stab, $dnsdomainid, $dnsrecid, $dnsname, $addonly,
+			$ip_universe_id, 1 );
+
+		# Don't show records section for secondary domains
+		if ($is_secondary) {
+			if ($dnsrecid) {
+				print $cgi->script(
+					{ -type => 'text/javascript' },
+					"var dnsrecid = $dnsrecid;"
+				);
+			}
+			return;
+		}
+
+		# Search for a record section
+		if ( !$addonly ) {
+			dump_dns_record_search_section($stab);
+		}
+
+		# Dump the records section (not using tabs in single-universe mode)
+		dump_records_section(
+			$stab,           $dnsdomainid,          $dnsrecid,
+			$addonly,        $paging_dns_page,      $paging_dns_limit,
+			$ip_universe_id, $show_origin_universe, 0
+		);
+
+		# Add a javascript snippet that contains the value of dnsrecid as a global variable
+		# It will be used in dns-utils.js / scrollToTargetDNSRecord() to scroll to the record when the page is loaded
+		if ($dnsrecid) {
+			print $cgi->script( { -type => 'text/javascript' },
+				"var dnsrecid = $dnsrecid;" );
+		}
+		return;
 	}
 
-	# Dump the records section
-	dump_records_section( $stab, $dnsdomainid, $dnsrecid, $addonly,
-		$paging_dns_page, $paging_dns_limit );
+	# Multiple universes - need to print header first, then build tabs
+	# Get the first universe to extract domain info for the title
+	my $first_universe_id = $universes->[0]->{ip_universe_id};
+
+	# Fetch domain info for title
+	my $q = qq{
+		select d.dns_domain_name AS soa_name, du.should_generate
+		  from dns_domain d
+			join dns_domain_ip_universe du using (dns_domain_id)
+		 where d.dns_domain_id = ?
+		   and du.ip_universe_id = ?
+		limit 1
+	};
+	my $sth = $stab->prepare($q) || return $stab->return_db_err;
+	$sth->execute( $dnsdomainid, $first_universe_id )
+	  || return $stab->return_db_err($sth);
+	my $domain_info = $sth->fetchrow_hashref;
+	$sth->finish;
+
+	my $title = $domain_info->{'SOA_NAME'} || "DNS Zone";
+	if ($dnsname) {
+		$title = "$dnsname.$title";
+	}
+	if (   $domain_info->{'SHOULD_GENERATE'}
+		&& $domain_info->{'SHOULD_GENERATE'} eq 'Y' )
+	{
+		$title .= " (Auto Generated)";
+	}
+	if ($addonly) {
+		$title = "Add record to " . $title;
+	}
+
+	# Print header once
+	print $cgi->header(      { -type  => 'text/html' } ),                  "\n";
+	print $stab->start_html( { -title => $title, -javascript => 'dns' } ), "\n";
+
+	# Multiple universes - create tabs
+	my @tabs;
+	my $count = 0;
+
+	# Validate the requested universe and determine which tab should be active
+	my $active_tab_index = 0;
+	if ( defined($requested_ip_universe_id) ) {
+		for ( my $i = 0 ; $i < scalar(@$universes) ; $i++ ) {
+			if ( $universes->[$i]->{ip_universe_id} ==
+				$requested_ip_universe_id )
+			{
+				$active_tab_index = $i;
+				last;
+			}
+		}
+	}
+
+	foreach my $universe (@$universes) {
+		my $ip_universe_id   = $universe->{ip_universe_id};
+		my $ip_universe_name = $universe->{ip_universe_name};
+
+		# Extract paging parameters specific to this universe
+		my $universe_page_param  = "paging-dns-${ip_universe_id}-page";
+		my $universe_limit_param = "paging-dns-${ip_universe_id}-limit";
+		my $universe_paging_page =
+		  $stab->cgi_parse_param($universe_page_param) || '1';
+		my $universe_paging_limit =
+		  $stab->cgi_parse_param($universe_limit_param) || '200';
+
+		# Capture output for this tab
+		my $tab_content = '';
+		{
+			local *STDOUT;
+			open( STDOUT, '>', \$tab_content )
+			  or die "Cannot redirect STDOUT: $!";
+
+			# Dump the soa section (without header since we already printed it)
+			my $is_secondary =
+			  dump_soa_section( $stab, $dnsdomainid, $dnsrecid, $dnsname,
+				$addonly, $ip_universe_id, 0 );
+
+			# Don't show records section for secondary domains
+			if ( !$is_secondary ) {
+
+				# Search for a record section
+				if ( !$addonly ) {
+					dump_dns_record_search_section($stab);
+				}
+
+				# Dump the records section (using tabs in multi-universe mode)
+				dump_records_section( $stab, $dnsdomainid, $dnsrecid, $addonly,
+					$universe_paging_page, $universe_paging_limit,
+					$ip_universe_id, 1, 1 );
+			}
+
+			close(STDOUT);
+		}
+
+		# Create tab ID
+		my $tab_id = "universe_${ip_universe_id}";
+
+		push(
+			@tabs,
+			{
+				id      => $tab_id,
+				name    => $ip_universe_name,
+				content => $tab_content
+			}
+		);
+	}
+
+	# Build the tab bar
+	my $tabbar = '';
+	$count = 0;
+	for my $h (@tabs) {
+		my $class = 'stabtab';
+		if ( $count++ == $active_tab_index ) {
+			$class .= ' stabtab_on';
+		} else {
+			$class .= ' stabtab_off';
+		}
+		my $id = $h->{id};
+		$tabbar .= $cgi->a( {
+				-class => $class,
+				-id    => "tab$id",
+			},
+			$h->{name}
+		);
+	}
+
+	# Build the tab content
+	$count = 0;
+	my $tabcontent = '';
+	for my $h (@tabs) {
+		my $id    = $h->{id};
+		my $class = 'stabtab';
+		if ( $count++ == $active_tab_index ) {
+			$class .= ' stabtab_on';
+		}
+		$tabcontent .=
+		  $cgi->div( { -class => $class, id => "tab$id" }, $h->{content} );
+	}
+
+	print $cgi->div(
+		{ -class => 'stabtabset' },
+		$cgi->div( { -class => 'stabtabbar' },     $tabbar ),
+		$cgi->div( { -class => 'stabtabcontent' }, $tabcontent ),
+	);
 
 	# Add a javascript snippet that contains the value of dnsrecid as a global variable
 	# It will be used in dns-utils.js / scrollToTargetDNSRecord() to scroll to the record when the page is loaded
@@ -994,15 +1494,51 @@ sub dump_zone {
 		print $cgi->script( { -type => 'text/javascript' },
 			"var dnsrecid = $dnsrecid;" );
 	}
+
+	print $cgi->end_html, "\n";
 }
 
 # Function to get the total number of records in the zone
-sub get_dns_records_count {
-	my ( $stab, $dnsdomainid ) = @_;
+sub check_has_cross_universe_records {
+	my ( $stab, $dnsdomainid, $ip_universe_id ) = @_;
 	my $cgi = $stab->cgi || die "Could not create cgi";
 
 	my @where_condition;
-	push( @where_condition, "dns_domain_id = :dns_domain_id" );
+	push( @where_condition, "d.dns_domain_id = :dns_domain_id" );
+	if ( defined($ip_universe_id) ) {
+		push( @where_condition, "d.ip_universe_id = :ip_universe_id" );
+	}
+	push( @where_condition, "d.origin_ip_universe_id IS NOT NULL" );
+	push( @where_condition, "d.origin_ip_universe_id != d.ip_universe_id" );
+
+	# Check if there are any cross-universe records
+	my $sth = $stab->prepare(
+		qq{
+		SELECT count(*)
+		FROM v_dns_sorted d
+		} . "WHERE " . join( "\nAND ", @where_condition )
+	) || return $stab->return_db_err;
+
+	$sth->bind_param( ':dns_domain_id', $dnsdomainid );
+	if ( defined($ip_universe_id) ) {
+		$sth->bind_param( ':ip_universe_id', $ip_universe_id );
+	}
+	$sth->execute() || return $stab->return_db_err($sth);
+	my ($count) = $sth->fetchrow_array;
+	$sth->finish;
+
+	return $count > 0 ? 1 : 0;
+}
+
+sub get_dns_records_count {
+	my ( $stab, $dnsdomainid, $ip_universe_id ) = @_;
+	my $cgi = $stab->cgi || die "Could not create cgi";
+
+	my @where_condition;
+	push( @where_condition, "d.dns_domain_id = :dns_domain_id" );
+	if ( defined($ip_universe_id) ) {
+		push( @where_condition, "d.ip_universe_id = :ip_universe_id" );
+	}
 
 	# Get the total number of records in the zone
 	my $sth = $stab->prepare(
@@ -1014,6 +1550,9 @@ sub get_dns_records_count {
 	) || return $stab->return_db_err;
 
 	$sth->bind_param( ':dns_domain_id', $dnsdomainid );
+	if ( defined($ip_universe_id) ) {
+		$sth->bind_param( ':ip_universe_id', $ip_universe_id );
+	}
 	$sth->execute() || return $stab->return_db_err($sth);
 	my ($count) = $sth->fetchrow_array;
 	$sth->finish;

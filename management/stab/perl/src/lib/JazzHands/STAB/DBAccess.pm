@@ -103,12 +103,15 @@ sub prepare_cached {
 #
 #
 sub guess_parent_netblock_id {
-	my ( $self, $in_ip, $in_bits, $sing ) = @_;
+	my ( $self, $in_ip, $in_bits, $sing, $ip_universe_id ) = @_;
 
 	#
 	# parse_netblock_search wants this to be Y
 	#
 	$sing = 'Y' if ( !$sing );
+
+	# Default to ip_universe_id 0 if not provided
+	$ip_universe_id = 0 if ( !defined($ip_universe_id) );
 
 	if ( $in_bits && $in_ip !~ m,/, ) {
 		$in_ip   = "$in_ip/$in_bits";
@@ -125,7 +128,7 @@ sub guess_parent_netblock_id {
 		  where	netblock_id in (
 			SELECT netblock_utils.find_best_parent_id(
 				in_IpAddress := :ip,
-				in_ip_universe_id := 0,
+				in_ip_universe_id := :ip_universe_id,
 				in_netblock_type := 'default',
 				in_is_single_address := :sing)
 			)
@@ -139,7 +142,7 @@ sub guess_parent_netblock_id {
 		  where	netblock_id in (
 			SELECT netblock_utils.find_best_parent_id(
 				in_IpAddress := :ip,
-				in_ip_universe_id := 0,
+				in_ip_universe_id := :ip_universe_id,
 				in_netblock_type := 'default',
 				in_is_single_address := :sing,
 				in_fuzzy_can_subnet := true )
@@ -154,7 +157,7 @@ sub guess_parent_netblock_id {
 		  where	netblock_id in (
 			SELECT netblock_utils.find_best_parent_id(
 				in_IpAddress := :ip,
-				in_ip_universe_id := 0,
+				in_ip_universe_id := :ip_universe_id,
 				in_netblock_type := 'default',
 				in_is_single_address := :sing,
 				in_fuzzy_can_subnet := true,
@@ -172,18 +175,22 @@ sub guess_parent_netblock_id {
 	my $sth = $self->prepare($q1)      || $self->return_db_err($self);
 	$sth->bind_param( ':ip', $in_ip )  || die $sth->errstr;
 	$sth->bind_param( ':sing', $sing ) || die $sth->errstr;
-	$sth->execute                      || $self->return_db_err($sth);
+	$sth->bind_param( ':ip_universe_id', $ip_universe_id ) || die $sth->errstr;
+	$sth->execute || $self->return_db_err($sth);
 	my $rv = $sth->fetchrow_hashref;
 	$sth->finish;
 
 	if ( !$rv ) {
-		$sth = $self->prepare($q2)         || $self->return_db_err($self);
-		$sth->bind_param( ':ip', $in_ip )  || die $sth->errstr;
-		$sth->bind_param( ':sing', $sing ) || die $sth->errstr;
-		$sth->execute                      || $self->return_db_err($sth);
+		$sth = $self->prepare($q2) || $self->return_db_err($self);
+		$sth->bind_param( ':ip',   $in_ip ) || die $sth->errstr;
+		$sth->bind_param( ':sing', $sing )  || die $sth->errstr;
+		$sth->bind_param( ':ip_universe_id', $ip_universe_id )
+		  || die $sth->errstr;
+		$sth->execute || $self->return_db_err($sth);
 		$rv = $sth->fetchrow_hashref;
 		$sth->finish;
 		my $bits = $rv->{'NETMASK_BITS'};
+
 		if ( $rv->{'IP_FAMILY'} eq '6' ) {
 
 			if ( $bits < 64 ) {
@@ -195,10 +202,12 @@ sub guess_parent_netblock_id {
 			}
 		}
 		if ($rv) {
-			$sth = $self->prepare($q3)         || $self->return_db_err($self);
-			$sth->bind_param( ':ip', $in_ip )  || die $sth->errstr;
-			$sth->bind_param( ':sing', $sing ) || die $sth->errstr;
-			$sth->execute                      || $self->return_db_err($sth);
+			$sth = $self->prepare($q3) || $self->return_db_err($self);
+			$sth->bind_param( ':ip',   $in_ip ) || die $sth->errstr;
+			$sth->bind_param( ':sing', $sing )  || die $sth->errstr;
+			$sth->bind_param( ':ip_universe_id', $ip_universe_id )
+			  || die $sth->errstr;
+			$sth->execute || $self->return_db_err($sth);
 			$rv = $sth->fetchrow_hashref;
 			$sth->finish;
 		}
@@ -608,55 +617,84 @@ sub get_dns_record_from_name {
 	$hr;
 }
 
-sub get_dns_domain_from_id {
-	my ( $self, $id ) = @_;
+sub get_ip_universe_count {
+	my ($self) = @_;
 
 	my $q = qq{
-		select  dns_domain_id,
-			soa_name,
-			soa_class,
-			soa_ttl,
-			soa_serial,
-			soa_refresh,
-			soa_retry,
-			soa_expire,
-			soa_minimum,
-			soa_mname,
-			soa_rname,
-			parent_dns_domain_id,
-			should_generate
-		 from   v_dns_domain_nouniverse
-		where   dns_domain_id = ?
+		select count(*)
+		  from ip_universe
 	};
 	my $sth = $self->prepare($q) || $self->return_db_err($self);
-	$sth->execute($id)           || $self->return_db_err($sth);
+	$sth->execute                || $self->return_db_err($sth);
+	my $count = ( $sth->fetchrow_array )[0];
+	$sth->finish;
+	return $count;
+}
+
+sub get_dns_domain_from_id {
+	my ( $self, $id, $ip_universe_id ) = @_;
+
+	# Default to universe 0 if not specified
+	if ( !defined($ip_universe_id) ) {
+		$ip_universe_id = 0;
+	}
+
+	my $q = qq{
+		select  d.dns_domain_id,
+			d.dns_domain_name as soa_name,
+			du.soa_class,
+			du.soa_ttl,
+			du.soa_serial,
+			du.soa_refresh,
+			du.soa_retry,
+			du.soa_expire,
+			du.soa_minimum,
+			du.soa_mname,
+			du.soa_rname,
+			d.parent_dns_domain_id,
+			du.should_generate,
+			du.ip_universe_id
+		 from   dns_domain d
+			join dns_domain_ip_universe du using (dns_domain_id)
+		where   d.dns_domain_id = ?
+		  and   du.ip_universe_id = ?
+	};
+	my $sth = $self->prepare($q)          || $self->return_db_err($self);
+	$sth->execute( $id, $ip_universe_id ) || $self->return_db_err($sth);
 	my $hr = $sth->fetchrow_hashref;
 	$sth->finish;
 	$hr;
 }
 
 sub get_dns_domain_from_name {
-	my ( $self, $name ) = @_;
+	my ( $self, $name, $ip_universe_id ) = @_;
+
+	# Default to universe 0 if not specified
+	if ( !defined($ip_universe_id) ) {
+		$ip_universe_id = 0;
+	}
 
 	my $q = qq{
-		select  dns_domain_id,
-			soa_name,
-			soa_class,
-			soa_ttl,
-			soa_serial,
-			soa_refresh,
-			soa_retry,
-			soa_expire,
-			soa_minimum,
-			soa_mname,
-			soa_rname,
-			parent_dns_domain_id,
-			should_generate
-		 from   v_dns_domain_nouniverse
-		where   soa_name = ?
+		select  d.dns_domain_id,
+			d.dns_domain_name as soa_name,
+			du.soa_class,
+			du.soa_ttl,
+			du.soa_serial,
+			du.soa_refresh,
+			du.soa_retry,
+			du.soa_expire,
+			du.soa_minimum,
+			du.soa_mname,
+			du.soa_rname,
+			d.parent_dns_domain_id,
+			du.should_generate
+		 from   dns_domain d
+			join dns_domain_ip_universe du using (dns_domain_id)
+		where   d.dns_domain_name = ?
+		  and   du.ip_universe_id = ?
 	};
-	my $sth = $self->prepare($q) || $self->return_db_err($self);
-	$sth->execute($name)         || $self->return_db_err($sth);
+	my $sth = $self->prepare($q)            || $self->return_db_err($self);
+	$sth->execute( $name, $ip_universe_id ) || $self->return_db_err($sth);
 	my $hr = $sth->fetchrow_hashref;
 	$sth->finish;
 	$hr;
@@ -688,6 +726,10 @@ sub get_netblock_from_ip {
 
 	if ( $opts->{'netblock_type'} ) {
 		$args->{'netblock_type'} = $opts->{'netblock_type'};
+	}
+
+	if ( defined( $opts->{'ip_universe_id'} ) ) {
+		$args->{'ip_universe_id'} = $opts->{'ip_universe_id'};
 	}
 
 	my $netblock = $self->DBFetch(
@@ -1884,8 +1926,11 @@ sub build_netblock_ip_row {
 		}
 
 		if ( defined($recid) ) {
-			$fqhn =
-			  $cgi->a( { -href => "../dns/?DNS_RECORD_ID=$recid" }, $fqhn );
+			my $dns_url = "../dns/?DNS_RECORD_ID=$recid";
+			if ( defined( $hr->{'IP_UNIVERSE_ID'} ) ) {
+				$dns_url .= "&IP_UNIVERSE_ID=" . $hr->{'IP_UNIVERSE_ID'};
+			}
+			$fqhn = $cgi->a( { -href => $dns_url }, $fqhn );
 		}
 	} else {
 		$editabledesc = 1;
@@ -1982,15 +2027,18 @@ sub process_and_insert_dns_record {
 			  . Net::IP::Error()
 			  . ")" );
 
-		my $block = $self->get_netblock_from_ip(
+		my $ip_universe_id = $opts->{IP_UNIVERSE_ID};
+		my $block          = $self->get_netblock_from_ip(
 			ip_address        => $opts->{DNS_VALUE},
-			is_single_address => 'Y'
+			is_single_address => 'Y',
+			ip_universe_id    => $ip_universe_id
 		);
 		if ( !$block ) {
 			$block = $self->get_netblock_from_ip(
 				ip_address        => $opts->{DNS_VALUE},
 				netblock_type     => 'dns',
 				is_single_address => 'Y',
+				ip_universe_id    => $ip_universe_id
 			);
 		}
 
@@ -2033,8 +2081,13 @@ sub process_and_insert_dns_record {
 				ip_address        => $opts->{DNS_VALUE},
 				is_single_address => 'Y'
 			};
+			if ( defined($ip_universe_id) ) {
+				$h->{ip_universe_id} = $ip_universe_id;
+			}
 			if ( !(
-				my $par = $self->guess_parent_netblock_id( $opts->{DNS_VALUE} )
+				my $par = $self->guess_parent_netblock_id(
+					$opts->{DNS_VALUE}, undef, undef, $ip_universe_id
+				)
 			) )
 			{
 				# XXX This is outside our IP universe, which we should probably

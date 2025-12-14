@@ -46,7 +46,7 @@ use 5.008007;
 use strict;
 use warnings;
 
-use CGI      qw(-no_xhtml);
+use CGI qw(-no_xhtml);
 use CGI 'meta';
 
 # use CGI::Pretty;
@@ -1675,7 +1675,7 @@ sub b_dropdown {
 	} elsif ( $selectfield eq 'DNS_DOMAIN_ID' ) {
 		my $limitverbiage = "";
 		if ( defined( $params->{'-only_nonauto'} ) ) {
-			$limitverbiage = "where SHOULD_GENERATE = 'N'";
+			$limitverbiage = "where du.SHOULD_GENERATE = 'N'";
 		}
 		if ( defined( $params->{'-dnsdomaintype'} ) ) {
 			if ( length($limitverbiage) ) {
@@ -1683,14 +1683,24 @@ sub b_dropdown {
 			} else {
 				$limitverbiage .= " WHERE ";
 			}
-			$limitverbiage .= "dns_domain_type = :dnsdomaintype";
+			$limitverbiage .= "d.dns_domain_type = :dnsdomaintype";
 			$dnsdomaintype = $params->{'-dnsdomaintype'};
 		}
+
+		# Always filter to ip_universe_id = 0
+		if ( length($limitverbiage) ) {
+			$limitverbiage .= " AND ";
+		} else {
+			$limitverbiage .= " WHERE ";
+		}
+		$limitverbiage .= "du.ip_universe_id = 0";
 		$q = qq{
-			select	dns_domain_id, soa_name
-			  from	v_dns_domain_nouniverse $limitverbiage
-			order by CASE WHEN dns_domain_type = 'reverse' THEN 1 ELSE 0 END,
-				soa_name
+			select	d.dns_domain_id, d.dns_domain_name as soa_name
+			  from	dns_domain d
+				join dns_domain_ip_universe du using (dns_domain_id)
+			 $limitverbiage
+			order by CASE WHEN d.dns_domain_type = 'reverse' THEN 1 ELSE 0 END,
+				d.dns_domain_name
 		};
 		$pickone = "Please Select Domain";
 	} elsif ( $selectfield eq 'PRODUCTION_STATE' ) {
@@ -1699,6 +1709,13 @@ sub b_dropdown {
 			  from	val_production_state
 			order by description, production_state
 		};
+	} elsif ( $selectfield eq 'IP_UNIVERSE_ID' ) {
+		$q = qq{
+			select	ip_universe_id, ip_universe_name
+			  from	ip_universe
+			order by ip_universe_id
+		};
+		$pickone = "Please Select IP Universe";
 	} elsif ( $selectfield eq 'SERVICE_ENVIRONMENT_ID' ) {
 		$q = qq{
 			select	service_environment_id,

@@ -67,11 +67,12 @@ function buildPagingContainer( pagingDivId ) {
   // Get the data-limit attribute value
   var $limit = $('#' + pagingDivId).data('limit');
 
-  // If the pagingOffset global variable is defined, use it as the offset
+  // If the pagingOffset global variable is defined for this specific paging container, use it as the offset
   var $offset;
   var $page;
-  if (typeof pagingOffset !== 'undefined') {
-    $offset = pagingOffset;
+  var pagingOffsetVar = window['pagingOffset_' + pagingDivId];
+  if (typeof pagingOffsetVar !== 'undefined') {
+    $offset = pagingOffsetVar;
     $page = Math.ceil($offset / $limit);
     // Set the data-page attribute value to the calculated page number
     $('#' + pagingDivId).data('page', $page);
@@ -106,16 +107,31 @@ function buildPagingContainer( pagingDivId ) {
   // Create a previous button
   var $previousButton = $('<button type="button" class="paging' + (($page == 1)?' off':'') + '" name="Previous" title="Previous page">Previous</button>');
   // Create a page input box with the current page number
-  var $pageInput = $('<input type="text" id="' + pagingDivId + '-page" name=' + pagingDivId + '"-page" value="' + $page + '" size="3">');
+  var $pageInput = $('<input type="text" id="' + pagingDivId + '-page" name="' + pagingDivId + '-page" value="' + $page + '" size="3">');
   // Create a hidden limit input box with the current limit value
-  var $limitInput = $('<input type="hidden" id="' + pagingDivId + '-limit" name=' + pagingDivId + '"-limit" value="' + $limit + '">');
+  var $limitInput = $('<input type="hidden" id="' + pagingDivId + '-limit" name="' + pagingDivId + '-limit" value="' + $limit + '">');
   // Create a next button
   var $nextButton = $('<button type="button" class="paging' + (($page == $pages)?' off':'') + '" name="Next" title="Next page">Next</button>');
   // Create a last button
   var $lastButton = $('<button type="button" class="paging' + (($page == $pages)?' off':'') + '" name="Last" title="Last page">Last</button>');
 
+  // Check if there are cross-universe records for this paging container
+  var hasCrossUniverseVar = window['hasCrossUniverse_' + pagingDivId];
+  var $toggleButton = null;
+
+  // Only create toggle button if cross-universe records exist
+  if (typeof hasCrossUniverseVar !== 'undefined' && hasCrossUniverseVar) {
+    $toggleButton = $('<button type="button" class="paging universe-toggle" name="ToggleCrossUniverse" title="Hide records from other universes">Hide Others</button>');
+  }
+
   // Add the first, previous, next and last buttons to the paging control div
   $pagingControls.append($firstButton, $previousButton, ' - Page ', $pageInput, ' of ' + $pages + ' - ', $nextButton, $lastButton);
+
+  // Add toggle button if it exists
+  if ($toggleButton) {
+    $pagingControls.append(' | ', $toggleButton);
+  }
+
   // Add the records info to the paging info div
   $pagingInfo.append('Records ' + $first + ' to ' + $last + ' of ' + $count);
 
@@ -138,9 +154,31 @@ function buildPagingContainer( pagingDivId ) {
     }
   });
 
+  // Add click event to toggle cross-universe records visibility (only if button exists)
+  if ($toggleButton) {
+    $toggleButton.click(function(event) {
+      event.preventDefault();
+      var $form = $pagingContainer.closest('form');
+      var $table = $form.find('table.dnstable');
+      var $mismatchRows = $table.find('tr.universe-mismatch');
+
+      console.log('Toggle clicked. Form:', $form.length, 'Table:', $table.length, 'Mismatch rows:', $mismatchRows.length);
+
+      if ($mismatchRows.length > 0 && $mismatchRows.first().is(':visible')) {
+        // Hide them
+        $mismatchRows.hide();
+        $toggleButton.text('Show All');
+        $toggleButton.attr('title', 'Show records from other universes');
+      } else if ($mismatchRows.length > 0) {
+        // Show them
+        $mismatchRows.show();
+        $toggleButton.text('Hide Others');
+        $toggleButton.attr('title', 'Hide records from other universes');
+      }
+    });
+  }
+
 }
-
-
 
 function hasPendingChanges() {
 
@@ -195,6 +233,18 @@ function changePage( pagingDivId, event, page ) {
   link = link.replace( new RegExp( ';' + pagingDivId + '-limit=\\d+' ), '' );
   // Remove the dnssearch parameter from the url, if any
   link = link.replace( new RegExp( ';dnssearch=\\d+' ), '' );
+
+	// Extract ip_universe_id from pagingDivId if it exists (e.g., paging-dns-0 -> 0)
+	// and add it to the URL to preserve the active tab
+	var universeMatch = pagingDivId.match(/paging-dns-(\d+)$/);
+	if (universeMatch) {
+		var universeId = universeMatch[1];
+		// Remove existing ip_universe_id parameter if present
+		link = link.replace( new RegExp( ';ip_universe_id=\\d+' ), '' );
+		// Add the ip_universe_id parameter
+		link = link + ';ip_universe_id=' + universeId;
+	}
+
 	// Redirect to the new url with the new pageingDivID+_PAGE and pagingDivId+'_LIMIT' parameters
 	window.location = link + ';' + pagingDivId + '-page=' + page + ';' + pagingDivId + '-limit=' + limit;
 }

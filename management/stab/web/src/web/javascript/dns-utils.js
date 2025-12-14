@@ -200,7 +200,7 @@ function change_dns_record(obj, old) {
 	$(obj).closest('tr').find('a.dnsrefouteditbutton').each(
 		function(idx, elem) {
 			make_outref_editable(elem);
-		
+
 	});
 
 	if(obj.value == 'CNAME' || obj.value == 'A' || obj.value == 'AAAA') {
@@ -513,6 +513,9 @@ function scrollToTargetDNSRecord() {
 
 
 $(document).ready(function(){
+	// Enable tab switching for IP universe tabs
+	enable_stab_tabs();
+
 	$("table.dnstable").on('focus', "select.dnstype", function(event) {
 		$(this).data("oldValue", $(this).val() )
 	});

@@ -90,36 +90,39 @@ sub dump_soacheck_all {
 	}
 
 	my $q = qq{
-		select 	dom.dns_domain_id,
-			dom.soa_name,
-			dom.soa_class,
-			dom.soa_ttl,
-			dom.soa_serial,
-			dom.soa_refresh,
-			dom.soa_retry,
-			dom.soa_expire,
-			dom.soa_minimum,
-			dom.soa_mname,
-			dom.soa_rname,
-			dom.should_generate,
-			dom.last_generated
-		  from	v_dns_domain_nouniverse dom
+		select 	d.dns_domain_id,
+			d.dns_domain_name as soa_name,
+			du.soa_class,
+			du.soa_ttl,
+			du.soa_serial,
+			du.soa_refresh,
+			du.soa_retry,
+			du.soa_expire,
+			du.soa_minimum,
+			du.soa_mname,
+			du.soa_rname,
+			du.should_generate,
+			du.last_generated
+		  from	dns_domain d
+			join dns_domain_ip_universe du using (dns_domain_id)
 			left join (
 				SELECT * FROM dns_record
 				WHERE dns_type = 'REVERSE_ZONE_BLOCK_PTR'
 				) dns USING (dns_domain_id)
 			left join netblock nb USING (netblock_id)
-		where	dom.parent_dns_domain_id is NULL
-		  and	dom.soa_name not like '%10.in-addr.arpa'
-		  and	dom.soa_name not like '%168.192.in-addr.arpa'
-		  and	dom.soa_name not like '%16.172.in-addr.arpa'
-		  and	dom.soa_name not like '%17.172.in-addr.arpa'
-		  and	dom.soa_name not like '%18.172.in-addr.arpa'
-		  and	dom.soa_name not like '%19.172.in-addr.arpa'
-		  and	dom.soa_name not like '%2_.172.in-addr.arpa'
-		  and	dom.soa_name not like '%30.172.in-addr.arpa'
-		  and	dom.soa_name not like '%31.172.in-addr.arpa'
-		order by nb.ip_address, dom.soa_name
+		where	d.parent_dns_domain_id is NULL
+		  and	du.ip_universe_id = 0
+		  and	du.ip_universe_id = 0
+		  and	d.dns_domain_name not like '%10.in-addr.arpa'
+		  and	d.dns_domain_name not like '%168.192.in-addr.arpa'
+		  and	d.dns_domain_name not like '%16.172.in-addr.arpa'
+		  and	d.dns_domain_name not like '%17.172.in-addr.arpa'
+		  and	d.dns_domain_name not like '%18.172.in-addr.arpa'
+		  and	d.dns_domain_name not like '%19.172.in-addr.arpa'
+		  and	d.dns_domain_name not like '%2_.172.in-addr.arpa'
+		  and	d.dns_domain_name not like '%30.172.in-addr.arpa'
+		  and	d.dns_domain_name not like '%31.172.in-addr.arpa'
+		order by nb.ip_address, d.dns_domain_name
 	};
 	my $sth = $stab->prepare($q) || return $stab->return_db_err($dbh);
 	$sth->execute                || return $stab->return_db_err($sth);

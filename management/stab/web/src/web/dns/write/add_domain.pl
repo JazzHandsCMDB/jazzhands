@@ -165,19 +165,67 @@ sub do_domain_add {
 	my $stab = new JazzHands::STAB || die "Could not create STAB";
 	my $cgi  = $stab->cgi          || die "Could not create cgi";
 
-	my $soaname = $stab->cgi_parse_param('SOA_NAME');
-	my $serial  = $stab->cgi_parse_param('SOA_SERIAL')  || 0;
-	my $refresh = $stab->cgi_parse_param('SOA_REFRESH') || 21600;
-	my $retry   = $stab->cgi_parse_param('SOA_RETRY')   || 7200;
-	my $expire  = $stab->cgi_parse_param('SOA_EXPIRE')  || 2419200;
-	my $min     = $stab->cgi_parse_param('SOA_MINIMUM') || 3600;
-	my $ttl     = $stab->cgi_parse_param('SOA_TTL')     || $min || 3600;
-	my $mname   = $stab->cgi_parse_param('SOA_MNAME');
-	my $rname   = $stab->cgi_parse_param('SOA_RNAME');
-	my $gen     = $stab->cgi_parse_param('chk_SHOULD_GENERATE');
-	my $addns   = $stab->cgi_parse_param('chk_DEFAULT_NS_RECORDS');
-	my $type    = $stab->cgi_parse_param('DNS_DOMAIN_TYPE');
-	my $class   = 'IN';
+	my $soaname        = $stab->cgi_parse_param('SOA_NAME');
+	my $domain_id      = $stab->cgi_parse_param('DNS_DOMAIN_ID');
+	my $serial         = $stab->cgi_parse_param('SOA_SERIAL')  || 0;
+	my $refresh        = $stab->cgi_parse_param('SOA_REFRESH') || 21600;
+	my $retry          = $stab->cgi_parse_param('SOA_RETRY')   || 7200;
+	my $expire         = $stab->cgi_parse_param('SOA_EXPIRE')  || 2419200;
+	my $min            = $stab->cgi_parse_param('SOA_MINIMUM') || 3600;
+	my $ttl            = $stab->cgi_parse_param('SOA_TTL')     || $min || 3600;
+	my $mname          = $stab->cgi_parse_param('SOA_MNAME');
+	my $rname          = $stab->cgi_parse_param('SOA_RNAME');
+	my $gen            = $stab->cgi_parse_param('chk_SHOULD_GENERATE');
+	my $addns          = $stab->cgi_parse_param('chk_DEFAULT_NS_RECORDS');
+	my $type           = $stab->cgi_parse_param('DNS_DOMAIN_TYPE');
+	my $ip_universe_id = $stab->cgi_parse_param('IP_UNIVERSE_ID');
+	my $class          = 'IN';
+
+	# Check if there are multiple universes in the database
+	my $universe_count = $stab->get_ip_universe_count();
+
+	if ( $universe_count > 1 ) {
+
+		# Validate that both domain name and dropdown are not filled
+		if ( $soaname && $domain_id ) {
+			$stab->error_return(
+				"You must either enter a domain name or select from the dropdown, not both."
+			);
+		}
+
+		# Validate that IP universe is set
+		if ( !defined($ip_universe_id) || $ip_universe_id eq '' ) {
+			$stab->error_return("You must select an IP Universe.");
+		}
+
+		# If dropdown was used, get the domain name from the selected domain
+		if ($domain_id) {
+			my $q = qq{
+				select dns_domain_name
+				  from dns_domain
+				 where dns_domain_id = ?
+			};
+			my $sth = $stab->prepare($q) || $stab->return_db_err;
+			$sth->execute($domain_id)    || $stab->return_db_err($sth);
+			my $hr = $sth->fetchrow_hashref;
+			$sth->finish;
+			if ($hr) {
+				$soaname = $hr->{'DNS_DOMAIN_NAME'};
+			} else {
+				$stab->error_return("Invalid domain selected.");
+			}
+		} elsif ( !$soaname ) {
+			$stab->error_return(
+				"You must either enter a domain name or select an existing domain."
+			);
+		}
+	} else {
+
+		# Default to universe 0 if not specified (single universe case)
+		if ( !defined($ip_universe_id) ) {
+			$ip_universe_id = 0;
+		}
+	}
 
 	$gen   = $stab->mk_chk_yn($gen);
 	$addns = $stab->mk_chk_yn($addns);
@@ -191,7 +239,8 @@ sub do_domain_add {
 		$stab->error_return("You must specify a Domain Name");
 	}
 
-	if ( !defined($type) ) {
+	# Only validate domain type when creating a new domain (not selecting from dropdown)
+	if ( !$domain_id && !defined($type) ) {
 		if ( $soaname =~ /\.(ip6|in-addr)\.arpa$/ ) {
 			$type = 'reverse';
 		} else {
@@ -199,11 +248,12 @@ sub do_domain_add {
 		}
 	}
 
-	if ( defined($soaname) ) {
+	# Only check if domain already exists when creating a new domain
+	if ( !$domain_id && defined($soaname) ) {
 		my $q = qq{
 			 select	dns_domain_id
 			   from	dns_domain
-			  where soa_name = ?
+			  where dns_domain_name = ?
 		};
 		my $sth = $stab->prepare($q) || $stab->return_db_err;
 		$sth->execute($soaname)      || $stab->return_db_err($sth);
@@ -214,10 +264,61 @@ sub do_domain_add {
 	}
 
 	my $numchanges = 0;
+	my $dnsdomid;
 
-	my $bestparent =
-	  guess_best_parent_dns_domain_from_domain( $stab, $soaname );
+	# If a domain was selected from the dropdown, use its ID
+	# Otherwise, create a new domain
+	if ($domain_id) {
 
+		# Domain already exists, just use the ID
+		$dnsdomid = $domain_id;
+	} else {
+
+		# Create a new domain
+		my $bestparent =
+		  guess_best_parent_dns_domain_from_domain( $stab, $soaname );
+
+		my @errs;
+		if ( !$mname ) {
+			$mname = $stab->fetch_property( 'Defaults', '_dnsmname' );
+			if ( !$mname ) {
+				$stab->error_return(
+					"There is no default mname configured.  You must enter one or set a default"
+				);
+			}
+		}
+
+		if ( !$rname ) {
+			$rname = $stab->fetch_property( 'Defaults', '_dnsrname' );
+			if ( !$rname ) {
+				$stab->error_return(
+					"There is no default rname configured.  You must set one or set a default."
+				);
+			}
+		}
+
+		# First, insert into dns_domain table
+		my $domain_record = {
+			dns_domain_name      => $soaname,
+			parent_dns_domain_id => $bestparent,
+			dns_domain_type      => $type,
+		};
+
+		if ( !(
+			$numchanges = $stab->DBInsert(
+				table  => 'dns_domain',
+				hash   => $domain_record,
+				errors => \@errs
+			)
+		) )
+		{
+			$stab->error_return( join( " ", @errs ) );
+		}
+
+		$dnsdomid = $domain_record->{'DNS_DOMAIN_ID'};
+	}
+
+	# Get defaults if needed (for both new domains and existing domains being added to new universe)
 	my @errs;
 	if ( !$mname ) {
 		$mname = $stab->fetch_property( 'Defaults', '_dnsmname' );
@@ -237,45 +338,43 @@ sub do_domain_add {
 		}
 	}
 
-	my $new = {
-		soa_name             => $soaname,
-		soa_class            => $class,
-		soa_ttl              => $ttl,
-		soa_serial           => $serial,
-		soa_refresh          => $refresh,
-		soa_retry            => $retry,
-		soa_expire           => $expire,
-		soa_minimum          => $min,
-		soa_mname            => $mname,
-		soa_rname            => $rname,
-		parent_dns_domain_id => $bestparent,
-		dns_domain_type      => $type,
-		should_generate      => $gen
+	# Second, insert into dns_domain_ip_universe table
+	my $universe_record = {
+		dns_domain_id   => $dnsdomid,
+		ip_universe_id  => $ip_universe_id,
+		soa_class       => $class,
+		soa_ttl         => $ttl,
+		soa_serial      => $serial,
+		soa_refresh     => $refresh,
+		soa_retry       => $retry,
+		soa_expire      => $expire,
+		soa_minimum     => $min,
+		soa_mname       => $mname,
+		soa_rname       => $rname,
+		should_generate => $gen
 	};
 
-	if ( !(
-		$numchanges = $stab->DBInsert(
-			table  => 'v_dns_domain_nouniverse',
-			hash   => $new,
-			errors => \@errs
-		)
-	) )
+	if ( !( $stab->DBInsert(
+		table  => 'dns_domain_ip_universe',
+		hash   => $universe_record,
+		errors => \@errs
+	) ) )
 	{
 		$stab->error_return( join( " ", @errs ) );
 	}
 
-	warn "new is ", Dumper($new);
-	my $dnsdomid = $new->{'DNS_DOMAIN_ID'};
+	# Only handle in-addr zone linking and NS records for newly created domains
+	if ( !$domain_id ) {
+		if ( $soaname =~ /\.in-addr.arpa$/ ) {
+			$numchanges += link_inaddr_zone( $stab, $soaname, $dnsdomid );
+		}
 
-	if ( $soaname =~ /\.in-addr.arpa$/ ) {
-		$numchanges += link_inaddr_zone( $stab, $soaname, $dnsdomid );
+		if ($addns) {
+			add_default_ns_records( $stab, $dnsdomid );
+		}
 	}
 
-	if ($addns) {
-		add_default_ns_records( $stab, $dnsdomid );
-	}
-
-	if ($numchanges) {
+	if ( $numchanges || $domain_id ) {
 		my $url = "../?dnsdomainid=$dnsdomid";
 		$stab->commit;
 		$stab->msg_return( "Domain Added Successfully.", $url, 1 );
