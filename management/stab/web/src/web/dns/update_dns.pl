@@ -374,6 +374,8 @@ sub process_dns_add {
 
 	my $numchanges = 0;
 
+	my $universeid = $stab->cgi_parse_param("IP_UNIVERSE_ID");
+
 	foreach my $newid ( $stab->cgi_get_ids("new_DNS_NAME") ) {
 		my $name    = $stab->cgi_parse_param("new_DNS_NAME_$newid");
 		my $ttl     = $stab->cgi_parse_param("new_DNS_TTL_$newid");
@@ -492,6 +494,7 @@ sub process_dns_add {
 			DNS_SRV_WEIGHT      => $in_srv_weight,
 			DNS_SRV_PORT        => $in_srv_port,
 			DNS_VALUE_RECORD_ID => $valrcid,
+			IP_UNIVERSE_ID      => $universeid,
 			IS_ENABLED          => 'Y',
 			SHOULD_GENERATE_PTR => $genptr,
 		};
