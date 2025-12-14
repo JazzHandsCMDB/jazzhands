@@ -38,7 +38,6 @@
 # limitations under the License.
 #
 
-
 #
 # $Id$
 #
@@ -52,7 +51,6 @@
 use strict;
 use warnings;
 use JazzHands::STAB;
-use JazzHands::Common qw(_dbx);
 use Data::Dumper;
 use URI;
 
@@ -106,19 +104,17 @@ sub link_inaddr_zone($$$) {
 
 		$nbid = $stab->add_netblock($h) || die $stab->return_db_err;
 	} else {
-		$nbid = $nb->{ _dbx('NETBLOCK_ID') };
+		$nbid = $nb->{'NETBLOCK_ID'};
 	}
 
 	my $x = $stab->get_netblock_from_id($nbid);
 
-	$stab->add_dns_record(
-		{
-			dns_domain_id => $dnsdomid,
-			dns_class     => 'IN',
-			dns_type      => 'REVERSE_ZONE_BLOCK_PTR',
-			dns_value     => $nbid                       # XXX
-		}
-	);
+	$stab->add_dns_record( {
+		dns_domain_id => $dnsdomid,
+		dns_class     => 'IN',
+		dns_type      => 'REVERSE_ZONE_BLOCK_PTR',
+		dns_value     => $nbid                       # XXX
+	} );
 	return 1;
 }
 
@@ -127,8 +123,7 @@ sub add_default_ns_records($$) {
 
 	# these really need to be set as properties in the database...
 
-	my $match = [
-		{
+	my $match = [ {
 			key   => 'property_name',
 			value => '_authdns'
 		},
@@ -171,12 +166,12 @@ sub do_domain_add {
 	my $cgi  = $stab->cgi          || die "Could not create cgi";
 
 	my $soaname = $stab->cgi_parse_param('SOA_NAME');
-	my $serial  = $stab->cgi_parse_param('SOA_SERIAL') || 0;
+	my $serial  = $stab->cgi_parse_param('SOA_SERIAL')  || 0;
 	my $refresh = $stab->cgi_parse_param('SOA_REFRESH') || 21600;
-	my $retry   = $stab->cgi_parse_param('SOA_RETRY') || 7200;
-	my $expire  = $stab->cgi_parse_param('SOA_EXPIRE') || 2419200;
+	my $retry   = $stab->cgi_parse_param('SOA_RETRY')   || 7200;
+	my $expire  = $stab->cgi_parse_param('SOA_EXPIRE')  || 2419200;
 	my $min     = $stab->cgi_parse_param('SOA_MINIMUM') || 3600;
-	my $ttl     = $stab->cgi_parse_param('SOA_TTL') || $min || 3600;
+	my $ttl     = $stab->cgi_parse_param('SOA_TTL')     || $min || 3600;
 	my $mname   = $stab->cgi_parse_param('SOA_MNAME');
 	my $rname   = $stab->cgi_parse_param('SOA_RNAME');
 	my $gen     = $stab->cgi_parse_param('chk_SHOULD_GENERATE');
@@ -211,7 +206,7 @@ sub do_domain_add {
 			  where soa_name = ?
 		};
 		my $sth = $stab->prepare($q) || $stab->return_db_err;
-		$sth->execute($soaname) || $stab->return_db_err($sth);
+		$sth->execute($soaname)      || $stab->return_db_err($sth);
 		my $hr = $sth->fetchrow_hashref;
 		if ( defined($hr) ) {
 			$stab->error_return("The zone $soaname already exists.");
@@ -258,21 +253,19 @@ sub do_domain_add {
 		should_generate      => $gen
 	};
 
-	if (
-		!(
-			$numchanges = $stab->DBInsert(
-				table  => 'v_dns_domain_nouniverse',
-				hash   => $new,
-				errors => \@errs
-			)
+	if ( !(
+		$numchanges = $stab->DBInsert(
+			table  => 'v_dns_domain_nouniverse',
+			hash   => $new,
+			errors => \@errs
 		)
-	  )
+	) )
 	{
 		$stab->error_return( join( " ", @errs ) );
 	}
 
 	warn "new is ", Dumper($new);
-	my $dnsdomid = $new->{ _dbx('dns_domain_id') };
+	my $dnsdomid = $new->{'DNS_DOMAIN_ID'};
 
 	if ( $soaname =~ /\.in-addr.arpa$/ ) {
 		$numchanges += link_inaddr_zone( $stab, $soaname, $dnsdomid );

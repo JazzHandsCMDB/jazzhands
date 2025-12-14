@@ -47,7 +47,6 @@ package JazzHands::STAB::Rack;
 use 5.008007;
 use strict;
 use warnings;
-use JazzHands::Common::Util qw(_dbx);
 
 our @ISA = qw( );
 
@@ -65,7 +64,7 @@ sub build_rack {
 	my $root = $self->guess_stab_root;
 
 	my $cgi = $self->cgi || die "Could not create cgi";
-	my $rv = "";
+	my $rv  = "";
 
 	my $rack = $self->get_rack_from_rackid($rackid);
 	if ( !$rack || !$rackid ) {
@@ -126,9 +125,9 @@ sub build_rack {
 	$rv .= $cgi->start_table(
 		{ -class => 'rackit', -border => 2, -align => 'center' } );
 
-	my $room  = $rack->{ _dbx('ROOM') }      || '';
-	my $row   = $rack->{ _dbx('RACK_ROW') }  || '';
-	my $rname = $rack->{ _dbx('RACK_NAME') } || '';
+	my $room  = $rack->{'ROOM'}      || '';
+	my $row   = $rack->{'RACK_ROW'}  || '';
+	my $rname = $rack->{'RACK_NAME'} || '';
 
 	my $fullname = join( "-", $room, $row, $rname, );
 	$fullname =~ s/--/-/g;
@@ -136,10 +135,9 @@ sub build_rack {
 	$fullname =~ s/-+$//g;
 
 	$rv .=
-	  $cgi->Tr(
-		$cgi->th( [ "u", $rack->{ _dbx('SITE_CODE') } . ": $fullname", ] ) );
+	  $cgi->Tr( $cgi->th( [ "u", $rack->{'SITE_CODE'} . ": $fullname", ] ) );
 
-	my $MAX_RACKSIZE = $rack->{ _dbx('RACK_HEIGHT_IN_U') } || 50; # size of rack
+	my $MAX_RACKSIZE = $rack->{'RACK_HEIGHT_IN_U'} || 50;    # size of rack
 	while (
 		my (
 			$did,    $name,   $pardid, $parname, $label,  $model,
@@ -189,8 +187,7 @@ sub build_rack {
 			if ($offset) {
 				$field = $self->vendor_logo($vendor);
 			}
-			$field .= $cgi->a(
-				{
+			$field .= $cgi->a( {
 					-title => $label,
 					-href  => "$root/device/device.pl?devid=$did"
 				},
@@ -245,7 +242,7 @@ sub build_rack {
 
 	my $lastdev = "";
 	for ( my $iter = 0 ; $iter < $MAX_RACKSIZE ; $iter++ ) {
-		my $ru = $MAX_RACKSIZE - $iter;
+		my $ru       = $MAX_RACKSIZE - $iter;
 		my $presentu = ($shouldcountup) ? $ru : $iter + 1;
 
 		# my $offset_link= sprintf ("<A HREF=\"/cgi-bin/rackit.pl?site=%s&room=%s&row=%s&rack=%s&offset=%d\">%d</A>",
@@ -257,8 +254,7 @@ sub build_rack {
 			if ( $thisrack{$ru} ) {
 				$rv .= $cgi->Tr(
 					$cgi->td($offset_link),
-					$cgi->td(
-						{
+					$cgi->td( {
 							-rowspan => $offsets{$ru},
 							-class   => 'rackit_'
 							  . (

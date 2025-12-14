@@ -46,7 +46,6 @@ use strict;
 use warnings;
 use FileHandle;
 use CGI;
-use JazzHands::Common::Util qw(_dbx);
 use JazzHands::STAB;
 use Data::Dumper;
 use JSON::PP;
@@ -155,19 +154,18 @@ sub do_show_serial {
 				$values{"P1_PHYSICAL_PORT_ID"} = $pportid;
 			}
 		}
-		print $stab->b_dropdown( $args, _dbx( \%values ),
+		print $stab->b_dropdown( $args, \%values,
 			"P${side}_PHYSICAL_PORT_ID", 'P1_PHYSICAL_PORT_ID' );
 	} elsif ( $what eq 'PowerPorts' ) {
 		my %values;
 		$values{'P1_DEVICE_ID'}            = $devid;
 		$values{'P1_POWER_INTERFACE_PORT'} = $piport;
 		if ( $devid && $devid =~ /^\d+/ ) {
-			print $stab->b_dropdown(
-				{ -deviceid => $devid },   _dbx( \%values ),
-				'P2_POWER_INTERFACE_PORT', 'P1_POWER_INTERFACE_PORT'
-			);
+			print $stab->b_dropdown( { -deviceid => $devid },
+				\%values,
+				'P2_POWER_INTERFACE_PORT', 'P1_POWER_INTERFACE_PORT' );
 		} else {
-			print $stab->b_dropdown( undef, _dbx( \%values ),
+			print $stab->b_dropdown( undef, \%values,
 				'P2_POWER_INTERFACE_PORT', 'P1_POWER_INTERFACE_PORT' );
 		}
 	} elsif ( $what eq 'Circuit' ) {
@@ -241,7 +239,8 @@ sub do_show_serial {
 	} elsif ( $what eq 'interfacednsref' ) {
 
 		# XXX - this should go away
-		my $sth = $stab->prepare( qq{
+		my $sth = $stab->prepare(
+			qq{
 			select	dns.dns_record_id,
 					dns.dns_name,
 					dom.soa_name

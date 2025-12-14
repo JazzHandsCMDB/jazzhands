@@ -89,7 +89,8 @@ sub do_dns_ajax {
 	} elsif ( $what eq 'Services' ) {
 		my $r = {};
 		$r->{'DNS_SRV_SERVICE'} = {};
-		my $sth = $stab->prepare( qq{
+		my $sth = $stab->prepare(
+			qq{
 			select  dns_srv_service, description
 			  from  val_dns_srv_service;
 		}
@@ -130,7 +131,8 @@ sub do_dns_ajax {
 			domains => $stab->build_dns_drop($dnsdomid),
 
 		};
-		my $sth = $stab->prepare( qq{
+		my $sth = $stab->prepare(
+			qq{
 				select  dns.dns_record_id,
 					dns.dns_type,
 					dns.dns_name,
@@ -153,7 +155,8 @@ sub do_dns_ajax {
 		# Domains again. Unreachable code?
 	} elsif ( $what eq 'domains' ) {
 		my $r   = {};
-		my $sth = $stab->prepare( qq{
+		my $sth = $stab->prepare(
+			qq{
 	 			select  dns.dns_domain_id,
 					soa_name
 	      			from  dns_domain
@@ -177,7 +180,8 @@ sub do_dns_ajax {
 
 		# DNS reference again. Unreachable code?
 	} elsif ( $what eq 'dnsref' ) {
-		my $sth = $stab->prepare( qq{
+		my $sth = $stab->prepare(
+			qq{
 			select	dns.dns_record_id,
 					dns.dns_domain_id,
 					dom.soa_name,
@@ -195,12 +199,11 @@ sub do_dns_ajax {
 		my $id     = "";
 		my $prefix = "";
 		my $fix    = "";
-		$id = $row->{ _dbx('DNS_RECORD_ID') };
+		$id = $row->{'DNS_RECORD_ID'};
 		my $doms = "";
 		if ($row) {
 			my $type;    # not used at the moment.
-			$doms =
-			  $stab->build_dns_drop( $row->{ _dbx('DNS_DOMAIN_ID') }, $type );
+			$doms = $stab->build_dns_drop( $row->{'DNS_DOMAIN_ID'}, $type );
 		}
 		my $j = JSON::PP->new->utf8;
 		my $r = { 'domains' => $doms, };
@@ -243,7 +246,8 @@ sub do_dns_ajax {
 		# Note the '.' added to the dns value if the source type is CNAME
 		# That dot is not added in the dns search mode with direct target type filtering
 		# We also remove the restrictions on the dns_value_record_id and reference_dns_record_id in the Go to Record search mode
-		my $sth = $stab->prepare( qq{
+		my $sth = $stab->prepare(
+			qq{
 			SELECT * FROM (
 				SELECT	dns.dns_record_id,
 						CASE WHEN dns.dns_name IS NULL THEN soa_name

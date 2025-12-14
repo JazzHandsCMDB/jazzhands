@@ -29,7 +29,6 @@ use strict;
 use warnings;
 use FileHandle;
 use JazzHands::STAB;
-use JazzHands::Common qw(:all);
 
 do_netblock_search();
 
@@ -56,10 +55,9 @@ sub do_netblock_search {
 
 		if ( !defined($blk) ) {
 			$cgi->delete('orig_return');
-			$stab->error_return(
-				"Could not locate a netblock $bycidr");
+			$stab->error_return("Could not locate a netblock $bycidr");
 		}
-		my $blkid = $blk->{ _dbx('NETBLOCK_ID') };
+		my $blkid = $blk->{'NETBLOCK_ID'};
 
 		my $url = "index.pl?nblkid=$blkid";
 		$cgi->redirect($url);
@@ -72,56 +70,39 @@ sub do_netblock_search {
 		if ( $tally == 0 ) {
 			return $stab->error_return("Sorry, no matches.");
 		} elsif ( $tally > 50 ) {
-			return $stab->error_return(
-				"Sorry, too many matches. (>50)");
+			return $stab->error_return("Sorry, too many matches. (>50)");
 		} else {
 			print $cgi->header;
-			print $stab->start_html(
-				{ -title => 'Search Matches' } );
+			print $stab->start_html( { -title => 'Search Matches' } );
 
 			my $x = "";
 			foreach my $id ( sort numerically keys(%$blks) ) {
 				my $blk  = $blks->{$id};
-				my $mask = $blk->{ _dbx('IP_ADDRESS') };
-				my $desc = $blk->{ _dbx('DESCRIPTION') };
-				my $pid  = $blk->{ _dbx('PARENT_NETBLOCK_ID') };
-				my $stat = $blk->{ _dbx('NETBLOCK_STATUS') };
+				my $mask = $blk->{'IP_ADDRESS'};
+				my $desc = $blk->{'DESCRIPTION'};
+				my $pid  = $blk->{'PARENT_NETBLOCK_ID'};
+				my $stat = $blk->{'NETBLOCK_STATUS'};
 
 				$desc = ( defined($desc) ? $desc : "" );
 
 				$x .= $cgi->Tr(
-					$cgi->td(
-						$cgi->a(
-							{
-								-href =>
-"index.pl?nblkid=$pid"
-							},
-							$mask
-						)
-					),
+					$cgi->td( $cgi->a( {
+							-href => "index.pl?nblkid=$pid"
+						},
+						$mask
+					) ),
 					$cgi->td($stat),
-					$cgi->td(
-						$cgi->a(
-							{
-								-href =>
-"index.pl?nblkid=$pid"
-							},
-							$desc
-						)
-					),
+					$cgi->td( $cgi->a( {
+							-href => "index.pl?nblkid=$pid"
+						},
+						$desc
+					) ),
 				);
 			}
 
-			print $cgi->table(
-				{ -border => 1, -align => 'center' },
-				$cgi->th(
-					[
-						'Netblock',    'Status',
-						'Description', 'Ticket'
-					]
-				),
-				$x
-			);
+			print $cgi->table( { -border => 1, -align => 'center' },
+				$cgi->th( [ 'Netblock', 'Status', 'Description', 'Ticket' ] ),
+				$x );
 			print $cgi->end_html;
 			undef $stab;
 			exit;

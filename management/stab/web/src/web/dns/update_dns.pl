@@ -50,7 +50,6 @@
 use strict;
 use warnings;
 use JazzHands::STAB;
-use JazzHands::Common qw(:all);
 use FileHandle;
 use Data::Dumper;
 use URI;
@@ -85,7 +84,7 @@ sub clear_same_dns_params {
 	my $sth = $stab->prepare($q) || $stab->return_db_err;
 	$sth->execute($domid)        || $stab->return_db_err;
 
-	my $all = $sth->fetchall_hashref( _dbx('DNS_RECORD_ID') )
+	my $all = $sth->fetchall_hashref('DNS_RECORD_ID')
 	  || $stab->error_return(
 		"Unable to obtain existing DNS records from database.");
 
@@ -132,7 +131,7 @@ sub clear_same_dns_params {
 		# This is special because its possible to clear the ttl.  I think.
 		#
 		if ( !defined($in_ttl) || !length($in_ttl) ) {
-			$in_ttl = $all->{$dnsid}->{ _dbx('DNS_TTL') };
+			$in_ttl = $all->{$dnsid}->{'DNS_TTL'};
 		}
 
 		#
@@ -142,11 +141,11 @@ sub clear_same_dns_params {
 		# enabled and TTL are around.
 		#
 		if ($in_ttlonly) {
-			if ( $all->{$dnsid}->{ _dbx('DNS_TTL') } && $in_ttl ) {
-				if ( $all->{$dnsid}->{ _dbx('DNS_TTL') } != $in_ttl ) {
+			if ( $all->{$dnsid}->{'DNS_TTL'} && $in_ttl ) {
+				if ( $all->{$dnsid}->{'DNS_TTL'} != $in_ttl ) {
 					next;
 				}
-			} elsif ( !$all->{$dnsid}->{ _dbx('DNS_TTL') }
+			} elsif ( !$all->{$dnsid}->{'DNS_TTL'}
 				&& !$in_ttl )
 			{
 				;
@@ -154,18 +153,18 @@ sub clear_same_dns_params {
 				next;
 			}
 
-			if ( $all->{$dnsid}->{ _dbx('IS_ENABLED') } ne $in_enabled ) {
+			if ( $all->{$dnsid}->{'IS_ENABLED'} ne $in_enabled ) {
 				next;
 			}
 
-			if ( $all->{$dnsid}->{ _dbx('SHOULD_GENERATE_PTR') } ne $in_ptr ) {
+			if ( $all->{$dnsid}->{'SHOULD_GENERATE_PTR'} ne $in_ptr ) {
 				next;
 			}
 
 		} else {
-			if ( $all->{$dnsid}->{ _dbx('DNS_TYPE') } =~ /^A(AAA)?/ ) {
-				$all->{$dnsid}->{ _dbx('DNS_VALUE') } =
-				  $all->{$dnsid}->{ _dbx('IP') };
+			if ( $all->{$dnsid}->{'DNS_TYPE'} =~ /^A(AAA)?/ ) {
+				$all->{$dnsid}->{'DNS_VALUE'} =
+				  $all->{$dnsid}->{'IP'};
 			}
 
 			my $map = {
@@ -192,13 +191,13 @@ sub clear_same_dns_params {
 			{
 				my $x = $all->{$dnsid};
 				foreach my $key ( sort keys(%$map) ) {
-					if (   defined( $x->{ _dbx($key) } )
+					if (   defined( $x->{$key} )
 						&& defined( $map->{$key} ) )
 					{
-						if ( $x->{ _dbx($key) } ne $map->{$key} ) {
+						if ( $x->{$key} ne $map->{$key} ) {
 							next DNS;
 						}
-					} elsif ( !defined( $x->{ _dbx($key) } )
+					} elsif ( !defined( $x->{$key} )
 						&& !defined( $map->{$key} ) )
 					{
 						;
@@ -345,21 +344,21 @@ sub process_dns_update {
 	}
 
 	my $new = {
-		dns_name            => $name,
-		dns_record_id       => $updateid,
-		dns_domain_id       => $domid,
-		dns_ttl             => $ttl,
-		dns_class           => $class,
-		dns_type            => $type,
-		dns_value           => $value,
-		dns_value_record_id => $valrecid,
-		dns_priority        => $in_priority,
-		dns_srv_service     => $in_srv_svc,
-		dns_srv_protocol    => $in_srv_proto,
-		dns_srv_weight      => $in_srv_weight,
-		dns_srv_port        => $in_srv_port,
-		is_enabled          => $enabled,
-		should_generate_ptr => $genptr,
+		DNS_NAME             => $name,
+		DNS_RECORD_ID        => $updateid,
+		DNS_DOMAIN_ID        => $domid,
+		DNS_TTL              => $ttl,
+		DNS_CLASS            => $class,
+		DNS_TYPE             => $type,
+		DNS_VALUE            => $value,
+		DNS_VALUE_RECCORD_ID => $valrecid,
+		DNS_PRIORITY         => $in_priority,
+		DNS_SRV_SERVICE      => $in_srv_svc,
+		DNS_SRV_PROTOCOL     => $in_srv_proto,
+		DNS_SRV_WEIGHT       => $in_srv_weight,
+		DNS_SRV_PORT         => $in_srv_port,
+		IS_ENABLED           => $enabled,
+		SHOULD_GENERATE_PTR  => $genptr,
 	};
 
 	$numchanges += $stab->process_and_update_dns_record( $new, $ttlonly );
@@ -456,14 +455,14 @@ sub process_dns_add {
 		my $cur = $stab->get_dns_record_from_name( $name, $domid );
 		if ($cur) {
 			if (   $type eq 'CNAME'
-				&& $cur->{ _dbx('DNS_TYPE') } ne 'CNAME' )
+				&& $cur->{'DNS_TYPE'} ne 'CNAME' )
 			{
 				$stab->error_return(
 					"You may not add a CNAME, when records of other types exist."
 				);
 			}
 			if (   $type ne 'CNAME'
-				&& $cur->{ _dbx('DNS_TYPE') } eq 'CNAME' )
+				&& $cur->{'DNS_TYPE'} eq 'CNAME' )
 			{
 				$stab->error_return(
 					"You may not add non-CNAMEs when CNAMEs already exist");
@@ -481,20 +480,20 @@ sub process_dns_add {
 		}
 
 		my $new = {
-			dns_name            => $name,
-			dns_domain_id       => $domid,
-			dns_ttl             => $ttl,
-			dns_class           => $class,
-			dns_type            => $type,
-			dns_value           => $value,
-			dns_priority        => $in_priority,
-			dns_srv_service     => $in_srv_svc,
-			dns_srv_protocol    => $in_srv_proto,
-			dns_srv_weight      => $in_srv_weight,
-			dns_srv_port        => $in_srv_port,
-			dns_value_record_id => $valrcid,
-			is_enabled          => 'Y',
-			should_generate_ptr => $genptr,
+			DNS_NAME            => $name,
+			DNS_DOMAIN_ID       => $domid,
+			DNS_TTL             => $ttl,
+			DNS_CLASS           => $class,
+			DNS_TYPE            => $type,
+			DNS_VALUE           => $value,
+			DNS_PRIORITY        => $in_priority,
+			DNS_SRV_SERVICE     => $in_srv_svc,
+			DNS_SRV_PROTOCOL    => $in_srv_proto,
+			DNS_SRV_WEIGHT      => $in_srv_weight,
+			DNS_SRV_PORT        => $in_srv_port,
+			DNS_VALUE_RECORD_ID => $valrcid,
+			IS_ENABLED          => 'Y',
+			SHOULD_GENERATE_PTR => $genptr,
 		};
 
 		$numchanges += $stab->process_and_insert_dns_record($new);
@@ -541,11 +540,10 @@ sub do_dns_update {
 		$numchanges++;
 
 		if (   $dns
-			&& $dns->{ _dbx('DNS_TYPE') } =~ /^A(AAA)?$/
-			&& $dns->{ _dbx('NETBLOCK_ID') } )
+			&& $dns->{'DNS_TYPE'} =~ /^A(AAA)?$/
+			&& $dns->{'NETBLOCK_ID'} )
 		{
-			$numchanges +=
-			  $stab->delete_netblock( $dns->{ _dbx('NETBLOCK_ID') }, 1 );
+			$numchanges += $stab->delete_netblock( $dns->{'NETBLOCK_ID'}, 1 );
 		}
 	}
 
@@ -636,7 +634,7 @@ sub dns_domain_authcheck {
 	my $altwwwgroup = $wwwgroup;
 	my $hr          = $stab->get_dns_domain_from_id($domid);
 	if ($hr) {
-		$altwwwgroup = $wwwgroup . "--" . $hr->{ _dbx('SOA_NAME') };
+		$altwwwgroup = $wwwgroup . "--" . $hr->{'SOA_NAME'};
 	}
 
 	#

@@ -33,7 +33,6 @@ use warnings;
 use FileHandle;
 use JSON;
 use JazzHands::STAB;
-use JazzHands::Common qw(:all);
 
 do_search_devices();
 

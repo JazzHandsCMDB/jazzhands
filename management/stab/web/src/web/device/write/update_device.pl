@@ -61,7 +61,6 @@
 use strict;
 use warnings;
 use JazzHands::STAB;
-use JazzHands::Common qw(:all);
 use Data::Dumper;
 use URI;
 use Carp qw(cluck);
@@ -103,58 +102,58 @@ sub clear_same_physical_port_params {
 		next if ( !$l1c && $p2portid );
 
 		if ($l1c) {
-			if (   defined( $l1c->{ _dbx('BAUD') } )
+			if (   defined( $l1c->{'BAUD'} )
 				&& defined($baud) )
 			{
-				next if ( $l1c->{ _dbx('BAUD') } ne $baud );
-			} elsif ( !defined( $l1c->{ _dbx('BAUD') } )
+				next if ( $l1c->{'BAUD'} ne $baud );
+			} elsif ( !defined( $l1c->{'BAUD'} )
 				&& !defined($baud) )
 			{
 				;
 			} else {
 				next;
 			}
-			if (   defined( $l1c->{ _dbx('STOP_BITS') } )
+			if (   defined( $l1c->{'STOP_BITS'} )
 				&& defined($stopbits) )
 			{
 				next
-				  if ( $l1c->{ _dbx('STOP_BITS') } ne $stopbits );
-			} elsif ( !defined( $l1c->{ _dbx('STOP_BITS') } )
+				  if ( $l1c->{'STOP_BITS'} ne $stopbits );
+			} elsif ( !defined( $l1c->{'STOP_BITS'} )
 				&& !defined($stopbits) )
 			{
 				;
 			} else {
 				next;
 			}
-			if (   defined( $l1c->{ _dbx('DATA_BITS') } )
+			if (   defined( $l1c->{'DATA_BITS'} )
 				&& defined($databits) )
 			{
 				next
-				  if ( $l1c->{ _dbx('DATA_BITS') } ne $databits );
-			} elsif ( !defined( $l1c->{ _dbx('DATA_BITS') } )
+				  if ( $l1c->{'DATA_BITS'} ne $databits );
+			} elsif ( !defined( $l1c->{'DATA_BITS'} )
 				&& !defined($databits) )
 			{
 				;
 			} else {
 				next;
 			}
-			if (   defined( $l1c->{ _dbx('PARITY') } )
+			if (   defined( $l1c->{'PARITY'} )
 				&& defined($parity) )
 			{
-				next if ( $l1c->{ _dbx('PARITY') } ne $parity );
-			} elsif ( !defined( $l1c->{ _dbx('PARITY') } )
+				next if ( $l1c->{'PARITY'} ne $parity );
+			} elsif ( !defined( $l1c->{'PARITY'} )
 				&& !defined($parity) )
 			{
 				;
 			} else {
 				next;
 			}
-			if (   defined( $l1c->{ _dbx('FLOW_CONTROL') } )
+			if (   defined( $l1c->{'FLOW_CONTROL'} )
 				&& defined($flow) )
 			{
 				next
-				  if ( $l1c->{ _dbx('FLOW_CONTROL') } ne $flow );
-			} elsif ( !defined( $l1c->{ _dbx('FLOW_CONTROL') } )
+				  if ( $l1c->{'FLOW_CONTROL'} ne $flow );
+			} elsif ( !defined( $l1c->{'FLOW_CONTROL'} )
 				&& !defined($flow) )
 			{
 				;
@@ -162,17 +161,16 @@ sub clear_same_physical_port_params {
 				next;
 			}
 
-			if ( $l1c->{ _dbx('PHYSICAL_PORT1_ID') } == $pportid ) {
+			if ( $l1c->{'PHYSICAL_PORT1_ID'} == $pportid ) {
 				next
-				  if ( !$p2portid
-					&& defined( $l1c->{ _dbx('PHYSICAL_PORT2_ID') } )
-					|| $l1c->{ _dbx('PHYSICAL_PORT2_ID') } != $p2portid );
+				  if (!$p2portid && defined( $l1c->{'PHYSICAL_PORT2_ID'} )
+					|| $l1c->{'PHYSICAL_PORT2_ID'} != $p2portid );
 			}
-			if ( $l1c->{ _dbx('PHYSICAL_PORT2_ID') } == $pportid ) {
+			if ( $l1c->{'PHYSICAL_PORT2_ID'} == $pportid ) {
 				next
 				  if ( !$p2portid
-					&& defined( $l1c->{ _dxb('PHYSICAL_PORT1_ID') } )
-					|| $l1c->{ _dbx('PHYSICAL_PORT1_ID') } != $p2portid );
+					&& defined( $l1c->{ 'PHYSICAL_PORT1_ID' } )
+					|| $l1c->{'PHYSICAL_PORT1_ID'} != $p2portid );
 			}
 		}
 
@@ -281,21 +279,21 @@ sub do_update_device {
 	#
 	# Note: because there is no enforcement on device name unqiueness, it's possible for the same name to appear twice; this is usually a mistake, or something unintentional rather than leak internal configuration info
 
-	if ( defined($devname) && $devname ne $dbdevice->{ _dbx('DEVICE_NAME') } ) {
+	if ( defined($devname) && $devname ne $dbdevice->{'DEVICE_NAME'} ) {
 		my $existingdev = $stab->get_dev_from_name($devname);
 		if (   $existingdev
-			&& $existingdev->{ _dbx('DEVICE_ID') } != $devid )
+			&& $existingdev->{'DEVICE_ID'} != $devid )
 		{
 			$stab->error_return("A device by that name already exists.");
 		}
 	} else {
 
 		# this is so the box can be grey'd out.
-		$devname = $dbdevice->{ _dbx('DEVICE_NAME') };
+		$devname = $dbdevice->{'DEVICE_NAME'};
 	}
 
 	if ( !defined($physlabel) ) {
-		$physlabel = $dbdevice->{ _dbx('PHYSICAL_LABEL') };
+		$physlabel = $dbdevice->{'PHYSICAL_LABEL'};
 	}
 
 	my $numchanges = 0;
@@ -356,21 +354,20 @@ sub do_update_device {
 	$numchanges += process_interfaces( $stab, $devid );
 	$numchanges += update_functions( $stab, $devid );
 
-	my $assetid = $dbdevice->{ _dbx('ASSET_ID') };
+	my $assetid = $dbdevice->{'ASSET_ID'};
 
 	# Does the asset exist?
 	if ($assetid) {
 		my $dbasset =
-		  $stab->get_asset_from_component_id(
-			$dbdevice->{ _dbx('COMPONENT_ID') } );
+		  $stab->get_asset_from_component_id( $dbdevice->{'COMPONENT_ID'} );
 		if ( !$dbasset ) {
 			return $stab->error_return(
 				"Unable to obtain asset info.  Seek help");
 		}
 
 		if (   $serialno
-			&& $dbasset->{ _dbx('SERIAL_NUMBER') }
-			&& $dbasset->{ _dbx('SERIAL_NUMBER') } ne $serialno )
+			&& $dbasset->{'SERIAL_NUMBER'}
+			&& $dbasset->{'SERIAL_NUMBER'} ne $serialno )
 		{
 			my $sernodev = $stab->get_dev_from_serial($serialno);
 			if (   $sernodev
@@ -382,7 +379,7 @@ sub do_update_device {
 		}
 
 		my $newasset = {
-			ASSET_ID              => $dbasset->{ _dbx('ASSET_ID') },
+			ASSET_ID              => $dbasset->{'ASSET_ID'},
 			SERIAL_NUMBER         => $serialno,
 			PART_NUMBER           => $partno,
 			ASSET_TAG             => $assettag,
@@ -390,7 +387,7 @@ sub do_update_device {
 			LEASE_EXPIRATION_DATE => $leasexp,
 		};
 
-		my $diffs = $stab->hash_table_diff( $dbasset, _dbx($newasset) );
+		my $diffs = $stab->hash_table_diff( $dbasset, $newasset );
 		my $tally   += keys %$diffs;
 		$numchanges += $tally;
 
@@ -407,10 +404,10 @@ sub do_update_device {
 		}
 
 		# If the asset doesn't exist and if we have a component_id for the device, let's create the missing asset
-	} elsif ( defined( $dbdevice->{ _dbx('COMPONENT_ID') } ) ) {
+	} elsif ( defined( $dbdevice->{'COMPONENT_ID'} ) ) {
 		my @errs;
 		my $newasset = {
-			COMPONENT_ID          => $dbdevice->{ _dbx('COMPONENT_ID') },
+			COMPONENT_ID          => $dbdevice->{'COMPONENT_ID'},
 			SERIAL_NUMBER         => $serialno,
 			PART_NUMBER           => $partno,
 			ASSET_TAG             => $assettag,
@@ -428,7 +425,7 @@ sub do_update_device {
 		{
 			$stab->error_return( join( " ", @errs ) );
 		}
-		my $assetid = $newasset->{ _dbx('ASSET_ID') };
+		my $assetid = $newasset->{'ASSET_ID'};
 	}
 
 	my $newdevice = {
@@ -454,27 +451,25 @@ sub do_update_device {
 	#
 	# This can not be set on pages where there are virtual devices
 	# and thus would clear the field if it was blindly passed in.
-	if ( $dbdevice->{ _dbx('IS_VIRTUAL_DEVICE') } eq 'N' ) {
+	if ( $dbdevice->{'IS_VIRTUAL_DEVICE'} eq 'N' ) {
 		$newdevice->{'PARENT_DEVICE_ID'} = $parentid;
 	}
 
-	my $diffs = $stab->hash_table_diff( $dbdevice, _dbx($newdevice) );
+	my $diffs = $stab->hash_table_diff( $dbdevice, $newdevice );
 
 	my $tally   += keys %$diffs;
 	$numchanges += $tally;
 
 	if ($resyncpower) {
-		$numchanges += $stab->resync_device_power( _dbx($newdevice) );
+		$numchanges += $stab->resync_device_power($newdevice);
 	}
 
 	if ($resyncserial) {
-		$numchanges +=
-		  $stab->resync_physical_ports( _dbx($newdevice), 'serial' );
+		$numchanges += $stab->resync_physical_ports( $newdevice, 'serial' );
 	}
 
 	if ($resyncswitch) {
-		$numchanges +=
-		  $stab->resync_physical_ports( _dbx($newdevice), 'network' );
+		$numchanges += $stab->resync_physical_ports( $newdevice, 'network' );
 	}
 
 	if ( $numchanges == 0 ) {
@@ -538,7 +533,8 @@ sub reconcile_appgroup {
 
 	# 1. go through all the leaf appgroups in the db and see if any need
 	# to be unset
-	my $sth = $stab->prepare( qq{
+	my $sth = $stab->prepare(
+		qq{
 		begin
 			appgroup_util.remove_role(?, ?);
 		end;
@@ -553,7 +549,8 @@ sub reconcile_appgroup {
 
 	# 2. go through all the appgroups in the argument list and see if any
 	# need to be set (using the pl/sql function for setting such things
-	$sth = $stab->prepare( qq{
+	$sth = $stab->prepare(
+		qq{
 		begin
 			appgroup_util.add_role(?, ?);
 		end;
@@ -687,11 +684,11 @@ sub update_location {
 	#
 	# no location previously existed, lets set a new one!
 	#
-	if ( !$curloc || !defined( $curloc->{ _dbx('RACK_LOCATION_ID') } ) ) {
+	if ( !$curloc || !defined( $curloc->{'RACK_LOCATION_ID'} ) ) {
 		return $stab->add_location_to_dev( $devid, $newloc );
 	}
 
-	my $diffs = $stab->hash_table_diff( $curloc, _dbx($newloc) );
+	my $diffs = $stab->hash_table_diff( $curloc, $newloc );
 	my $tally   += keys %$diffs;
 	$numchanges += $tally;
 
@@ -747,7 +744,7 @@ sub configure_nb_if_ok {
 
 	# If netblocks aren't changing, then its ok.
 	if ( defined($netblock_id) && defined($newblock) ) {
-		if ( $netblock_id == $newblock->{ _dbx('NETBLOCK_ID') } ) {
+		if ( $netblock_id == $newblock->{'NETBLOCK_ID'} ) {
 
 			# Just return the existing netblock
 			return $netblock_id;
@@ -757,7 +754,7 @@ sub configure_nb_if_ok {
 			# jut absorb the IP.  This allows devices to be added to DNS but
 			# later attached to devices.  Less than ideal, but at least its
 			# cleanup.
-			my $nbid = $newblock->{ _dbx('NETBLOCK_ID') };
+			my $nbid = $newblock->{'NETBLOCK_ID'};
 			if ( $stab->get_interface_from_netblock_id($nbid) ) {
 				return $stab->error_return("$ip_ui is in use on a device");
 			}
@@ -773,10 +770,9 @@ sub configure_nb_if_ok {
 			  . "Seek help." );
 	}
 
-	$newblock->{ _dbx('NETBLOCK_ID') };
-}
+	$newblock->{'NETBLOCK_ID'};
+}    # This function returns all dns records associated to a netblock
 
-# This function returns all dns records associated to a netblock
 sub get_dns_records_from_netblock_id {
 	my ( $stab, $id ) = @_;
 
@@ -859,7 +855,8 @@ sub get_total_ifs {
 sub number_interface_kids {
 	my ( $stab, $netintid ) = @_;
 
-	my $sth = $stab->prepare( qq{
+	my $sth = $stab->prepare(
+		qq{
 		select	count(*)
 		 from	network_interface
 		where	parent_network_interface_id = ?
@@ -956,7 +953,7 @@ sub process_netblock_and_dns {
 	# Loop on the DNS records associated to the initial netblock
 	foreach my $dns_record (@$dns_records) {
 
-		my $dns_record_id = $dns_record->{'dns_record_id'};
+		my $dns_record_id = $dns_record->{'DNS_RECORD_ID'};
 		my $dns_ui        = $stab->cgi_parse_param( 'DNS_NAME',
 			$network_interface_id . '_' . $netblock_id . '_' . $dns_record_id );
 		my $dnsdom_ui = $stab->cgi_parse_param( 'DNS_DOMAIN_ID',
@@ -1077,7 +1074,7 @@ sub process_netblock_and_dns {
 			SHOULD_GENERATE_PTR => $dnsptr_ui
 		};
 
-		my $diff = $stab->hash_table_diff( $dns_record, _dbx($new_dns) );
+		my $diff = $stab->hash_table_diff( $dns_record, $new_dns );
 		if ( defined($diff) ) {
 			$$refnumchanges += keys %$diff;
 			$stab->run_update_from_hash( 'dns_record', 'dns_record_id',
@@ -1308,14 +1305,14 @@ sub update_physical_port {
 		# save the path before the layer 1 connection is destroyed
 		my $path =
 		  $stab->get_physical_path_from_l1conn(
-			$l1c->{ _dbx('LAYER1_CONNECTION_ID') } );
+			$l1c->{'LAYER1_CONNECTION_ID'} );
 
 		my $q = qq{
 			delete from layer1_connection
 			 where	layer1_connection_id = ?
 		};
 		my $sth = $stab->prepare($q) || $stab->return_db_err;
-		$sth->execute( $l1c->{ _dbx('LAYER1_CONNECTION_ID') } )
+		$sth->execute( $l1c->{'LAYER1_CONNECTION_ID'} )
 		  || $stab->return_db_err($sth);
 		$sth->finish;
 
@@ -1339,8 +1336,7 @@ sub update_physical_port {
 	#
 	my $l1c = $stab->get_layer1_connection_from_port($pportid);
 	my $path =
-	  $stab->get_physical_path_from_l1conn(
-		$l1c->{ _dbx('LAYER1_CONNECTION_ID') } );
+	  $stab->get_physical_path_from_l1conn( $l1c->{'LAYER1_CONNECTION_ID'} );
 
 	# XXX oracle/pgsqlism
 	my $q = qq{
@@ -1398,10 +1394,8 @@ sub attempt_path_cleanup {
 
 	return $numchanges if ( !$path );
 
-	if ( $path->[0]->{ _dbx('PC_P1_PHYSICAL_PORT_ID') } == $pportid ) {
-		if ( $path->[ $#{@$path} ]->{ _dbx('PC_P2_PHYSICAL_PORT_ID') } !=
-			$p2portid )
-		{
+	if ( $path->[0]->{'PC_P1_PHYSICAL_PORT_ID'} == $pportid ) {
+		if ( $path->[ $#{@$path} ]->{'PC_P2_PHYSICAL_PORT_ID'} != $p2portid ) {
 			my $q = qq{
 				update	physical_connection
 				   set	physical_port2_id = ?
@@ -1410,13 +1404,11 @@ sub attempt_path_cleanup {
 			my $stab = $stab->prepare($q)
 			  || $stab->return_db_err($stab);
 			$stab->execute( $p2portid,
-				$path->[ $#{@$path} ]->{ _dbx('PHYSICAL_CONNECTION_ID') },
+				$path->[ $#{@$path} ]->{'PHYSICAL_CONNECTION_ID'},
 			);
 		}
-	} elsif ( $path->[0]->{ _dbx('PC_P1_PHYSICAL_PORT_ID') } == $p2portid ) {
-		if ( $path->[ $#{@$path} ]->{ _dbx('PC_P2_PHYSICAL_PORT_ID') } !=
-			$pportid )
-		{
+	} elsif ( $path->[0]->{'PC_P1_PHYSICAL_PORT_ID'} == $p2portid ) {
+		if ( $path->[ $#{@$path} ]->{'PC_P2_PHYSICAL_PORT_ID'} != $pportid ) {
 			my $q = qq{
 				update	physical_connection
 				   set	physical_port2_id = ?
@@ -1425,12 +1417,10 @@ sub attempt_path_cleanup {
 			my $stab = $stab->prepare($q)
 			  || $stab->return_db_err($stab);
 			$stab->execute( $pportid,
-				$path->[ $#{@$path} ]->{ _dbx('PHYSICAL_CONNECTION_ID') } );
+				$path->[ $#{@$path} ]->{'PHYSICAL_CONNECTION_ID'} );
 		}
-	} elsif (
-		$path->[ $#{@$path} ]->{ _dbx('PC_P2_PHYSICAL_PORT_ID') } == $pportid )
-	{
-		if ( $path->[0]->{ _dbx('PC_P1_PHYSICAL_PORT_ID') } != $p2portid ) {
+	} elsif ( $path->[ $#{@$path} ]->{'PC_P2_PHYSICAL_PORT_ID'} == $pportid ) {
+		if ( $path->[0]->{'PC_P1_PHYSICAL_PORT_ID'} != $p2portid ) {
 			my $q = qq{
 				update	physical_connection
 				   set	physical_port1_id = ?
@@ -1438,13 +1428,10 @@ sub attempt_path_cleanup {
 			};
 			my $stab = $stab->prepare($q)
 			  || $stab->return_db_err($stab);
-			$stab->execute( $p2portid,
-				$path->[0]->{ _dbx('PHYSICAL_CONNECTION_ID') } );
+			$stab->execute( $p2portid, $path->[0]->{'PHYSICAL_CONNECTION_ID'} );
 		}
-	} elsif (
-		$path->[ $#{@$path} ]->{ _dbx('PC_P2_PHYSICAL_PORT_ID') } == $p2portid )
-	{
-		if ( $path->[0]->{ _dbx('PC_P1_PHYSICAL_PORT_ID') } != $pportid ) {
+	} elsif ( $path->[ $#{@$path} ]->{'PC_P2_PHYSICAL_PORT_ID'} == $p2portid ) {
+		if ( $path->[0]->{'PC_P1_PHYSICAL_PORT_ID'} != $pportid ) {
 			my $q = qq{
 				update	physical_connection
 				   set	physical_port1_id = ?
@@ -1452,8 +1439,7 @@ sub attempt_path_cleanup {
 			};
 			my $stab = $stab->prepare($q)
 			  || $stab->return_db_err($stab);
-			$stab->execute( $pportid,
-				$path->[0]->{ _dbx('PHYSICAL_CONNECTION_ID') } );
+			$stab->execute( $pportid, $path->[0]->{'PHYSICAL_CONNECTION_ID'} );
 		}
 	} else {
 		$numchanges +=
@@ -1493,12 +1479,11 @@ sub update_physical_connection {
 	# figure out the path to a given host.
 	#
 	my $path =
-	  $stab->get_physical_path_from_l1conn(
-		$l1c->{ _dbx('LAYER1_CONNECTION_ID') } );
+	  $stab->get_physical_path_from_l1conn( $l1c->{'LAYER1_CONNECTION_ID'} );
 
 	my (@newpath);
 	my $backwards = 0;
-	if ( $l1c->{ _dbx('PHYSICAL_PORT1_ID') } != $pportid ) {
+	if ( $l1c->{'PHYSICAL_PORT1_ID'} != $pportid ) {
 		$backwards = 1;
 	}
 
@@ -1588,12 +1573,12 @@ sub update_physical_connection {
 	#
 	if ($path) {
 		my $needtofix = 0;
-		my $lhspp     = $l1c->{ _dbx('PHYSICAL_PORT1_ID') };
+		my $lhspp     = $l1c->{'PHYSICAL_PORT1_ID'};
 		my $cabletype;
 		for ( my $i = 0 ; $i <= $#newpath ; $i++ ) {
 			my $rhspp = $newpath[$i]->{'port'};
 			if ( $i == $#newpath ) {
-				$rhspp = $l1c->{ _dbx('PHYSICAL_PORT2_ID') };
+				$rhspp = $l1c->{'PHYSICAL_PORT2_ID'};
 			}
 
 			if ( $newpath[$i]->{'rm'} ) {
@@ -1605,13 +1590,11 @@ sub update_physical_connection {
 				next;
 			}
 
-			if ( $path->[$i]->{ _dbx('PC_P2_PHYSICAL_PORT_ID') } != $rhspp ) {
+			if ( $path->[$i]->{'PC_P2_PHYSICAL_PORT_ID'} != $rhspp ) {
 				$needtofix++;
 			}
 
-			if (
-				$newpath[$i]->{'cable'} ne $path->[$i]->{ _dbx('CABLE_TYPE') } )
-			{
+			if ( $newpath[$i]->{'cable'} ne $path->[$i]->{'CABLE_TYPE'} ) {
 				$needtofix++;
 			}
 
@@ -1660,7 +1643,7 @@ sub update_physical_connection {
 		next if ( !$tl1c );
 		my $tpath =
 		  $stab->get_physical_path_from_l1conn(
-			$tl1c->{ _dbx('LAYER1_CONNECTION_ID') } );
+			$tl1c->{'LAYER1_CONNECTION_ID'} );
 		next if ( !$tpath );
 		$numchanges +=
 		  purge_physical_connection_by_physical_port_id( $stab, $tpath );
@@ -1679,14 +1662,14 @@ sub update_physical_connection {
 		};
 		my $sth = $stab->prepare($q) || $stab->return_db_err($stab);
 
-		my $lhspp = $l1c->{ _dbx('PHYSICAL_PORT1_ID') };
+		my $lhspp = $l1c->{'PHYSICAL_PORT1_ID'};
 		my $cabletype;
 		for ( my $i = 0 ; $i <= $#newpath ; $i++ ) {
 			next if ( $newpath[$i]->{'rm'} );    # was deleted.
 			$cabletype = $newpath[$i]->{'cable'};
 			my $rhspp = $newpath[$i]->{'port'};
 			if ( $i == $#newpath ) {
-				$rhspp = $l1c->{ _dbx('PHYSICAL_PORT2_ID') };
+				$rhspp = $l1c->{'PHYSICAL_PORT2_ID'};
 			}
 
 			# print $cgi->h3("
@@ -1704,7 +1687,7 @@ sub update_physical_connection {
 	# print "l1c is $l1c, backwards is $backwards\n";
 	# print "old path: ", $cgi->pre(Dumper($path));
 	# print "new path: ", $cgi->pre(Dumper(@newpath));
-	# my $xpath = $stab->get_physical_path_from_l1conn($l1c->{_dbx('LAYER1_CONNECTION_ID')});
+	# my $xpath = $stab->get_physical_path_from_l1conn($l1c->{'LAYER1_CONNECTION_ID'});
 	# print "new SET path: ", $cgi->pre(Dumper($xpath));
 	# print "layer 1 conn: ", $cgi->pre(Dumper($l1c));
 	# print $cgi->Dump;
@@ -1738,8 +1721,7 @@ sub purge_physical_connection_by_physical_port_id {
 	my $sth = $stab->prepare($q) || $stab->return_db_err($stab);
 
 	foreach my $row (@$path) {
-		$numchanges +=
-		  $sth->execute( $row->{ _dbx('PHYSICAL_CONNECTION_ID') } );
+		$numchanges += $sth->execute( $row->{'PHYSICAL_CONNECTION_ID'} );
 	}
 
 	$numchanges;
@@ -1788,10 +1770,10 @@ sub update_all_dns_value_references {
 		$numchanges++;
 
 		if (   $dns
-			&& $dns->{ _dbx('DNS_TYPE') } =~ /^A(AAA)?$/
-			&& $dns->{ _dbx('NETBLOCK_ID') } )
+			&& $dns->{'DNS_TYPE'} =~ /^A(AAA)?$/
+			&& $dns->{'NETBLOCK_ID'} )
 		{
-			$numchanges += $stab->delete_netblock( $dns->{'netblock_id'}, 1 );
+			$numchanges += $stab->delete_netblock( $dns->{'NETBLOCK_ID'}, 1 );
 		}
 	}
 	return $numchanges;
@@ -1804,7 +1786,8 @@ sub update_all_interfaces {
 	my $numchanges = 0;
 
 	# Get the network interfaces from the database
-	my $sth = $stab->prepare( qq{
+	my $sth = $stab->prepare(
+		qq{
 		select	network_interface_id
 		 from	network_interface
 		where	device_id = ?
@@ -1876,18 +1859,19 @@ sub validate_ip_dns_combo {
 	if ( $dnsname !~ /\./ ) { return; }
 
 	# Get a list of existing domains
-	my $sth = $stab->prepare( qq{
+	my $sth = $stab->prepare(
+		qq{
 			select		dns_domain_id, soa_name
 			from		dns_domain
 			order by	soa_name
 		}
 	);
 	$sth->execute() || die $sth->errstr;
-	my $domains_by_id = $sth->fetchall_hashref('dns_domain_id');
+	my $domains_by_id = $sth->fetchall_hashref('DNS_DOMAIN_ID');
 	my %domains_by_soa;
 	foreach my $dns_domain_id ( keys %{$domains_by_id} ) {
-		$domains_by_soa{ $domains_by_id->{$dns_domain_id}{'soa_name'} } =
-		  $domains_by_id->{$dns_domain_id}{'dns_domain_id'};
+		$domains_by_soa{ $domains_by_id->{$dns_domain_id}{'SOA_NAME'} } =
+		  $domains_by_id->{$dns_domain_id}{'DNS_DOMAIN_ID'};
 	}
 
 	# Get the dns name part after the last dot
@@ -1895,7 +1879,7 @@ sub validate_ip_dns_combo {
 	my $lastpart = $parts[-1];
 
 	# Get the dns domain corresponding to the id
-	my $dnsdomainname = $domains_by_id->{$dnsdomain}{'soa_name'};
+	my $dnsdomainname = $domains_by_id->{$dnsdomain}{'SOA_NAME'};
 	if ( exists( $domains_by_soa{ $lastpart . '.' . $dnsdomainname } ) ) {
 		$stab->error_return(
 			"You can't use .$lastpart in the DNS name, you must use $lastpart.$dnsdomainname as the domain."
@@ -1953,18 +1937,18 @@ sub update_interface {
 	my $network_interface_db = get_network_interface( $stab, $netintid );
 
 	# Update the physical port name
-	my $newppid = $network_interface_db->{ _dbx('PHYSICAL_PORT_ID') };
-	if ( $network_interface_db->{ _dbx('NETWORK_INTERFACE_NAME') } ne $intname )
-	{
+	my $newppid = $network_interface_db->{'PHYSICAL_PORT_ID'};
+	if ( $network_interface_db->{'NETWORK_INTERFACE_NAME'} ne $intname ) {
 		$newppid =
 		  rename_physical_port( $stab,
-			$network_interface_db->{ _dbx('PHYSICAL_PORT_ID') },
+			$network_interface_db->{'PHYSICAL_PORT_ID'},
 			$intname, $devid );
 		$numchanges++;
 	}
 
 	# Let's get the associated netblocks from the database
-	my $sth = $stab->prepare( qq{
+	my $sth = $stab->prepare(
+		qq{
 		select		netblock.netblock_id
 		from		network_interface
 		left join	network_interface_netblock using( network_interface_id )
@@ -2098,8 +2082,7 @@ sub update_interface {
 
 	# Update the network interface
 	my $new_int = {
-		NETWORK_INTERFACE_ID =>
-		  $network_interface_db->{ _dbx('NETWORK_INTERFACE_ID') },
+		NETWORK_INTERFACE_ID => $network_interface_db->{'NETWORK_INTERFACE_ID'},
 		NETWORK_INTERFACE_NAME => $intname,
 		NETWORK_INTERFACE_TYPE => $nitype,
 		IS_INTERFACE_UP        => $isintup,
@@ -2109,10 +2092,10 @@ sub update_interface {
 		DESCRIPTION            => $desc,
 	};
 
-	my $diff = $stab->hash_table_diff( $network_interface_db, _dbx($new_int) );
+	my $diff = $stab->hash_table_diff( $network_interface_db, $new_int );
 	$numchanges += keys %$diff;
 	$stab->run_update_from_hash( 'network_interface', 'network_interface_id',
-		$network_interface_db->{ _dbx('NETWORK_INTERFACE_ID') }, $diff );
+		$network_interface_db->{'NETWORK_INTERFACE_ID'}, $diff );
 
 	$numchanges +=
 	  manipulate_network_interface_purpose( $stab, $netintid, $devid );
@@ -2249,14 +2232,16 @@ sub manipulate_network_interface_purpose {
 
 	my $oldpurp = $stab->get_network_int_purpose($netintid);
 
-	my $rmsth = $stab->prepare( qq{
+	my $rmsth = $stab->prepare(
+		qq{
 		delete from network_interface_purpose
 		where	network_interface_id = ?
 		and		network_interface_purpose = ?
 	}
 	) || return $stab->return_db_err;
 
-	my $addsth = $stab->prepare( qq{
+	my $addsth = $stab->prepare(
+		qq{
 		INSERT INTO network_interface_purpose (
 			device_id, network_interface_id, network_interface_purpose
 		) VALUES (
@@ -2298,7 +2283,7 @@ sub rename_physical_port {
 
 	my $newpp = $stab->get_physical_port_byport( $devid, $newname, 'network' );
 	if ($newpp) {
-		return $newpp->{ _dbx('PHYSICAL_PORT_ID') };
+		return $newpp->{'PHYSICAL_PORT_ID'};
 	}
 
 	my $q = qq{
@@ -2355,7 +2340,7 @@ sub process_licenses {
 			next;
 		}
 		my $dc = $stab->get_device_collection($dcid);
-		if ( $dc->{ _dbx('DEVICE_COLLECTION_TYPE') } ne 'applicense' ) {
+		if ( $dc->{'DEVICE_COLLECTION_TYPE'} ne 'applicense' ) {
 			$stab->error_return("Invalid attempt to remove a non-license");
 		}
 		$numchanges +=
@@ -2370,7 +2355,7 @@ sub process_licenses {
 			next;
 		}
 		my $dc = $stab->get_device_collection($dcid);
-		if ( $dc->{ _dbx('DEVICE_COLLECTION_TYPE') } ne 'applicense' ) {
+		if ( $dc->{'DEVICE_COLLECTION_TYPE'} ne 'applicense' ) {
 			$stab->error_return("Invalid attempt to remove a non-license");
 		}
 		$numchanges += $stab->add_to_device_collection( $devid, $dcid );
@@ -2424,7 +2409,8 @@ sub process_interfaces {
 			);
 		}
 
-		my $gSth = $stab->prepare( qq{
+		my $gSth = $stab->prepare(
+			qq{
 			select * from static_route where static_route_id = ?
 		}
 		);
@@ -2434,8 +2420,8 @@ sub process_interfaces {
 
 		$stab->error_return("Unable to find $id") if ( !$dbsr );
 
-		if ( $ni->{ _dbx('NETWORK_INTERFACE_ID') } !=
-			$dbsr->{ _dbx('NETWORK_INTERFACE_DST_ID') } )
+		if ( $ni->{'NETWORK_INTERFACE_ID'} !=
+			$dbsr->{'NETWORK_INTERFACE_DST_ID'} )
 		{
 			if ( !$stab->check_ip_on_local_nets( $devid, $destip ) ) {
 				$stab->error_return(
@@ -2443,9 +2429,8 @@ sub process_interfaces {
 				);
 			}
 			if ( $stab->is_static_route_on_device(
-				$devid,
-				$ni->{ _dbx('NETWORK_INTERFACE_ID') },
-				$nb->{ _dbx('NETBLOCK_ID') }
+				$devid, $ni->{'NETWORK_INTERFACE_ID'},
+				$nb->{'NETBLOCK_ID'}
 			) )
 			{
 				$stab->error_return(
@@ -2457,11 +2442,11 @@ sub process_interfaces {
 		my $newsr = {
 			STATIC_ROUTE_ID          => $id,
 			DEVICE_SRC_ID            => $devid,
-			NETWORK_INTERFACE_DST_ID => $ni->{ _dbx('NETWORK_INTERFACE_ID') },
-			NETBLOCK_ID              => $nb->{ _dbx('NETBLOCK_ID') },
+			NETWORK_INTERFACE_DST_ID => $ni->{'NETWORK_INTERFACE_ID'},
+			NETBLOCK_ID              => $nb->{'NETBLOCK_ID'},
 		};
 
-		my $diffs = $stab->hash_table_diff( $dbsr, _dbx($newsr) );
+		my $diffs = $stab->hash_table_diff( $dbsr, $newsr );
 
 		my $tally   += keys %$diffs;
 		$numchanges += $tally;
@@ -2501,16 +2486,16 @@ sub process_interfaces {
 		}
 
 		if ( $stab->is_static_route_on_device(
-			$devid,
-			$ni->{ _dbx('NETWORK_INTERFACE_ID') },
-			$nb->{ _dbx('NETBLOCK_ID') }
+			$devid, $ni->{'NETWORK_INTERFACE_ID'},
+			$nb->{'NETBLOCK_ID'}
 		) )
 		{
 			$stab->error_return(
 				"Static Route $srcip/$srcbits->$destip is already on device");
 		}
 
-		my $sth = $stab->prepare( qq{
+		my $sth = $stab->prepare(
+			qq{
 			insert into static_route
 				(DEVICE_SRC_ID, NETWORK_INTERFACE_DST_ID, NETBLOCK_ID)
 			values
@@ -2518,11 +2503,9 @@ sub process_interfaces {
 		}
 		);
 
-		$numchanges += $sth->execute(
-			$devid,
-			$ni->{ _dbx('NETWORK_INTERFACE_ID') },
-			$nb->{ _dbx('NETBLOCK_ID') }
-		) || $stab->return_db_err($sth);
+		$numchanges += $sth->execute( $devid, $ni->{'NETWORK_INTERFACE_ID'},
+			$nb->{'NETBLOCK_ID'} )
+		  || $stab->return_db_err($sth);
 	}
 
 	$numchanges;
@@ -2661,7 +2644,7 @@ sub add_interfaces {
 	my $ppid;
 	my $pp = $stab->get_physical_port_byport( $devid, $intname, 'network' );
 	if ($pp) {
-		$ppid = $pp->{ _dbx('PHYSICAL_PORT_ID') };
+		$ppid = $pp->{'PHYSICAL_PORT_ID'};
 	}
 
 	# Make sure the mac address has a correct format
@@ -2693,12 +2676,12 @@ sub add_interfaces {
 		$stab->error_return( join( " ", @errs ) );
 	}
 
-	$netintid = $new->{ _dbx('NETWORK_INTERFACE_ID') };
+	$netintid = $new->{'NETWORK_INTERFACE_ID'};
 
 	if ( defined($ip) ) {
 		my $new2 = {
 			network_interface_id => $netintid,
-			netblock_id          => $nblk->{ _dbx('NETBLOCK_ID') },
+			netblock_id          => $nblk->{'NETBLOCK_ID'},
 			device_id            => $devid
 		};
 
@@ -2722,7 +2705,7 @@ sub add_interfaces {
 			dns_domain_id       => $dnsdom_ui,
 			dns_type            => $type,
 			dns_class           => 'IN',
-			netblock_id         => $nblk->{ _dbx('NETBLOCK_ID') },
+			netblock_id         => $nblk->{'NETBLOCK_ID'},
 			SHOULD_GENERATE_PTR => $dnsptr_ui,
 		} );
 		$numchanges++;
@@ -2755,19 +2738,23 @@ sub update_functions {
 	# Get device functions from the database
 	my %functions = %{ $stab->get_device_functions($devid) };
 	my @old_device_functions;
-	push( @old_device_functions, $functions{$_}{'device_collection_id'} )
-	  for grep { $functions{$_}{'selected'} == 1 } keys %functions;
+	push( @old_device_functions, $functions{$_}{'DEVICE_COLLECTION_ID'} )
+	  for grep { $functions{$_}{'SELECTED'} == 1 } keys %functions;
+
+	# Build hashes for quick membership lookup
+	my %old_set = map { $_ => 1 } @old_device_functions;
+	my %new_set = map { $_ => 1 } @new_device_functions;
 
 	# Get a list of function ids to remove
 	my @to_delete;
 	foreach (@old_device_functions) {
-		push( @to_delete, $_ ) unless exists( $new_device_functions[$_] );
+		push( @to_delete, $_ ) unless exists( $new_set{$_} );
 	}
 
 	# Get a list of function ids to add
 	my @to_add;
 	foreach (@new_device_functions) {
-		push( @to_add, $_ ) unless exists( $old_device_functions[$_] );
+		push( @to_add, $_ ) unless exists( $old_set{$_} );
 	}
 
 	#print $cgi->header;
@@ -2851,7 +2838,8 @@ sub reset_serial_to_default {
 sub find_phys_con_endpoint_from_port {
 	my ( $stab, $pportid ) = @_;
 
-	my $sth = $stab->prepare( qq{
+	my $sth = $stab->prepare(
+		qq{
 		select * from v_physical_connection
 		where layer1_physical_port1_id = ?
 	}
@@ -2861,11 +2849,11 @@ sub find_phys_con_endpoint_from_port {
 	$sth->execute($pportid) || $stab->return_db_err($stab);
 
 	while ( my $hr = $sth->fetchrow_hashref ) {
-		if ( $hr->{ _dbx('PHYSICAL_PORT1_ID') } != $pportid ) {
-			$endpoint = $hr->{ _dbx('PHYSICAL_PORT1_ID') };
+		if ( $hr->{'PHYSICAL_PORT1_ID'} != $pportid ) {
+			$endpoint = $hr->{'PHYSICAL_PORT1_ID'};
 		}
-		if ( $hr->{ _dbx('PHYSICAL_PORT2_ID') } != $pportid ) {
-			$endpoint = $hr->{ _dbx('PHYSICAL_PORT2_ID') };
+		if ( $hr->{'PHYSICAL_PORT2_ID'} != $pportid ) {
+			$endpoint = $hr->{'PHYSICAL_PORT2_ID'};
 		}
 	}
 	$sth->finish;
@@ -2888,7 +2876,7 @@ sub delete_device_connections {
 		if ($l1c) {
 			my $path =
 			  $stab->get_physical_path_from_l1conn(
-				$l1c->{ _dbx('LAYER1_CONNECTION_ID') } );
+				$l1c->{'LAYER1_CONNECTION_ID'} );
 			if ($path) {
 				purge_physical_connection_by_physical_port_id( $stab, $path );
 			}
@@ -2961,7 +2949,8 @@ sub delete_device_power {
 sub retire_device {
 	my ( $stab, $devid ) = @_;
 
-	my $sth = $stab->prepare( qq{
+	my $sth = $stab->prepare(
+		qq{
 		SELECT	device_utils.retire_device(
 				in_device_id := ?
 			);

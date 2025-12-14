@@ -23,7 +23,6 @@ use strict;
 use warnings;
 use FileHandle;
 use JazzHands::STAB;
-use JazzHands::Common::Util qw(_dbx);
 use Data::Dumper;
 
 exit do_netblock_collections();
@@ -127,7 +126,7 @@ sub add_netblock_collection($$$) {
 		$stab->error_return( join( " ", @errs ) );
 	}
 
-	return $hash->{ _dbx('NETBLOCK_COLLECTION_ID') };
+	return $hash->{'NETBLOCK_COLLECTION_ID'};
 }
 
 #
@@ -190,7 +189,8 @@ sub build_collection_members($$) {
 	my ( $stab, $ncid ) = @_;
 	my $cgi = $stab->cgi || die "Could not create cgi";
 
-	my $sth = $stab->prepare( qq{
+	my $sth = $stab->prepare(
+		qq{
 		SELECT	nb.netblock_id,
 				nb.ip_address,
 				nb.is_single_address,
@@ -259,7 +259,8 @@ sub build_collection_children {
 	my ( $stab, $ncid ) = @_;
 	my $cgi = $stab->cgi || die "Could not create cgi";
 
-	my $sth = $stab->prepare( qq{
+	my $sth = $stab->prepare(
+		qq{
 		SELECT	nc.netblock_collection_id,
 				nc.netblock_collection_name,
 				nc.netblock_collection_type,
@@ -289,7 +290,8 @@ sub build_collection_parents {
 	my ( $stab, $ncid ) = @_;
 	my $cgi = $stab->cgi || die "Could not create cgi";
 
-	my $sth = $stab->prepare( qq{
+	my $sth = $stab->prepare(
+		qq{
 		SELECT	nc.netblock_collection_id,
 				nc.netblock_collection_name,
 				nc.netblock_collection_type,
@@ -349,8 +351,8 @@ sub process_netblock_collection {
 	print $stab->start_html( {
 		-title => "Netblock Collection "
 		  . join( ":",
-			$nc->{ _dbx('NETBLOCK_COLLECTION_TYPE') },
-			$nc->{ _dbx('NETBLOCK_COLLECTION_NAME') } ),
+			$nc->{'NETBLOCK_COLLECTION_TYPE'},
+			$nc->{'NETBLOCK_COLLECTION_NAME'} ),
 		-javascript => 'netblock_collection',
 	} );
 
@@ -377,8 +379,8 @@ sub process_netblock_collection {
 		{ -class => 'collection' },
 		'<br/><br/><h2>Parent Collection(s) of '
 		  . join( ":",
-			$nc->{ _dbx('NETBLOCK_COLLECTION_TYPE') },
-			$nc->{ _dbx('NETBLOCK_COLLECTION_NAME') },
+			$nc->{'NETBLOCK_COLLECTION_TYPE'},
+			$nc->{'NETBLOCK_COLLECTION_NAME'},
 			'</h2>' ),
 		build_collection_row(
 			$cgi, undef, undef, "Collection", "Description", " "

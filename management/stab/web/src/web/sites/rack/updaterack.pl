@@ -27,7 +27,6 @@ use strict;
 use warnings;
 use Data::Dumper;
 use JazzHands::STAB;
-use JazzHands::Common qw(_dbx);
 use URI;
 
 exit do_update_racks();
@@ -35,18 +34,18 @@ exit do_update_racks();
 sub retire_rack($$) {
 	my ( $stab, $rackid ) = @_;
 
-	my $sth = $stab->prepare(qq{
+	my $sth = $stab->prepare( qq{
 		SELECT  device_utils.retire_rack(
 				rack_id := ?
 			);
-	}) || die $stab->return_db_err($stab);
+	} ) || die $stab->return_db_err($stab);
 
 	$sth->execute($rackid) || $stab->return_db_err($sth);
-	my ($stillhere) = ($sth->fetchrow_array);
+	my ($stillhere) = ( $sth->fetchrow_array );
 	$sth->finish;
 
 	my ( $url, $msg );
-	if (! $stillhere) {
+	if ( !$stillhere ) {
 		$url = "./";
 		$msg = "Rack Removed";
 	} else {
@@ -61,11 +60,11 @@ sub retire_rack($$) {
 sub demonitor_rack($$) {
 	my ( $stab, $rackid ) = @_;
 
-	my $sth = $stab->prepare(qq{
+	my $sth = $stab->prepare( qq{
 		SELECT  device_utils.monitoring_off_in_rack(
 				rack_id := ?
 			);
-	}) || die $stab->return_db_err($stab);
+	} ) || die $stab->return_db_err($stab);
 
 	my $nr = $sth->execute($rackid) || $stab->return_db_err($sth);
 	$sth->finish;
@@ -76,33 +75,32 @@ sub demonitor_rack($$) {
 	$stab->msg_return( $msg, $url, 1 );
 }
 
-
 sub update_rack($$) {
 	my ( $stab, $rackid ) = @_;
 	my $cgi = $stab->cgi || die "Could not create cgi";
 
 	my $numchanges = 0;
 
-	my $site   = $stab->cgi_parse_param( 'SITE_CODE',	$rackid );
-	my $room   = $stab->cgi_parse_param( 'ROOM',	     $rackid );
-	my $subr   = $stab->cgi_parse_param( 'SUB_ROOM',	 $rackid );
-	my $row    = $stab->cgi_parse_param( 'RACK_ROW',	 $rackid );
-	my $rackn  = $stab->cgi_parse_param( 'RACK_NAME',	$rackid );
+	my $site   = $stab->cgi_parse_param( 'SITE_CODE',        $rackid );
+	my $room   = $stab->cgi_parse_param( 'ROOM',             $rackid );
+	my $subr   = $stab->cgi_parse_param( 'SUB_ROOM',         $rackid );
+	my $row    = $stab->cgi_parse_param( 'RACK_ROW',         $rackid );
+	my $rackn  = $stab->cgi_parse_param( 'RACK_NAME',        $rackid );
 	my $desc   = $stab->cgi_parse_param( 'DESCRIPTION',      $rackid );
-	my $type   = $stab->cgi_parse_param( 'RACK_TYPE',	$rackid );
+	my $type   = $stab->cgi_parse_param( 'RACK_TYPE',        $rackid );
 	my $style  = $stab->cgi_parse_param( 'RACK_STYLE',       $rackid );
 	my $height = $stab->cgi_parse_param( 'RACK_HEIGHT_IN_U', $rackid );
 
-	my $rmrack = $stab->cgi_parse_param( 'REMOVE_RACK', $rackid );
-	my $demonr  = $stab->cgi_parse_param( 'DEMONITOR_RACK', $rackid );
+	my $rmrack = $stab->cgi_parse_param( 'REMOVE_RACK',    $rackid );
+	my $demonr = $stab->cgi_parse_param( 'DEMONITOR_RACK', $rackid );
 	$rmrack = $stab->mk_chk_yn($rmrack);
 	$demonr = $stab->mk_chk_yn($demonr);
 
 	my @errs;
 	my $hr = $stab->DBFetch(
-		table	   => 'rack',
-		match	   => { rack_id => $rackid },
-		errors	  => \@errs,
+		table           => 'rack',
+		match           => { rack_id => $rackid },
+		errors          => \@errs,
 		result_set_size => 'exactlyone',
 	);
 
@@ -111,18 +109,18 @@ sub update_rack($$) {
 	}
 
 	my $new = {
-		SITE_CODE	=> $site,
-		ROOM	     => $room,
-		SUB_ROOM	 => $subr,
-		RACK_ROW	 => $row,
-		RACK_NAME	=> $rackn,
-		DESCRIPTION      => $desc,
-		RACK_TYPE	=> $type,
-		RACK_STYLE       => $style,
-		RACK_HEIGHT_IN_U => $height,
+		site_code        => $site,
+		room             => $room,
+		sub_room         => $subr,
+		rack_row         => $row,
+		rack_name        => $rackn,
+		description      => $desc,
+		rack_type        => $type,
+		rack_style       => $style,
+		rack_height_in_u => $height,
 	};
 
-	my $diffs = $stab->hash_table_diff( $hr, _dbx($new) );
+	my $diffs = $stab->hash_table_diff( $hr, $new );
 	my $tally += keys %$diffs;
 
 	#if($tally && $rmrack eq 'Y') {
@@ -130,20 +128,16 @@ sub update_rack($$) {
 	#}
 
 	# This is an else because demonitoring is a subset of removing.
-	if ($rmrack eq 'Y') {
-		return retire_rack($stab, $rackid);
-	} elsif ($demonr eq 'Y') {
-		return demonitor_rack($stab, $rackid);
+	if ( $rmrack eq 'Y' ) {
+		return retire_rack( $stab, $rackid );
+	} elsif ( $demonr eq 'Y' ) {
+		return demonitor_rack( $stab, $rackid );
 	}
 
 	return 0 if ( !$tally );
 
-	if (
-		$tally
-		&& !$stab->run_update_from_hash(
-			"RACK", "RACK_ID", $rackid, $diffs
-		)
-	  )
+	if ( $tally
+		&& !$stab->run_update_from_hash( "RACK", "RACK_ID", $rackid, $diffs ) )
 	{
 		$stab->return_db_err();
 	}
@@ -154,9 +148,9 @@ sub update_rack($$) {
 
 sub do_update_racks {
 	my $stab = new JazzHands::STAB || die "Could not create STAB";
-	my $cgi  = $stab->cgi	  || die "Could not create cgi";
+	my $cgi  = $stab->cgi          || die "Could not create cgi";
 
-      #- print $cgi->header, $cgi->start_html, $cgi->Dump, $cgi->end_html; exit;
+	#- print $cgi->header, $cgi->start_html, $cgi->Dump, $cgi->end_html; exit;
 
 	my $numchanges = 0;
 	foreach my $rackid ( $stab->cgi_get_ids('RACK_ID') ) {

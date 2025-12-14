@@ -50,7 +50,6 @@
 use strict;
 use warnings;
 use JazzHands::STAB;
-use JazzHands::Common qw(:all);
 use DBI::Const::GetInfoType;
 use URI;
 
@@ -79,7 +78,8 @@ sub do_domain_update {
 	}
 
 	if ( defined($resetns) && $domid ) {
-		my $sth = $dbh->prepare_cached( qq{
+		my $sth = $dbh->prepare_cached(
+			qq{
 			SELECT dns_manip.add_ns_records(?, true)
 		}
 		) || $stab->return_db_err($dbh);
@@ -97,7 +97,8 @@ sub toggle_domain_autogen {
 	my ( $stab, $domid, $direction ) = @_;
 	my $dbh = $stab->dbh || die "Could not create dbh";
 
-	my $sth = $stab->prepare_cached( qq{
+	my $sth = $stab->prepare_cached(
+		qq{
 		update v_dns_domain_nouniverse
 		   set	should_generate = :direction
 		 where	dns_domain_id = :dom
@@ -126,24 +127,28 @@ sub process_domain_soa_changes {
 	my $mname   = $stab->cgi_parse_param( 'SOA_MNAME',   $domid );
 
 	my $orig      = $stab->get_dns_domain_from_id($domid);
+	
+	# Convert orig keys to lowercase to match DBUpdate expectations
+	my %orig_lower = map { lc($_) => $orig->{$_} } keys %$orig;
+	
 	my %newdomain = (
-		DNS_DOMAIN_ID => $domid,
-		SOA_SERIAL    => $serial,
-		SOA_REFRESH   => $refresh,
-		SOA_RETRY     => $retry,
-		SOA_EXPIRE    => $expire,
-		SOA_MINIMUM   => $minimum,
-		SOA_RNAME     => $rname,
-		SOA_MNAMEUM   => $mname,
+		dns_domain_id => $domid,
+		soa_serial    => $serial,
+		soa_refresh   => $refresh,
+		soa_retry     => $retry,
+		soa_expire    => $expire,
+		soa_minimum   => $minimum,
+		soa_rname     => $rname,
+		soa_mname     => $mname,
 	);
-	my $diffs = $stab->hash_table_diff( $orig, _dbx( \%newdomain ) );
+	my $diffs = $stab->hash_table_diff( \%orig_lower, \%newdomain );
 	my $tally = keys %$diffs;
 
 	if ( !$tally ) {
 		$stab->msg_return( "Nothing to Update", undef, 1 );
 	} elsif ( !$stab->DBUpdate(
 		table  => "v_dns_domain_nouniverse",
-		dbkey  => "DNS_DOMAIN_ID",
+		dbkey  => "dns_domain_id",
 		keyval => $domid,
 		hash   => $diffs
 	) )

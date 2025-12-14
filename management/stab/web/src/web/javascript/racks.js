@@ -183,13 +183,13 @@ function setRackLinkRedir(dropfieldid, redirlinkid, root) {
 	// The structure of the rackTypes dictionary is:
 	/*
 	{
-		"16": {                    <--- this is the rack_id = dropfield.value
-			"rack_id": "16",
-			"rack_type": "layer2"
+		"16": {                    <--- this is the RACK_ID = dropfield.value
+			"RACK_ID": "16",
+			"RACK_TYPE": "layer2"
 		},
 		"19": {
-			"rack_id": "19",
-			"rack_type": "networking"
+			"RACK_ID": "19",
+			"RACK_TYPE": "networking"
 		},
 		...
 	}
@@ -199,7 +199,7 @@ function setRackLinkRedir(dropfieldid, redirlinkid, root) {
 	var rackType = document.getElementById('location_rack_type');
 	if( rackType != null ) {
 		if( dropfield.value != null ) {
-			rackType.innerHTML = rackTypes[dropfield.value].rack_type;
+			rackType.innerHTML = rackTypes[dropfield.value].RACK_TYPE;
 		} else {
 			rackType.innerHTML = 'n/a';
 		}

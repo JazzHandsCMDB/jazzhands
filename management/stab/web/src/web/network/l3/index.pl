@@ -26,7 +26,6 @@ use POSIX;
 use Data::Dumper;
 use Carp;
 use JazzHands::STAB;
-use JazzHands::Common qw(_dbx);
 
 do_layer3_network_toplevel();
 
@@ -50,7 +49,8 @@ sub dump_l3_network {
 	my $l3netid = shift @_;
 
 	my $cgi = $stab->cgi || die "Could not create cgi";
-	my $sth = $stab->prepare( qq{
+	my $sth = $stab->prepare(
+		qq{
 		SELECT l3.*,
 				concat(encapsulation_type, ' ',
 					encapsulation_domain, ':', encapsulation_name) AS
@@ -66,47 +66,42 @@ sub dump_l3_network {
 	$sth->finish;
 
 	my $l2tr =
-	  ( $hr->{ _dbx('LAYER2_NETWORK_ID') } )
+	  ( $hr->{'LAYER2_NETWORK_ID'} )
 	  ? $cgi->Tr( $cgi->td( [
 		'Layer2 Network',
 		$cgi->a( {
 				-href => '../l2/?LAYER2_NETWORK_ID='
-				  . $hr->{ _dbx('LAYER2_NETWORK_ID') }
+				  . $hr->{'LAYER2_NETWORK_ID'}
 			},
-			$hr->{ _dbx('LAYER2_NETWORK_NAME') }
+			$hr->{'LAYER2_NETWORK_NAME'}
 		)
 	  ] ) )
 	  : "";
 
 	my ( $nbt, $dgwt ) = ( "", "" );
 
-	if ( my $nb = $stab->get_netblock_from_id( $hr->{ _dbx('NETBLOCK_ID') } ) )
-	{
+	if ( my $nb = $stab->get_netblock_from_id( $hr->{'NETBLOCK_ID'} ) ) {
 		$nbt = $cgi->Tr( $cgi->td( [
 			'Network',
 			$cgi->a( {
-					-href => "../../netblock/?nblkid="
-					  . $nb->{ _dbx('NETBLOCK_ID') }
+					-href => "../../netblock/?nblkid=" . $nb->{'NETBLOCK_ID'}
 				},
-				$nb->{ _dbx('IP_ADDRESS') }
+				$nb->{'IP_ADDRESS'}
 			),
 		] ) );
 	}
 
-	if (
-		my $nb = $stab->get_netblock_from_id(
-			$hr->{ _dbx('DEFAULT_GATEWAY_NETBLOCK_ID') }
-		)
-	  )
+	if ( my $nb =
+		$stab->get_netblock_from_id( $hr->{'DEFAULT_GATEWAY_NETBLOCK_ID'} ) )
 	{
 		$dgwt =
-		  $cgi->Tr( $cgi->td( [ 'Default Gateway', $nb->{ _dbx('IP') } ] ) );
+		  $cgi->Tr( $cgi->td( [ 'Default Gateway', $nb->{'IP'} ] ) );
 	}
 
 	my $t = $cgi->table(
 		{ -class => 'reporting' },
 		$cgi->Tr(
-			$cgi->td( [ "Description", $hr->{ _dbx('DESCRIPTION') } || '' ] )
+			$cgi->td( [ "Description", $hr->{'DESCRIPTION'} || '' ] )
 		),
 		$l2tr, $nbt,
 		$dgwt,

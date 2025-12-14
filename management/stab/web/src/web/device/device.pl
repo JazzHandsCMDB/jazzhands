@@ -47,7 +47,6 @@ use warnings;
 use FileHandle;
 use Carp;
 use JazzHands::STAB;
-use JazzHands::Common qw(:all);
 use Data::Dumper;
 
 # causes stack traces on warnings
@@ -80,8 +79,8 @@ sub do_device_page {
 
 		my $values = $stab->get_dev_from_devid($devid);
 		if ( defined($values) ) {
-			if ( defined( ( $values->{ _dbx('DEVICE_ID') } ) ) ) {
-				my $n = ( $values->{ _dbx('DEVICE_NAME') } );
+			if ( defined( ( $values->{'DEVICE_ID'} ) ) ) {
+				my $n = ( $values->{'DEVICE_NAME'} );
 				if ($n) {
 
 					# ok to remove this
@@ -100,7 +99,7 @@ sub do_device_page {
 		-title      => $title,
 		-onLoad     => "forcedevtabload(\"__default_tab__\", $printdevid);",
 		-javascript => 'device',
-	} ),
+	  } ),
 	  "\n";
 	print $subtitle;
 	print $page;
@@ -132,17 +131,13 @@ sub build_device_checkboxes {
 
 	my $checkbox1 =
 	  $stab->build_checkbox( $device, "Is monitored", 'IS_MONITORED',
-		'DEVICE_ID', $checked )
-	  . "\n";
+		'DEVICE_ID', $checked ) . "\n";
 	$checkbox1 .= $stab->build_checkbox( $device, "Is Locally Managed",
-		'IS_LOCALLY_MANAGED', 'DEVICE_ID', $checked )
-	  . "\n";
+		'IS_LOCALLY_MANAGED', 'DEVICE_ID', $checked ) . "\n";
 	$checkbox1 .= $stab->build_checkbox( $device, "Should Configfetch",
-		'SHOULD_FETCH_CONFIG', 'DEVICE_ID', $checked )
-	  . "\n";
+		'SHOULD_FETCH_CONFIG', 'DEVICE_ID', $checked ) . "\n";
 	$checkbox1 .= $stab->build_checkbox( $device, "Virtual Device",
-		'IS_VIRTUAL_DEVICE', 'DEVICE_ID', undef )
-	  . "\n";
+		'IS_VIRTUAL_DEVICE', 'DEVICE_ID', undef ) . "\n";
 
 	#	$checkbox1 .=
 	#	  $stab->build_checkbox( $device, "Baselined", 'IS_BASELINED',
@@ -174,8 +169,8 @@ sub build_device_box {
 		);
 	} else {
 		$top_table = $cgi->hidden(
-			-name    => 'DEVICE_ID_' . $values->{ _dbx('DEVICE_ID') },
-			-default => $values->{ _dbx('DEVICE_ID') },
+			-name    => 'DEVICE_ID_' . $values->{'DEVICE_ID'},
+			-default => $values->{'DEVICE_ID'},
 		);
 		$top_table .=
 		  $stab->build_tr( $values, "b_offtextfield", "Device Name",
@@ -201,7 +196,7 @@ sub build_device_box {
 		);
 	}
 
-	if ( !$values || $values->{ _dbx('COMPONENT_ID') } ) {
+	if ( !$values || $values->{'COMPONENT_ID'} ) {
 		my $args = {};
 		if ( !$values ) {
 			$args->{'-class'} = 'off componentfields';
@@ -221,8 +216,8 @@ sub build_device_box {
 			"OWNERSHIP_STATUS", 'DEVICE_ID' );
 		if (
 			!$values
-			|| ( exists( $values->{ _dbx('OWNERSHIP_STATUS') } )
-				&& $values->{ _dbx('OWNERSHIP_STATUS') } eq 'leased' )
+			|| ( exists( $values->{'OWNERSHIP_STATUS'} )
+				&& $values->{'OWNERSHIP_STATUS'} eq 'leased' )
 		  )
 		{
 			$top_table .=
@@ -247,54 +242,51 @@ sub build_device_box {
 		$left_table .= $cgi->Tr(
 			$cgi->td( { -align => 'right' }, $cgi->b("Parent Device") ),
 			$cgi->td( build_parent_device_box(
-				$stab,
-				$values->{ _dbx('PARENT_DEVICE_ID') },
-				$values->{ _dbx('DEVICE_ID') },
-				$values->{ _dbx('IS_VIRTUAL_DEVICE') },
+				$stab,                  $values->{'PARENT_DEVICE_ID'},
+				$values->{'DEVICE_ID'}, $values->{'IS_VIRTUAL_DEVICE'},
 			) )
 		);
 
-		if ( $values->{ _dbx('IS_VIRTUAL_DEVICE') } eq 'N' ) {
+		if ( $values->{'IS_VIRTUAL_DEVICE'} eq 'N' ) {
 			$left_table .= $cgi->Tr(
 				$cgi->td( { -align => 'right' }, $cgi->b("Children Devices") ),
 				$cgi->td( build_children_device_list(
-					$stab, $values->{ _dbx('DEVICE_ID') },
+					$stab, $values->{'DEVICE_ID'},
 				) )
 			);
 			$left_table .= $cgi->Tr(
 				$cgi->td( { -align => 'right' }, $cgi->b("Managed By") ),
 				$cgi->td( build_managed_by_device_list(
-					$stab, $values->{ _dbx('DEVICE_ID') },
+					$stab, $values->{'DEVICE_ID'},
 				) )
 			);
 
 			$left_table .= $cgi->Tr(
 				$cgi->td( { -align => 'right' }, $cgi->b("Manages") ),
 				$cgi->td( build_manages_device_list(
-					$stab, $values->{ _dbx('DEVICE_ID') },
-					$stab, $values->{ _dbx('DEVICE_ID') },
+					$stab, $values->{'DEVICE_ID'},
+					$stab, $values->{'DEVICE_ID'},
 				) )
 			);
 		}
 	}
 
 	if ( defined($values) ) {
-		if ( $values->{ _dbx('HOST_ID') } ) {
+		if ( $values->{'HOST_ID'} ) {
 			$right_table .=
 			  $cgi->Tr( $cgi->td( { -align => 'right' }, $cgi->b("Host ID") ),
-				$cgi->td( $values->{ _dbx('HOST_ID') } ) );
+				$cgi->td( $values->{'HOST_ID'} ) );
 		} else {
 			$right_table .=
 			  $cgi->Tr( $cgi->td( { -align => 'right' }, $cgi->b("Host ID") ),
 				$cgi->td('not set') );
 		}
 
-		my $cnt =
-		  $stab->get_snmpstr_count( $values->{ _dbx('DEVICE_ID') } );
+		my $cnt = $stab->get_snmpstr_count( $values->{'DEVICE_ID'} );
 		$right_table .= $cgi->Tr( $cgi->td(
 			{ -colspan => 2 },
 			$cgi->a( {
-					-href => "snmp/?DEVICE_ID=" . $values->{ _dbx('DEVICE_ID') }
+					-href => "snmp/?DEVICE_ID=" . $values->{'DEVICE_ID'}
 				},
 				"$cnt SNMP string" . ( ( $cnt == 1 ) ? '' : "s" )
 			)
@@ -328,7 +320,7 @@ sub build_page {
 
 	my $pnk = "";
 	if ( defined($device) ) {
-		$pnk = "_" . $device->{ _dbx('DEVICE_ID') };
+		$pnk = "_" . $device->{'DEVICE_ID'};
 	}
 
 	my $bottomTr = "";
@@ -348,7 +340,7 @@ sub build_page {
 	undef $bottomTr;
 
 	if ( defined($device) ) {
-		my $devid = $device->{ _dbx('DEVICE_ID') };
+		my $devid = $device->{'DEVICE_ID'};
 
 		my $opentabid = "__default_tab__";
 		my $otabval   = $stab->cgi_parse_param('default_tab');
@@ -405,11 +397,11 @@ sub build_page {
 		if ( !$stab->get_physical_port_count( $devid, 'patchpanel' ) ) {
 			delete( $tablist->{PatchPanel} );
 		}
-		if ( !$device->{ _dbx('COMPONENT_ID') } ) {
+		if ( !$device->{'COMPONENT_ID'} ) {
 			delete( $tablist->{Components} );
 		}
 
-		if ( $device->{ _dbx('IS_VIRTUAL_DEVICE') } eq 'Y' ) {
+		if ( $device->{'IS_VIRTUAL_DEVICE'} eq 'Y' ) {
 			delete( $tablist->{Location} );
 		}
 
@@ -597,8 +589,8 @@ sub build_parent_device_box {
 	if ($parid) {
 		$dev = $stab->get_dev_from_devid($parid);
 		if ($dev) {
-			$pdevid = $dev->{ _dbx('DEVICE_ID') };
-			$pname  = $dev->{ _dbx('DEVICE_NAME') };
+			$pdevid = $dev->{'DEVICE_ID'};
+			$pname  = $dev->{'DEVICE_NAME'};
 			if ($pname) {
 				$pname =~ s/.example.com$//;
 			} else {

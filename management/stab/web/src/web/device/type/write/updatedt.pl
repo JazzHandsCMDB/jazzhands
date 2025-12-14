@@ -29,7 +29,6 @@ use strict;
 use warnings;
 use JazzHands::STAB;
 use JazzHands::STAB;
-use JazzHands::Common qw(_dbx);
 use URI;
 
 do_device_type_update();
@@ -48,17 +47,13 @@ sub process_power_interface_updates($$) {
 	foreach my $port ( $stab->cgi_get_ids($field) ) {
 		my $addage = $devtypid . "_" . $port;
 
-		my $rmme =
-		  $stab->cgi_parse_param( "power_port_rm_pwr", $addage );
-		my $name = $stab->cgi_parse_param( $field . "_" . $port );
-		my $plug =
-		  $stab->cgi_parse_param( "POWER_PLUG_STYLE", $addage );
-		my $volt = $stab->cgi_parse_param( "VOLTAGE",      $addage );
-		my $amp  = $stab->cgi_parse_param( "MAX_AMPERAGE", $addage );
-		my $dopwr =
-		  $stab->cgi_parse_param( "chk_PROVIDES_POWER", $addage );
-		my $isopt =
-		  $stab->cgi_parse_param( "chk_IS_OPTIONAL", $addage );
+		my $rmme  = $stab->cgi_parse_param( "power_port_rm_pwr", $addage );
+		my $name  = $stab->cgi_parse_param( $field . "_" . $port );
+		my $plug  = $stab->cgi_parse_param( "POWER_PLUG_STYLE",   $addage );
+		my $volt  = $stab->cgi_parse_param( "VOLTAGE",            $addage );
+		my $amp   = $stab->cgi_parse_param( "MAX_AMPERAGE",       $addage );
+		my $dopwr = $stab->cgi_parse_param( "chk_PROVIDES_POWER", $addage );
+		my $isopt = $stab->cgi_parse_param( "chk_IS_OPTIONAL",    $addage );
 
 		$dopwr = $stab->mk_chk_yn($dopwr);
 		$isopt = $stab->mk_chk_yn($isopt);
@@ -68,8 +63,7 @@ sub process_power_interface_updates($$) {
 		}
 
 		if ( $amp && ( $amp !~ /^\d+$/ || $amp < 0 ) ) {
-			$stab->error_return(
-				"Max Amperage must be a positive integer.");
+			$stab->error_return("Max Amperage must be a positive integer.");
 		}
 
 		if ($rmme) {
@@ -109,14 +103,13 @@ sub process_power_interface_updates($$) {
 				IS_OPTIONAL          => $isopt,
 			};
 
-			my $diffs =
-			  $stab->hash_table_diff( $old, _dbx($newtemplate) );
+			my $diffs = $stab->hash_table_diff( $old, $newtemplate );
 
 			my $tally += keys %$diffs;
 			$changes  += $tally;
 
-			my $table = "device_type_power_port_templt";
-			my @keys = ( 'DEVICE_TYPE_ID', 'POWER_INTERFACE_PORT' );
+			my $table   = "device_type_power_port_templt";
+			my @keys    = ( 'DEVICE_TYPE_ID', 'POWER_INTERFACE_PORT' );
 			my @keyvals = ( $devtypid, $port );
 
 			if (
@@ -128,9 +121,7 @@ sub process_power_interface_updates($$) {
 			{
 				$dbh->rollback;
 				my $url = "../";
-				$stab->error_return(
-					"Unknown Error with Power Update",
-					$url );
+				$stab->error_return( "Unknown Error with Power Update", $url );
 			}
 		}
 	}
@@ -147,20 +138,18 @@ sub process_physical_port_updates($$$) {
 
 	my $key = join( "_", $devtypid, $type );
 	foreach my $port ( $stab->cgi_get_ids("PORT_NAME_$key") ) {
-		my $rowkey = "${key}_$port";
-		my $rmme   = $stab->cgi_parse_param( "rm_PORT_NAME", $rowkey );
-		my $name   = $stab->cgi_parse_param( "PORT_NAME", $rowkey );
-		my $desc   = $stab->cgi_parse_param( "DESCRIPTION", $rowkey );
-		my $label = $stab->cgi_parse_param( "PHYSICAL_LABEL", $rowkey );
-		my $plug = $stab->cgi_parse_param( "PORT_PLUG_STYLE", $rowkey );
-		my $speed = $stab->cgi_parse_param( "PORT_SPEED", $rowkey );
-		my $protocol =
-		  $stab->cgi_parse_param( "PORT_PROTOCOL", $rowkey );
-		my $medium  = $stab->cgi_parse_param( "PORT_MEDIUM",  $rowkey );
-		my $purpose = $stab->cgi_parse_param( "PORT_PURPOSE", $rowkey );
-		my $tcp     = $stab->cgi_parse_param( "TCP_PORT",     $rowkey );
-		my $isopt =
-		  $stab->cgi_parse_param( "chk_IS_OPTIONAL", $rowkey );
+		my $rowkey   = "${key}_$port";
+		my $rmme     = $stab->cgi_parse_param( "rm_PORT_NAME",    $rowkey );
+		my $name     = $stab->cgi_parse_param( "PORT_NAME",       $rowkey );
+		my $desc     = $stab->cgi_parse_param( "DESCRIPTION",     $rowkey );
+		my $label    = $stab->cgi_parse_param( "PHYSICAL_LABEL",  $rowkey );
+		my $plug     = $stab->cgi_parse_param( "PORT_PLUG_STYLE", $rowkey );
+		my $speed    = $stab->cgi_parse_param( "PORT_SPEED",      $rowkey );
+		my $protocol = $stab->cgi_parse_param( "PORT_PROTOCOL",   $rowkey );
+		my $medium   = $stab->cgi_parse_param( "PORT_MEDIUM",     $rowkey );
+		my $purpose  = $stab->cgi_parse_param( "PORT_PURPOSE",    $rowkey );
+		my $tcp      = $stab->cgi_parse_param( "TCP_PORT",        $rowkey );
+		my $isopt    = $stab->cgi_parse_param( "chk_IS_OPTIONAL", $rowkey );
 
 		$isopt = $stab->mk_chk_yn($isopt);
 
@@ -204,15 +193,13 @@ sub process_physical_port_updates($$$) {
 				IS_OPTIONAL     => $isopt,
 			};
 
-			my $diffs =
-			  $stab->hash_table_diff( $old, _dbx($newtemplate) );
+			my $diffs = $stab->hash_table_diff( $old, $newtemplate );
 
 			my $tally += keys %$diffs;
 			$changes  += $tally;
 
-			my $table = "DEVICE_TYPE_PHYS_PORT_TEMPLT";
-			my @keys =
-			  ( 'DEVICE_TYPE_ID', 'PORT_NAME', 'PORT_TYPE' );
+			my $table   = "DEVICE_TYPE_PHYS_PORT_TEMPLT";
+			my @keys    = ( 'DEVICE_TYPE_ID', 'PORT_NAME', 'PORT_TYPE' );
 			my @keyvals = ( $devtypid, $port, $type );
 
 			if (
@@ -224,10 +211,8 @@ sub process_physical_port_updates($$$) {
 			{
 				$dbh->rollback;
 				my $url = "../";
-				$stab->error_return(
-					"Unknown Error with $type Port Update",
-					$url
-				);
+				$stab->error_return( "Unknown Error with $type Port Update",
+					$url );
 			}
 		}
 	}
@@ -292,19 +277,15 @@ sub do_device_type_update {
 
 	# may return an error message...
 	$numchanges += process_new_physical_ports( $stab, $devtypid, 'serial' );
-	$numchanges +=
-	  process_new_physical_ports( $stab, $devtypid, 'network' );
+	$numchanges += process_new_physical_ports( $stab, $devtypid, 'network' );
 
 	$numchanges += process_power_interface_updates( $stab, $devtypid );
-	$numchanges +=
-	  process_physical_port_updates( $stab, $devtypid, 'serial' );
-	$numchanges +=
-	  process_physical_port_updates( $stab, $devtypid, 'network' );
+	$numchanges += process_physical_port_updates( $stab, $devtypid, 'serial' );
+	$numchanges += process_physical_port_updates( $stab, $devtypid, 'network' );
 
-	my $partid = $stab->cgi_parse_param( 'COMPANY_ID', $devtypid );
-	my $arch =
-	  $stab->cgi_parse_param( 'PROCESSOR_ARCHITECTURE', $devtypid );
-	my $model    = $stab->cgi_parse_param( 'MODEL',             $devtypid );
+	my $partid = $stab->cgi_parse_param( 'COMPANY_ID',             $devtypid );
+	my $arch   = $stab->cgi_parse_param( 'PROCESSOR_ARCHITECTURE', $devtypid );
+	my $model  = $stab->cgi_parse_param( 'MODEL',                  $devtypid );
 	my $cfgfetch = $stab->cgi_parse_param( 'CONFIG_FETCH_TYPE', $devtypid );
 	my $descr    = $stab->cgi_parse_param( 'DESCRIPTION',       $devtypid );
 	my $racku    = $stab->cgi_parse_param( 'RACK_UNITS',        $devtypid );
@@ -341,18 +322,15 @@ sub do_device_type_update {
 	}
 
 	if ( $model && length($model) > 1000 ) {
-		return $stab->error_return(
-			"Model length exceeds 1000 characters");
+		return $stab->error_return("Model length exceeds 1000 characters");
 	}
 
 	if ( $cfgfetch && length($cfgfetch) > 200 ) {
-		return $stab->error_return(
-			"Config Fetch type exceeds 200 characters");
+		return $stab->error_return("Config Fetch type exceeds 200 characters");
 	}
 
 	if ( $descr && length($descr) > 16000 ) {
-		return $stab->error_return(
-			"Description Exceeds 16000 characters");
+		return $stab->error_return("Description Exceeds 16000 characters");
 	}
 
 	my $new = {
@@ -369,7 +347,7 @@ sub do_device_type_update {
 	};
 
 	my $dbdevice = $stab->get_device_type_from_id($devtypid);
-	my $diffs = $stab->hash_table_diff( $dbdevice, _dbx($new) );
+	my $diffs    = $stab->hash_table_diff( $dbdevice, $new );
 	my $tally   += keys %$diffs;
 	$numchanges += $tally;
 

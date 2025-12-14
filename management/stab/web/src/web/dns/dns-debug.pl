@@ -28,7 +28,6 @@ use strict;
 use warnings;
 use POSIX;
 use JazzHands::STAB;
-use JazzHands::Common qw(:all);
 use CGI::Pretty;
 use Net::DNS;
 use Data::Dumper;
@@ -125,20 +124,17 @@ sub dump_appls {
 	#
 	# This needs to be revisited to deal with labelattribute per-checkbox
 	#
-	$cgi->div(
-		{
+	$cgi->div( {
 			-class => 'approles',
 			-style => "width: ${max}ex"
 		},
-		$cgi->a(
-			{
+		$cgi->a( {
 				-href    => '#',
 				-onClick => 'dns_show_approles(this)'
 			},
 			"Show AppRoles"
 		),
-		$cgi->div(
-			{
+		$cgi->div( {
 				class  => 'approles_group',
 				-id    => 'approle_div',
 				-style => "display: none",
@@ -184,25 +180,20 @@ sub do_zone_debug {
 	  $cgi->hr;
 
 	my $chks =
-	  { '/server/dns/dns autogeneration/dns autogeneration all zones' => 1,
-	  };
+	  { '/server/dns/dns autogeneration/dns autogeneration all zones' => 1, };
 
 	print $cgi->start_form( -class => 'center_form', -method => 'GET' );
 	print q{ Enter a record and a record type to look for: }, $cgi->br;
-	print $cgi->textfield(
-		{
-			-name  => 'DNS_RECORD',
-			-value => $dnsrec,
-		}
-	);
+	print $cgi->textfield( {
+		-name  => 'DNS_RECORD',
+		-value => $dnsrec,
+	} );
 	print $stab->b_dropdown( { -showHidden => 'yes' }, undef, 'DNS_TYPE' );
 	print $cgi->br,
-	  $cgi->checkbox(
-		{
-			-name  => 'strip_dmns',
-			-label => "Strip example.com"
-		}
-	  );    # pluck from db
+	  $cgi->checkbox( {
+		-name  => 'strip_dmns',
+		-label => "Strip example.com"
+	  } );    # pluck from db
 
 	print dump_appls( $stab, $chks );
 	print show_nsbox( $stab, $chks, \@extrans );
@@ -215,8 +206,7 @@ sub do_zone_debug {
 
 	foreach my $x (@applist) {
 		if ( defined($x) && $x !~ /^\d+$/ ) {
-			return $stab->error_return(
-				"Invalid application entry.");
+			return $stab->error_return("Invalid application entry.");
 		}
 	}
 
@@ -240,20 +230,17 @@ sub do_zone_debug {
 
 	my $tt = "";
 	while ( my $hr = $sth->fetchrow_hashref ) {
-		next if ( !grep( $_ == $hr->{ _dbx('ROLE_ID') }, @applist ) );
-		$tt .=
-		  query_fmt_ns( $stab, $hr, $dnsrec, $dnstype, $stripdmns );
+		next if ( !grep( $_ == $hr->{'ROLE_ID'}, @applist ) );
+		$tt .= query_fmt_ns( $stab, $hr, $dnsrec, $dnstype, $stripdmns );
 	}
 
 	if ( $#extrans >= 0 ) {
 		foreach my $ns (@extrans) {
-			$tt .= query_fmt_ns( $stab, $ns, $dnsrec, $dnstype,
-				$stripdmns );
+			$tt .= query_fmt_ns( $stab, $ns, $dnsrec, $dnstype, $stripdmns );
 		}
 	}
 
-	print $cgi->table(
-		{
+	print $cgi->table( {
 			-caption => 'foo',
 			-border  => 1,
 			-class   => 'center_table',
@@ -276,14 +263,13 @@ sub query_fmt_ns {
 
 	my ( $name, $link );
 	if ( ref $hr eq 'HASH' ) {
-		my $devid = $hr->{ _dbx('DEVICE_ID') };
-		$name = $hr->{ _dbx('DEVICE_NAME') };
-		my $pname = $hr->{ _dbx('DEVICE_NAME') };
+		my $devid = $hr->{'DEVICE_ID'};
+		$name = $hr->{'DEVICE_NAME'};
+		my $pname = $hr->{'DEVICE_NAME'};
 
 		# pluck from db
 		$pname =~ s,.example.com$,<b>...</b>, if ($stripdmns);
-		$link = $cgi->a(
-			{
+		$link = $cgi->a( {
 				-href => '../device/device.pl?devid=$devid'
 			},
 			$pname
@@ -300,17 +286,10 @@ sub query_fmt_ns {
 	if ( !$q ) {
 		$tt .= $cgi->Tr( $cgi->td( [ $link, "NXDOMAIN" ] ) );
 	} else {
-		$tt .= $cgi->Tr(
-			$cgi->td(
-				[
-					$link,
-					sort map {
-						process_answer( $stab,
-							$stripdmns, $_ );
-					} $q->answer
-				]
-			)
-		);
+		$tt .= $cgi->Tr( $cgi->td( [
+			$link,
+			sort map { process_answer( $stab, $stripdmns, $_ ); } $q->answer
+		] ) );
 	}
 	$tt;
 }
