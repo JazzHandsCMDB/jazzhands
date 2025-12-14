@@ -36,7 +36,6 @@ use strict;
 use JazzHands::STAB;
 use Net::DNS;
 use Data::Dumper;
-use JazzHands::Common qw(:all);
 use Carp;
 
 do_dns_compare();
@@ -162,7 +161,8 @@ sub device_from_name {
 sub check_for_zone {
 	my ( $stab, $zone ) = @_;
 
-	my $sth = $stab->prepare( qq{
+	my $sth = $stab->prepare(
+		qq{
 		select	dns_domain_id
 		 from	dns_domain
 		 where	soa_name = ?
@@ -180,7 +180,8 @@ sub check_soa {
 	my ( $stab, $rr, $zone ) = @_;
 	my $cgi = $stab->cgi;
 
-	my $sth = $stab->prepare( qq{
+	my $sth = $stab->prepare(
+		qq{
 		select	*
 		 from	v_dns_domain_nouniverse
 		where	soa_name = ?
@@ -191,31 +192,29 @@ sub check_soa {
 
 	my $msg = "";
 	while ( my $hr = $sth->fetchrow_hashref ) {
-		if ( $hr->{ _dbx('SOA_SERIAL') } < $rr->serial ) {
+		if ( $hr->{'SOA_SERIAL'} < $rr->serial ) {
 			$msg .= $cgi->li(
 				"SOA: Serial number in JazzHands (",
-				$cgi->b( $hr->{ _dbx('SOA_SERIAL') } ),
+				$cgi->b( $hr->{'SOA_SERIAL'} ),
 				") is less than the one in zone (",
-				$rr->serial,
-				")"
+				$rr->serial, ")"
 			);
 		}
-		if ( $hr->{ _dbx('SOA_EXPIRE') } != $rr->expire ) {
+		if ( $hr->{'SOA_EXPIRE'} != $rr->expire ) {
 			$msg .= $cgi->li(
 				"SOA: Expire time in JazzHands (",
-				$cgi->b( $hr->{ _dbx('SOA_EXPIRE') } ),
+				$cgi->b( $hr->{'SOA_EXPIRE'} ),
 				") is different than the one in zone (",
 				$rr->expire,
 				")"
 			);
 		}
-		if ( $hr->{ _dbx('SOA_MINIMUM') } != $rr->minimum ) {
+		if ( $hr->{'SOA_MINIMUM'} != $rr->minimum ) {
 			$msg .= $cgi->li(
 				"SOA: minimum in JazzHands (",
-				$cgi->b( $hr->{ _dbx('SOA_MINIMUM') } ),
+				$cgi->b( $hr->{'SOA_MINIMUM'} ),
 				") is different than the one in zone (",
-				$rr->minimum,
-				")"
+				$rr->minimum, ")"
 			);
 		}
 
@@ -241,7 +240,8 @@ sub check_ns {
 		}
 	}
 
-	my $sth = $stab->prepare( qq{
+	my $sth = $stab->prepare(
+		qq{
 		select	d.dns_value
 		  from	dns_record	d
 				inner join dns_domain dom
@@ -264,7 +264,7 @@ sub check_ns {
 	my $msg   = "";
 	my $found = 0;
 	while ( my $hr = $sth->fetchrow_hashref ) {
-		my $dnsval = $hr->{ _dbx('DNS_VALUE') };
+		my $dnsval = $hr->{'DNS_VALUE'};
 		my $altn   = $nsdname;
 		if ( $nsdname ne $zone ) {
 			$altn =~ s/\.$zone$//;
@@ -306,7 +306,8 @@ sub check_txt {
 		$nameq = "d.dns_name is null";
 	}
 
-	my $sth = $stab->prepare( qq{
+	my $sth = $stab->prepare(
+		qq{
 		select	d.dns_value
 		 from	dns_record d
 				inner join dns_domain dom
@@ -428,45 +429,41 @@ sub check_srv {
 	while ( my $hr = $sth->fetchrow_hashref ) {
 
 		# slap the zone back on some compares to what came from dns look right...
-		$hr->{ _dbx('DNS_VALUE') } .= ".$zone"
-		  if ( $hr->{ _dbx('DNS_VALUE') } !~ /\.$/ );
-		$hr->{ _dbx('DNS_VALUE') } =~ s/\.$//;
+		$hr->{'DNS_VALUE'} .= ".$zone"
+		  if ( $hr->{'DNS_VALUE'} !~ /\.$/ );
+		$hr->{'DNS_VALUE'} =~ s/\.$//;
 		my $mesh =
 		  join( " ", $rr->priority, $rr->weight, $rr->port, $rr->target );
 		$mesh =~ s/\s+/ /g;
-		if ( defined( $hr->{ _dbx('DNS_SRV_PORT') } ) ) {
+		if ( defined( $hr->{'DNS_SRV_PORT'} ) ) {
 			if (
-				$hr->{ _dbx('DNS_VALUE') } eq $rr->target
+				$hr->{'DNS_VALUE'} eq $rr->target
 				&&
 
-				# $hr->{_dbx('DNS_SRV_SERVICE')} == $svc &&
-				# $hr->{_dbx('DNS_SRV_PROTOCOL')} eq "_$proto" &&
-				$hr->{ _dbx('DNS_PRIORITY') } == $rr->priority
-				&& $hr->{ _dbx('DNS_SRV_WEIGHT') } == $rr->weight
-				&& $hr->{ _dbx('DNS_SRV_PORT') } == $rr->port
+				# $hr->{'DNS_SRV_SERVICE'} == $svc &&
+				# $hr->{'DNS_SRV_PROTOCOL'} eq "_$proto" &&
+				$hr->{'DNS_PRIORITY'} == $rr->priority
+				&& $hr->{'DNS_SRV_WEIGHT'} == $rr->weight
+				&& $hr->{'DNS_SRV_PORT'} == $rr->port
 			  )
 			{
 				$found = 1;
 			} else {
 				my $dbmesh = join( " ",
-					$hr->{ _dbx('DNS_PRIORITY') },
-					$hr->{ _dbx('DNS_SRV_WEIGHT') },
-					$hr->{ _dbx('DNS_SRV_PORT') },
-					$hr->{ _dbx('DNS_VALUE') } );
+					$hr->{'DNS_PRIORITY'}, $hr->{'DNS_SRV_WEIGHT'},
+					$hr->{'DNS_SRV_PORT'}, $hr->{'DNS_VALUE'} );
 				$dbmesh =~ s/\s+/ /g;
 				$msg .= $cgi->li( "SRV record in DNS ",
 					$rr->name, " is '", $cgi->b($dbmesh), "' not '$mesh'" );
 			}
-		} elsif ( $hr->{ _dbx('DNS_VALUE') } eq $mesh ) {
+		} elsif ( $hr->{'DNS_VALUE'} eq $mesh ) {
 			$found = 1;
 		} else {
-			my $dbmesh = $hr->{ _dbx('DNS_VALUE') };
-			if ( $hr->{ _dbx('DNS_SRV_PORT') } ) {
+			my $dbmesh = $hr->{'DNS_VALUE'};
+			if ( $hr->{'DNS_SRV_PORT'} ) {
 				$dbmesh = join( " ",
-					$hr->{ _dbx('DNS_PRIORITY') },
-					$hr->{ _dbx('DNS_SRV_WEIGHT') },
-					$hr->{ _dbx('DNS_SRV_PORT') },
-					$hr->{ _dbx('DNS_VALUE') } );
+					$hr->{'DNS_PRIORITY'}, $hr->{'DNS_SRV_WEIGHT'},
+					$hr->{'DNS_SRV_PORT'}, $hr->{'DNS_VALUE'} );
 				$dbmesh =~ s/\s+/ /g;
 				$msg .= $cgi->li( "combined SRV record ",
 					$rr->name, " is ", $cgi->b($dbmesh), " not '$mesh'" );
@@ -505,7 +502,8 @@ sub check_mx {
 	}
 
 	my $msg;
-	my $sth = $stab->prepare( qq{
+	my $sth = $stab->prepare(
+		qq{
 		select	lower(dns.dns_value), dns_priority
 		  from	dns_record dns
 				inner join dns_domain dom
@@ -760,8 +758,7 @@ sub device_link {
 		return ($name);
 	} else {
 		return ( $cgi->a( {
-				-href => "../device/device.pl?devid="
-				  . $dev->{ _dbx('DEVICE_ID') }
+				-href => "../device/device.pl?devid=" . $dev->{'DEVICE_ID'}
 			},
 			$altname
 		) );
@@ -781,7 +778,7 @@ sub do_dns_compare {
 
 	my $domain = $stab->get_dns_domain_from_id($domid)
 	  || $stab->error_return("unknown domain id $domid");
-	my $zone = $domain->{ _dbx('SOA_NAME') };
+	my $zone = $domain->{'SOA_NAME'};
 
 	my $ns = $stab->cgi_parse_param('ns') || find_best_ns( $stab, $zone );
 

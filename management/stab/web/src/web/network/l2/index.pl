@@ -26,7 +26,6 @@ use POSIX;
 use Data::Dumper;
 use Carp;
 use JazzHands::STAB;
-use JazzHands::Common qw(_dbx);
 
 do_layer2_network_toplevel();
 
@@ -63,12 +62,11 @@ sub get_layer3_table($$) {
 
 	my $t = '';
 	while ( my $hr = $sth->fetchrow_hashref ) {
-		my $a = $cgi->a(
-			{
+		my $a = $cgi->a( {
 				-href => "../l3/?LAYER3_NETWORK_ID="
-				  . $hr->{ _dbx('LAYER3_NETWORK_ID') }
+				  . $hr->{'LAYER3_NETWORK_ID'}
 			},
-			$hr->{ _dbx('IP_ADDRESS') }
+			$hr->{'IP_ADDRESS'}
 		);
 		$t .= $cgi->li($a);
 	}
@@ -97,32 +95,16 @@ sub dump_l2_network {
 
 	my $t = $cgi->table(
 		{ -class => 'reporting' },
-		$cgi->Tr(
-			$cgi->td( [ "Description", $hr->{ _dbx('DESCRIPTION') } || '' ] )
-		),
-		$cgi->Tr(
-			$cgi->td(
-				[ "Encapsulation Name", $hr->{ _dbx('ENCAPSULATION_NAME') } ]
-			)
-		),
-		$cgi->Tr(
-			$cgi->td(
-				[
-					"Encapsulation Domain",
-					$hr->{ _dbx('ENCAPSULATION_DOMAIN') }
-				]
-			)
-		),
-		$cgi->Tr(
-			$cgi->td(
-				[ "Encapsulation Type", $hr->{ _dbx('ENCAPSULATION_TYPE') } ]
-			)
-		),
-		$cgi->Tr(
-			$cgi->td(
-				[ "Encapsulation Tag", $hr->{ _dbx('ENCAPSULATION_TAG') } ]
-			)
-		),
+		$cgi->Tr( $cgi->td( [ "Description", $hr->{'DESCRIPTION'} || '' ] ) ),
+		$cgi->Tr( $cgi->td(
+			[ "Encapsulation Name", $hr->{'ENCAPSULATION_NAME'} ] ) ),
+		$cgi->Tr( $cgi->td( [
+			"Encapsulation Domain", $hr->{'ENCAPSULATION_DOMAIN'}
+		] ) ),
+		$cgi->Tr( $cgi->td(
+			[ "Encapsulation Type", $hr->{'ENCAPSULATION_TYPE'} ] ) ),
+		$cgi->Tr( $cgi->td(
+			[ "Encapsulation Tag", $hr->{'ENCAPSULATION_TAG'} ] ) ),
 		$cgi->Tr( $cgi->td( [ "Layer 3 Networks", $l3table ] ) ),
 	);
 

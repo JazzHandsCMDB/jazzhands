@@ -23,7 +23,6 @@ use warnings;
 use FileHandle;
 use CGI;
 use JazzHands::STAB;
-use JazzHands::Common qw(_dbx);
 use Data::Dumper;
 use JSON::PP;
 
@@ -74,7 +73,7 @@ sub do_acctcol_ajax {
 		my $perms = $stab->get_account_collection_permissions("RO");
 
 		# Assume admin access on development servers
-		if( $ENV{'development'} =~ /true/ ) {
+		if ( $ENV{'development'} =~ /true/ ) {
 			$admin = 1;
 		}
 		if ( !$admin && !$perms ) {
@@ -94,7 +93,8 @@ sub do_acctcol_ajax {
 		# unused at inception and ripped from netblock collections
 		my $r = {};
 		$r->{'ACCOUNT_COLLECTIONS'} = {};
-		my $sth = $stab->prepare( qq{
+		my $sth = $stab->prepare(
+			qq{
 			select  account_collection_id,
 				account_collection_name, description
 			  from  account_collection
@@ -118,7 +118,8 @@ sub do_acctcol_ajax {
 		print $j->encode($r);
 	} elsif ( $what eq 'ExpandMembers' ) {
 		my $r   = {};
-		my $sth = $stab->prepare_cached( qq{
+		my $sth = $stab->prepare_cached(
+			qq{
 			SELECT  account_id, first_name, last_name, login
 			FROM    v_acct_coll_acct_expanded_detail
 					JOIN account USING (account_id)
@@ -138,7 +139,8 @@ sub do_acctcol_ajax {
 	} elsif ( $what eq 'autocomplete' ) {
 		if ( $type eq 'account' ) {
 			my $r   = { query => 'unit', suggestions => [] };
-			my $sth = $stab->prepare_cached( qq{
+			my $sth = $stab->prepare_cached(
+				qq{
 				SELECT  account_id, first_name, last_name, login
 				FROM    v_corp_family_account
 						JOIN v_person USING (person_id)

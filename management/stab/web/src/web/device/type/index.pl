@@ -29,7 +29,6 @@ use strict;
 use warnings;
 use FileHandle;
 use JazzHands::STAB;
-use JazzHands::Common qw(:all);
 use Data::Dumper;
 
 exit do_device_type();
@@ -109,13 +108,13 @@ sub do_device_type_edit {
 		return $stab->error_return("Unknown Device Type");
 	}
 
-	$model = $dt->{ _dbx('COMPANY_NAME') } . " " . $dt->{ _dbx('MODEL') };
+	$model = $dt->{'COMPANY_NAME'} . " " . $dt->{'MODEL'};
 
 	print $cgi->header('text/html');
 	print $stab->start_html( {
 		-title      => "Device Type $model",
 		-javascript => 'devicetype',
-	} ),
+	  } ),
 	  "\n";
 
 	device_type_edit_form( $stab, $devtypid, $dt );
@@ -323,10 +322,8 @@ sub build_physical_port_box {
 		$numrows++;
 
 		my $idx = join( "_",
-			$hr->{ _dbx('DEVICE_TYPE_ID') },
-			$hr->{ _dbx('PORT_TYPE') },
-			$hr->{ _dbx('PORT_NAME') },
-		);
+			$hr->{'DEVICE_TYPE_ID'},
+			$hr->{'PORT_TYPE'}, $hr->{'PORT_NAME'}, );
 
 		my $serialxtra = "";
 		if ( $type eq 'serial' ) {
@@ -380,8 +377,7 @@ sub build_physical_port_box {
 	my $delall = $cgi->checkbox( {
 		-class => "dt_${type}rm dtrmall",
 		-label => '',
-	} )
-	  . "Del";
+	} ) . "Del";
 
 	my $headers = [
 		$delall, "Name",   'Descrip', 'Label', 'Speed', 'Protocol',
@@ -525,11 +521,11 @@ sub build_power_box {
 		$numrows++;
 
 		my $idx = "pwr_"
-		  . $hr->{ _dbx('DEVICE_TYPE_ID') } . "_"
-		  . $hr->{ _dbx('POWER_INTERFACE_PORT') };
+		  . $hr->{'DEVICE_TYPE_ID'} . "_"
+		  . $hr->{'POWER_INTERFACE_PORT'};
 		$idx = $cgi->escapeHTML($idx);
 
-		my $pstyle = $hr->{ _dbx('POWER_PLUG_STYLE') };
+		my $pstyle = $hr->{'POWER_PLUG_STYLE'};
 		$pstyle =~ tr/A-Z/a-z/;
 		$pstyle =~ s,/.*$,,;
 		$pstyle =~ s,^.+\s+,,;
@@ -590,8 +586,7 @@ sub build_power_box {
 	my $delall = $cgi->checkbox( {
 		-class => 'dt_powerrm dtrmall',
 		-label => '',
-	} )
-	  . "Del";
+	} ) . "Del";
 
 	$rv = $cgi->table(
 		{ -border => 1, -width => '100%' },

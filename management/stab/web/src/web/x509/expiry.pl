@@ -26,7 +26,6 @@ use POSIX;
 use Data::Dumper;
 use Carp;
 use JazzHands::STAB;
-use JazzHands::Common qw(_dbx);
 
 # causes stack traces on warnings
 # local $SIG{__WARN__} = \&Carp::cluck;
@@ -41,7 +40,7 @@ sub do_cert_expiry_toplevel {
 	print $stab->start_html( {
 		-title      => "Expiring Certificates next 120 days",
 		-javascript => 'reporting'
-	} ),
+	  } ),
 	  "\n";
 
 	print $cgi->h4( { -align => 'center' }, "Expiring Certificates" );
@@ -54,7 +53,7 @@ sub do_cert_expiry_toplevel {
 					c.friendly_name as "Friendly Name",
 					c.valid_to as "Valid To",
 					ca.x509_signed_certificate_id
-						AS ca_x509_signed_certificate_id,
+						AS CAID,
 					ca.friendly_name AS "CA"
 			FROM	x509_signed_certificate c
 					JOIN x509_signed_certificate ca ON
@@ -67,11 +66,11 @@ sub do_cert_expiry_toplevel {
 		caption => 'Expiring Certificates',
 		class   => 'reporting',
 		tableid => 'approvalreport',
-		hidden  => ['ca_x509_signed_certificate_id'],
+		hidden  => ['CAID'],
 		urlmap  => {
 			"ID"            => "./?X509_CERT_ID=%{ID}",
 			"Friendly Name" => "./?X509_CERT_ID=%{ID}",
-			"CA" => "./?X509_CERT_ID=%{ca_x509_signed_certificate_id}",
+			"CA" => "./?X509_CERT_ID=%{CAID}",
 		}
 	);
 	print "\n\n", $cgi->end_html, "\n";

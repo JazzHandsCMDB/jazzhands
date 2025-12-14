@@ -29,7 +29,6 @@ use strict;
 use warnings;
 use FileHandle;
 use JazzHands::STAB;
-use JazzHands::Common::Util qw(_dbx);
 use vars qw($stab);
 use vars qw($cgi);
 use vars qw($dbh);
@@ -64,13 +63,12 @@ sub do_remove_netblock {
 		if (@errors) {
 			$stab->error_return( join ';', @errors );
 		} else {
-			$stab->error_return(
-				"You must specify a valid netblock.");
+			$stab->error_return("You must specify a valid netblock.");
 		}
 	}
 
 	my $ip    = $netblock->IPAddress;
-	my $parid = $netblock->hash->{ _dbx('parent_netblock_id') };
+	my $parid = $netblock->hash->{'PARENT_NETBLOCK_ID'};
 
 	my $ref = "../";
 	if ( defined($parid) ) {

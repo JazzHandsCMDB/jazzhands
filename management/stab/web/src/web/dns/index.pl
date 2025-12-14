@@ -48,7 +48,6 @@ use POSIX;
 use Data::Dumper;
 use Carp;
 use JazzHands::STAB;
-use JazzHands::Common qw(_dbx);
 use Net::IP;
 
 do_dns_toplevel();
@@ -70,8 +69,8 @@ sub do_dns_toplevel {
 	if ($dnssearch) {
 		my $dnsrec = $stab->get_dns_record_from_id($dnssearch);
 		if ($dnsrec) {
-			$dnsdomid = $dnsrec->{ _dbx('DNS_DOMAIN_ID') };
-			$dnsrecid = $dnsrec->{ _dbx('DNS_RECORD_ID') };
+			$dnsdomid = $dnsrec->{'DNS_DOMAIN_ID'};
+			$dnsrecid = $dnsrec->{'DNS_RECORD_ID'};
 		}
 	}
 
@@ -249,9 +248,8 @@ sub dump_all_zones {
 			$rowtxt = "";
 		}
 
-		if ( !defined( $hr->{ _dbx('LAST_GENERATED') } ) ) {
-			$hr->{ _dbx('LAST_GENERATED') } =
-			  $cgi->escapeHTML('<never>');
+		if ( !defined( $hr->{'LAST_GENERATED'} ) ) {
+			$hr->{'LAST_GENERATED'} = $cgi->escapeHTML('<never>');
 		}
 
 		my $xbox =
@@ -261,40 +259,39 @@ sub dump_all_zones {
 		my $opts = {};
 		$opts->{-class} = 'tracked';
 		$opts->{-original} =
-		  defined( $hr->{ _dbx('SOA_SERIAL') } )
-		  ? $hr->{ _dbx('SOA_SERIAL') }
+		  defined( $hr->{'SOA_SERIAL'} )
+		  ? $hr->{'SOA_SERIAL'}
 		  : '';
 		my $serial =
 		  $stab->b_textfield( $opts, $hr, 'SOA_SERIAL', 'DNS_DOMAIN_ID' );
 		$opts->{-original} =
-		  defined( $hr->{ _dbx('SOA_REFRESH') } )
-		  ? $hr->{ _dbx('SOA_REFRESH') }
+		  defined( $hr->{'SOA_REFRESH'} )
+		  ? $hr->{'SOA_REFRESH'}
 		  : '';
 		my $refresh =
 		  $stab->b_textfield( $opts, $hr, 'SOA_REFRESH', 'DNS_DOMAIN_ID' );
 		$opts->{-original} =
-		  defined( $hr->{ _dbx('SOA_RETRY') } )
-		  ? $hr->{ _dbx('SOA_RETRY') }
+		  defined( $hr->{'SOA_RETRY'} )
+		  ? $hr->{'SOA_RETRY'}
 		  : '';
 		my $retry =
 		  $stab->b_textfield( $opts, $hr, 'SOA_RETRY', 'DNS_DOMAIN_ID' );
 		$opts->{-original} =
-		  defined( $hr->{ _dbx('SOA_EXPIRE') } )
-		  ? $hr->{ _dbx('SOA_EXPIRE') }
+		  defined( $hr->{'SOA_EXPIRE'} )
+		  ? $hr->{'SOA_EXPIRE'}
 		  : '';
 		my $expire =
 		  $stab->b_textfield( $opts, $hr, 'SOA_EXPIRE', 'DNS_DOMAIN_ID' );
 		$opts->{-original} =
-		  defined( $hr->{ _dbx('SOA_MINIMUM') } )
-		  ? $hr->{ _dbx('SOA_MINIMUM') }
+		  defined( $hr->{'SOA_MINIMUM'} )
+		  ? $hr->{'SOA_MINIMUM'}
 		  : '';
 		my $minimum =
 		  $stab->b_textfield( $opts, $hr, 'SOA_MINIMUM', 'DNS_DOMAIN_ID' );
 
-		my $link =
-		  build_dns_link( $stab, $hr->{ _dbx('DNS_DOMAIN_ID') } );
+		my $link = build_dns_link( $stab, $hr->{'DNS_DOMAIN_ID'} );
 		my $zone =
-		  $cgi->a( { -href => $link }, $hr->{ _dbx('SOA_NAME') } );
+		  $cgi->a( { -href => $link }, $hr->{'SOA_NAME'} );
 
 		my $entry = $cgi->table(
 			{ -width => '100%', -align => 'top' },
@@ -310,7 +307,7 @@ sub dump_all_zones {
 			#$cgi->Tr($cgi->td("Retry: ", $retry )),
 			#$cgi->Tr($cgi->td("Expire: ", $expire )),
 			#$cgi->Tr($cgi->td("Minimum: ", $minimum )),
-			$cgi->Tr( $cgi->td( "LastGen:", $hr->{ _dbx('LAST_GENERATED') } ) ),
+			$cgi->Tr( $cgi->td( "LastGen:", $hr->{'LAST_GENERATED'} ) ),
 			$cgi->Tr( $cgi->td($xbox) )
 		) . "\n";
 
@@ -351,9 +348,10 @@ sub build_dns_zone {
 			SELECT row_number() over() r, d.*, device_id
 			FROM	v_dns_sorted d
 					LEFT JOIN network_interface_netblock USING (netblock_id)
-			WHERE
+			WHERE 
 		} . join( "\nAND ", @where_condition ) . ' LIMIT :limit OFFSET :offset';
 	}
+
 
 	my $sth = $stab->prepare($query) || return $stab->return_db_err;
 
@@ -382,7 +380,7 @@ sub build_dns_zone {
 
 		# Get the offset of the first returned record
 		if ( $offset == -1 ) {
-			$offset = $hr->{ _dbx('R') };
+			$offset = $hr->{'R'};
 		}
 		print build_dns_rec_Tr( $stab, $hr, ( $count++ % 2 ) ? 'even' : 'odd' );
 	}
@@ -414,7 +412,7 @@ sub build_dns_rec_Tr {
 
 	$opts->{-class} = 'dnsttl tracked';
 	$opts->{-original} =
-	  defined( $hr->{ _dbx('DNS_TTL') } ) ? $hr->{ _dbx('DNS_TTL') } : '';
+	  defined( $hr->{'DNS_TTL'} ) ? $hr->{'DNS_TTL'} : '';
 	my $ttl =
 	  $stab->b_offalwaystextfield( $opts, $hr, 'DNS_TTL', 'DNS_RECORD_ID' );
 	delete $opts->{-class};
@@ -426,12 +424,12 @@ sub build_dns_rec_Tr {
 
 	my $dnsrecid;
 
-	if ( defined($hr) && defined( $hr->{ _dbx('DNS_NAME') } ) ) {
-		$name = $hr->{ _dbx('DNS_NAME') };
+	if ( defined($hr) && defined( $hr->{'DNS_NAME'} ) ) {
+		$name = $hr->{'DNS_NAME'};
 	}
 
-	if ( defined($hr) && $hr->{ _dbx('DNS_TYPE') } =~ /^A(AAA)?$/ ) {
-		$dnsrecid = $hr->{ _dbx('DNS_RECORD_ID') };
+	if ( defined($hr) && $hr->{'DNS_TYPE'} =~ /^A(AAA)?$/ ) {
+		$dnsrecid = $hr->{'DNS_RECORD_ID'};
 	}
 
 	my $showexcess = 1;
@@ -439,22 +437,22 @@ sub build_dns_rec_Tr {
 
 	my $canedit = 1;
 
-	if ( !$hr->{ _dbx('DNS_RECORD_ID') } ) {
-		$name     = $hr->{ _dbx('DNS_NAME') };
-		$class    = $hr->{ _dbx('DNS_CLASS') };
-		$type     = $hr->{ _dbx('DNS_TYPE') };
-		$value    = $hr->{ _dbx('DNS_VALUE') } || $hr->{ _dbx('IP') };
+	if ( !$hr->{'DNS_RECORD_ID'} ) {
+		$name     = $hr->{'DNS_NAME'};
+		$class    = $hr->{'DNS_CLASS'};
+		$type     = $hr->{'DNS_TYPE'};
+		$value    = $hr->{'DNS_VALUE'} || $hr->{'IP'};
 		$ttl      = "";
 		$canedit  = 0;
 		$cssclass = 'dnsinfo';
 	} else {
-		if ( $hr->{ _dbx('REF_RECORD_ID') } ) {
-			$name = $hr->{ _dbx('DNS_NAME') };
+		if ( $hr->{'REF_RECORD_ID'} ) {
+			$name = $hr->{'DNS_NAME'};
 		} else {
 			$opts->{-class} = 'dnsname tracked';
 			$opts->{-original} =
-			  defined( $hr->{ _dbx('DNS_NAME') } )
-			  ? $hr->{ _dbx('DNS_NAME') }
+			  defined( $hr->{'DNS_NAME'} )
+			  ? $hr->{'DNS_NAME'}
 			  : '';
 			$name =
 			  $stab->b_textfield( $opts, $hr, 'DNS_NAME', 'DNS_RECORD_ID' );
@@ -462,48 +460,46 @@ sub build_dns_rec_Tr {
 		}
 		$opts->{-class} = 'tracked';
 		$opts->{-original} =
-		  defined( $hr->{ _dbx('DNS_CLASS') } )
-		  ? $hr->{ _dbx('DNS_CLASS') }
+		  defined( $hr->{'DNS_CLASS'} )
+		  ? $hr->{'DNS_CLASS'}
 		  : '';
 		$class =
 		  $stab->b_dropdown( $opts, $hr, 'DNS_CLASS', 'DNS_RECORD_ID', 1 );
 
 		$opts->{-class} = 'dnstype tracked';
 		$opts->{-original} =
-		  defined( $hr->{ _dbx('DNS_TYPE') } ) ? $hr->{ _dbx('DNS_TYPE') } : '';
+		  defined( $hr->{'DNS_TYPE'} ) ? $hr->{'DNS_TYPE'} : '';
 		$type = $stab->b_dropdown( $opts, $hr, 'DNS_TYPE', 'DNS_RECORD_ID', 1 );
 		delete( $opts->{-class} );
 
-		if ( defined($hr) && $hr->{ _dbx('DNS_TYPE') } =~ /^A(AAA)?$/ ) {
+		if ( defined($hr) && $hr->{'DNS_TYPE'} =~ /^A(AAA)?$/ ) {
 
 			# [XXX] hack hack hack, needs to be fixed right so it doesn't
 			# show up as a value, but the network.  I think.
-			$hr->{ _dbx('DNS_VALUE') } = $hr->{ _dbx('IP') };
+			$hr->{'DNS_VALUE'} = $hr->{'IP'};
 		}
 	}
 
-	if ( $hr->{ _dbx('DNS_VALUE_RECORD_ID') } ) {
-		if ( !$hr->{ _dbx('NETBLOCK_ID') } ) {
-			my $link =
-			  "./?DNS_RECORD_ID=" . $hr->{ _dbx('DNS_VALUE_RECORD_ID') };
+	if ( $hr->{'DNS_VALUE_RECORD_ID'} ) {
+		if ( !$hr->{'NETBLOCK_ID'} ) {
+			my $link = "./?DNS_RECORD_ID=" . $hr->{'DNS_VALUE_RECORD_ID'};
 			$value = $cgi->a( { -class => 'dnsrefoutlink', -href => $link },
-				$hr->{ _dbx('DNS_VALUE') } );
+				$hr->{'DNS_VALUE'} );
 		} else {
-			my $link =
-			  "./?DNS_RECORD_ID=" . $hr->{ _dbx('DNS_VALUE_RECORD_ID') };
+			my $link = "./?DNS_RECORD_ID=" . $hr->{'DNS_VALUE_RECORD_ID'};
 			$value = $cgi->a( { -class => 'dnsrefoutlink', -href => $link },
-				$hr->{ _dbx('IP') } );
+				$hr->{'IP'} );
 		}
 		$value .= $cgi->a(
 			{ -class => 'dnsrefouteditbutton', onclick => 'return(false);' },
 			'' );
-	} elsif ( $hr->{ _dbx('DNS_RECORD_ID') } ) {
+	} elsif ( $hr->{'DNS_RECORD_ID'} ) {
 		$opts->{-class} = 'dnsvalue tracked';
 		$opts->{-original} =
-		  defined( $hr->{ _dbx('DNS_VALUE') } )
-		  ? $hr->{ _dbx('DNS_VALUE') }
+		  defined( $hr->{'DNS_VALUE'} )
+		  ? $hr->{'DNS_VALUE'}
 		  : '';
-		if ( $hr->{ _dbx('DNS_TYPE') } eq 'CNAME' ) {
+		if ( $hr->{'DNS_TYPE'} eq 'CNAME' ) {
 			$opts->{-class} .= ' dnsautocomplete';
 		}
 		$value = $stab->b_textfield( $opts, $hr, 'DNS_VALUE', 'DNS_RECORD_ID' );
@@ -525,10 +521,9 @@ sub build_dns_rec_Tr {
 		delete( $opts->{-class} );
 	}
 
-	if ( $hr->{ _dbx('DEVICE_ID') } ) {
-		if ( $hr->{ _dbx('DNS_TYPE') } eq 'PTR' ) {
-			my $link =
-			  "../device/device.pl?devid=" . $hr->{ _dbx('DEVICE_ID') };
+	if ( $hr->{'DEVICE_ID'} ) {
+		if ( $hr->{'DNS_TYPE'} eq 'PTR' ) {
+			my $link = "../device/device.pl?devid=" . $hr->{'DEVICE_ID'};
 			$value = $cgi->a( { -href => $link }, $value );
 		}
 	}
@@ -541,12 +536,12 @@ sub build_dns_rec_Tr {
 
 	{
 		my %args = (
-			-name  => "DNS_VALUE_RECORD_ID_" . $hr->{ _dbx('DNS_RECORD_ID') },
+			-name  => "DNS_VALUE_RECORD_ID_" . $hr->{'DNS_RECORD_ID'},
 			-label => '',
 			-class => 'valdnsrecid',
 		);
-		if ( $hr->{ _dbx('DNS_VALUE_RECORD_ID') } ) {
-			$args{-value} = $hr->{ _dbx('DNS_VALUE_RECORD_ID') },;
+		if ( $hr->{'DNS_VALUE_RECORD_ID'} ) {
+			$args{-value} = $hr->{'DNS_VALUE_RECORD_ID'},;
 		}
 		$value .= $cgi->hidden(%args);
 	}
@@ -554,10 +549,10 @@ sub build_dns_rec_Tr {
 	if ($canedit) {
 		$opts->{-default} = 'Y';
 		if ($showexcess) {
-			if ( defined($hr) && $hr->{ _dbx('DNS_RECORD_ID') } ) {
+			if ( defined($hr) && $hr->{'DNS_RECORD_ID'} ) {
 				$excess .= $cgi->checkbox( {
 					-class => 'irrelevant rmrow',
-					-name  => "Del_" . $hr->{ _dbx('DNS_RECORD_ID') },
+					-name  => "Del_" . $hr->{'DNS_RECORD_ID'},
 					-label => '',
 				} );
 			} else {
@@ -566,22 +561,22 @@ sub build_dns_rec_Tr {
 		}
 		if ( $ttlonly && defined($hr) ) {
 			$excess .= $cgi->hidden( {
-				-name  => "ttlonly_" . $hr->{ _dbx('DNS_RECORD_ID') },
+				-name  => "ttlonly_" . $hr->{'DNS_RECORD_ID'},
 				-value => 'ttlonly'
 			} );
 		}
 
-		if ( $hr && $hr->{ _dbx('DNS_RECORD_ID') } ) {
+		if ( $hr && $hr->{'DNS_RECORD_ID'} ) {
 			$hidden = $cgi->hidden( {
-				-name  => "DNS_RECORD_ID_" . $hr->{ _dbx('DNS_RECORD_ID') },
-				-value => $hr->{ _dbx('DNS_RECORD_ID') }
+				-name  => "DNS_RECORD_ID_" . $hr->{'DNS_RECORD_ID'},
+				-value => $hr->{'DNS_RECORD_ID'}
 			} );
 		}
 
 		$opts->{-nodiv} = 1;
 		$opts->{'-class'} = 'tracked';
 		$opts->{'-original'} =
-		  ( $hr->{ _dbx('IS_ENABLED') } eq 'Y' ) ? 'checked' : '';
+		  ( $hr->{'IS_ENABLED'} eq 'Y' ) ? 'checked' : '';
 		$enablebox = $excess
 		  . $cgi->a( {
 				-class => 'rmrow',
@@ -596,12 +591,12 @@ sub build_dns_rec_Tr {
 
 		$ptrbox = "";
 		if (   $hr
-			&& !$hr->{ _dbx('DNS_VALUE_RECORD_ID') }
-			&& $hr->{ _dbx('DNS_TYPE') } =~ /^A(AAA)?$/ )
+			&& !$hr->{'DNS_VALUE_RECORD_ID'}
+			&& $hr->{'DNS_TYPE'} =~ /^A(AAA)?$/ )
 		{
 			$opts->{-class} = "ptrbox tracked";
 			$opts->{-original} =
-			  ( $hr->{ _dbx('SHOULD_GENERATE_PTR') } eq 'Y' ) ? 'checked' : '';
+			  ( $hr->{'SHOULD_GENERATE_PTR'} eq 'Y' ) ? 'checked' : '';
 			$ptrbox =
 			  $stab->build_checkbox( $opts,
 				$hr, "", "SHOULD_GENERATE_PTR", 'DNS_RECORD_ID' );
@@ -610,20 +605,18 @@ sub build_dns_rec_Tr {
 
 		# for SRV records, it is necessary to prepend the
 		# protocol and service name to the name
-		if ( $hr && $hr->{ _dbx('DNS_TYPE') } eq 'SRV' ) {
+		if ( $hr && $hr->{'DNS_TYPE'} eq 'SRV' ) {
 
 			# Build the SRV service field
-			$opts->{-class} = 'srvname tracked';
-			$opts->{-original} =
-			  $hr->{ _dbx('DNS_SRV_SERVICE') } || '__unknown__';
+			$opts->{-class}       = 'srvname tracked';
+			$opts->{-original}    = $hr->{'DNS_SRV_SERVICE'} || '__unknown__';
 			$opts->{-placeholder} = 'service';
 			my $srvname = $stab->b_dropdown( $opts, $hr, 'DNS_SRV_SERVICE',
 				'DNS_RECORD_ID', 1 );
 
 			# Build the SRV protocol field
-			$opts->{-class} = 'srvproto tracked';
-			$opts->{-original} =
-			  $hr->{ _dbx('DNS_SRV_PROTOCOL') } || '__unknown__';
+			$opts->{-class}       = 'srvproto tracked';
+			$opts->{-original}    = $hr->{'DNS_SRV_PROTOCOL'} || '__unknown__';
 			$opts->{-placeholder} = 'protocol';
 			my $srvproto =
 			  $stab->b_nondbdropdown( $opts, $hr, 'DNS_SRV_PROTOCOL',
@@ -634,11 +627,11 @@ sub build_dns_rec_Tr {
 			# Build the SRV priority field
 			$opts->{-class} = 'srvnum tracked';
 
-			# If $hr->{ _dbx('DNS_PRIORITY')}) is defined, use it, otherwise use ''
-			# It can be zero, so we have to use defined() instead of just $hr->{ _dbx('DNS_PRIORITY')} || ''
+			# If $hr->{'DNS_PRIORITY'}) is defined, use it, otherwise use ''
+			# It can be zero, so we have to use defined() instead of just $hr->{'DNS_PRIORITY'} || ''
 			$opts->{-original} =
-			  defined( $hr->{ _dbx('DNS_PRIORITY') } )
-			  ? $hr->{ _dbx('DNS_PRIORITY') }
+			  defined( $hr->{'DNS_PRIORITY'} )
+			  ? $hr->{'DNS_PRIORITY'}
 			  : '';
 			$opts->{-placeholder} = 'priority';
 			my $srvpriority =
@@ -647,8 +640,8 @@ sub build_dns_rec_Tr {
 			# Build the SRV weight field
 			$opts->{-class} = 'srvnum tracked';
 			$opts->{-original} =
-			  defined( $hr->{ _dbx('DNS_SRV_WEIGHT') } )
-			  ? $hr->{ _dbx('DNS_SRV_WEIGHT') }
+			  defined( $hr->{'DNS_SRV_WEIGHT'} )
+			  ? $hr->{'DNS_SRV_WEIGHT'}
 			  : '';
 			$opts->{-placeholder} = 'weight';
 			my $srvweight = $stab->b_textfield( $opts, $hr, 'DNS_SRV_WEIGHT',
@@ -657,8 +650,8 @@ sub build_dns_rec_Tr {
 			# Build the SRV port field
 			$opts->{-class} = 'srvnum tracked';
 			$opts->{-original} =
-			  defined( $hr->{ _dbx('DNS_SRV_PORT') } )
-			  ? $hr->{ _dbx('DNS_SRV_PORT') }
+			  defined( $hr->{'DNS_SRV_PORT'} )
+			  ? $hr->{'DNS_SRV_PORT'}
 			  : '';
 			$opts->{-placeholder} = 'port';
 			my $srvport =
@@ -669,11 +662,11 @@ sub build_dns_rec_Tr {
 			delete( $opts->{-class} );
 
 			# MX record
-		} elsif ( $hr && $hr->{ _dbx('DNS_TYPE') } eq 'MX' ) {
+		} elsif ( $hr && $hr->{'DNS_TYPE'} eq 'MX' ) {
 			$opts->{-class} = 'srvnum tracked';
 			$opts->{-original} =
-			  defined( $hr->{ _dbx('DNS_PRIORITY') } )
-			  ? $hr->{ _dbx('DNS_PRIORITY') }
+			  defined( $hr->{'DNS_PRIORITY'} )
+			  ? $hr->{'DNS_PRIORITY'}
 			  : '';
 			$opts->{-placeholder} = 'priority';
 			$value =
@@ -683,7 +676,7 @@ sub build_dns_rec_Tr {
 		}
 
 		if ($hr) {
-			$args->{'-id'} = $hr->{ _dbx('DNS_RECORD_ID') };
+			$args->{'-id'} = $hr->{'DNS_RECORD_ID'};
 		} else {
 			$args->{'-id'} = "0";
 		}
@@ -717,8 +710,8 @@ sub get_domain_from_record {
 			return $stab->error_return(
 				"Must specify a valid record to examine");
 		}
-		$dnsname     = $dns->{ _dbx('DNS_NAME') };
-		$dnsdomainid = $dns->{ _dbx('DNS_DOMAIN_ID') };
+		$dnsname     = $dns->{'DNS_NAME'};
+		$dnsdomainid = $dns->{'DNS_DOMAIN_ID'};
 	}
 
 	return ( $dnsname, $dnsdomainid );
@@ -772,12 +765,12 @@ sub dump_soa_section {
 		$stab->error_return("Unknown Domain");
 	}
 
-	my $title = $hr->{ _dbx('SOA_NAME') };
+	my $title = $hr->{'SOA_NAME'};
 	if ($dnsname) {
 		$title = "$dnsname.$title";
 	}
 
-	if ( $hr->{ _dbx('SHOULD_GENERATE') } eq 'Y' ) {
+	if ( $hr->{'SHOULD_GENERATE'} eq 'Y' ) {
 		$title .= " (Auto Generated) ";
 	}
 
@@ -785,7 +778,7 @@ sub dump_soa_section {
 		$title = "Add record to " . $title;
 	}
 
-	print $cgi->header( { -type => 'text/html' } ), "\n";
+	print $cgi->header(      { -type  => 'text/html' } ),                  "\n";
 	print $stab->start_html( { -title => $title, -javascript => 'dns' } ), "\n";
 
 	# Stop here if we are in addonly mode
@@ -794,8 +787,8 @@ sub dump_soa_section {
 	}
 
 	my $lastgen = 'never';
-	if ( defined( $hr->{ _dbx('LAST_GENERATED') } ) ) {
-		$lastgen = $hr->{ _dbx('LAST_GENERATED') };
+	if ( defined( $hr->{'LAST_GENERATED'} ) ) {
+		$lastgen = $hr->{'LAST_GENERATED'};
 	}
 
 	my $soatable = "";
@@ -808,14 +801,14 @@ sub dump_soa_section {
 	print $cgi->start_form( { -action => "write/update_domain.pl" } );
 	print $cgi->hidden(
 		-name    => 'DNS_DOMAIN_ID',
-		-default => $hr->{ _dbx('DNS_DOMAIN_ID') }
+		-default => $hr->{'DNS_DOMAIN_ID'}
 	);
 	print $cgi->hr;
 	my $t =
 	  $cgi->Tr( $cgi->td( { -colspan => 2 }, "Last Generated: $lastgen" ) );
 	my $autogen = "";
 
-	if ( $hr->{ _dbx('SHOULD_GENERATE') } eq 'Y' ) {
+	if ( $hr->{'SHOULD_GENERATE'} eq 'Y' ) {
 		$autogen = "Turn Off Autogen";
 	} else {
 		$autogen = "Turn On Autogen";
@@ -837,12 +830,11 @@ sub dump_soa_section {
 	print $cgi->table( { -class => 'dnsgentable' }, $t );
 
 	$parlink = "--none--";
-	if ( $hr->{ _dbx('PARENT_DNS_DOMAIN_ID') } ) {
-		my $url =
-		  build_dns_link( $stab, $hr->{ _dbx('PARENT_DNS_DOMAIN_ID') } );
+	if ( $hr->{'PARENT_DNS_DOMAIN_ID'} ) {
+		my $url = build_dns_link( $stab, $hr->{'PARENT_DNS_DOMAIN_ID'} );
 		my $parent =
-		  ( $hr->{ _dbx('PARENT_SOA_NAME') } )
-		  ? $hr->{ _dbx('PARENT_SOA_NAME') }
+		  ( $hr->{'PARENT_SOA_NAME'} )
+		  ? $hr->{'PARENT_SOA_NAME'}
 		  : "unnamed zone";
 		$parlink = $cgi->a( { -href => $url }, $parent );
 	}

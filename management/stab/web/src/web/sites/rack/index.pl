@@ -29,7 +29,6 @@ use strict;
 use warnings;
 use FileHandle;
 use JazzHands::STAB;
-use JazzHands::Common::Util qw(_dbx);
 
 do_rack();
 
@@ -64,24 +63,19 @@ sub do_rack_chooser {
 	my $rackdivid = "pickrack";
 
 	print $cgi->header('text/html');
-	print $stab->start_html(
-		{
-			-title      => "Rack Search",
-			-javascript => 'rack',
-		}
-	);
+	print $stab->start_html( {
+		-title      => "Rack Search",
+		-javascript => 'rack',
+	} );
 
-	print $cgi->start_form(
-		{
-			-method => 'GET',
-			-action => './'
-		}
-	);
+	print $cgi->start_form( {
+		-method => 'GET',
+		-action => './'
+	} );
 	print $cgi->h3( { -align => 'center' }, 'Pick a site:' );
 	print $cgi->div(
 		{ -align => 'center' },
-		$stab->b_dropdown(
-			{
+		$stab->b_dropdown( {
 				-onChange => "site_to_rack(\"SITE_CODE\", \"$rackdivid\");"
 			},
 			undef,
@@ -133,29 +127,24 @@ sub do_one_rack {
 		),
 		$cgi->Tr(
 			$cgi->td( $cgi->b("Remove Rack") ),
-			$cgi->td(
-				$cgi->checkbox(
-					-name  => 'REMOVE_RACK_' . $hr->{ _dbx('RACK_ID') },
-					-id    => 'REMOVE_RACK_' . $hr->{ _dbx('RACK_ID') },
-					-label => '',
-					-class => 'scaryrm rmrack',
-				)
-			)
+			$cgi->td( $cgi->checkbox(
+				-name  => 'REMOVE_RACK_' . $hr->{'RACK_ID'},
+				-id    => 'REMOVE_RACK_' . $hr->{'RACK_ID'},
+				-label => '',
+				-class => 'scaryrm rmrack',
+			) )
 		),
-		$cgi->Tr(
-			{
+		$cgi->Tr( {
 				-title =>
 				  'Equivalent of unchecking Is Monitored on every device listed in the rack',
 			},
 			$cgi->td( $cgi->b("Unmonitor devices in rack") ),
-			$cgi->td(
-				$cgi->checkbox(
-					-name  => 'DEMONITOR_RACK_' . $hr->{ _dbx('RACK_ID') },
-					-id    => 'DEMONITOR_RACK_' . $hr->{ _dbx('RACK_ID') },
-					-label => '',
-					-class => 'scaryrm demonitor',
-				)
-			)
+			$cgi->td( $cgi->checkbox(
+				-name  => 'DEMONITOR_RACK_' . $hr->{'RACK_ID'},
+				-id    => 'DEMONITOR_RACK_' . $hr->{'RACK_ID'},
+				-label => '',
+				-class => 'scaryrm demonitor',
+			) )
 		),
 
 		# [XXX]Display from Bottom
@@ -165,25 +154,21 @@ sub do_one_rack {
 	my $rack = $stab->build_rack($rackid);
 
 	print $cgi->header('text/html');
-	print $stab->start_html(
-		{
-			-title      => "Rack",
-			-javascript => 'rack',
-		}
-	);
+	print $stab->start_html( {
+		-title      => "Rack",
+		-javascript => 'rack',
+	} );
 	print $cgi->div( { -id => 'verifybox', -style => 'display: none' }, "" );
 
-	print $cgi->start_form(
-		{
-			-id       => 'RACK_FORM',
-			-method   => 'GET',
-			-action   => 'updaterack.pl',
-			-onSubmit => "return(verify_rack_submission(this))",
-		}
-	);
+	print $cgi->start_form( {
+		-id       => 'RACK_FORM',
+		-method   => 'GET',
+		-action   => 'updaterack.pl',
+		-onSubmit => "return(verify_rack_submission(this))",
+	} );
 	print $cgi->hidden(
-		-name    => 'RACK_ID_' . $hr->{ _dbx('RACK_ID') },
-		-default => $hr->{ _dbx('RACK_ID') },
+		-name    => 'RACK_ID_' . $hr->{'RACK_ID'},
+		-default => $hr->{'RACK_ID'},
 	);
 
 	print $cgi->table( { -class => 'rack_summary', -align => 'center' }, $box );

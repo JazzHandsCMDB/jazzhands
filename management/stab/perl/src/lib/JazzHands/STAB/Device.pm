@@ -56,7 +56,6 @@ use strict;
 use warnings;
 
 use JazzHands::DBI;
-use JazzHands::Common::Util qw(_dbx);
 use JSON;
 use Data::Dumper;
 use URI;
@@ -85,7 +84,7 @@ sub device_notes_print {
 		order by note_date desc
 	};
 	my $sth = $dbh->prepare($q) || die $self->return_db_err($dbh);
-	$sth->execute($devid) || $self->return_db_err($sth);
+	$sth->execute($devid)       || $self->return_db_err($sth);
 
 	my $contents = "";
 	while ( my ( $id, $user, $date, $text ) = $sth->fetchrow_array ) {
@@ -97,21 +96,17 @@ sub device_notes_print {
 	}
 	$sth->finish;
 
-	$contents .= $cgi->Tr(
-		$cgi->td(
-			{ -colspan => 2, -style => 'text-align: center;' },
-			$cgi->h4( { -style => 'text-align: center' }, 'Add a note' ),
-			$cgi->textarea(
-				{
-					-name    => "DEVICE_NOTE_TEXT_$devid",
-					-rows    => 10,
-					-columns => 80,
-					-class   => 'tracked',
-					-original => '',
-				}
-			)
-		)
-	);
+	$contents .= $cgi->Tr( $cgi->td(
+		{ -colspan => 2, -style => 'text-align: center;' },
+		$cgi->h4( { -style => 'text-align: center' }, 'Add a note' ),
+		$cgi->textarea( {
+			-name     => "DEVICE_NOTE_TEXT_$devid",
+			-rows     => 10,
+			-columns  => 80,
+			-class    => 'tracked',
+			-original => '',
+		} )
+	) );
 
 	if ( !length($contents) ) {
 		return $cgi->div( { -style => 'text-align: center; padding: 50px' },
@@ -181,45 +176,40 @@ sub device_circuit_tab {
 
 	my $tt = "";
 	while ( my $hr = $sth->fetchrow_hashref ) {
-		my $id = "circit_ni" . $hr->{ _dbx('NETWORK_INTERFACE_ID') };
+		my $id = "circit_ni" . $hr->{'NETWORK_INTERFACE_ID'};
 
-		my $nitype = $hr->{ _dbx('NETWORK_INTERFACE_TYPE') };
+		my $nitype = $hr->{'NETWORK_INTERFACE_TYPE'};
 		$nitype =~ tr/A-Z/a-z/;
 
 		my $Xsth = $self->prepare(
 			"select count(*) from network_interface where parent_network_interface_id = ?"
 		);
-		$Xsth->execute( $hr->{ _dbx('NETWORK_INTERFACE_ID') } )
+		$Xsth->execute( $hr->{'NETWORK_INTERFACE_ID'} )
 		  || $self->return_db_err($Xsth);
 		my ($kidtally) = $Xsth->fetchrow_array;
 		$Xsth->finish;
 
 		my $iname;
 		if ($kidtally) {
-			$iname = $cgi->a(
-				{
-					-href => 'javascript:void(null)',
+			$iname = $cgi->a( {
+					-href    => 'javascript:void(null)',
 					-onClick =>
-					  "showCircuitKids(this, \"$id\", \"${id}_tr\", $hr->{_dbx('NETWORK_INTERFACE_ID')})",
+					  "showCircuitKids(this, \"$id\", \"${id}_tr\", $hr->{'NETWORK_INTERFACE_ID'})",
 				},
-				$cgi->img(
-					{
-						-id  => "cirExpand_$id",
-						-src => "$root/stabcons/expand.jpg"
-					}
-				),
-				$hr->{ _dbx('NETWORK_INTERFACE_NAME') }
+				$cgi->img( {
+					-id  => "cirExpand_$id",
+					-src => "$root/stabcons/expand.jpg"
+				} ),
+				$hr->{'NETWORK_INTERFACE_NAME'}
 			);
 		} else {
-			$iname = $hr->{ _dbx('NETWORK_INTERFACE_NAME') };
+			$iname = $hr->{'NETWORK_INTERFACE_NAME'};
 		}
 		my $circstr = "";
-		if ( $hr->{ _dbx('CIRCUIT_ID') } ) {
-			my $name = $hr->{ _dbx('VENDOR_CIRCUIT_ID_STR') } || 'unnamed';
-			$circstr = $cgi->a(
-				{
-					-href => "$root/circuit/?CIRCUIT_ID="
-					  . $hr->{ _dbx('CIRCUIT_ID') }
+		if ( $hr->{'CIRCUIT_ID'} ) {
+			my $name = $hr->{'VENDOR_CIRCUIT_ID_STR'} || 'unnamed';
+			$circstr = $cgi->a( {
+					-href => "$root/circuit/?CIRCUIT_ID=" . $hr->{'CIRCUIT_ID'}
 				},
 				$name
 			);
@@ -227,33 +217,28 @@ sub device_circuit_tab {
 
 		my $trunk = "";
 		my $cic   = "";
-		if ( $hr->{ _dbx('TRUNK_GROUP_NAME') } ) {
-			$trunk = $cgi->a(
-				{
+		if ( $hr->{'TRUNK_GROUP_NAME'} ) {
+			$trunk = $cgi->a( {
 					-href => "$root/circuit/trunkgroup/?TRUNK_GROUP_ID="
-					  . $hr->{ _dbx('TRUNK_GROUP_ID') }
+					  . $hr->{'TRUNK_GROUP_ID'}
 				},
-				$hr->{ _dbx('TRUNK_GROUP_NAME') }
+				$hr->{'TRUNK_GROUP_NAME'}
 			);
-			if ( $hr->{ _dbx('TRUNK_TCIC_START') } ) {
+			if ( $hr->{'TRUNK_TCIC_START'} ) {
 				$cic =
-					$hr->{ _dbx('TRUNK_TCIC_START') } . "-"
-				  . $hr->{ _dbx('TRUNK_TCIC_END') };
+				  $hr->{'TRUNK_TCIC_START'} . "-" . $hr->{'TRUNK_TCIC_END'};
 			}
 		}
 
-		$tt .= $cgi->Tr(
-			{
+		$tt .= $cgi->Tr( {
 				-class => "circuit_$nitype",
 				-id    => "${id}_tr"
 			},
-			$cgi->td(
-				[
-					$iname,   $hr->{ _dbx('COMPANY_NAME') },
-					$circstr, $hr->{ _dbx('NETWORK_INTERFACE_TYPE') },
-					$trunk,   $cic,
-				]
-			)
+			$cgi->td( [
+				$iname,   $hr->{'COMPANY_NAME'},
+				$circstr, $hr->{'NETWORK_INTERFACE_TYPE'},
+				$trunk,   $cic,
+			] )
 		);
 	}
 
@@ -307,8 +292,7 @@ sub device_switch_port {
 			$x .= $self->build_switch_droppable_tr( $devid, $hr );
 		}
 		if ( length($x) ) {
-			$cgi->table(
-				{
+			$cgi->table( {
 					-align  => 'center',
 					-border => 0,
 					-style  => 'width: 90%; border: 1px solid;'
@@ -339,8 +323,7 @@ sub device_switch_port {
 		$sth->finish;
 
 		if ( length($x) ) {
-			my $t = $cgi->table(
-				{
+			my $t = $cgi->table( {
 					-align  => 'center',
 					-border => 0,
 					-style  => 'border: 1px solid;'
@@ -366,24 +349,20 @@ sub build_switch_droppable_tr {
 	my $cgi = $self->cgi || die "Could not create cgi";
 
 	my $root  = $self->guess_stab_root;
-	my $id    = "pport_agg_" . $hr->{ _dbx('PORT_NAME') };
-	my $iname = $cgi->a(
-		{
-			-href => 'javascript:void(null)',
+	my $id    = "pport_agg_" . $hr->{'PORT_NAME'};
+	my $iname = $cgi->a( {
+			-href    => 'javascript:void(null)',
 			-onClick =>
-			  "showPhysPortKid_Groups($devid, \"$id\", \"${id}_tr\", \"$hr->{_dbx('PORT_NAME')}\")",
+			  "showPhysPortKid_Groups($devid, \"$id\", \"${id}_tr\", \"$hr->{'PORT_NAME'}\")",
 		},
-		$cgi->img(
-			{
-				-id  => "kidXpand_$id",
-				-src => "$root/stabcons/expand.jpg"
-			}
-		),
-		$hr->{ _dbx('PORT_NAME') }
+		$cgi->img( {
+			-id  => "kidXpand_$id",
+			-src => "$root/stabcons/expand.jpg"
+		} ),
+		$hr->{'PORT_NAME'}
 	);
 
-	$cgi->Tr(
-		{
+	$cgi->Tr( {
 			-class => "physport_agg",
 			-id    => "${id}_tr"
 		},
@@ -396,51 +375,44 @@ sub build_switch_drop_tr {
 
 	my $cgi = $self->cgi || die "Could not create cgi";
 
-	my $pportid   = $hr->{ _dbx('P1_PHYSICAL_PORT_ID') };
+	my $pportid   = $hr->{'P1_PHYSICAL_PORT_ID'};
 	my $divwrapid = "div_p2_physical_port_id_$pportid";
 
 	my $htmlid = "P1_PHYSICAL_PORT_ID_$pportid";
 
-	my $pname = $hr->{ _dbx('P1_PORT_NAME') };
-	if ( $hr->{ _dbx('P1_PHYSICAL_LABEL') } ) {
+	my $pname = $hr->{'P1_PORT_NAME'};
+	if ( $hr->{'P1_PHYSICAL_LABEL'} ) {
 		$pname .= "/"
 		  . $cgi->span( { -class => 'port_label' },
-			$hr->{ _dbx('P1_PHYSICAL_LABEL') } );
+			$hr->{'P1_PHYSICAL_LABEL'} );
 	}
 
 	$cgi->Tr(
-		$cgi->td(
-			$cgi->b(
-				$cgi->hidden(
-					-name  => $htmlid,
-					-id    => $htmlid,
-					-value => $pportid
-				),
-				$pname,
-			)
-		),
-		$cgi->td(
-			$self->physicalport_otherend_device_magic(
-				{ -deviceID => $devid, -pportKey => $pportid }, $hr,
-				'network', $divwrapid
-			)
-		),
-		$cgi->td(
-			$self->b_dropdown(
-				{
-					-class    => 'tracked',
-					-original => defined( $hr->{'p2_physical_port_id'} )
-					? $hr->{ _dbx('p2_physical_port_id') }
-					: '__unknown__',
-					-portLimit => 'network',
-					-divWrap   => $divwrapid,
-					-deviceid  => $hr->{ _dbx('P2_DEVICE_ID') },
-				},
-				$hr,
-				'P2_PHYSICAL_PORT_ID',
-				'P1_PHYSICAL_PORT_ID'
-			)
-		),
+		$cgi->td( $cgi->b(
+			$cgi->hidden(
+				-name  => $htmlid,
+				-id    => $htmlid,
+				-value => $pportid
+			),
+			$pname,
+		) ),
+		$cgi->td( $self->physicalport_otherend_device_magic(
+			{ -deviceID => $devid, -pportKey => $pportid }, $hr,
+			'network',                                      $divwrapid
+		) ),
+		$cgi->td( $self->b_dropdown( {
+				-class    => 'tracked',
+				-original => defined( $hr->{'P2_PHYSICAL_PORT_ID'} )
+				? $hr->{'P2_PHYSICAL_PORT_ID'}
+				: '__unknown__',
+				-portLimit => 'network',
+				-divWrap   => $divwrapid,
+				-deviceid  => $hr->{'P2_DEVICE_ID'},
+			},
+			$hr,
+			'P2_PHYSICAL_PORT_ID',
+			'P1_PHYSICAL_PORT_ID'
+		) ),
 	);
 }
 
@@ -516,38 +488,33 @@ sub device_power_ports {
 	my $sth = $self->prepare($q) || $self->return_db_err($self);
 
 	$sth->bind_param( ':devid', $devid ) || $self->return_db_err($self);
-	$sth->execute || $self->return_db_err($self);
+	$sth->execute                        || $self->return_db_err($self);
 
 	my $x = "";
 	while ( my $hr = $sth->fetchrow_hashref ) {
 
-		my $powerid   = $hr->{ _dbx('P1_POWER_INTERFACE_PORT') };
+		my $powerid   = $hr->{'P1_POWER_INTERFACE_PORT'};
 		my $divwrapid = "div_p2_power_port_id_$powerid";
 		my $htmlid    = "P1_POWER_INTERFACE_PORT_$powerid";
 
 		$x .= $cgi->Tr(
-			$cgi->td(
-				$cgi->b(
-					$cgi->hidden(
-						-name  => $htmlid,
-						-id    => $htmlid,
-						-value => $powerid
-					),
-					$hr->{ _dbx('P1_POWER_INTERFACE_PORT') }
-				)
-			),
+			$cgi->td( $cgi->b(
+				$cgi->hidden(
+					-name  => $htmlid,
+					-id    => $htmlid,
+					-value => $powerid
+				),
+				$hr->{'P1_POWER_INTERFACE_PORT'}
+			) ),
 			$cgi->td( $self->powerport_device_magic( $hr, $divwrapid ) ),
-			$cgi->td(
-				$self->b_dropdown(
-					{
-						-divWrap  => $divwrapid,
-						-deviceid => $hr->{ _dbx('P2_POWER_DEVICE_ID') }
-					},
-					$hr,
-					'P2_POWER_INTERFACE_PORT',
-					'P1_POWER_INTERFACE_PORT'
-				)
-			)
+			$cgi->td( $self->b_dropdown( {
+					-divWrap  => $divwrapid,
+					-deviceid => $hr->{'P2_POWER_DEVICE_ID'}
+				},
+				$hr,
+				'P2_POWER_INTERFACE_PORT',
+				'P1_POWER_INTERFACE_PORT'
+			) )
 		);
 	}
 	$sth->finish;
@@ -571,52 +538,47 @@ sub powerport_device_magic {
 
 	my $cgi = $self->cgi;
 
-	my $id        = $hr->{ _dbx('P1_POWER_INTERFACE_PORT') };
+	my $id        = $hr->{'P1_POWER_INTERFACE_PORT'};
 	my $devlinkid = "power_devlink_$id";
 	my $args;
 
 	my $devdrop = "P2_POWER_DEVICE_ID_$id";
 	my $devname = "P2_POWER_DEVICE_NAME_$id";
-	my $pdevid  = $hr->{ _dbx('P2_POWER_DEVICE_ID') };
-	my $pname   = $hr->{ _dbx('P2_POWER_DEVICE_NAME') };
+	my $pdevid  = $hr->{'P2_POWER_DEVICE_ID'};
+	my $pname   = $hr->{'P2_POWER_DEVICE_NAME'};
 
 	my $pdnam = "P2_POWER_DEVICE_NAME_" . $id;
 	my $dostuffjavascript =
 	  "showPowerPorts(\"$devdrop\", \"$devname\", \"$portdivwrapid\", \"$id\", \"$devlinkid\");";
-	my $rv = $cgi->hidden(
-		{
-			-name    => $devdrop,
-			-id      => $devdrop,
-			-default => $pdevid
-		}
-	);
+	my $rv = $cgi->hidden( {
+		-name    => $devdrop,
+		-id      => $devdrop,
+		-default => $pdevid
+	} );
 
-	$rv .= $cgi->textfield(
-		{
-			-name => $pdnam,
-			-id   => $pdnam,
-			-size => 40,
-			-onInput =>
-			  "inputEvent_Search(this, $devdrop, event, \"deviceForm\", function(){$dostuffjavascript});",
-			-onKeydown =>
-			  "keyprocess_Search(this, $devdrop, event, \"deviceForm\", function(){$dostuffjavascript});",
-			-onChange => "$dostuffjavascript",
-			-onBlur   => "hidePopup_Search($pdnam)",
-			-default  => $pname,
-		}
-	);
+	$rv .= $cgi->textfield( {
+		-name    => $pdnam,
+		-id      => $pdnam,
+		-size    => 40,
+		-onInput =>
+		  "inputEvent_Search(this, $devdrop, event, \"deviceForm\", function(){$dostuffjavascript});",
+		-onKeydown =>
+		  "keyprocess_Search(this, $devdrop, event, \"deviceForm\", function(){$dostuffjavascript});",
+		-onChange => "$dostuffjavascript",
+		-onBlur   => "hidePopup_Search($pdnam)",
+		-default  => $pname,
+	} );
 
 	my $devlink = "javascript:void(null);";
 	if ($pdevid) {
 		$devlink = "./device.pl?devid=$pdevid;__default_tab__=Power";
 	}
 
-	$rv .= $cgi->a(
-		{
+	$rv .= $cgi->a( {
 			-target => "stab_device_$pdevid",
 			id      => $devlinkid,
 			-href   => $devlink,
-			-class	=> 'goto-link',
+			-class  => 'goto-link',
 		},
 		">>"
 	);
@@ -640,14 +602,14 @@ sub device_serial_ports {
 
 	my $x = "";
 	while ( my $hr = $sth->fetchrow_hashref ) {
-		if (   defined( $hr->{ _dbx('DATA_BITS') } )
-			&& defined( $hr->{ _dbx('STOP_BITS') } )
-			&& defined( $hr->{ _dbx('PARITY') } ) )
+		if (   defined( $hr->{'DATA_BITS'} )
+			&& defined( $hr->{'STOP_BITS'} )
+			&& defined( $hr->{'PARITY'} ) )
 		{
-			my $p = substr( $hr->{ _dbx('PARITY') }, 0, 1 );
+			my $p = substr( $hr->{'PARITY'}, 0, 1 );
 			$p =~ tr/a-z/A-Z/;
-			$hr->{ _dbx('SERIAL_PARAMS') } =
-			  $hr->{ _dbx('DATA_BITS') } . "-$p-" . $hr->{ _dbx('STOP_BITS') };
+			$hr->{'SERIAL_PARAMS'} =
+			  $hr->{'DATA_BITS'} . "-$p-" . $hr->{'STOP_BITS'};
 		}
 		$x .= $self->build_serial_drop_tr( $devid, $hr );
 	}
@@ -657,13 +619,11 @@ sub device_serial_ports {
 		$cgi->table(
 			{ -align => 'center' },
 			$cgi->caption('Serial Connections'),
-			$cgi->th(
-				[
-					'Local Port/Label', 'Other End',
-					'Port',             'Baud',
-					'Params',           'Flow Control'
-				]
-			),
+			$cgi->th( [
+				'Local Port/Label', 'Other End',
+				'Port',             'Baud',
+				'Params',           'Flow Control'
+			] ),
 			$x
 		);
 	} else {
@@ -676,78 +636,67 @@ sub build_serial_drop_tr {
 
 	my $cgi = $self->cgi || die "Could not create cgi";
 
-	my $pportid   = $hr->{ _dbx('P1_PHYSICAL_PORT_ID') };
+	my $pportid   = $hr->{'P1_PHYSICAL_PORT_ID'};
 	my $divwrapid = "div_p2_physical_port_id_$pportid";
 
 	my $htmlid = "P1_PHYSICAL_PORT_ID_$pportid";
 
-	my $pname = $hr->{ _dbx('P1_PORT_NAME') };
-	if ( $hr->{ _dbx('P1_PHYSICAL_LABEL') } ) {
+	my $pname = $hr->{'P1_PORT_NAME'};
+	if ( $hr->{'P1_PHYSICAL_LABEL'} ) {
 		$pname .= "/"
 		  . $cgi->span( { -class => 'port_label' },
-			$hr->{ _dbx('P1_PHYSICAL_LABEL') } );
+			$hr->{'P1_PHYSICAL_LABEL'} );
 	}
 
 	$cgi->Tr(
-		$cgi->td(
-			$cgi->b(
-				$cgi->hidden(
-					-name  => $htmlid,
-					-id    => $htmlid,
-					-value => $pportid
-				),
-				$pname,
-			)
-		),
-		$cgi->td(
-			$self->physicalport_otherend_device_magic(
-				{ -deviceID => $devid, -pportKey => $pportid }, $hr,
-				'serial', $divwrapid
-			)
-		),
-		$cgi->td(
-			$self->b_dropdown(
-				{
-					-class    => 'tracked',
-					-original => defined( $hr->{'p2_physical_port_id'} )
-					? $hr->{ _dbx('p2_physical_port_id') }
-					: '__unknown__',
-					-portLimit => 'serial',
-					-divWrap   => $divwrapid,
-					-deviceid  => $hr->{ _dbx('P2_DEVICE_ID') },
-				},
-				$hr,
-				'P2_PHYSICAL_PORT_ID',
-				'P1_PHYSICAL_PORT_ID'
-			)
-		),
-		$cgi->td(
-			$self->b_nondbdropdown(
-				{
-					-class => 'tracked',
-					-value => $hr->{ _dbx('BAUD') } || '__unknown__',
-				},
-				$hr, 'BAUD', 'P1_PHYSICAL_PORT_ID'
-			)
-		),
-		$cgi->td(
-			$self->b_nondbdropdown(
-				{
-					-class => 'tracked',
-					-value => $hr->{ _dbx('SERIAL_PARAMS') } || '__unknown__',
-				},
-				$hr, 'SERIAL_PARAMS', 'P1_PHYSICAL_PORT_ID'
-			)
-		),
-		$cgi->td(
-			$self->b_nondbdropdown(
-				{
-					-class => 'tracked',
-					-value => $hr->{ _dbx('FLOW_CONTROL') } || '__unknown__',
-				},
-				$hr, 'FLOW_CONTROL', 'P1_PHYSICAL_PORT_ID'
-			)
-		),
+		$cgi->td( $cgi->b(
+			$cgi->hidden(
+				-name  => $htmlid,
+				-id    => $htmlid,
+				-value => $pportid
+			),
+			$pname,
+		) ),
+		$cgi->td( $self->physicalport_otherend_device_magic(
+			{ -deviceID => $devid, -pportKey => $pportid }, $hr,
+			'serial',                                       $divwrapid
+		) ),
+		$cgi->td( $self->b_dropdown( {
+				-class    => 'tracked',
+				-original => defined( $hr->{'P2_PHYSICAL_PORT_ID'} )
+				? $hr->{'P2_PHYSICAL_PORT_ID'}
+				: '__unknown__',
+				-portLimit => 'serial',
+				-divWrap   => $divwrapid,
+				-deviceid  => $hr->{'P2_DEVICE_ID'},
+			},
+			$hr,
+			'P2_PHYSICAL_PORT_ID',
+			'P1_PHYSICAL_PORT_ID'
+		) ),
+		$cgi->td( $self->b_nondbdropdown( {
+				-class => 'tracked',
+				-value => $hr->{'BAUD'} || '__unknown__',
+			},
+			$hr, 'BAUD',
+			'P1_PHYSICAL_PORT_ID'
+		) ),
+		$cgi->td( $self->b_nondbdropdown( {
+				-class => 'tracked',
+				-value => $hr->{'SERIAL_PARAMS'} || '__unknown__',
+			},
+			$hr,
+			'SERIAL_PARAMS',
+			'P1_PHYSICAL_PORT_ID'
+		) ),
+		$cgi->td( $self->b_nondbdropdown( {
+				-class => 'tracked',
+				-value => $hr->{'FLOW_CONTROL'} || '__unknown__',
+			},
+			$hr,
+			'FLOW_CONTROL',
+			'P1_PHYSICAL_PORT_ID'
+		) ),
 	);
 }
 
@@ -765,12 +714,11 @@ sub device_physical_connection {
 
 	my $l1c = $self->get_layer1_connection_from_port($pportkey);
 	my $path =
-	  $self->get_physical_path_from_l1conn(
-		$l1c->{ _dbx('LAYER1_CONNECTION_ID') } );
+	  $self->get_physical_path_from_l1conn( $l1c->{'LAYER1_CONNECTION_ID'} );
 
 	if ( !$devid ) {
 		my $pp = $self->get_physical_port($pportkey);
-		$devid = $pp->{ _dbx('DEVICE_ID') };
+		$devid = $pp->{'DEVICE_ID'};
 	}
 
 	my $tableid = "table_pc_ppkey_" . $pportkey;
@@ -781,53 +729,46 @@ sub device_physical_connection {
 	# this happens when there's no physical path.  As such,
 	#
 	if ( ( !$path || ( !scalar @$path ) ) ) {
-		my $startp =
-		  $self->get_physical_port( $l1c->{ _dbx('PHYSICAL_PORT1_ID') } );
-		my $endp =
-		  $self->get_physical_port( $l1c->{ _dbx('PHYSICAL_PORT2_ID') } );
+		my $startp = $self->get_physical_port( $l1c->{'PHYSICAL_PORT1_ID'} );
+		my $endp   = $self->get_physical_port( $l1c->{'PHYSICAL_PORT2_ID'} );
 
-		if ( $startp->{ _dbx('PHYSICAL_PORT_ID') } != $pportkey ) {
+		if ( $startp->{'PHYSICAL_PORT_ID'} != $pportkey ) {
 			$backwards = 1;
 		}
 
-		my $connpk = "PC_path_" . $startp->{ _dbx('PHYSICAL_PORT_ID') };
+		my $connpk = "PC_path_" . $startp->{'PHYSICAL_PORT_ID'};
 		if ( !defined($row) ) {
-			if ( $startp->{ _dbx('PHYSICAL_PORT_ID') } != $pportkey ) {
+			if ( $startp->{'PHYSICAL_PORT_ID'} != $pportkey ) {
 				my $x = $endp;
 				$endp   = $startp;
 				$startp = $x;
 			}
-			return (
-				$cgi->table(
-					{ -border => 1, -id => $tableid },
-					$self->physical_connection_row(
-						{
-							-deviceID  => $devid,
-							-pportKey  => $pportkey,
-							-choosable => 0,
-							-showAdd   => 1,
-							-tableId   => $tableid,
-							-backwards => $backwards,
-						},
-						0, undef, $startp
-					  )
-					  . $self->physical_connection_row(
-						{
-							-deviceID  => $devid,
-							-pportKey  => $pportkey,
-							-choosable => 0,
-							-showAdd   => 0,
-							-showCable => 1,
-							-tableId   => $tableid,
-							-backwards => $backwards,
-						},
-						1, undef, $endp
-					  )
-				)
-			);
+			return ( $cgi->table(
+				{ -border => 1, -id => $tableid },
+				$self->physical_connection_row( {
+						-deviceID  => $devid,
+						-pportKey  => $pportkey,
+						-choosable => 0,
+						-showAdd   => 1,
+						-tableId   => $tableid,
+						-backwards => $backwards,
+					},
+					0, undef, $startp
+				  )
+				  . $self->physical_connection_row( {
+						-deviceID  => $devid,
+						-pportKey  => $pportkey,
+						-choosable => 0,
+						-showAdd   => 0,
+						-showCable => 1,
+						-tableId   => $tableid,
+						-backwards => $backwards,
+					},
+					1, undef, $endp
+				  )
+			) );
 		} else {
-			my $x = $self->physical_connection_row(
-				{
+			my $x = $self->physical_connection_row( {
 					-deviceID  => $devid,
 					-noTr      => 1,
 					-pportKey  => $pportkey,
@@ -841,11 +782,10 @@ sub device_physical_connection {
 			);
 		}
 	} else {
-		my $connpk =
-		  "PC_path_" . $path->[0]->{ _dbx('PC_P1_PHYSICAL_PORT_ID') };
+		my $connpk = "PC_path_" . $path->[0]->{'PC_P1_PHYSICAL_PORT_ID'};
 
 		if (   $path
-			&& $path->[0]->{ _dbx('PC_P1_DEVICE_ID') } != $devid )
+			&& $path->[0]->{'PC_P1_DEVICE_ID'} != $devid )
 		{
 			$backwards = 1;
 		}
@@ -861,8 +801,7 @@ sub device_physical_connection {
 
 			if ( scalar @$path ) {
 				my $x = ($backwards) ? $count : 0;
-				$tt = $self->physical_connection_row(
-					{
+				$tt = $self->physical_connection_row( {
 						-deviceID  => $devid,
 						-pportKey  => $pportkey,
 						-choosable => 0,
@@ -887,8 +826,7 @@ sub device_physical_connection {
 					$side = 1;
 				}
 
-				$tt .= $self->physical_connection_row(
-					{
+				$tt .= $self->physical_connection_row( {
 						-deviceID  => $devid,
 						-pportKey  => $pportkey,
 						-choosable => ( $iter != $count ),
@@ -904,8 +842,7 @@ sub device_physical_connection {
 			$cgi->table( { -id => $tableid, -border => 1 }, $tt );
 		} else {
 			my $hr = undef;
-			$self->physical_connection_row(
-				{
+			$self->physical_connection_row( {
 					-deviceID  => $devid,
 					-noTr      => 1,
 					-pportKey  => $pportkey,
@@ -966,37 +903,35 @@ sub build_patchpanel_drop_tr {
 	my $rhs = "";
 
 	my $root = $self->guess_stab_root;
-	if ( $hr->{ _dbx('D1_DEVICE_NAME') } ) {
-		my $rdevid = $hr->{ _dbx('D1_DEVICE_ID') };
-		$lhs = $cgi->a(
-			{
+	if ( $hr->{'D1_DEVICE_NAME'} ) {
+		my $rdevid = $hr->{'D1_DEVICE_ID'};
+		$lhs = $cgi->a( {
 				-href   => "$root/device/device.pl?devid=" . $rdevid,
 				-target => "stab_device_$rdevid",
 			},
-			$hr->{ _dbx('D1_DEVICE_NAME') }
+			$hr->{'D1_DEVICE_NAME'}
 		);
 	}
-	if ( $hr->{ _dbx('D2_DEVICE_NAME') } ) {
-		my $rdevid = $hr->{ _dbx('D2_DEVICE_ID') };
-		$rhs = $cgi->a(
-			{
+	if ( $hr->{'D2_DEVICE_NAME'} ) {
+		my $rdevid = $hr->{'D2_DEVICE_ID'};
+		$rhs = $cgi->a( {
 				-href   => "$root/device/device.pl?devid=" . $rdevid,
 				-target => "stab_device_$rdevid",
 			},
-			$hr->{ _dbx('D2_DEVICE_NAME') }
+			$hr->{'D2_DEVICE_NAME'}
 		);
 	}
 
 	$cgi->Tr(
 		$cgi->td($lhs),
 		$cgi->td(
-			$hr->{ _dbx('D1_PORT_NAME') } ? $hr->{ _dbx('D1_PORT_NAME') }
+			$hr->{'D1_PORT_NAME'} ? $hr->{'D1_PORT_NAME'}
 			: ""
 		),
-		$cgi->td( $cgi->b( $hr->{ _dbx('PATCH_NAME') } ) ),
+		$cgi->td( $cgi->b( $hr->{'PATCH_NAME'} ) ),
 		$cgi->td($rhs),
 		$cgi->td(
-			$hr->{ _dbx('D2_PORT_NAME') } ? $hr->{ _dbx('D2_PORT_NAME') }
+			$hr->{'D2_PORT_NAME'} ? $hr->{'D2_PORT_NAME'}
 			: ""
 		),
 	);
@@ -1046,12 +981,12 @@ sub physical_connection_row {
 	my $divwrapid = "pc_r_dwrap_$uniqid";
 	if ( !$sel ) {
 		if ( defined($side) ) {
-			$pport = $hr->{ _dbx("PC_P${side}_PHYSICAL_PORT_NAME") };
-			$dev   = $hr->{ _dbx("PC_P${side}_DEVICE_NAME") };
+			$pport = $hr->{"PC_P${side}_PHYSICAL_PORT_NAME"};
+			$dev   = $hr->{"PC_P${side}_DEVICE_NAME"};
 		} else {
-			$pport = $hr->{ _dbx("PORT_NAME") };
-			my $d = $self->get_dev_from_devid( $hr->{ _dbx('DEVICE_ID') } );
-			$dev = $d->{ _dbx('DEVICE_NAME') };
+			$pport = $hr->{'PORT_NAME'};
+			my $d = $self->get_dev_from_devid( $hr->{'DEVICE_ID'} );
+			$dev = $d->{'DEVICE_NAME'};
 		}
 	} else {
 
@@ -1073,7 +1008,7 @@ sub physical_connection_row {
 		# Yes, this is totally confusing.  Welcome to layer1 connections.
 		my $pportside = $side;
 		if (   !$hr
-			|| !defined( $hr->{ _dbx('PC_P1_PHYSICAL_PORT_ID') } ) )
+			|| !defined( $hr->{'PC_P1_PHYSICAL_PORT_ID'} ) )
 		{
 			if ($backwards) {
 				$pportside = 1;
@@ -1090,8 +1025,7 @@ sub physical_connection_row {
 			$dropp->{-id}   = $cgiid;
 			$dropp->{-name} = $cgiid;
 		} else {
-			$dropp->{-deviceid} =
-			  $hr->{ _dbx("PC_P${pportside}_DEVICE_ID") };
+			$dropp->{-deviceid} = $hr->{"PC_P${pportside}_DEVICE_ID"};
 		}
 
 		$pport =
@@ -1103,7 +1037,7 @@ sub physical_connection_row {
 	my $hiddenid = "PhysPath_${pportkey}_row$row";
 
 	my $myrowid =
-	  ( defined($hr) ) ? $hr->{ _dbx("PC_P1_PHYSICAL_PORT_ID") } : $uniqid;
+	  ( defined($hr) ) ? $hr->{'PC_P1_PHYSICAL_PORT_ID'} : $uniqid;
 
 	#
 	# this is used to map the row to some unique id for finding the other
@@ -1132,9 +1066,8 @@ sub physical_connection_row {
 		if ($backwards) {
 			$newlineside = 1;
 		}
-		$addrow = $cgi->a(
-			{
-				-id => $addid,
+		$addrow = $cgi->a( {
+				-id   => $addid,
 				-href =>
 				  "javascript:AppendPatchPanelRow(\"$addid\", \"$pportkey\", \"$tableid\", $newlineside)",
 				-style => 'border: 1px solid; font-size: 50%'
@@ -1306,9 +1239,9 @@ sub physicalport_otherend_device_magic {
 	my ( $pdevid, $pname, $pportid );
 
 	if ($hr) {
-		$pdevid  = $hr->{ _dbx("${prefix}P${side}_DEVICE_ID") };
-		$pname   = $hr->{ _dbx("${prefix}P${side}_DEVICE_NAME") };
-		$pportid = $hr->{ _dbx("${prefix}P1_PHYSICAL_PORT_ID") };
+		$pdevid  = $hr->{"${prefix}P${side}_DEVICE_ID"};
+		$pname   = $hr->{"${prefix}P${side}_DEVICE_NAME"};
+		$pportid = $hr->{"${prefix}P1_PHYSICAL_PORT_ID"};
 	} elsif ( $params && exists( $params->{'-uniqID'} ) ) {
 		$pdevid  = '';
 		$pname   = '';
@@ -1327,36 +1260,32 @@ sub physicalport_otherend_device_magic {
 
 	my $pdid  = "${prefix}P${side}_DEVICE_ID_" . $pportid;
 	my $pdnam = "${prefix}P${side}_DEVICE_NAME_" . $pportid;
-	my $rv    = $cgi->hidden(
-		{
-			-name    => $pdid,
-			-id      => $pdid,
-			-default => $pdevid
-		}
-	);
-	$rv .= $cgi->textfield(
-		{
-			-name     => $pdnam,
-			-id       => $pdnam,
-			-size     => 40,
-			-class    => 'tracked',
-			-original => $pname,
+	my $rv    = $cgi->hidden( {
+		-name    => $pdid,
+		-id      => $pdid,
+		-default => $pdevid
+	} );
+	$rv .= $cgi->textfield( {
+		-name     => $pdnam,
+		-id       => $pdnam,
+		-size     => 40,
+		-class    => 'tracked',
+		-original => $pname,
 
-			#-readonly => 1,
-			-title => 'Click to select another device',
-			-onClick =>
-			  "showOtherEndDeviceSearchPopup( this, \"$pdid\", \"$pportid\", \"$divwrapid\", \"$what\"$sidestuff );",
+		#-readonly => 1,
+		-title   => 'Click to select another device',
+		-onClick =>
+		  "showOtherEndDeviceSearchPopup( this, \"$pdid\", \"$pportid\", \"$divwrapid\", \"$what\"$sidestuff );",
 
-			# Show the popup if a key is pressed, except Tab
-			-onKeyDown =>
-			  "if( event.keyCode !== 9 ) { showOtherEndDeviceSearchPopup( this, \"$pdid\", \"$pportid\", \"$divwrapid\", \"$what\"$sidestuff ); }",
-			-onInput =>
-			  "showOtherEndDeviceSearchPopup( this, \"$pdid\", \"$pportid\", \"$divwrapid\", \"$what\"$sidestuff ); delayedGetMatchingDevices( this );",
+		# Show the popup if a key is pressed, except Tab
+		-onKeyDown =>
+		  "if( event.keyCode !== 9 ) { showOtherEndDeviceSearchPopup( this, \"$pdid\", \"$pportid\", \"$divwrapid\", \"$what\"$sidestuff ); }",
+		-onInput =>
+		  "showOtherEndDeviceSearchPopup( this, \"$pdid\", \"$pportid\", \"$divwrapid\", \"$what\"$sidestuff ); delayedGetMatchingDevices( this );",
 
-			#-onContextMenu => "if( this.value === '' ) { return( true ); }; event.preventDefault(); navigator.clipboard.writeText( this.value ); blink_message( 'Value copied!', event.pageX, event.pageY, 500 ); ",
-			-default => $pname,
-		}
-	);
+		#-onContextMenu => "if( this.value === '' ) { return( true ); }; event.preventDefault(); navigator.clipboard.writeText( this.value ); blink_message( 'Value copied!', event.pageX, event.pageY, 500 ); ",
+		-default => $pname,
+	} );
 
 	# XXX
 	# a matching change needs to happen in javascript/device-utils.js,
@@ -1376,8 +1305,7 @@ sub physicalport_otherend_device_magic {
 		$devlink = "./device.pl?devid=$pdevid$deftab";
 	}
 
-	$rv .= $cgi->a(
-		{
+	$rv .= $cgi->a( {
 			-target => "stab_device_pp_$pportid",
 			id      => $what . "_devlink_$pportid",
 			-href   => $devlink,
@@ -1385,13 +1313,12 @@ sub physicalport_otherend_device_magic {
 		},
 		">>"
 	);
-	if ( defined($hr) && defined( $hr->{ _dbx('LAYER1_CONNECTION_ID') } ) ) {
+	if ( defined($hr) && defined( $hr->{'LAYER1_CONNECTION_ID'} ) ) {
 		my $pportkey = $params->{-pportKey};
 		my $myid     = "pplink_a_$pportkey";
 		my $pplink =
 		  "javascript:PatchPanelDrop($devid, $pportkey, \"$pdnam\");";
-		$rv .= $cgi->a(
-			{
+		$rv .= $cgi->a( {
 				-style => 'font-size: 50%;',
 				-href  => $pplink,
 				-id    => $myid
@@ -1423,61 +1350,51 @@ sub dump_advanced_tab {
 		"Only check these if you know what they do"
 	);
 	$rv .= $cgi->ul(
-		$cgi->li(
-			$cgi->checkbox(
-				-name  => 'chk_dev_port_reset',
-				-id    => 'chk_dev_port_reset',
-				-value => 'off',
-				-label =>
-				  'Reset serial port connections to default (This will erase existing connections)',
-				-class => 'tracked',
-				-original => '',
-			)
-		),
-		$cgi->li(
-			$cgi->checkbox(
-				-name  => 'chk_dev_retire',
-				-id    => 'chk_dev_retire',
-				-value => 'off',
-				-label =>
-				  'RETIRE THIS DEVICE: Delete all ports, erase name, and if no serial number or device notes, remove device from JazzHands',
-				-class => 'tracked',
-				-original => '',
-			)
-		),
-		$cgi->li(
-			$cgi->checkbox(
-				-name    => $addpwrid,
-				-id      => $addpwrid,
-				-checked => undef,
-				-value   => 'off',
-				-label   => 'Add missing power ports from Device Type',
-				-class => 'tracked',
-				-original => '',
-			)
-		),
-		$cgi->li(
-			$cgi->checkbox(
-				-name    => $addserid,
-				-id      => $addserid,
-				-checked => undef,
-				-value   => 'off',
-				-label   => 'Add missing serial from Device Type',
-				-class => 'tracked',
-				-original => '',
-			)
-		),
-		$cgi->li(
-			$cgi->checkbox(
-				-name    => $addnetid,
-				-id      => $addnetid,
-				-checked => undef,
-				-value   => 'off',
-				-label   => 'Add missing switchports from Device Type',
-				-class => 'tracked',
-				-original => '',
-			)
-		),
+		$cgi->li( $cgi->checkbox(
+			-name  => 'chk_dev_port_reset',
+			-id    => 'chk_dev_port_reset',
+			-value => 'off',
+			-label =>
+			  'Reset serial port connections to default (This will erase existing connections)',
+			-class    => 'tracked',
+			-original => '',
+		) ),
+		$cgi->li( $cgi->checkbox(
+			-name  => 'chk_dev_retire',
+			-id    => 'chk_dev_retire',
+			-value => 'off',
+			-label =>
+			  'RETIRE THIS DEVICE: Delete all ports, erase name, and if no serial number or device notes, remove device from JazzHands',
+			-class    => 'tracked',
+			-original => '',
+		) ),
+		$cgi->li( $cgi->checkbox(
+			-name     => $addpwrid,
+			-id       => $addpwrid,
+			-checked  => undef,
+			-value    => 'off',
+			-label    => 'Add missing power ports from Device Type',
+			-class    => 'tracked',
+			-original => '',
+		) ),
+		$cgi->li( $cgi->checkbox(
+			-name     => $addserid,
+			-id       => $addserid,
+			-checked  => undef,
+			-value    => 'off',
+			-label    => 'Add missing serial from Device Type',
+			-class    => 'tracked',
+			-original => '',
+		) ),
+		$cgi->li( $cgi->checkbox(
+			-name     => $addnetid,
+			-id       => $addnetid,
+			-checked  => undef,
+			-value    => 'off',
+			-label    => 'Add missing switchports from Device Type',
+			-class    => 'tracked',
+			-original => '',
+		) ),
 	);
 
 	my $dev;
@@ -1487,18 +1404,18 @@ sub dump_advanced_tab {
 
 	if ($dev) {
 		my $tt = "";
-		if ( $dev->{ _dbx('DATA_INS_USER') } ) {
+		if ( $dev->{'DATA_INS_USER'} ) {
 			$tt .= $cgi->Tr(
 				$cgi->td("Inserted"),
-				$cgi->td( $dev->{ _dbx('DATA_INS_DATE') } ),
-				$cgi->td( $dev->{ _dbx('DATA_INS_USER') } )
+				$cgi->td( $dev->{'DATA_INS_DATE'} ),
+				$cgi->td( $dev->{'DATA_INS_USER'} )
 			);
 		}
-		if ( $dev->{ _dbx('DATA_UPD_USER') } ) {
+		if ( $dev->{'DATA_UPD_USER'} ) {
 			$tt .= $cgi->Tr(
 				$cgi->td("Updated"),
-				$cgi->td( $dev->{ _dbx('DATA_UPD_DATE') } ),
-				$cgi->td( $dev->{ _dbx('DATA_UPD_USER') } )
+				$cgi->td( $dev->{'DATA_UPD_DATE'} ),
+				$cgi->td( $dev->{'DATA_UPD_USER'} )
 			);
 		}
 
@@ -1507,8 +1424,6 @@ sub dump_advanced_tab {
 	}
 	$rv;
 }
-
-
 
 ##############################################################################
 #
@@ -1553,17 +1468,16 @@ sub dump_components_tab {
 	while ( my $hr = $sth->fetchrow_hashref ) {
 		$rows .= $cgi->Tr(
 			$opts,
-			$cgi->td( $opts, $hr->{ _dbx('component') } ),
-			$cgi->td( $opts, $hr->{ _dbx('vendor') } ),
-			$cgi->td( $opts, $hr->{ _dbx('model') } ),
-			$cgi->td( $opts, $hr->{ _dbx('serial_number') } ),
-			$cgi->td( $opts, $hr->{ _dbx('slot_name') } ),
-			$cgi->td( $opts, $hr->{ _dbx('specifications') } ),
+			$cgi->td( $opts, $hr->{'COMPONENT'} ),
+			$cgi->td( $opts, $hr->{'VENDOR'} ),
+			$cgi->td( $opts, $hr->{'MODEL'} ),
+			$cgi->td( $opts, $hr->{'SERIAL_NUMBER'} ),
+			$cgi->td( $opts, $hr->{'SLOT_NAME'} ),
+			$cgi->td( $opts, $hr->{'SPECIFICATIONS'} ),
 		);
 	}
 
-	$tab .= $cgi->table(
-		{
+	$tab .= $cgi->table( {
 			-style => 'border 1px solid',
 			align  => 'center',
 			-class => 'networkrange'
@@ -1603,12 +1517,12 @@ sub dump_functions_tab {
 	my ( @options, @set, %labels );
 	foreach my $function_id ( sort keys %functions ) {
 		my %function = %{ $functions{$function_id} };
-		push( @options, $function{'device_collection_id'} );
-		push( @set,     $function{'device_collection_id'} )
-		  if ( $function{'selected'} );
-		$labels{ $function{'device_collection_id'} } =
-			 $function{'device_collection_name'}
-		  || $function{'device_collection_id'};
+		push( @options, $function{'DEVICE_COLLECTION_ID'} );
+		push( @set,     $function{'DEVICE_COLLECTION_ID'} )
+		  if ( $function{'SELECTED'} );
+		$labels{ $function{'DEVICE_COLLECTION_ID'} } =
+			 $function{'DEVICE_COLLECTION_NAME'}
+		  || $function{'DEVICE_COLLECTION_ID'};
 	}
 
 	# Build multi select box
@@ -1673,15 +1587,13 @@ sub dump_device_route {
 
 	my (%seen);
 
-	my $tt = $cgi->th(
-		[
-			'Delete',  'Source address', "/", "Bits",
-			'Dest IP', 'Destination Device',
-		]
-	);
+	my $tt = $cgi->th( [
+		'Delete',  'Source address', "/", "Bits",
+		'Dest IP', 'Destination Device',
+	] );
 	while ( my $hr = $sth->fetchrow_hashref ) {
-		$seen{ $hr->{ _dbx('ROUTE_SRC_IP') } } =
-		  $hr->{ _dbx('NETWORK_INTERFACE_ID') };
+		$seen{ $hr->{'ROUTE_SRC_IP'} } =
+		  $hr->{'NETWORK_INTERFACE_ID'};
 		$tt .= $self->build_existing_route_box($hr);
 	}
 
@@ -1710,7 +1622,7 @@ sub build_existing_route_box {
 	my $del      = $cgi->b("ADD");
 	my $int_name = "";
 	if ($hr) {
-		my $id = $hr->{ _dbx('STATIC_ROUTE_ID') };
+		my $id = $hr->{'STATIC_ROUTE_ID'};
 		$del = $cgi->hidden(
 			-name    => "STATIC_ROUTE_ID_$id",
 			-default => $id
@@ -1718,25 +1630,21 @@ sub build_existing_route_box {
 		  . $self->build_checkbox( $hr, "", 'rm_STATIC_ROUTE_ID',
 			'STATIC_ROUTE_ID' );
 
-		$int_name = $cgi->td(
-			{
-				-name => 'DEST_INT_' . $hr->{ _dbx('STATIC_ROUTE_ID') }
+		$int_name = $cgi->td( {
+				-name => 'DEST_INT_' . $hr->{'STATIC_ROUTE_ID'}
 			},
-			$hr->{ _dbx('DEST_DEVICE_NAME') } . ":"
-			  . $hr->{ _dbx('DEST_INTERFACE_NAME') }
+			$hr->{'DEST_DEVICE_NAME'} . ":" . $hr->{'DEST_INTERFACE_NAME'}
 		);
 	}
 
 	$cgi->Tr(
-		$cgi->td(
-			[
-				$del,
-				$self->b_textfield(
-					{ -allow_ip0 => 1 }, $hr,
-					"ROUTE_SRC_IP", 'STATIC_ROUTE_ID'
-				),
-			]
-		),
+		$cgi->td( [
+			$del,
+			$self->b_textfield(
+				{ -allow_ip0 => 1 },
+				$hr, "ROUTE_SRC_IP", 'STATIC_ROUTE_ID'
+			),
+		] ),
 		$cgi->td(
 			$self->b_textfield( $hr, "ROUTE_DEST_IP", 'STATIC_ROUTE_ID' ),
 		),
@@ -1792,29 +1700,23 @@ sub get_device_netblock_routes {
 	my $tt = $cgi->th( [ "Add", "Route", "Dest IP", "Dest Interface", ] );
 	while ( my $hr = $sth->fetchrow_hashref ) {
 		my $x =
-			$hr->{ _dbx('SOURCE_BLOCK_IP') } . "/"
-		  . $hr->{ -dbx('SOURCE_BLOCK_BITS') };
-		if (
-			!(
-				defined( $seen->{$x} )
-				&& $seen->{$x} == $hr->{ _dbx('NETWORK_INTERFACE_ID') }
-			)
-		  )
+		  $hr->{'SOURCE_BLOCK_IP'} . "/" . $hr->{ -dbx('SOURCE_BLOCK_BITS') };
+		if ( !(
+			defined( $seen->{$x} )
+			&& $seen->{$x} == $hr->{'NETWORK_INTERFACE_ID'}
+		) )
 		{
 			$tally++;
 			$tt .= $cgi->Tr(
-				$cgi->td(
-					$self->build_checkbox(
-						$hr, "", 'add_STATIC_ROUTE_TEMPLATE_ID',
-						'STATIC_ROUTE_TEMPLATE_ID'
-					)
-				),
+				$cgi->td( $self->build_checkbox(
+					$hr, "", 'add_STATIC_ROUTE_TEMPLATE_ID',
+					'STATIC_ROUTE_TEMPLATE_ID'
+				) ),
 				$cgi->td($x),
-				$cgi->td( $hr->{ _dbx('DESTINATION_IP') } ),
+				$cgi->td( $hr->{'DESTINATION_IP'} ),
 				$cgi->td(
-					$hr->{ _dbx('DEVICE_NAME') },
-					":",
-					$hr->{ _dbx('NETWORK_INTERFACE_NAME') }
+					$hr->{'DEVICE_NAME'}, ":",
+					$hr->{'NETWORK_INTERFACE_NAME'}
 				)
 			);
 		}
@@ -1872,7 +1774,7 @@ sub dump_interfaces {
 	};
 
 	my $sth = $self->prepare($q) || $self->return_db_err($dbh);
-	$sth->execute($devid) || $self->return_db_err($sth);
+	$sth->execute($devid)        || $self->return_db_err($sth);
 
 	# Process each record and aggregate ip addresses and dns record
 
@@ -1891,13 +1793,13 @@ sub dump_interfaces {
 		last if ( !defined($values) );
 
 		# Build a hash of the dns properties
-		if ( $values->{'dns_record_id'} ) {
+		if ( $values->{'DNS_RECORD_ID'} ) {
 			%dns = (
-				'dns_record_id'       => $values->{'dns_record_id'},
-				'dns_name'            => $values->{'dns_name'},
-				'dns_domain_id'       => $values->{'dns_domain_id'},
-				'soa_name'            => $values->{'soa_name'},
-				'should_generate_ptr' => $values->{'should_generate_ptr'},
+				'DNS_RECORD_ID'       => $values->{'DNS_RECORD_ID'},
+				'DNS_NAME'            => $values->{'DNS_NAME'},
+				'DNS_DOMAIN_ID'       => $values->{'DNS_DOMAIN_ID'},
+				'SOA_NAME'            => $values->{'SOA_NAME'},
+				'SHOULD_GENERATE_PTR' => $values->{'SHOULD_GENERATE_PTR'},
 			);
 		} else {
 			%dns = ();
@@ -1910,17 +1812,23 @@ sub dump_interfaces {
 				$hInterface{$_} = $values->{$_};
 			}
 
-			# If we have an ip address (it can be null), remember it
-			if ( $values->{ _dbx('IP') } ) {
-				$hIpAddress{'network_interface_id'} = $values->{ _dbx('network_interface_id') };
-				$hIpAddress{'netblock_id'} = $values->{ _dbx('netblock_id') };
-				$hIpAddress{'ip'}          = $values->{ _dbx('IP') };
-				# If we have a vlan in the device netblocks, add it, as well as the parent netblock giving us the vlan (vlan_netblock_id), the layer2 id and the layer3 id
-				if ( $device_netblocks->{ $values->{ _dbx('netblock_id') } } ) {
-					$hIpAddress{'encapsulation_domain'} = $device_netblocks->{ $values->{ _dbx('netblock_id') } }->{'encapsulation_domain'};
-					$hIpAddress{'vlan'} = $device_netblocks->{ $values->{ _dbx('netblock_id') } }->{'vlan'};
-					$hIpAddress{'vlan_netblock_id'} = $device_netblocks->{ $values->{ _dbx('netblock_id') } }->{'vlan_netblock_id'};
-					$hIpAddress{'l2id'} = $device_netblocks->{ $values->{ _dbx('netblock_id') } }->{'l2id'};
+		# If we have an ip address (it can be null), remember it
+		if ( $values->{'IP'} ) {
+			$hIpAddress{'NETWORK_INTERFACE_ID'} =
+			  $values->{'NETWORK_INTERFACE_ID'};
+			$hIpAddress{'NETBLOCK_ID'} = $values->{'NETBLOCK_ID'};
+			$hIpAddress{'IP'}          = $values->{'IP'};				# If we have a vlan in the device netblocks, add it, as well as the parent netblock giving us the vlan (vlan_netblock_id), the layer2 id and the layer3 id
+				if ( $device_netblocks->{ $values->{'NETBLOCK_ID'} } ) {
+					$hIpAddress{'ENCAPSULATION_DOMAIN'} =
+					  $device_netblocks->{ $values->{'NETBLOCK_ID'} }
+					  ->{'encapsulation_domain'};
+					$hIpAddress{'VLAN'} =
+					  $device_netblocks->{ $values->{'NETBLOCK_ID'} }->{'vlan'};
+					$hIpAddress{'VLAN_NETBLOCK_ID'} =
+					  $device_netblocks->{ $values->{'NETBLOCK_ID'} }
+					  ->{'vlan_netblock_id'};
+					$hIpAddress{'L2ID'} =
+					  $device_netblocks->{ $values->{'NETBLOCK_ID'} }->{'l2id'};
 				}
 			}
 
@@ -1928,40 +1836,37 @@ sub dump_interfaces {
 		} else {
 
 			# If the interface has changed or if the ip address has changed
-			if (
-				(
-					$last_interface_id !=
-					$values->{ _dbx('NETWORK_INTERFACE_ID') }
-				)
-				or ( $last_ip_address ne $values->{ _dbx('IP') } )
-			  )
+			if (   ( $last_interface_id != $values->{'NETWORK_INTERFACE_ID'} )
+				or ( $last_ip_address ne $values->{'IP'} ) )
 			{
 				if (%hIpAddress) {
 					push( @{ $hInterface{'ip_addresses'} }, {%hIpAddress} );
 				}
 
-				# Empty and populate the current ip address with the new record data
-				%hIpAddress = ();
-				if ( $values->{ _dbx('IP') } ) {
-					$hIpAddress{'network_interface_id'} =
-					  $values->{ _dbx('network_interface_id') };
-					$hIpAddress{'netblock_id'} =
-					  $values->{ _dbx('netblock_id') };
-					$hIpAddress{'ip'} = $values->{ _dbx('IP') };
-					# If we have a vlan in the device netblocks, add it, as well as the parent netblock giving us the vlan (vlan_netblock_id), the layer2 id and the layer3 id
-					if ( $device_netblocks->{ $values->{ _dbx('netblock_id') } } ) {
-						$hIpAddress{'encapsulation_domain'} = $device_netblocks->{ $values->{ _dbx('netblock_id') } }->{'encapsulation_domain'};
-						$hIpAddress{'vlan'} = $device_netblocks->{ $values->{ _dbx('netblock_id') } }->{'vlan'};
-						$hIpAddress{'vlan_netblock_id'} = $device_netblocks->{ $values->{ _dbx('netblock_id') } }->{'vlan_netblock_id'};
-						$hIpAddress{'l2id'} = $device_netblocks->{ $values->{ _dbx('netblock_id') } }->{'l2id'};
-					}
+			# Empty and populate the current ip address with the new record data
+			%hIpAddress = ();
+			if ( $values->{'IP'} ) {
+				$hIpAddress{'NETWORK_INTERFACE_ID'} =
+				  $values->{'NETWORK_INTERFACE_ID'};
+				$hIpAddress{'NETBLOCK_ID'} = $values->{'NETBLOCK_ID'};
+			$hIpAddress{'IP'}          = $values->{'IP'};					# If we have a vlan in the device netblocks, add it, as well as the parent netblock giving us the vlan (vlan_netblock_id), the layer2 id and the layer3 id
+				if ( $device_netblocks->{ $values->{'NETBLOCK_ID'} } ) {
+					$hIpAddress{'ENCAPSULATION_DOMAIN'} =
+					  $device_netblocks->{ $values->{'NETBLOCK_ID'} }
+					  ->{'encapsulation_domain'};
+					$hIpAddress{'VLAN'} =
+					  $device_netblocks->{ $values->{'NETBLOCK_ID'} }
+					  ->{'vlan'};
+					$hIpAddress{'VLAN_NETBLOCK_ID'} =
+					  $device_netblocks->{ $values->{'NETBLOCK_ID'} }
+					  ->{'vlan_netblock_id'};
+					$hIpAddress{'L2ID'} =
+					  $device_netblocks->{ $values->{'NETBLOCK_ID'} }
+					  ->{'l2id'};
 				}
 			}
-
-			# If the interface has changed, save it for later processing
-			if ( $last_interface_id !=
-				$values->{ _dbx('NETWORK_INTERFACE_ID') } )
-			{
+		}			# If the interface has changed, save it for later processing
+			if ( $last_interface_id != $values->{'NETWORK_INTERFACE_ID'} ) {
 				push( @aInterfaces, {%hInterface} );
 
 				# Empty and populate the current interface with the new record data
@@ -1973,16 +1878,16 @@ sub dump_interfaces {
 		}
 
 		# Add the dns record hash to the current ip
-		if ( $values->{'dns_record_id'} ) {
+		if ( $values->{'DNS_RECORD_ID'} ) {
 			push( @{ $hIpAddress{'dns_records'} }, {%dns} );
 		}
 
-		$last_interface_id = $values->{ _dbx('NETWORK_INTERFACE_ID') };
-		$last_ip_address   = $values->{ _dbx('IP') };
-	} # End of loop on interfaces
+		$last_interface_id = $values->{'NETWORK_INTERFACE_ID'};
+		$last_ip_address   = $values->{'IP'};
+	}    # End of loop on interfaces
 
 	# Save the last interface - if there is one
-	if( %hInterface ) {
+	if (%hInterface) {
 		if (%hIpAddress) {
 			push( @{ $hInterface{'ip_addresses'} }, {%hIpAddress} );
 		}
@@ -2025,8 +1930,6 @@ sub dump_interfaces {
 	$rv;
 }
 
-
-
 #
 # Function used to get the device netblocks and their associated VLAN, if any
 #
@@ -2063,22 +1966,20 @@ sub get_netblocks_vlans {
 	while ( my $hr = $sth->fetchrow_hashref ) {
 
 		# Collect data in array as device_netblocks[netblock_id] = { 'netblock_id' => 111111, ip_address => '1.2.3.4', parent_netblock_id => 222222, vlan => encapsulation_name }
-		$device_netblocks->{ $hr->{ _dbx('netblock_id') } } = {
-			'netblock_id'          => $hr->{ _dbx('netblock_id') },
-			'ip_address'           => $hr->{ _dbx('ip_address') },
-			'parent_netblock_id'   => $hr->{ _dbx('parent_netblock_id') },
-			'encapsulation_domain' => $hr->{ _dbx('encapsulation_domain') },
-			'vlan'                 => $hr->{ _dbx('encapsulation_name') },
-			'is_single_address'    => $hr->{ _dbx('is_single_address') },
-			'description'          => $hr->{ _dbx('description') },
-			'l2id'                 => $hr->{ _dbx('l2id') },
+		$device_netblocks->{ $hr->{'NETBLOCK_ID'} } = {
+			'netblock_id'          => $hr->{'NETBLOCK_ID'},
+			'ip_address'           => $hr->{'IP_ADDRESS'},
+			'parent_netblock_id'   => $hr->{'PARENT_NETBLOCK_ID'},
+			'encapsulation_domain' => $hr->{'ENCAPSULATION_DOMAIN'},
+			'vlan'                 => $hr->{'ENCAPSULATION_NAME'},
+			'is_single_address'    => $hr->{'IS_SINGLE_ADDRESS'},
+			'description'          => $hr->{'DESCRIPTION'},
+			'l2id'                 => $hr->{'L2ID'},
 		};
 	}
 
 	$device_netblocks;
 }
-
-
 
 #
 # passed a $values (network_interface row ++) and a deviceid , print the
@@ -2091,8 +1992,8 @@ sub build_network_interface_purpose_table($$) {
 
 	my $name = 'NETWORK_INTERFACE_PURPOSE';
 
-	if ( defined( $values->{ _dbx('network_interface_id') } ) ) {
-		$name .= "_" . $values->{ _dbx('network_interface_id') };
+	if ( defined( $values->{'NETWORK_INTERFACE_ID'} ) ) {
+		$name .= "_" . $values->{'NETWORK_INTERFACE_ID'};
 	} else {
 		$name .= '_new';
 	}
@@ -2112,7 +2013,7 @@ sub build_network_interface_purpose_table($$) {
 	}
 	) || return $self->return_db_err();
 
-	$sth->execute( $values->{ _dbx('network_interface_id') } )
+	$sth->execute( $values->{'NETWORK_INTERFACE_ID'} )
 	  || return $self->return_db_err($sth);
 
 	my ( @options, @set, %labels );
@@ -2148,14 +2049,14 @@ sub build_network_interface_box {
 	my $iNetworkInterfaceId = 'new';
 
 	# Is this a new interface?
-	if ( !defined( $values->{'network_interface_id'} ) ) {
+	if ( !defined( $values->{'NETWORK_INTERFACE_ID'} ) ) {
 
 		# More table heckboxes are selected by default for new interfaces
 		$defchecked = 'on';
 
 		# No, we have a valid network interface passed as parameter
 	} else {
-		$iNetworkInterfaceId = $values->{'network_interface_id'};
+		$iNetworkInterfaceId = $values->{'NETWORK_INTERFACE_ID'};
 	}
 
 	# Define a CSS class for all elements related to the network interface
@@ -2163,26 +2064,23 @@ sub build_network_interface_box {
 	my $strClassNetworkInterfaceId =
 	  'id_network_interface_' . $iNetworkInterfaceId;
 
-	my $strHiddenNetworkInterface = $cgi->input(
-		{
-			-type  => 'hidden',
-			-id    => 'NETWORK_INTERFACE_ID_' . $iNetworkInterfaceId,
-			-name  => 'NETWORK_INTERFACE_ID_' . $iNetworkInterfaceId,
-			-value => 'NETWORK_INTERFACE_ID_' . $iNetworkInterfaceId,
-		}
-	);
+	my $strHiddenNetworkInterface = $cgi->input( {
+		-type  => 'hidden',
+		-id    => 'NETWORK_INTERFACE_ID_' . $iNetworkInterfaceId,
+		-name  => 'NETWORK_INTERFACE_ID_' . $iNetworkInterfaceId,
+		-value => $iNetworkInterfaceId,
+	} );
 
 	my $strNetIntButtonState = $self->cgi_parse_param(
 		'NETWORK_INTERFACE_TOGGLE_' . $iNetworkInterfaceId );
 	$strNetIntButtonState =
 	  $strNetIntButtonState eq '' ? 'update' : $strNetIntButtonState;
-	my $strNetIntButton = $cgi->button(
-		{
-			-type => 'button',
+	my $strNetIntButton = $cgi->button( {
+			-type  => 'button',
 			-class =>
 			  "button_switch parent_level_none level_network_interface $strClassNetworkInterfaceId",
-			-id   => 'NETWORK_INTERFACE_TOGGLE_' . $iNetworkInterfaceId,
-			-name => 'NETWORK_INTERFACE_TOGGLE_' . $iNetworkInterfaceId,
+			-id    => 'NETWORK_INTERFACE_TOGGLE_' . $iNetworkInterfaceId,
+			-name  => 'NETWORK_INTERFACE_TOGGLE_' . $iNetworkInterfaceId,
 			-title =>
 			  'Switch between update and delete modes for this Network Interface',
 			-state   => $strNetIntButtonState,
@@ -2195,9 +2093,8 @@ sub build_network_interface_box {
 		'NETWORK_INTERFACE_TOGGLE_' . $iNetworkInterfaceId );
 	$strNewNetIntButtonState =
 	  $strNewNetIntButtonState eq '' ? 'update' : $strNewNetIntButtonState;
-	my $strNewNetIntButton = $cgi->button(
-		{
-			-type => 'button',
+	my $strNewNetIntButton = $cgi->button( {
+			-type  => 'button',
 			-class =>
 			  "button_switch parent_level_none level_network_interface $strClassNetworkInterfaceId",
 			-id    => 'NETWORK_INTERFACE_TOGGLE_new',
@@ -2210,49 +2107,46 @@ sub build_network_interface_box {
 	);
 
 	my $pk                      = "NETWORK_INTERFACE_ID";
-	my $strNetworkInterfaceName = $self->b_textfield(
-		{
+	my $strNetworkInterfaceName = $self->b_textfield( {
 			-class =>
 			  "tracked parent_level_none level_network_interface $strClassNetworkInterfaceId",
 			-placeholder => ( $iNetworkInterfaceId eq 'new' )
-				? 'Enter new name'
-				: '',
+			? 'Enter new name'
+			: '',
 			-textfield_width => 12,
 			-original        => (
 				$iNetworkInterfaceId eq 'new'
-				  or !defined( $values->{ _dbx('NETWORK_INTERFACE_NAME') } )
-			) ? '' : $values->{ _dbx('NETWORK_INTERFACE_NAME') },
+				  or !defined( $values->{'NETWORK_INTERFACE_NAME'} )
+			) ? '' : $values->{'NETWORK_INTERFACE_NAME'},
 		},
 		$values,
 		'NETWORK_INTERFACE_NAME',
 		$pk
 	);
 
-	my $strNetworkInterfaceType = $self->b_dropdown(
-		{
+	my $strNetworkInterfaceType = $self->b_dropdown( {
 			-class =>
 			  "tracked parent_level_none level_network_interface $strClassNetworkInterfaceId",
 			-original => (
 				$iNetworkInterfaceId eq 'new'
-				  or !defined( $values->{ _dbx('NETWORK_INTERFACE_TYPE') } )
-			) ? '__unknown__' : $values->{ _dbx('NETWORK_INTERFACE_TYPE') },
+				  or !defined( $values->{'NETWORK_INTERFACE_TYPE'} )
+			) ? '__unknown__' : $values->{'NETWORK_INTERFACE_TYPE'},
 		},
 		$values,
 		'NETWORK_INTERFACE_TYPE',
 		$pk
 	);
 
-	my $strNetworkInterfaceMAC = $self->b_textfield(
-		{
+	my $strNetworkInterfaceMAC = $self->b_textfield( {
 			-class =>
 			  "tracked parent_level_none level_network_interface $strClassNetworkInterfaceId",
 			-placeholder => ( $iNetworkInterfaceId eq 'new' )
-				? 'Enter new MAC'
-				: '',
+			? 'Enter new MAC'
+			: '',
 			-original => (
 				$iNetworkInterfaceId eq 'new'
-				  or !defined( $values->{ _dbx('MAC_ADDR') } )
-			) ? '' : $values->{ _dbx('MAC_ADDR') },
+				  or !defined( $values->{'MAC_ADDR'} )
+			) ? '' : $values->{'MAC_ADDR'},
 		},
 		$values,
 		'MAC_ADDR',
@@ -2260,8 +2154,7 @@ sub build_network_interface_box {
 	);
 
 	# The More table for the network interface
-	my $strTableMore = $cgi->Tr(
-		{
+	my $strTableMore = $cgi->Tr( {
 			-name  => 'more_expand_content_' . $iNetworkInterfaceId,
 			-class => 'irrelevant',
 			-style => 'border-top: 1px solid gray',
@@ -2269,12 +2162,11 @@ sub build_network_interface_box {
 		$cgi->th(),
 		$cgi->th(
 			'<br/><b>Up</b><br/>',
-			$self->build_checkbox(
-				{
+			$self->build_checkbox( {
 					-class    => "tracked $strClassNetworkInterfaceId",
 					-original => (
 							 $iNetworkInterfaceId eq 'new'
-						  or $values->{ _dbx('IS_INTERFACE_UP') } eq 'Y'
+						  or $values->{'IS_INTERFACE_UP'} eq 'Y'
 					) ? 'checked' : '',
 				},
 				$values, "",
@@ -2285,12 +2177,11 @@ sub build_network_interface_box {
 		),
 		$cgi->th(
 			'<b>Should<br/>Manage</b><br/>',
-			$self->build_checkbox(
-				{
+			$self->build_checkbox( {
 					-class    => 'tracked',
 					-original => (
 							 $iNetworkInterfaceId eq 'new'
-						  or $values->{ _dbx('SHOULD_MANAGE') } eq 'Y'
+						  or $values->{'SHOULD_MANAGE'} eq 'Y'
 					) ? 'checked' : '',
 				},
 				$values, "",
@@ -2301,12 +2192,11 @@ sub build_network_interface_box {
 		),
 		$cgi->th(
 			'<b>Should<br/>Monitor</b><br/>',
-			$self->build_checkbox(
-				{
+			$self->build_checkbox( {
 					-class    => 'tracked',
 					-original => (
 							 $iNetworkInterfaceId eq 'new'
-						  or $values->{ _dbx('SHOULD_MONITOR') } eq 'Y'
+						  or $values->{'SHOULD_MONITOR'} eq 'Y'
 					) ? 'checked' : '',
 				},
 				$values, "",
@@ -2321,18 +2211,17 @@ sub build_network_interface_box {
 		),
 		$cgi->th(
 			'<b>Description</b><br/>',
-			$cgi->textarea(
-				{
+			$cgi->textarea( {
 					-id => "NETWORK_INTERFACE_DESCRIPTION_$iNetworkInterfaceId",
 					-name =>
 					  "NETWORK_INTERFACE_DESCRIPTION_$iNetworkInterfaceId",
 					-class    => "tracked $strClassNetworkInterfaceId",
 					-rows     => 4,
 					-columns  => 60,
-					-original => $values->{ _dbx('DESCRIPTION') },
-					-default  => $values->{ _dbx('DESCRIPTION') },
+					-original => $values->{'DESCRIPTION'},
+					-default  => $values->{'DESCRIPTION'},
 				},
-				$values->{ _dbx('DESCRIPTION') },
+				$values->{'DESCRIPTION'},
 			)
 		),
 		$cgi->th()
@@ -2348,8 +2237,7 @@ sub build_network_interface_box {
 	my $iRowSpan = $iNumNetblocks + 1;
 
 	# Make the extras something that can be clicked on and expanded
-	my $strTdMoreExpand = $cgi->td(
-		{
+	my $strTdMoreExpand = $cgi->td( {
 			-rowspan => $iRowSpan,
 			-class   => 'more_expand_td_' . $iNetworkInterfaceId
 		},
@@ -2362,11 +2250,9 @@ sub build_network_interface_box {
 	# And iterate once more at the end for the new ip template
 	my $strNetworkInterface;
 
-  # Add a separator
-	$strNetworkInterface .= $cgi->Tr(
-		{ -class => 'horizontal_separator' },
-		$cgi->td( { -class => 'horizontal_separator', -colspan => 7 }, '' )
-	);
+	# Add a separator
+	$strNetworkInterface .= $cgi->Tr( { -class => 'horizontal_separator' },
+		$cgi->td( { -class => 'horizontal_separator', -colspan => 7 }, '' ) );
 
 	foreach my $i ( 0 .. ($iNumNetblocks) ) {
 
@@ -2378,17 +2264,20 @@ sub build_network_interface_box {
 		# For all existing netblocks...
 		if ( $i < $iNumNetblocks ) {
 			$hIPAddress  = @{ $values->{'ip_addresses'} }[$i];
-			$iNetblockId = $hIPAddress->{'netblock_id'};
+			$iNetblockId = $hIPAddress->{'NETBLOCK_ID'};
+
 			# Get ip address VLAN value
 			# Use the l2id field to build a link to the Layer2 network page
 			#print( Dumper( $hIPAddress ));
-			if( $hIPAddress->{'l2id'} ) {
-				$strVLAN = $cgi->a(
-					{
-						-href => "/network/l2/?LAYER2_NETWORK_ID=" . $hIPAddress->{'l2id'},
-						-title => "Go to Layer2 ".$hIPAddress->{'encapsulation_domain'}.':'.$hIPAddress->{'vlan'},
+			if ( $hIPAddress->{'L2ID'} ) {
+				$strVLAN = $cgi->a( {
+						-href => "/network/l2/?LAYER2_NETWORK_ID="
+						  . $hIPAddress->{'L2ID'},
+						-title => "Go to Layer2 "
+						  . $hIPAddress->{'ENCAPSULATION_DOMAIN'} . ':'
+						  . $hIPAddress->{'VLAN'},
 						-target => "_blank",
-						-class => "goto-link",
+						-class  => "goto-link",
 					},
 					'>>'
 				);
@@ -2398,9 +2287,9 @@ sub build_network_interface_box {
 
 			# ... and for the last iteration of the loop applying to the new ip addition template
 		} else {
-			$hIPAddress->{'network_interface_id'} = $iNetworkInterfaceId;
-			$hIPAddress->{'netblock_id'}          = 'new';
-			$hIPAddress->{'ip'}                   = '';
+			$hIPAddress->{'NETWORK_INTERFACE_ID'} = $iNetworkInterfaceId;
+			$hIPAddress->{'NETBLOCK_ID'}          = 'new';
+			$hIPAddress->{'IP'}                   = '';
 			$iNetblockId                          = 'new';
 		}
 
@@ -2411,9 +2300,8 @@ sub build_network_interface_box {
 			'NETBLOCK_TOGGLE_' . $iNetworkInterfaceId . '_' . $iNetblockId );
 		$strNetblockButtonState =
 		  $strNetblockButtonState eq '' ? 'update' : $strNetblockButtonState;
-		my $strNetblockButton = $cgi->button(
-			{
-				-type => 'button',
+		my $strNetblockButton = $cgi->button( {
+				-type  => 'button',
 				-class =>
 				  "button_switch parent_level_network_interface level_netblock $strClassNetworkInterfaceId $strClassNetblockId",
 				-id => 'NETBLOCK_TOGGLE_'
@@ -2436,9 +2324,8 @@ sub build_network_interface_box {
 		  $strNewNetblockButtonState eq ''
 		  ? 'update'
 		  : $strNewNetblockButtonState;
-		my $strNewNetblockButton = $cgi->button(
-			{
-				-type => 'button',
+		my $strNewNetblockButton = $cgi->button( {
+				-type  => 'button',
 				-class =>
 				  "button_switch parent_level_network_interface level_netblock $strClassNetworkInterfaceId $strClassNetblockId",
 				-id => 'NETBLOCK_TOGGLE_'
@@ -2453,28 +2340,26 @@ sub build_network_interface_box {
 			},
 			'new'
 		);
-		my $strIP = $self->b_textfield(
-			{
-				-type => 'text',
+		my $strIP = $self->b_textfield( {
+				-type  => 'text',
 				-class =>
 				  "tracked parent_level_network_interface level_netblock $strClassNetworkInterfaceId $strClassNetblockId",
 				-placeholder => ( $iNetblockId eq 'new' )
 				? 'Enter new IP address'
 				: 'Use button to delete IP',
 				-textfield_width => 25,
-				-original        => $hIPAddress->{'ip'},
+				-original        => $hIPAddress->{'IP'},
 			},
 			$hIPAddress,
-			'ip',
-			[ 'network_interface_id', 'netblock_id' ]
+			'IP',
+			[ 'NETWORK_INTERFACE_ID', 'NETBLOCK_ID' ]
 		);
 		my $strDNS = $self->build_dns_box( $hIPAddress->{'dns_records'},
-			$devid, $iNetworkInterfaceId, $iNetblockId, $hIPAddress->{'ip'} );
+			$devid, $iNetworkInterfaceId, $iNetblockId, $hIPAddress->{'IP'} );
 
 		# This is the first netblock line in the table, and we do have at least one associated netblock to display
 		if ( $i == 0 && $iNumNetblocks > 0 ) {
-			$strNetworkInterface .= $cgi->Tr(
-				{
+			$strNetworkInterface .= $cgi->Tr( {
 					-class => $strClassNetworkInterfaceId
 					  . ' network_interface_first_line',
 				},
@@ -2497,15 +2382,14 @@ sub build_network_interface_box {
 		} elsif ( $i == 0 && $iNumNetblocks == 0 ) {
 
 			# Set intadd class if it's the template to add a new network interface
-			my $tr_int_class = 'network_interface_first_line network_interface_last_line';
-			$strNetworkInterface .= $cgi->Tr(
-				{
+			my $tr_int_class =
+			  'network_interface_first_line network_interface_last_line';
+			$strNetworkInterface .= $cgi->Tr( {
 					-class => $strClassNetworkInterfaceId . ' ' . $tr_int_class,
 				},
 
 				# Note: delete button is not added for new interfaces
-				$cgi->td(
-					{
+				$cgi->td( {
 						-rowspan => $iRowSpan,
 						title    => 'Add new interface',
 						alt      => 'Add new interface'
@@ -2530,8 +2414,10 @@ sub build_network_interface_box {
 
 			# This is the first line coming just after the last associated netblock has been displayed, so that's the template to add an ip address
 		} elsif ( $i == $iNumNetblocks ) {
-			$strNetworkInterface .= $cgi->Tr(
-				{ -class => $strClassNetworkInterfaceId.' network_interface_last_line' },
+			$strNetworkInterface .= $cgi->Tr( {
+					-class => $strClassNetworkInterfaceId
+					  . ' network_interface_last_line'
+				},
 				$cgi->td(
 					{ -class => $strClassNetblockId },
 					$strNewNetblockButton . $strIP
@@ -2585,18 +2471,18 @@ sub build_dns_box {
 		# Loop on dns records
 		foreach my $dns_record ( @{$dns_records} ) {
 
-			my $dns_record_id = $dns_record->{'dns_record_id'};
+			my $dns_record_id = $dns_record->{'DNS_RECORD_ID'};
 			$strClassDnsRecordId = 'id_dns_record_' . $dns_record_id;
 
 			my $dot = "";
-			if ( $dns_record->{'dns_name'} ) {
+			if ( $dns_record->{'DNS_NAME'} ) {
 				$dot = ".";
 			}
 
 			# Populate the dns domain dropdown with the previous value after a failed update
-			my @dns_domain_id_values = ( $dns_record->{'dns_domain_id'}, '-1' );
+			my @dns_domain_id_values = ( $dns_record->{'DNS_DOMAIN_ID'}, '-1' );
 			my %dns_domain_id_labels = (
-				$dns_record->{'dns_domain_id'} => $dns_record->{'soa_name'},
+				$dns_record->{'DNS_DOMAIN_ID'} => $dns_record->{'SOA_NAME'},
 				'-1'                           => '--Unset--'
 			);
 			my $dns_domain_id_new =
@@ -2609,7 +2495,7 @@ sub build_dns_box {
 			if (    defined($dns_domain_id_new)
 				and $dns_domain_id_new ne ''
 				and $dns_domain_id_new ne '-1'
-				and $dns_domain_id_new ne $dns_record->{'dns_domain_id'} )
+				and $dns_domain_id_new ne $dns_record->{'DNS_DOMAIN_ID'} )
 			{
 				# Get the domain name corresponding to the id from the database
 				my $sth = $self->prepare(
@@ -2631,56 +2517,47 @@ sub build_dns_box {
 				}
 			}
 
-			my $dns_text_name = $cgi->textfield(
-				{
-					-type => 'text',
-					-class =>
-					  "tracked dnsname parent_level_netblock level_dns_record $strClassNetworkInterfaceId $strClassNetblockId $strClassDnsRecordId",
-					-name => 'DNS_NAME_'
-					  . $iNetworkInterfaceId . '_'
-					  . $iNetblockId . '_'
-					  . $dns_record_id,
-					-value       => $dns_record->{'dns_name'},
-					-original    => $dns_record->{'dns_name'},
-					-placeholder => "DNS name can't be empty",
-				}
-			);
+			my $dns_text_name = $cgi->textfield( {
+				-type  => 'text',
+				-class =>
+				  "tracked dnsname parent_level_netblock level_dns_record $strClassNetworkInterfaceId $strClassNetblockId $strClassDnsRecordId",
+				-name => 'DNS_NAME_'
+				  . $iNetworkInterfaceId . '_'
+				  . $iNetblockId . '_'
+				  . $dns_record_id,
+				-value       => $dns_record->{'DNS_NAME'},
+				-original    => $dns_record->{'DNS_NAME'},
+				-placeholder => "DNS name can't be empty",
+			} );
 
-			my $dns_dropdown_domainid = $cgi->popup_menu(
-				{
-					-name => 'DNS_DOMAIN_ID_'
-					  . $iNetworkInterfaceId . '_'
-					  . $iNetblockId . '_'
-					  . $dns_record_id,
-					-class =>
-					  "tracked dnsdomain parent_level_netblock level_dns_record $strClassNetworkInterfaceId $strClassNetblockId $strClassDnsRecordId",
-					-values   => \@dns_domain_id_values,
-					-labels   => \%dns_domain_id_labels,
-					-default  => $dns_record->{'dns_domain_id'},
-					-original => $dns_record->{'dns_domain_id'},
-				}
-			);
+			my $dns_dropdown_domainid = $cgi->popup_menu( {
+				-name => 'DNS_DOMAIN_ID_'
+				  . $iNetworkInterfaceId . '_'
+				  . $iNetblockId . '_'
+				  . $dns_record_id,
+				-class =>
+				  "tracked dnsdomain parent_level_netblock level_dns_record $strClassNetworkInterfaceId $strClassNetblockId $strClassDnsRecordId",
+				-values   => \@dns_domain_id_values,
+				-labels   => \%dns_domain_id_labels,
+				-default  => $dns_record->{'DNS_DOMAIN_ID'},
+				-original => $dns_record->{'DNS_DOMAIN_ID'},
+			} );
 
-			my $dns_hidden_domainid = $cgi->hidden(
-				{
-					-class    => 'dnsdomainid',
-					-name     => '',
-					-value    => $dns_record->{'dns_domain_id'},
-					-disabled => 1
-				}
-			);
+			my $dns_hidden_domainid = $cgi->hidden( {
+				-class    => 'dnsdomainid',
+				-name     => '',
+				-value    => $dns_record->{'DNS_DOMAIN_ID'},
+				-disabled => 1
+			} );
 
-			my $dns_hidden_recordid = $cgi->hidden(
-				{
-					-class    => 'dnsrecordid',
-					-name     => '',
-					-value    => $dns_record_id,
-					-disabled => 1
-				}
-			);
+			my $dns_hidden_recordid = $cgi->hidden( {
+				-class    => 'dnsrecordid',
+				-name     => '',
+				-value    => $dns_record_id,
+				-disabled => 1
+			} );
 
-			my $dns_link_bluearrow = $cgi->a(
-				{
+			my $dns_link_bluearrow = $cgi->a( {
 					-class => 'dnsref',
 					-href  => 'javascript:void(null)',
 					-style => 'display: inline-flex; width: 30px;'
@@ -2688,8 +2565,7 @@ sub build_dns_box {
 				$dns_hidden_recordid
 			);
 
-			$dnsline = $cgi->td(
-				{
+			$dnsline = $cgi->td( {
 					-style => 'text-align: left'
 				},
 				$cgi->span(
@@ -2707,10 +2583,9 @@ sub build_dns_box {
 				  . $iNetblockId . '_'
 				  . $dns_record_id );
 			$strDnsButtonState =
-			  $strDnsButtonState eq '' ? 'update' : $strDnsButtonState;
-			my $strDnsButton = $cgi->button(
-				{
-					-type => 'button',
+			  !defined($strDnsButtonState) || $strDnsButtonState eq '' ? 'update' : $strDnsButtonState;
+			my $strDnsButton = $cgi->button( {
+					-type  => 'button',
 					-class =>
 					  "button_switch parent_level_netblock level_dns_record $strClassNetworkInterfaceId $strClassNetblockId $strClassDnsRecordId",
 					-id => 'DNS_TOGGLE_'
@@ -2731,19 +2606,13 @@ sub build_dns_box {
 			);
 
 			# Prepare a hidden line for the additional DNS records
-			my $dns_tr_refrecords = $cgi->Tr(
-				$cgi->td(
-					{
-						-colspan => 2,
-					},
-					$cgi->div(
-						{
-							-class => 'irrelevant dnsrefcontent_'
-							  . $dns_record_id
-						}
-					)
-				)
-			);
+			my $dns_tr_refrecords = $cgi->Tr( $cgi->td( {
+					-colspan => 2,
+				},
+				$cgi->div( {
+					-class => 'irrelevant dnsrefcontent_' . $dns_record_id
+				} )
+			) );
 
 			# Prepare the attributes for the DNS PTR radio element
 			my $hPTRRadioAttributes = {
@@ -2785,12 +2654,12 @@ sub build_dns_box {
 				}
 
 				# We have no previous value, let's apply the status from the database
-			} elsif ( $dns_record->{'should_generate_ptr'} eq 'Y' ) {
+			} elsif ( $dns_record->{'SHOULD_GENERATE_PTR'} eq 'Y' ) {
 				$hPTRRadioAttributes->{'-checked'} = 'on';
 			}
 
 			# The 'original' custom attribute always defautls to the database value
-			if ( $dns_record->{'should_generate_ptr'} eq 'Y' ) {
+			if ( $dns_record->{'SHOULD_GENERATE_PTR'} eq 'Y' ) {
 				$hPTRRadioAttributes->{'-original'} = 'checked';
 			} else {
 				$hPTRRadioAttributes->{'-original'} = '';
@@ -2813,9 +2682,8 @@ sub build_dns_box {
 			  . '_new' );
 		$strNewDnsButtonState =
 		  $strNewDnsButtonState eq '' ? 'update' : $strNewDnsButtonState;
-		$strNewDnsButton = $cgi->button(
-			{
-				-type => 'button',
+		$strNewDnsButton = $cgi->button( {
+				-type  => 'button',
 				-class =>
 				  "button_switch parent_level_netblock level_dns_record $strClassNetworkInterfaceId $strClassNetblockId id_dns_record_new",
 				-id => 'DNS_TOGGLE_'
@@ -2909,48 +2777,43 @@ sub build_dns_box {
 				$strNewDnsButton
 			  )
 			  . $cgi->td(
-				$cgi->textfield(
-					{
-						-type => 'text',
-						-class =>
-						  "tracked dnsname parent_level_netblock level_dns_record $strClassNetworkInterfaceId $strClassNetblockId id_dns_record_new",
-						-textfield_width => 20,
-						-id              => 'DNS_NAME_'
-						  . $iNetworkInterfaceId . '_'
-						  . $iNetblockId . '_new',
-						-name => 'DNS_NAME_'
-						  . $iNetworkInterfaceId . '_'
-						  . $iNetblockId . '_new',
-						-original    => '',
-						-value       => '',
-						-placeholder => 'Create new DNS record',
-					}
-				  )
+				$cgi->textfield( {
+					-type  => 'text',
+					-class =>
+					  "tracked dnsname parent_level_netblock level_dns_record $strClassNetworkInterfaceId $strClassNetblockId id_dns_record_new",
+					-textfield_width => 20,
+					-id              => 'DNS_NAME_'
+					  . $iNetworkInterfaceId . '_'
+					  . $iNetblockId . '_new',
+					-name => 'DNS_NAME_'
+					  . $iNetworkInterfaceId . '_'
+					  . $iNetblockId . '_new',
+					-original    => '',
+					-value       => '',
+					-placeholder => 'Create new DNS record',
+				} )
 
 				  #	$dns_records, "DNS_NAME", [ 'network_interface_id', 'netblock_id', 'dns_record_id' ] )
-				  . $cgi->popup_menu(
-					{
-						-class =>
-						  "tracked dnsdomain parent_level_netblock level_dns_record $strClassNetworkInterfaceId $strClassNetblockId id_dns_record_new",
-						-id => 'DNS_DOMAIN_ID_'
-						  . $iNetworkInterfaceId . '_'
-						  . $iNetblockId . '_new',
-						-name => 'DNS_DOMAIN_ID_'
-						  . $iNetworkInterfaceId . '_'
-						  . $iNetblockId . '_new',
-						-values   => \@dns_domain_id_values,
-						-original => '-1',
-						-labels   => \%dns_domain_id_labels,
-						-default  => '-1',
-					}
-				  )
+				  . $cgi->popup_menu( {
+					-class =>
+					  "tracked dnsdomain parent_level_netblock level_dns_record $strClassNetworkInterfaceId $strClassNetblockId id_dns_record_new",
+					-id => 'DNS_DOMAIN_ID_'
+					  . $iNetworkInterfaceId . '_'
+					  . $iNetblockId . '_new',
+					-name => 'DNS_DOMAIN_ID_'
+					  . $iNetworkInterfaceId . '_'
+					  . $iNetblockId . '_new',
+					-values   => \@dns_domain_id_values,
+					-original => '-1',
+					-labels   => \%dns_domain_id_labels,
+					-default  => '-1',
+				  } )
 			  )
 			  . $cgi->td( $cgi->input($hPTRNewRadioAttributes) )
 		);
 
 		# wrap all DNS lines in a table
-		$dnsbox = $cgi->table(
-			{
+		$dnsbox = $cgi->table( {
 				-width       => '100%',
 				-border      => 0,
 				-cellspacing => 0,
@@ -2965,9 +2828,9 @@ sub build_dns_box {
 	} else {
 
 		# Populate the empty dns_records array with just the keys needed to build the input fields
-		$dns_records->{'network_interface_id'} = $iNetworkInterfaceId;
-		$dns_records->{'netblock_id'}          = $iNetblockId;
-		$dns_records->{'dns_record_id'}        = 'new';
+		$dns_records->{'NETWORK_INTERFACE_ID'} = $iNetworkInterfaceId;
+		$dns_records->{'NETBLOCK_ID'}          = $iNetblockId;
+		$dns_records->{'DNS_RECORD_ID'}        = 'new';
 		$strClassDnsRecordId                   = 'id_dns_record_new';
 
 		my $strNewDnsButtonState =
@@ -2977,9 +2840,8 @@ sub build_dns_box {
 			  . '_new' );
 		$strNewDnsButtonState =
 		  $strNewDnsButtonState eq '' ? 'update' : $strNewDnsButtonState;
-		$strNewDnsButton = $cgi->button(
-			{
-				-type => 'button',
+		$strNewDnsButton = $cgi->button( {
+				-type  => 'button',
 				-class =>
 				  "button_switch parent_level_netblock level_dns_record $strClassNetworkInterfaceId $strClassNetblockId $strClassDnsRecordId",
 				-id => 'DNS_TOGGLE_'
@@ -2998,17 +2860,17 @@ sub build_dns_box {
 		# Prepare the attributes for the DNS PTR checkbox element (for new DNS record of new netblock)
 		my $hPTRNewCheckboxAttributes = {
 			-name => 'DNS_PTR_'
-			  . $dns_records->{'network_interface_id'} . '_'
-			  . $dns_records->{'netblock_id'},
+			  . $dns_records->{'NETWORK_INTERFACE_ID'} . '_'
+			  . $dns_records->{'NETBLOCK_ID'},
 			-id => 'DNS_PTR_'
-			  . $dns_records->{'network_interface_id'} . '_'
-			  . $dns_records->{'netblock_id'} . '_new',
+			  . $dns_records->{'NETWORK_INTERFACE_ID'} . '_'
+			  . $dns_records->{'NETBLOCK_ID'} . '_new',
 			-class =>
 			  "tracked dnsptr parent_level_netblock level_dns_record $strClassNetworkInterfaceId $strClassNetblockId $strClassDnsRecordId",
 			-title => 'Set PTR for this new DNS record',
 			-value => 'DNS_PTR_'
-			  . $dns_records->{'network_interface_id'} . '_'
-			  . $dns_records->{'netblock_id'} . '_new',
+			  . $dns_records->{'NETWORK_INTERFACE_ID'} . '_'
+			  . $dns_records->{'NETBLOCK_ID'} . '_new',
 			-label => '',
 		};
 
@@ -3048,8 +2910,8 @@ sub build_dns_box {
 		my %dns_domain_id_labels = ( '-1' => '--Unset--' );
 		my $dns_domain_id_new =
 		  $self->cgi_parse_param( 'DNS_DOMAIN_ID_'
-			  . $dns_records->{'network_interface_id'} . '_'
-			  . $dns_records->{'netblock_id'}
+			  . $dns_records->{'NETWORK_INTERFACE_ID'} . '_'
+			  . $dns_records->{'NETBLOCK_ID'}
 			  . '_new' );
 
 		# Do we have a previous value?
@@ -3076,8 +2938,7 @@ sub build_dns_box {
 			}
 		}
 
-		$dnsbox = $cgi->table(
-			{
+		$dnsbox = $cgi->table( {
 				-border      => 0,
 				-cellspacing => 0,
 				-cellpadding => 0,
@@ -3085,16 +2946,14 @@ sub build_dns_box {
 				-width       => '100%',
 			},
 			$cgi->Tr(
-				$cgi->td(
-					{
+				$cgi->td( {
 						title => 'Add new DNS record',
 						alt   => 'Add new DNS record'
 					},
 					$strNewDnsButton
 				  )
 				  . $cgi->td(
-					$self->b_textfield(
-						{
+					$self->b_textfield( {
 							-class =>
 							  "tracked dnsname parent_level_netblock level_dns_record $strClassNetworkInterfaceId $strClassNetblockId $strClassDnsRecordId",
 							-textfield_width => 20,
@@ -3104,28 +2963,26 @@ sub build_dns_box {
 						$dns_records,
 						"DNS_NAME",
 						[
-							'network_interface_id', 'netblock_id',
-							'dns_record_id'
+							'NETWORK_INTERFACE_ID', 'NETBLOCK_ID',
+							'DNS_RECORD_ID'
 						]
 					  )
 
 					  # The DNS domain dropdown menu will be generated by asychronous ajax calls for performance reasons
-					  . $cgi->popup_menu(
-						{
-							-class =>
-							  "tracked dnsdomain parent_level_netblock level_dns_record $strClassNetworkInterfaceId $strClassNetblockId $strClassDnsRecordId",
-							-id => 'DNS_DOMAIN_ID_'
-							  . $dns_records->{'network_interface_id'} . '_'
-							  . $dns_records->{'netblock_id'} . '_new',
-							-name => 'DNS_DOMAIN_ID_'
-							  . $dns_records->{'network_interface_id'} . '_'
-							  . $dns_records->{'netblock_id'} . '_new',
-							-values   => \@dns_domain_id_values,
-							-labels   => \%dns_domain_id_labels,
-							-default  => '-1',
-							-original => '-1',
-						}
-					  )
+					  . $cgi->popup_menu( {
+						-class =>
+						  "tracked dnsdomain parent_level_netblock level_dns_record $strClassNetworkInterfaceId $strClassNetblockId $strClassDnsRecordId",
+						-id => 'DNS_DOMAIN_ID_'
+						  . $dns_records->{'NETWORK_INTERFACE_ID'} . '_'
+						  . $dns_records->{'NETBLOCK_ID'} . '_new',
+						-name => 'DNS_DOMAIN_ID_'
+						  . $dns_records->{'NETWORK_INTERFACE_ID'} . '_'
+						  . $dns_records->{'NETBLOCK_ID'} . '_new',
+						-values   => \@dns_domain_id_values,
+						-labels   => \%dns_domain_id_labels,
+						-default  => '-1',
+						-original => '-1',
+					  } )
 					  . $cgi->span(
 						{ -style => 'display: inline-flex; width: 30px' }
 					  )    # Spacer needed to replace blue arrow
@@ -3161,13 +3018,13 @@ sub build_dns_box {
 #	my $rrt = "";
 #
 #	$sth->execute(
-#		$values->{ _dbx('NETWORK_INTERFACE_ID') },
-#		$values->{ _dbx('DNS_RECORD_ID') }
+#		$values->{'NETWORK_INTERFACE_ID'},
+#		$values->{'DNS_RECORD_ID'}
 #	);
 #	while ( my $hr = $sth->fetchrow_hashref ) {
 #		$rrt .= $cgi->Tr(
-#			$cgi->td( $hr->{ _dbx('DNS_NAME') } ),
-#			$cgi->td( $hr->{ _dbx('SOA_NAME') } ),
+#			$cgi->td( $hr->{'DNS_NAME'} ),
+#			$cgi->td( $hr->{'SOA_NAME'} ),
 #		);
 #	}
 #	$sth->finish;
@@ -3209,11 +3066,11 @@ sub device_location_print {
 
 	my $hidden = '';
 	if ($hr) {
-		my $locid = "RACK_LOCATION_ID_" . $hr->{ _dbx('RACK_LOCATION_ID') };
+		my $locid = "RACK_LOCATION_ID_" . $hr->{'RACK_LOCATION_ID'};
 		$hidden = $cgi->hidden(
 			-name  => $locid,
 			-id    => $locid,
-			-value => $hr->{ _dbx('RACK_LOCATION_ID') }
+			-value => $hr->{'RACK_LOCATION_ID'}
 		);
 	} else {
 
@@ -3228,54 +3085,49 @@ sub device_location_print {
 	my ( $rackdivid, $racksiteid );
 	my $racklink = "";
 	if (   $hr
-		&& exists( $hr->{ _dbx('LOCATION_RACK_ID') } )
-		&& $hr->{ _dbx('LOCATION_RACK_ID') } )
+		&& exists( $hr->{'LOCATION_RACK_ID'} )
+		&& $hr->{'LOCATION_RACK_ID'} )
 	{
-		my $rack =
-		  $self->get_rack_from_rackid( $hr->{ _dbx('LOCATION_RACK_ID') } );
+		my $rack = $self->get_rack_from_rackid( $hr->{'LOCATION_RACK_ID'} );
 
 		my $rackname = "";
 		foreach my $c ( 'ROOM', 'SUB_ROOM', 'RACK_ROW', 'RACK_NAME' ) {
-			if ( defined( $rack->{ _dbx($c) } ) ) {
+			if ( defined( $rack->{$c} ) ) {
 				$rackname .= "-" if ( length($rackname) );
-				$rackname .= $rack->{ _dbx($c) };
+				$rackname .= $rack->{$c};
 			}
 		}
-		my $rackid = $hr->{ _dbx('LOCATION_RACK_ID') };
-		$racklink .= $cgi->Tr(
-			$cgi->td(
-				{ -colspan => 2, -align => 'center' },
-				$cgi->a(
-					{
-						-align  => 'center',
-						-target => "stab_location_$rackid",
-						-href   => $root
-						  . "/sites/rack/?RACK_ID="
-						  . $hr->{ _dbx('LOCATION_RACK_ID') }
-					},
-					$rackname,
-				)
+		my $rackid = $hr->{'LOCATION_RACK_ID'};
+		$racklink .= $cgi->Tr( $cgi->td(
+			{ -colspan => 2, -align => 'center' },
+			$cgi->a( {
+					-align  => 'center',
+					-target => "stab_location_$rackid",
+					-href   => $root
+					  . "/sites/rack/?RACK_ID="
+					  . $hr->{'LOCATION_RACK_ID'}
+				},
+				$rackname,
 			)
-		);
-		$rackdivid  = "rack_div_" . $hr->{ _dbx('RACK_LOCATION_ID') };
-		$racksiteid = "RACK_SITE_CODE_" . $hr->{ _dbx('RACK_LOCATION_ID') };
+		) );
+		$rackdivid  = "rack_div_" . $hr->{'RACK_LOCATION_ID'};
+		$racksiteid = "RACK_SITE_CODE_" . $hr->{'RACK_LOCATION_ID'};
 	} else {
 		$rackdivid  = "rack_div";
 		$racksiteid = "RACK_SITE_CODE";
 	}
 
 	my $locid =
-	  ( $hr && $hr->{ _dbx('RACK_LOCATION_ID') } )
-	  ? $hr->{ _dbx('RACK_LOCATION_ID') }
+	  ( $hr && $hr->{'RACK_LOCATION_ID'} )
+	  ? $hr->{'RACK_LOCATION_ID'}
 	  : undef;
 
 	my $rv = $cgi->table(
 		{ -align => 'center' },
 		$hidden,
-		$self->build_tr(
-			{
-				-class => 'tracked',
-				-original => $hr->{ _dbx('RACK_SITE_CODE') } || '',
+		$self->build_tr( {
+				-class    => 'tracked',
+				-original => $hr->{'RACK_SITE_CODE'} || '',
 				-onChange =>
 				  "site_to_rack(\"$racksiteid\", \"$rackdivid\", \"dev\", $locid);"
 			},
@@ -3285,70 +3137,74 @@ sub device_location_print {
 			'RACK_SITE_CODE',
 			'RACK_LOCATION_ID'
 		),
-		$self->build_tr(
-			{
-				-class => 'tracked',
-				-original => $hr->{ _dbx('LOCATION_RACK_ID') } || '__unknown__',
-				-divWrap => $rackdivid, -dolinkUpdate => 'rack'
+		$self->build_tr( {
+				-class        => 'tracked',
+				-original     => $hr->{'LOCATION_RACK_ID'} || '__unknown__',
+				-divWrap      => $rackdivid,
+				-dolinkUpdate => 'rack'
 			},
-			$hr, "b_dropdown", "Rack", 'LOCATION_RACK_ID', 'RACK_LOCATION_ID'
+			$hr,
+			"b_dropdown",
+			"Rack",
+			'LOCATION_RACK_ID',
+			'RACK_LOCATION_ID'
 		),
+
 		# Add the RACK_TYPE (layer) as a non editable div
 		# The value will be updated by the setRackLinkRedir javascript function when the rack above is changed
 		$cgi->Tr(
-			$cgi->td(
-				{
+			$cgi->td( {
 					-valign => 'bottom',
 					-align  => 'right',
 				},
-				'<b>Rack Type</b>' ),
-			$cgi->td(
-				$cgi->div(
-					{
-						-id    => 'location_rack_type',
-					},
-					$hr->{ _dbx('RACK_TYPE') }
-				)
-			)
+				'<b>Rack Type</b>'
+			),
+			$cgi->td( $cgi->div( {
+					-id => 'location_rack_type',
+				},
+				$hr->{'RACK_TYPE'}
+			) )
 		),
-		$self->build_tr(
-			{
-				-class => 'tracked',
-				-original => $hr->{ _dbx('LOCATION_RU_OFFSET') } || '',
+		$self->build_tr( {
+				-class    => 'tracked',
+				-original => $hr->{'LOCATION_RU_OFFSET'} || '',
 			},
-			$hr,                    "b_textfield",
-			"U Offset of Top Left", 'LOCATION_RU_OFFSET',
+			$hr,
+			"b_textfield",
+			"U Offset of Top Left",
+			'LOCATION_RU_OFFSET',
 			'RACK_LOCATION_ID'
 		),
-		$self->build_tr(
-			{
-				-class => 'tracked',
-				-original => $hr->{ _dbx('LOCATION_RACK_SIDE') } || '',
+		$self->build_tr( {
+				-class    => 'tracked',
+				-original => $hr->{'LOCATION_RACK_SIDE'} || '',
 			},
-			$hr,         "b_nondbdropdown",
-			"Rack Side", 'LOCATION_RACK_SIDE',
+			$hr,
+			"b_nondbdropdown",
+			"Rack Side",
+			'LOCATION_RACK_SIDE',
 			'RACK_LOCATION_ID'
 		),
 		$racklink
 	);
 
-  # Get all rack ids and types by calling $self->get_all_rack_id_and_types()
+	# Get all rack ids and types by calling $self->get_all_rack_id_and_types()
 	# The data structure is a dictionary like this:
 	# {
-	#   '2096' => { 'rack_type' => 'networking', 'rack_id' => 2096 },
-	#   '1477' => { 'rack_id' => 1477, 'rack_type' => 'layer3' },
+	#   '2096' => { 'RACK_TYPE' => 'networking', 'RACK_ID' => 2096 },
+	#   '1477' => { 'RACK_ID' => 1477, 'RACK_TYPE' => 'layer3' },
 	#   ...
 	# }
 	my $rack_id_and_types = $self->get_all_rack_id_and_types();
+
 	# Loop on the dictionary and store the data in a javascript variable inside a script tag
 	# The javascript variable will be used to populate the rack type divs
-	$rv .= $cgi->script(
-		{
-			-class => 'deferred',
-			-type => 'text/javascript',
-			"-data-code" => "var rackTypes = " . ( encode_json $rack_id_and_types ) . ";"
-		}
-	);
+	$rv .= $cgi->script( {
+		-class       => 'deferred',
+		-type        => 'text/javascript',
+		"-data-code" => "var rackTypes = "
+		  . ( encode_json $rack_id_and_types ) . ";"
+	} );
 
 	$rv;
 }
@@ -3379,8 +3235,7 @@ sub device_license_tab {
 
 	my $tt = "";
 	while ( my $hr = $sth->fetchrow_hashref ) {
-		my $delid =
-		  "rm_Lic_DEVICE_COLLECTION_" . $hr->{ _dbx('DEVICE_COLLECTION_ID') };
+		my $delid = "rm_Lic_DEVICE_COLLECTION_" . $hr->{'DEVICE_COLLECTION_ID'};
 		my $rm .= $cgi->checkbox(
 			-name    => $delid,
 			-id      => $delid,
@@ -3388,7 +3243,7 @@ sub device_license_tab {
 			-value   => 'on',
 			-label   => 'Delete',
 		);
-		$tt .= $cgi->Tr( $cgi->td( [ $rm, $hr->{ _dbx('NAME') }, ] ) );
+		$tt .= $cgi->Tr( $cgi->td( [ $rm, $hr->{'NAME'}, ] ) );
 	}
 
 	my $addid = "tr_lic_devid_" . $devid;
@@ -3398,13 +3253,11 @@ sub device_license_tab {
 		$tt,
 		$cgi->Tr(
 			{ -id => $addid },
-			$cgi->td(
-				{
+			$cgi->td( {
 					-colspan => 2,
 					style    => 'text-align: center;'
 				},
-				$cgi->a(
-					{
+				$cgi->a( {
 						-onClick => "add_License(this, \"$addid\", $devid)",
 						-href    => "javascript:void(null)"
 					},
@@ -3483,8 +3336,7 @@ h
 		};
 		$resetlink = $cgi->div(
 			{ -style => 'text-align: center;' },
-			$cgi->a(
-				{
+			$cgi->a( {
 					-href    => "javascript:void(null)",
 					-onClick => qq{ShowDevTab("AppGroup", "$devid", "force")},
 				},
@@ -3497,14 +3349,13 @@ h
 
 	my $tt = "";
 	while ( my $hr = $sth->fetchrow_hashref ) {
-		next if ( $hr->{ _dbx('ROLE_IS_LEAF') } eq 'N' );
-		my $printable =
-		  $hr->{ _dbx('ROLE_PATH') } . '/' . $hr->{ _dbx('ROLE_NAME') };
+		next if ( $hr->{'ROLE_IS_LEAF'} eq 'N' );
+		my $printable = $hr->{'ROLE_PATH'} . '/' . $hr->{'ROLE_NAME'};
 		$printable =~ s,^/,,;
-		push( @options, $hr->{ _dbx('ROLE_ID') } );
-		push( @set,     $hr->{ _dbx('ROLE_ID') } )
-		  if ( $hr->{ _dbx('DEVICE_ID') } );
-		$labels{ $hr->{ _dbx('ROLE_ID') } } = $printable;
+		push( @options, $hr->{'ROLE_ID'} );
+		push( @set,     $hr->{'ROLE_ID'} )
+		  if ( $hr->{'DEVICE_ID'} );
+		$labels{ $hr->{'ROLE_ID'} } = $printable;
 	}
 	my $x =
 		$cgi->h3( { -align => 'center' }, 'Application Groupings' )
@@ -3523,8 +3374,7 @@ h
 	  )
 	  . $cgi->div(
 		{ -style => 'text-align: center;' },
-		$cgi->a(
-			{
+		$cgi->a( {
 				-href   => "apps/",
 				-target => 'stab_apps',
 			},

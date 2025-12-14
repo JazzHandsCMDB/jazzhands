@@ -26,7 +26,6 @@ use POSIX;
 use Data::Dumper;
 use Carp;
 use JazzHands::STAB;
-use JazzHands::Common qw(_dbx);
 use Net::IP;
 
 # causes stack traces on warnings
@@ -54,7 +53,8 @@ sub build_account_list($$;$) {
 	my $cgi = $stab->cgi || die "Could not create cgi";
 
 	# deal with accounts already there.
-	my $sth = $stab->prepare( qq{
+	my $sth = $stab->prepare(
+		qq{
 		SELECT	account_id,	first_name, last_name, login
 		FROM	account_collection_account ac
 				JOIN account USING (account_id)
@@ -72,7 +72,7 @@ sub build_account_list($$;$) {
 		if ($write) {
 			$rmrow = $cgi->checkbox( {
 				-class => 'irrelevant rmrow',
-				-name  => "Del_ACCOUNT_ID_" . $acct->{ _dbx('ACCOUNT_ID') },
+				-name  => "Del_ACCOUNT_ID_" . $acct->{'ACCOUNT_ID'},
 				-label => '',
 			} )
 			  . $cgi->a( {
@@ -85,8 +85,8 @@ sub build_account_list($$;$) {
 		}
 		$t .= $cgi->li(
 			$rmrow,
-			$acct->{ _dbx('FIRST_NAME') } . " " . $acct->{ _dbx('LAST_NAME') },
-			"(" . $acct->{ _dbx('LOGIN') } . ")"
+			$acct->{'FIRST_NAME'} . " " . $acct->{'LAST_NAME'},
+			"(" . $acct->{'LOGIN'} . ")"
 		);
 	}
 
@@ -98,7 +98,8 @@ sub build_account_collection_list($$;$) {
 	my $cgi = $stab->cgi || die "Could not create cgi";
 
 	# deal with accounts already there.
-	my $sth = $stab->prepare( qq{
+	my $sth = $stab->prepare(
+		qq{
 		SELECT	ac.*
 		FROM	account_collection_hier h
 				join account_collection ac on
@@ -113,15 +114,15 @@ sub build_account_collection_list($$;$) {
 	my $t = "";
 	while ( my $ac = $sth->fetchrow_hashref() ) {
 		my $read = join( ":",
-			$ac->{ _dbx('ACCOUNT_COLLECTION_TYPE') },
-			$ac->{ _dbx('ACCOUNT_COLLECTION_NAME') } );
+			$ac->{'ACCOUNT_COLLECTION_TYPE'},
+			$ac->{'ACCOUNT_COLLECTION_NAME'} );
 		$t .= $cgi->li(
 
 			# can't manipulate these yet, so commenting out.
 			#$cgi->checkbox(
 			#	{
 			#		-class => 'irrelevant rmrow',
-			#		-name  => "Del_ACCOUNT_COLLECTION_ID_" . $acct->{ _dbx('ACCOUNT_COLLECTION_ID') },
+			#		-name  => "Del_ACCOUNT_COLLECTION_ID_" . $acct->{'ACCOUNT_COLLECTION_ID'},
 			#		-label => '',
 			#	}
 			#),
@@ -139,7 +140,7 @@ sub build_account_collection_list($$;$) {
 			$cgi->a( {
 					-class => 'aclink',
 					-href  => "./?ACCOUNT_COLLECTION_ID="
-					  . $ac->{ _dbx('ACCOUNT_COLLECTION_ID') }
+					  . $ac->{'ACCOUNT_COLLECTION_ID'}
 				},
 				$read
 			)
@@ -171,7 +172,8 @@ sub edit_acount_collection {
 	}
 
 	# Is this a development server?
-	if( $ENV{'development'} =~ /true/ ) {
+	if ( $ENV{'development'} =~ /true/ ) {
+
 		# Authorize write access
 		$canhazwrite = 1;
 	}
@@ -200,10 +202,10 @@ sub edit_acount_collection {
 
 	my $me = "Account Collection:"
 	  . join( ":",
-		$ac->{ _dbx('ACCOUNT_COLLECTION_TYPE') },
-		$ac->{ _dbx('ACCOUNT_COLLECTION_NAME') } );
+		$ac->{'ACCOUNT_COLLECTION_TYPE'},
+		$ac->{'ACCOUNT_COLLECTION_NAME'} );
 
-	print $cgi->header( { -type => 'text/html' } ), "\n";
+	print $cgi->header(      { -type  => 'text/html' } ),              "\n";
 	print $stab->start_html( { -title => $me, -javascript => 'ac' } ), "\n";
 
 	print $cgi->div(
@@ -246,7 +248,7 @@ sub do_account_collection_chooser {
 	my $admin = $stab->check_role('AccountCollectionAdmin');
 
 	# Assume admin access on development servers
-	if( $ENV{'development'} =~ /true/ ) {
+	if ( $ENV{'development'} =~ /true/ ) {
 		$admin = 1;
 	}
 	#

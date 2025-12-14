@@ -23,7 +23,6 @@ use strict;
 use warnings;
 use FileHandle;
 use JazzHands::STAB;
-use JazzHands::Common qw(:all);
 use Data::Dumper;
 
 process_network_ranges();

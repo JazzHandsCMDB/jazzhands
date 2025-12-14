@@ -29,7 +29,6 @@
 use strict;
 use warnings;
 use JazzHands::STAB;
-use JazzHands::Common qw(_dbx);
 use URI;
 
 do_device_type_add();
@@ -48,11 +47,10 @@ sub do_device_type_add {
 
 	# physical portage is handled later
 
-	my $compid = $stab->cgi_parse_param( 'COMPANY_ID', $devtypid );
-	my $arch =
-	  $stab->cgi_parse_param( 'PROCESSOR_ARCHITECTURE', $devtypid );
-	my $model    = $stab->cgi_parse_param( 'MODEL',             $devtypid );
-	my $descr    = $stab->cgi_parse_param( 'DESCRIPTION',       $devtypid );
+	my $compid = $stab->cgi_parse_param( 'COMPANY_ID',             $devtypid );
+	my $arch   = $stab->cgi_parse_param( 'PROCESSOR_ARCHITECTURE', $devtypid );
+	my $model  = $stab->cgi_parse_param( 'MODEL',                  $devtypid );
+	my $descr  = $stab->cgi_parse_param( 'DESCRIPTION',            $devtypid );
 	my $cfgfetch = $stab->cgi_parse_param( 'CONFIG_FETCH_TYPE', $devtypid );
 	my $racku    = $stab->cgi_parse_param( 'RACK_UNITS',        $devtypid );
 	my $cansnmp  = $stab->cgi_parse_param( 'chk_SNMP_CAPABLE',  $devtypid );
@@ -82,23 +80,19 @@ sub do_device_type_add {
 	if ( !defined($racku) ) {
 		return $stab->error_return("You must specify rack units");
 	} elsif ( $racku !~ /^[\d\-]+$/ || ( $racku != -99 && $racku < 0 ) ) {
-		return $stab->error_return(
-			"Rack Units must be a positive number");
+		return $stab->error_return("Rack Units must be a positive number");
 	}
 
 	if ( $model && length($model) > 1000 ) {
-		return $stab->error_return(
-			"Model length exceeds 1000 characters");
+		return $stab->error_return("Model length exceeds 1000 characters");
 	}
 
 	if ( $cfgfetch && length($cfgfetch) > 200 ) {
-		return $stab->error_return(
-			"Config Fetch type exceeds 200 characters");
+		return $stab->error_return("Config Fetch type exceeds 200 characters");
 	}
 
 	if ( $descr && length($descr) > 16000 ) {
-		return $stab->error_return(
-			"Description Exceeds 16000 characters");
+		return $stab->error_return("Description Exceeds 16000 characters");
 	}
 
 	#
@@ -132,20 +126,18 @@ sub do_device_type_add {
 	};
 
 	my @errs;
-	if (
-		!(
-			$numchanges += $stab->DBInsert(
-				table  => 'device_type',
-				hash   => $new,
-				errors => \@errs
-			)
+	if ( !(
+		$numchanges += $stab->DBInsert(
+			table  => 'device_type',
+			hash   => $new,
+			errors => \@errs
 		)
-	  )
+	) )
 	{
 		$stab->error_return( join( " ", @errs ) );
 	}
 
-	$devtypid = $new->{ _dbx('device_type_id') };
+	$devtypid = $new->{'DEVICE_TYPE_ID'};
 
 	### Add power ports
 
