@@ -499,16 +499,16 @@ BEGIN
 			IF FOUND THEN
 				IF move_addresses IS NULL OR move_addresses != 'always' THEN
 					IF address_errors = 'ignore' THEN
-						RAISE DEBUG 'Netblock % is assigned to a shared_network %, but not forcing, so skipping',
+						RAISE DEBUG 'Netblock % is assigned to a shared_netblock %, but not forcing, so skipping',
 							nb_rec.netblock_id, sn_rec.shared_netblock_id;
 						CONTINUE;
 					ELSIF address_errors = 'warn' THEN
-						RAISE NOTICE 'Netblock % (%) is assigned to a shared_network %, but not forcing, so skipping',
+						RAISE NOTICE 'Netblock % (%) is assigned to a shared_netblock %, but not forcing, so skipping',
 							nb_rec.netblock_id, nb_rec.ip_address,
 							sn_rec.shared_netblock_id;
 						CONTINUE;
 					ELSE
-						RAISE 'Netblock % (%) is assigned to a shared_network %, but not forcing, so skipping',
+						RAISE 'Netblock % (%) is assigned to a shared_netblock %, but not forcing, so skipping',
 							nb_rec.netblock_id, nb_rec.ip_address,
 							sn_rec.shared_netblock_id;
 						CONTINUE;
@@ -521,7 +521,7 @@ BEGIN
 					snl3i.shared_netblock_id = sn_rec.shared_netblock_id;
 
 				DELETE FROM
-					shared_network sn
+					shared_netblock sn
 				WHERE
 					sn.netblock_id = sn_rec.shared_netblock_id;
 			END IF;
@@ -935,7 +935,7 @@ BEGIN
 			END IF;
 
 			--
-			-- See if this netblock already belongs to a shared_network
+			-- See if this netblock already belongs to a shared_netblock
 			--
 			SELECT * FROM
 				shared_netblock sn
@@ -949,7 +949,7 @@ BEGIN
 					protocol != 'unspecified' AND
 					address_errors = 'error'
 				THEN
-					RAISE 'Netblock % (%) is assigned to shared_network %, but the shared_network_protocol does not match (% vs. %)',
+					RAISE 'Netblock % (%) is assigned to shared_netblock %, but the shared_netblock_protocol does not match (% vs. %)',
 						nb_rec.netblock_id,
 						nb_rec.ip_address,
 						sn_rec.shared_netblock_id,
