@@ -1,3 +1,9 @@
+jazzhands-perl-common (0.98.2) moble; urgency=medium
+
+  * remove _dbx from DBFetch; deprecated
+
+ -- Todd M. Kover <kovert@omniscient.com>  Sun, 11 Jan 2025 19;22:40 -0500
+
 jazzhands-perl-common (0.96.1) jammy; urgency=medium
 
   * fix perl warning issue in logging

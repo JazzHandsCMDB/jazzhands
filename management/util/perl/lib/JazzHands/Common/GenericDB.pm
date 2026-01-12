@@ -620,7 +620,7 @@ sub DBFetch {
 
 	my $rows = [];
 	while (my $row = $sth->fetchrow_hashref) {
-		push @$rows, _dbx($row);
+		push @$rows, $row;
 	}
 	$sth->finish;
 	if (defined($opt->{result_set_size})) {
