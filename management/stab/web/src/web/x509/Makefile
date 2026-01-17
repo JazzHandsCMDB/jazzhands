@@ -1,5 +1,4 @@
 #
-# Copyright (c) 2005-2010, Vonage Holdings Corp.
 # Copyright (c) 2025 Todd M. Kover
 # All rights reserved.
 #
@@ -25,16 +24,16 @@
 # $Id$
 #
 
-STAB_DIR=/prod/www/stab/docs/device/type
+STAB_DIR=/prod/www/stab/docs/x509
 
-SUBDIRS= write
+SUBDIRS= 
 
-SCRIPTS= dtsearch.pl index.pl
+SCRIPTS= expiry.pl index.pl
 
 all:
 	@echo nothing to do
 	@for subdir in $(SUBDIRS) ; do \
-		( cd $$subdir && $(MAKE) -e $(MFLAGS) all) \
+		( cd $$subdir && $(MAKE) -e $(MFLAGS) all) ;\
 	done
 
 install:

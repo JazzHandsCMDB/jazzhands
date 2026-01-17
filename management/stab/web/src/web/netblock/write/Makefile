@@ -1,5 +1,6 @@
 #
 # Copyright (c) 2005-2010, Vonage Holdings Corp.
+# Copyright (c) 2025 Todd M. Kover
 # All rights reserved.
 #
 # Redistribution and use in source and binary forms, with or without
@@ -28,8 +29,7 @@ STAB_DIR=/prod/www/stab/docs/netblock/write
 
 SUBDIRS=
 
-SCRIPTS= addchild.pl doadd.pl rmblock.pl edit_netblock.pl \
-	addnetblock.pl rmnetblock.pl edit_networkrange.pl
+SCRIPTS= addnetblock.pl doadd.pl edit_netblock.pl edit_networkrange.pl rmnetblock.pl
 
 all:
 	@echo nothing to do
