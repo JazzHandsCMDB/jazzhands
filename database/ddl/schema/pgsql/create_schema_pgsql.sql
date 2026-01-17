@@ -2352,6 +2352,9 @@ ALTER TABLE dns_domain
 	ADD CONSTRAINT ak_dns_domain_name_type UNIQUE (dns_domain_name,dns_domain_type);
 
 ALTER TABLE dns_domain
+	ADD CONSTRAINT ak_dns_domain_id_name_type UNIQUE (dns_domain_id,dns_domain_name,dns_domain_type);
+
+ALTER TABLE dns_domain
 	ADD CONSTRAINT ak_dns_domain_name UNIQUE (dns_domain_name);
 
 CREATE INDEX idx_dnsdomain_parentdnsdomain ON dns_domain

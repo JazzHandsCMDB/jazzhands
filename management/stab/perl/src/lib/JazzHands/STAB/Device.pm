@@ -1511,7 +1511,12 @@ sub dump_functions_tab {
 
 	# Get functions from the database, along with an extra column with
 	# 0 or 1, with 1 when function is assigned to the device
-	my %functions = %{ $self->get_device_functions($devid) };
+	my %functions;
+
+	my $funclist = $self->get_device_functions($devid);
+	if ($funclist) {
+		%functions = %{$funclist};
+	}
 
 	# Build options for multi select box
 	my ( @options, @set, %labels );
@@ -1812,12 +1817,13 @@ sub dump_interfaces {
 				$hInterface{$_} = $values->{$_};
 			}
 
-		# If we have an ip address (it can be null), remember it
-		if ( $values->{'IP'} ) {
-			$hIpAddress{'NETWORK_INTERFACE_ID'} =
-			  $values->{'NETWORK_INTERFACE_ID'};
-			$hIpAddress{'NETBLOCK_ID'} = $values->{'NETBLOCK_ID'};
-			$hIpAddress{'IP'}          = $values->{'IP'};				# If we have a vlan in the device netblocks, add it, as well as the parent netblock giving us the vlan (vlan_netblock_id), the layer2 id and the layer3 id
+			# If we have an ip address (it can be null), remember it
+			if ( $values->{'IP'} ) {
+				$hIpAddress{'NETWORK_INTERFACE_ID'} =
+				  $values->{'NETWORK_INTERFACE_ID'};
+				$hIpAddress{'NETBLOCK_ID'} = $values->{'NETBLOCK_ID'};
+				$hIpAddress{'IP'}          = $values->{'IP'}
+				  ; # If we have a vlan in the device netblocks, add it, as well as the parent netblock giving us the vlan (vlan_netblock_id), the layer2 id and the layer3 id
 				if ( $device_netblocks->{ $values->{'NETBLOCK_ID'} } ) {
 					$hIpAddress{'ENCAPSULATION_DOMAIN'} =
 					  $device_netblocks->{ $values->{'NETBLOCK_ID'} }
@@ -1843,29 +1849,30 @@ sub dump_interfaces {
 					push( @{ $hInterface{'ip_addresses'} }, {%hIpAddress} );
 				}
 
-			# Empty and populate the current ip address with the new record data
-			%hIpAddress = ();
-			if ( $values->{'IP'} ) {
-				$hIpAddress{'NETWORK_INTERFACE_ID'} =
-				  $values->{'NETWORK_INTERFACE_ID'};
-				$hIpAddress{'NETBLOCK_ID'} = $values->{'NETBLOCK_ID'};
-			$hIpAddress{'IP'}          = $values->{'IP'};					# If we have a vlan in the device netblocks, add it, as well as the parent netblock giving us the vlan (vlan_netblock_id), the layer2 id and the layer3 id
-				if ( $device_netblocks->{ $values->{'NETBLOCK_ID'} } ) {
-					$hIpAddress{'ENCAPSULATION_DOMAIN'} =
-					  $device_netblocks->{ $values->{'NETBLOCK_ID'} }
-					  ->{'encapsulation_domain'};
-					$hIpAddress{'VLAN'} =
-					  $device_netblocks->{ $values->{'NETBLOCK_ID'} }
-					  ->{'vlan'};
-					$hIpAddress{'VLAN_NETBLOCK_ID'} =
-					  $device_netblocks->{ $values->{'NETBLOCK_ID'} }
-					  ->{'vlan_netblock_id'};
-					$hIpAddress{'L2ID'} =
-					  $device_netblocks->{ $values->{'NETBLOCK_ID'} }
-					  ->{'l2id'};
+				# Empty and populate the current ip address with the new record data
+				%hIpAddress = ();
+				if ( $values->{'IP'} ) {
+					$hIpAddress{'NETWORK_INTERFACE_ID'} =
+					  $values->{'NETWORK_INTERFACE_ID'};
+					$hIpAddress{'NETBLOCK_ID'} = $values->{'NETBLOCK_ID'};
+					$hIpAddress{'IP'}          = $values->{'IP'}
+					  ; # If we have a vlan in the device netblocks, add it, as well as the parent netblock giving us the vlan (vlan_netblock_id), the layer2 id and the layer3 id
+					if ( $device_netblocks->{ $values->{'NETBLOCK_ID'} } ) {
+						$hIpAddress{'ENCAPSULATION_DOMAIN'} =
+						  $device_netblocks->{ $values->{'NETBLOCK_ID'} }
+						  ->{'encapsulation_domain'};
+						$hIpAddress{'VLAN'} =
+						  $device_netblocks->{ $values->{'NETBLOCK_ID'} }
+						  ->{'vlan'};
+						$hIpAddress{'VLAN_NETBLOCK_ID'} =
+						  $device_netblocks->{ $values->{'NETBLOCK_ID'} }
+						  ->{'vlan_netblock_id'};
+						$hIpAddress{'L2ID'} =
+						  $device_netblocks->{ $values->{'NETBLOCK_ID'} }
+						  ->{'l2id'};
+					}
 				}
-			}
-		}			# If the interface has changed, save it for later processing
+			}    # If the interface has changed, save it for later processing
 			if ( $last_interface_id != $values->{'NETWORK_INTERFACE_ID'} ) {
 				push( @aInterfaces, {%hInterface} );
 
@@ -2074,7 +2081,9 @@ sub build_network_interface_box {
 	my $strNetIntButtonState = $self->cgi_parse_param(
 		'NETWORK_INTERFACE_TOGGLE_' . $iNetworkInterfaceId );
 	$strNetIntButtonState =
-	  $strNetIntButtonState eq '' ? 'update' : $strNetIntButtonState;
+	  ( $strNetIntButtonState && $strNetIntButtonState eq '' )
+	  ? 'update'
+	  : $strNetIntButtonState;
 	my $strNetIntButton = $cgi->button( {
 			-type  => 'button',
 			-class =>
@@ -2092,7 +2101,9 @@ sub build_network_interface_box {
 	my $strNewNetIntButtonState = $self->cgi_parse_param(
 		'NETWORK_INTERFACE_TOGGLE_' . $iNetworkInterfaceId );
 	$strNewNetIntButtonState =
-	  $strNewNetIntButtonState eq '' ? 'update' : $strNewNetIntButtonState;
+	  ( $strNewNetIntButtonState && $strNewNetIntButtonState eq '' )
+	  ? 'update'
+	  : $strNewNetIntButtonState;
 	my $strNewNetIntButton = $cgi->button( {
 			-type  => 'button',
 			-class =>
@@ -2582,8 +2593,8 @@ sub build_dns_box {
 				  . $iNetworkInterfaceId . '_'
 				  . $iNetblockId . '_'
 				  . $dns_record_id );
-			$strDnsButtonState =
-			  !defined($strDnsButtonState) || $strDnsButtonState eq '' ? 'update' : $strDnsButtonState;
+			$strDnsButtonState = !defined($strDnsButtonState)
+			  || $strDnsButtonState eq '' ? 'update' : $strDnsButtonState;
 			my $strDnsButton = $cgi->button( {
 					-type  => 'button',
 					-class =>
@@ -2884,12 +2895,14 @@ sub build_dns_box {
 		# for the presence of __notemsg__ in the param array
 
 		# So, is that a failed update?
-		if (    $self->cgi_parse_param('__notemsg__') ne ''
-			and $self->cgi_parse_param('__notemsg__') ne '' )
+		if (  !$self->cgi_parse_param('__notemsg__')
+			|| $self->cgi_parse_param('__notemsg__') ne '' )
 		{
 			# Do we have a value for the checkbox?
 			if (
-				$self->cgi_parse_param(
+				   $iNetworkInterfaceId
+				&& $iNetblockId
+				&& $self->cgi_parse_param(
 					'DNS_PTR_' . $iNetworkInterfaceId . '_' . $iNetblockId
 				) ne 'Update successful.'
 			  )

@@ -168,8 +168,7 @@ sub clear_same_physical_port_params {
 			}
 			if ( $l1c->{'PHYSICAL_PORT2_ID'} == $pportid ) {
 				next
-				  if ( !$p2portid
-					&& defined( $l1c->{ 'PHYSICAL_PORT1_ID' } )
+				  if (!$p2portid && defined( $l1c->{'PHYSICAL_PORT1_ID'} )
 					|| $l1c->{'PHYSICAL_PORT1_ID'} != $p2portid );
 			}
 		}
@@ -404,7 +403,9 @@ sub do_update_device {
 		}
 
 		# If the asset doesn't exist and if we have a component_id for the device, let's create the missing asset
-	} elsif ( defined( $dbdevice->{'COMPONENT_ID'} ) ) {
+	} elsif ( defined( $dbdevice->{'COMPONENT_ID'} )
+		&& ( $serialno || $partno || $assettag || $owner ) )
+	{
 		my @errs;
 		my $newasset = {
 			COMPONENT_ID          => $dbdevice->{'COMPONENT_ID'},

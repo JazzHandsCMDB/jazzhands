@@ -216,7 +216,7 @@ sub build_device_box {
 			"OWNERSHIP_STATUS", 'DEVICE_ID' );
 		if (
 			!$values
-			|| ( exists( $values->{'OWNERSHIP_STATUS'} )
+			|| (   $values->{'OWNERSHIP_STATUS'}
 				&& $values->{'OWNERSHIP_STATUS'} eq 'leased' )
 		  )
 		{
