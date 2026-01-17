@@ -237,7 +237,7 @@ sub do_dump_network_ranges {
 						},
 						''
 					  ),
-					"<a href='/netblock/?nblkid="
+					"<a href='./?nblkid="
 					  . $hr->{'PARENT_NETBLOCK_ID'} . "'>"
 					  . $hr->{'PARENT_NETBLOCK_IP_ADDRESS'} . "</a>",
 
