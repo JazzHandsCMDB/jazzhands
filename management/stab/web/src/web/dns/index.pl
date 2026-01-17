@@ -798,7 +798,8 @@ sub dump_soa_section {
 	$parlink = $cgi->span( $cgi->b("Parent: ") . $parlink ) if ($parlink);
 	my $nblink = build_reverse_association_section( $stab, $dnsdomainid );
 
-	print $cgi->start_form( { -action => "write/update_domain.pl" } );
+	print $cgi->start_form(
+		{ -action => "write/update_domain.pl", -method => 'POST' } );
 	print $cgi->hidden(
 		-name    => 'DNS_DOMAIN_ID',
 		-default => $hr->{'DNS_DOMAIN_ID'}
@@ -881,8 +882,8 @@ sub dump_records_section {
 	#
 	# second form, second table
 	#
-	print $cgi->start_form(  { -action => "update_dns.pl" } );
-	print $cgi->start_table( { -class  => 'dnstable' } );
+	print $cgi->start_form( { -action => "update_dns.pl", -method => 'POST' } );
+	print $cgi->start_table( { -class => 'dnstable' } );
 	print $cgi->hidden(
 		-name    => 'DNS_DOMAIN_ID',
 		-default => $dnsdomainid

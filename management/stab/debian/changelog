@@ -3,6 +3,8 @@ jazzhands-stab (0.98.2) jammy; urgency=medium
   * netblock changes: make top level page prettier/more functional
   * make "add a netblock" modal javascript
   * make "remove a netblock" modal javascript
+  * remove uses of _dbx in code to make it more readable
+  * make dns page have tabs for different ip_universes
 
  -- Todd Kover <kovert@omniscient.com>  Wed, 10 Dec 2025 20;55;44 -0400
 

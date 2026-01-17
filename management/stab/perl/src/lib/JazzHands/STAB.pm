@@ -46,8 +46,7 @@ use 5.008007;
 use strict;
 use warnings;
 
-use Storable qw(dclone);
-use CGI;    #qw(-no_xhtml);
+use CGI      qw(-no_xhtml);
 use CGI 'meta';
 
 # use CGI::Pretty;
@@ -55,6 +54,9 @@ use URI;
 use Carp qw(cluck);
 use Data::Dumper;
 use NetAddr::IP qw(:lower);
+
+# possibly an issue with Jazzhands::Common
+use Storable qw(dclone);
 
 # Try to keep these later.
 use JazzHands::STAB::DBAccess;
@@ -832,11 +834,8 @@ sub start_html {
 		'Generator' => "Perl CGI"
 	};
 
-	# This might get around tabindex issues
-	#$args{'-dtd'} = '-//W3C//DTD HTML 3.2//EN';
-	# This sets the DOCTYPE to html PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN" "http://www.w3.org/TR/html4/loose.dtd" (Almost Standards / Limited Quirks Mode)
-	# Perl CGI doesn't support the No Quirks mode unfortunately
-	$args{'-dtd'} = ' ';
+	# CGI.pm 4.21+ supports HTML5 DOCTYPE by not setting -dtd
+	# Don't set -dtd parameter to get <!DOCTYPE html>
 
 	if ( defined( $opts->{'title'} ) && length( $opts->{'title'} ) ) {
 		$args{'-title'} = "STAB: " . $opts->{'title'};
@@ -932,7 +931,15 @@ sub start_html {
 
 	$cgi->delete('orig_referer');
 
-	$cgi->start_html( \%args ) . "\n" . $inline_title . "\n\n";
+	# Set charset to UTF-8 for proper Unicode support
+	$args{'-charset'} = 'utf-8';
+
+	# CGI.pm 4.70 doesn't support HTML5 DOCTYPE properly
+	# Manually replace the DOCTYPE with HTML5 version
+	my $html = $cgi->start_html( \%args );
+	$html =~ s/<!DOCTYPE[^>]+>/<!DOCTYPE html>/s;
+
+	$html . "\n" . $inline_title . "\n\n";
 }
 
 #
@@ -3401,10 +3408,11 @@ sub process_and_update_dns_record {
 	if (   $orig->{'DNS_TYPE'} =~ /^A(AAA)?/
 		&& $opts->{DNS_TYPE} =~ /^A(AAA)?/ )
 	{
-		$newrecord->{'DNS_VALUE'}   = undef;
+		$newrecord->{'DNS_VALUE'} = undef;
+
 		# Only update NETBLOCK_ID if we actually looked it up (i.e., if $nblkid is defined)
 		# Otherwise preserve the original netblock_id
-		if (defined($nblkid)) {
+		if ( defined($nblkid) ) {
 			$newrecord->{'NETBLOCK_ID'} = $nblkid;
 		} else {
 			$newrecord->{'NETBLOCK_ID'} = $orig->{'NETBLOCK_ID'};
@@ -3423,19 +3431,19 @@ sub process_and_update_dns_record {
 
 	# Convert both hashes to lowercase for comparison and update
 	# Only include keys from newrecord that were explicitly set
-	my %orig_lower = map { lc($_) => $orig->{$_} } keys %$orig;
+	my %orig_lower      = map { lc($_) => $orig->{$_} } keys %$orig;
 	my %newrecord_lower = map { lc($_) => $newrecord->{$_} } keys %$newrecord;
-	
+
 	# Remove keys from orig_lower that aren't in newrecord_lower
 	# This prevents hash_table_diff from seeing missing keys as changes to undef
 	my %orig_filtered;
-	for my $key (keys %newrecord_lower) {
+	for my $key ( keys %newrecord_lower ) {
 		$orig_filtered{$key} = $orig_lower{$key} if exists $orig_lower{$key};
 	}
 
 	my $diffs = $self->hash_table_diff( \%orig_filtered, \%newrecord_lower );
 	my $tally = keys %$diffs;
-	
+
 	if ( !$tally ) {
 		return 0;
 	} elsif ( !$self->run_update_from_hash(
