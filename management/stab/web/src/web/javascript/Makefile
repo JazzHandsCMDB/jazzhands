@@ -1,5 +1,6 @@
 #
 # Copyright (c) 2005-2010, Vonage Holdings Corp.
+# Copyright (c) 2025 Todd M. Kover
 # All rights reserved.
 #
 # Redistribution and use in source and binary forms, with or without
@@ -28,11 +29,10 @@ STAB_DIR=/prod/www/stab/docs/javascript
 
 SUBDIRS=
 
-SCRIPTS= ajax-utils.js app-utils.js ajaxsearch.js device-utils.js
-	dns-utils.js common.js \
-	devicetype.js netblock.js netblock-collection.js \
-	paging.js tickets.js racks.js table-manip.js \
-	form-tracking.js
+SCRIPTS= account-collection.js ajax-utils.js ajaxsearch.js app-utils.js \
+	attest.js device-utils.js devicetype.js dns-common.js dns-utils.js \
+	form-tracking.js netblock-collection.js netblock.js paging.js racks.js \
+	reporting.js stab-common.js table-manip.js tickets.js
 
 all:
 	@#@for subdir in $(SUBDIRS) ; do \

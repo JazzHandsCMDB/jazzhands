@@ -28,7 +28,7 @@ STAB_DIR=/prod/www/stab/docs
 
 SCRIPTS= error.pl index.pl sites.pl
 
-SUBDIRS= device javascript netblock sites stabcons images dns css
+SUBDIRS= account device javascript netblock sites stabcons images dns css x509
 
 all:
 	@for subdir in $(SUBDIRS) ; do \

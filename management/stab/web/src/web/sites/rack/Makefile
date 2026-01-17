@@ -24,7 +24,7 @@
 # $Id$
 #
 
-STAB_DIR=/prod/www/stab/docs/sites/racks
+STAB_DIR=/prod/www/stab/docs/sites/rack
 
 SUBDIRS=
 
