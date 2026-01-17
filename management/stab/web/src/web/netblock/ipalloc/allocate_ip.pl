@@ -122,7 +122,8 @@ sub process_netblock_reservations {
 	clear_same_netblock_breakdown_params($stab);
 	my $numchanges = 0;
 
-	my $nblkid = $stab->cgi_parse_param('NETBLOCK_ID');
+	my $nblkid         = $stab->cgi_parse_param('NETBLOCK_ID');
+	my $ip_universe_id = $stab->cgi_parse_param('IP_UNIVERSE_ID') || 0;
 
 	cleanup_unchanged_netblocks( $stab, $nblkid );
 
@@ -131,7 +132,7 @@ sub process_netblock_reservations {
 
 	#- print $cgi->header, $cgi->start_html, $cgi->Dump, $cgi->end_html; exit;
 
-	$numchanges += process_dns_additions( $stab, $nblkid );
+	$numchanges += process_dns_additions( $stab, $nblkid, $ip_universe_id );
 
 	$numchanges += parse_netblock_routes( $stab, $nblkid );
 
@@ -223,7 +224,8 @@ sub process_netblock_reservations {
 			if ( !(
 				my $xx = $stab->get_netblock_from_ip(
 					ip_address        => $ip,
-					is_single_address => 'Y'
+					is_single_address => 'Y',
+					ip_universe_id    => $ip_universe_id
 				)
 			) )
 			{
@@ -302,7 +304,7 @@ sub ipalloc_get_or_create_netblock_id {
 				:ip,
 				'Y', 'Reserved',
 				'N',
-				'default', 0,
+				'default', :ip_universe_id,
 				:parent_nblkid, :description
 			) RETURNING *
 		) SELECT netblock_id from ins
@@ -310,6 +312,8 @@ sub ipalloc_get_or_create_netblock_id {
 	my $sth = $stab->prepare($q) || $stab->return_db_err;
 	$sth->bind_param( ":ip", $nip->ip() ) || $stab->return_db_err($sth);
 	$sth->bind_param( ":parent_nblkid", $par_nbid )
+	  || $stab->return_db_err($sth);
+	$sth->bind_param( ":ip_universe_id", $netblock->{'IP_UNIVERSE_ID'} )
 	  || $stab->return_db_err($sth);
 	$sth->bind_param( ":description", $desc ) || $stab->return_db_err($sth);
 
@@ -596,9 +600,10 @@ sub update_netblock_routes {
 	$numchanges;
 }
 
-sub process_dns_additions( $$ ) {
-	my $stab   = shift @_;
-	my $nblkid = shift @_;    # probably not used
+sub process_dns_additions( $$$ ) {
+	my $stab           = shift @_;
+	my $nblkid         = shift @_;    # probably not used
+	my $ip_universe_id = shift @_;
 
 	my $numchanges = 0;
 
@@ -618,10 +623,11 @@ sub process_dns_additions( $$ ) {
 		my $new = {
 			DNS_NAME      => $stab->cgi_parse_param( 'DNS_RECORD_ID', $uniqid ),
 			DNS_DOMAIN_ID => $stab->cgi_parse_param( 'DNS_DOMAIN_ID', $uniqid ),
-			DNS_CLASS     => 'IN',
-			DNS_TYPE      => $type,
-			DNS_VALUE     => $ip,
-			IS_ENABLED    => 'Y',
+			DNS_CLASS      => 'IN',
+			DNS_TYPE       => $type,
+			DNS_VALUE      => $ip,
+			IS_ENABLED     => 'Y',
+			IP_UNIVERSE_ID => $ip_universe_id,
 		};
 		$numchanges += $stab->process_and_insert_dns_record($new);
 	}
