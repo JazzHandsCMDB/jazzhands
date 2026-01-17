@@ -118,6 +118,18 @@ sub dump_toplevel {
 
 	my $showsite = $cgi->param('showsite') || 'yes';
 
+	# Check if there are multiple IP universes
+	my $q_universe_count = qq{
+		select count(*)
+		  from ip_universe
+	};
+	my $sth_universe_count =
+	  $stab->prepare($q_universe_count) || $stab->return_db_err($dbh);
+	$sth_universe_count->execute || $stab->return_db_err($sth_universe_count);
+	my $universe_count = ( $sth_universe_count->fetchrow_array )[0];
+	$sth_universe_count->finish;
+	my $show_universe = ( $universe_count > 1 );
+
 	print $stab->start_html(
 		-title      => 'STAB: Top Level Netblocks',
 		-javascript => 'netblock',
@@ -163,32 +175,64 @@ sub dump_toplevel {
 </div>
 };
 
-	my $q = qq{
-		SELECT
-			nb.ip_address,
-			nb.netblock_id,
-			nb.netblock_status,
-			nb.description,
-			snb.site_code
-		  from  netblock nb
-				left join site_netblock snb
-					on snb.netblock_id = nb.netblock_id
-		 where	nb.parent_netblock_id is NULL
-		   and	nb.netblock_type = 'default'
-		 order by nb.ip_address
-	};
+	my $q;
+	if ($show_universe) {
+		$q = qq{
+			SELECT
+				nb.ip_address,
+				nb.netblock_id,
+				nb.netblock_status,
+				nb.description,
+				snb.site_code,
+				iu.ip_universe_name
+			  from  netblock nb
+					left join site_netblock snb
+						on snb.netblock_id = nb.netblock_id
+					left join ip_universe iu
+						on iu.ip_universe_id = nb.ip_universe_id
+			 where	nb.parent_netblock_id is NULL
+			   and	nb.netblock_type = 'default'
+			 order by nb.ip_address
+		};
+	} else {
+		$q = qq{
+			SELECT
+				nb.ip_address,
+				nb.netblock_id,
+				nb.netblock_status,
+				nb.description,
+				snb.site_code
+			  from  netblock nb
+					left join site_netblock snb
+						on snb.netblock_id = nb.netblock_id
+			 where	nb.parent_netblock_id is NULL
+			   and	nb.netblock_type = 'default'
+			 order by nb.ip_address
+		};
+	}
 
 	my $sth = $stab->prepare($q) || $stab->return_db_err($dbh);
 	$sth->execute                || $stab->return_db_err($sth);
 
 	print qq{<div class="netblock-wrapper">\n};
-	print qq{<div class="netblock-list">\n};
+	my $universe_class = $show_universe ? ' with-universe' : '';
+	print qq{<div class="netblock-list$universe_class">\n};
 	print qq{	<div class="netblock-header">\n};
 	print qq{		<span class="netblocklink">Network</span>\n};
 	print qq{		<span class="netblockdesc">Description</span>\n};
 	print qq{		<span class="netblocksite">Site</span>\n};
+	if ($show_universe) {
+		print qq{		<span class="netblockuniverse">IP Universe</span>\n};
+	}
 	print qq{	</div>\n};
-	while ( my ( $ip, $id, $stat, $desc, $site ) = $sth->fetchrow_array ) {
+	while ( my $row = $sth->fetchrow_arrayref ) {
+		my ( $ip, $id, $stat, $desc, $site, $universe_name );
+		if ($show_universe) {
+			( $ip, $id, $stat, $desc, $site, $universe_name ) = @$row;
+		} else {
+			( $ip, $id, $stat, $desc, $site ) = @$row;
+		}
+
 		next if ( defined($site) && !defined($showsite) );
 		my $url = make_url( $stab, $id );
 
@@ -209,6 +253,11 @@ sub dump_toplevel {
 		  . "\n";
 		print "\t\t"
 		  . $cgi->span( { -class => 'netblocksite' }, $site_content ) . "\n";
+		if ($show_universe) {
+			print "\t\t"
+			  . $cgi->span( { -class => 'netblockuniverse' },
+				( ($universe_name) ? $universe_name : "" ) ) . "\n";
+		}
 		print "\t</div>\n";
 	}
 	print "</div>\n";
@@ -248,6 +297,10 @@ sub dump_nodes {
 	print print_netblock_allocation( $stab, $p_nblkid, $nb, $isbcst );
 
 	print $cgi->hidden( -name => 'NETBLOCK_ID', -default => $p_nblkid );
+	print $cgi->hidden(
+		-name    => 'IP_UNIVERSE_ID',
+		-default => $nblk->{'IP_UNIVERSE_ID'}
+	);
 	print $cgi->submit( -align => 'center', -name => 'Submit IP/DNS Updates' );
 	print $cgi->start_table( { -class => 'nblk_ipallocation' } );
 
@@ -259,6 +312,7 @@ sub dump_nodes {
 			dns.dns_record_id,
 			dns.dns_name,
 			dom.soa_name,
+			dns.ip_universe_id,
 			net_manip.inet_dbtop(nb.ip_address) as ip,
 			nb.ip_address,
 			nb.netblock_status,
@@ -430,7 +484,7 @@ sub get_netblock_link_header {
 	# This is typically if the field contains <script>...</script>.
 	# It means that we'll have to unescape it later in the javascript
 	# processing, which creates the editable field.
-	$descr = CGI::escapeHTML($descr);
+	$descr = CGI::escapeHTML( $descr || "" );
 
 	$descr = $cgi->span( {
 			-class => 'editabletext',

@@ -682,8 +682,14 @@ sub get_netblock_from_ip {
 		$args->{ip_address} = $opts->{ip_address};
 	}
 
+    # If $opts->{'is_single_address'} is defined and is 'N', keep that value
+	# If $opts->{'is_single_address'} is defined but not 'N', set it to 'Y'
 	if ( $opts->{'is_single_address'} ) {
-		$args->{'is_single_address'} = 'Y';
+		if ( $opts->{'is_single_address'} ne 'N' ) {
+			$args->{'is_single_address'} = 'Y';
+		} else {
+			$args->{'is_single_address'} = 'N';
+		}
 	}
 
 	if ( $opts->{'netblock_type'} ) {
@@ -1853,7 +1859,7 @@ sub build_netblock_ip_row {
 		$name   = $hr->{'DNS_NAME'};
 		$dom    = $hr->{'SOA_NAME'};
 		$status = $hr->{'NETBLOCK_STATUS'};
-		$desc   = $hr->{'DESCRIPTION'};
+		$desc   = $hr->{'DESCRIPTION'} || "";
 
 		my $recid = $hr->{'DNS_RECORD_ID'};
 

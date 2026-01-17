@@ -2704,6 +2704,12 @@ sub parse_netblock_search {
 		return $self->error_return("You specified an invalid address");
 	}
 
+	# First try to find a netblock with the exact CIDR, with is_single_address => 'N'
+	my $blk = $self->get_netblock_from_ip( ip_address => $bycidr, is_single_address => 'N' );
+	# If found, return that netblock
+	return $blk if ($blk);
+
+	# If not found, try to find the best parent netblock that contains this CIDR
 	my $parent = $self->guess_parent_netblock_id( $bycidr, undef, 'Y' );
 
 	my $sth = $self->prepare(
@@ -2723,7 +2729,7 @@ sub parse_netblock_search {
 
 	$sth->execute($bycidr) || return $self->return_db_err($sth);
 
-	my $blk = $sth->fetchrow_hashref;
+	$blk = $sth->fetchrow_hashref;
 	$sth->finish;
 
 	if ( !$blk ) {
