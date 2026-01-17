@@ -1853,7 +1853,7 @@ sub build_netblock_ip_row {
 		$name   = $hr->{'DNS_NAME'};
 		$dom    = $hr->{'SOA_NAME'};
 		$status = $hr->{'NETBLOCK_STATUS'};
-		$desc   = $hr->{'DESCRIPTION'};
+		$desc   = $hr->{'DESCRIPTION'} || "";
 
 		my $recid = $hr->{'DNS_RECORD_ID'};
 
