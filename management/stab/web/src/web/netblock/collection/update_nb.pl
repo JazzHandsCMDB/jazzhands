@@ -172,7 +172,7 @@ sub do_netblock_collection_update {
 
 		my $new = {
 			netblock_collection_id => $ncid,
-			netblock_id            => $nb->{'netblock_id'},
+			netblock_id            => $nb->{'NETBLOCK_ID'},
 		};
 
 		# Only add rank if it has a value
