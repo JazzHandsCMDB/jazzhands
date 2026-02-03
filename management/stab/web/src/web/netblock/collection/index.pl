@@ -208,8 +208,8 @@ sub build_collection_row($$$;$$$$) {
 	}
 
 	my $row = "";
-	$row .= $cgi->span( { -class => 'netblocksite' }, $rmbox );
-	$row .= $cgi->span( { -class => 'netblocklink' }, $label );
+	$row .= $cgi->span( { -class => 'netblocksite' }, $rmbox ) if($rmid);
+	$row .= $cgi->span( { -class => 'netblocklink' }, $label || '' );
 	$row .= $cgi->span( { -class => 'netblockdesc' }, $description || '' );
 
 	my $rank_field = '';
@@ -238,14 +238,16 @@ sub build_collection_row($$$;$$$$) {
 #
 # returns a grid header row
 #
-sub build_collection_row_header($$;$$$) {
-	my ( $cgi, $col1, $col2, $col3, $col4 ) = @_;
+sub build_collection_row_header($$$;$$) {
+	my $stab = shift @_;
+	my $cgi = $stab->cgi || die "Could not create cgi";
 
 	my $row = "";
-	$row .= $cgi->span( { -class => 'netblocksite' }, $col1 );
-	$row .= $cgi->span( { -class => 'netblocklink' }, $col2 );
-	$row .= $cgi->span( { -class => 'netblockdesc' }, $col3 || 'Description' );
-	$row .= $cgi->span( { -class => 'netblockrank' }, $col4 || 'Rank' );
+	while(my $h = shift @_) {
+			foreach my $key (keys %{$h}) {
+				$row .= $cgi->span( { -class => $h->{$key} }, $key);
+			}
+	}
 
 	$cgi->div( { -class => 'netblock-header' }, $row );
 }
@@ -441,12 +443,11 @@ sub build_collection_parents {
 
 	$sth->execute($ncid) || die $stab->return_db_err();
 
-	my $rv;
+	my $rv = "";
 	while ( my ( $id, $name, $type, $desc ) = $sth->fetchrow_array ) {
 		my $nblink = "./?NETBLOCK_COLLECTION_ID=$id";
-		my $rmid   = "rm_NETBLOCK_COLLECTION_ID_$id";
 		my $label  = "$type:$name";
-		$rv .= build_collection_row( $cgi, $nblink, $rmid, $label, ' ', $desc );
+		$rv .= build_collection_row( $cgi, $nblink, undef, $label, undef, $desc );
 	}
 	$rv;
 }
@@ -510,8 +511,11 @@ sub process_netblock_collection {
 				-class => 'netblock-list netblock-list-four-col',
 				-id    => 'collection-members'
 			},
-			build_collection_row_header(
-				$cgi, "Remove", "Member", "Description", "Rank"
+			build_collection_row_header( $stab,
+				{ "Remove" => 'netblocksite' },
+				{ "Member" => 'netblocklink' },
+				{ "Description" => 'netblockdesc' },
+				{ "Rank" => 'netblockrank' },
 			),
 			$member_content,
 			build_netblock_collection_add_row($stab),
@@ -544,9 +548,10 @@ sub process_netblock_collection {
 				$nc->{'NETBLOCK_COLLECTION_NAME'} )
 		),
 		$cgi->div(
-			{ -class => 'netblock-list netblock-list-three-col' },
-			build_collection_row_header(
-				$cgi, " ", "Collection", "Description"
+			{ -class => 'netblock-list netblock-list-two-col' },
+			build_collection_row_header( $stab, 
+				{ "Collection" => 'netblocklink' },
+				{ "Description" => 'netblockdesc'},
 			),
 			$parents_content || $cgi->div(
 				{ -class => 'netblock-row' },
