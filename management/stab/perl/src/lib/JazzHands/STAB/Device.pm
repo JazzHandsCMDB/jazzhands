@@ -2081,7 +2081,9 @@ sub build_network_interface_box {
 	my $strNetIntButtonState = $self->cgi_parse_param(
 		'NETWORK_INTERFACE_TOGGLE_' . $iNetworkInterfaceId );
 	$strNetIntButtonState =
-	  $strNetIntButtonState eq '' ? 'update' : $strNetIntButtonState;
+	  ( $strNetIntButtonState && $strNetIntButtonState eq '' )
+	  ? 'update'
+	  : $strNetIntButtonState;
 	my $strNetIntButton = $cgi->button( {
 			-type  => 'button',
 			-class =>
@@ -2099,7 +2101,9 @@ sub build_network_interface_box {
 	my $strNewNetIntButtonState = $self->cgi_parse_param(
 		'NETWORK_INTERFACE_TOGGLE_' . $iNetworkInterfaceId );
 	$strNewNetIntButtonState =
-	  $strNewNetIntButtonState eq '' ? 'update' : $strNewNetIntButtonState;
+	  ( $strNewNetIntButtonState && $strNewNetIntButtonState eq '' )
+	  ? 'update'
+	  : $strNewNetIntButtonState;
 	my $strNewNetIntButton = $cgi->button( {
 			-type  => 'button',
 			-class =>
@@ -2891,12 +2895,14 @@ sub build_dns_box {
 		# for the presence of __notemsg__ in the param array
 
 		# So, is that a failed update?
-		if (    $self->cgi_parse_param('__notemsg__') ne ''
-			and $self->cgi_parse_param('__notemsg__') ne '' )
+		if (  !$self->cgi_parse_param('__notemsg__')
+			|| $self->cgi_parse_param('__notemsg__') ne '' )
 		{
 			# Do we have a value for the checkbox?
 			if (
-				$self->cgi_parse_param(
+				   $iNetworkInterfaceId
+				&& $iNetblockId
+				&& $self->cgi_parse_param(
 					'DNS_PTR_' . $iNetworkInterfaceId . '_' . $iNetblockId
 				) ne 'Update successful.'
 			  )
