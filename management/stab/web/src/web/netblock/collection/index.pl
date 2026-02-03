@@ -555,8 +555,7 @@ sub process_netblock_collection {
 			),
 			$parents_content || $cgi->div(
 				{ -class => 'netblock-row' },
-				$cgi->span( { -class => 'netblocksite' }, '' )
-				  . $cgi->span( {
+				  $cgi->span( {
 						-class => 'netblocklink',
 						-style => 'font-style: italic; color: #888;'
 					},
