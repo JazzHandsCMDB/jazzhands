@@ -77,7 +77,7 @@ function build_dns_ref_table(cell, dnsrecid, resp)
 	for(var i in resp['records']) {
 		var rec = resp['records'][i];
 
-		var suffix = "_dnsref_" + dnsrecid + "_" + rec['dns_record_id'];
+		var suffix = "_dnsref_" + dnsrecid + "_" + rec['DNS_RECORD_ID'];
 
 		var s = $('<select/>', {
 			class: 'off tracked',
@@ -86,7 +86,7 @@ function build_dns_ref_table(cell, dnsrecid, resp)
 		for(var j in resp['types']) {
 			var rtype = resp['types'][j];
 			var o = $('<option/>', { text: rtype });
-			if(rec['dns_type'] == rtype) {
+			if(rec['DNS_TYPE'] == rtype) {
 				$(o).attr('selected', true);
 			}
 			$(s).append(o);
@@ -98,7 +98,7 @@ function build_dns_ref_table(cell, dnsrecid, resp)
 				$("<input/>", {
 					type: 'checkbox',
 					class: 'irrelevant rmrow tracked',
-					name: 'Del_' + rec['dns_record_id'],
+					name: 'Del_' + rec['DNS_RECORD_ID'],
 				})
 			),
 			$("<td/>").append(
@@ -109,7 +109,7 @@ function build_dns_ref_table(cell, dnsrecid, resp)
 					type: 'text',
 					class: 'irrelevant dnsname tracked',
 					name: 'dnsref_DNS_NAME'+ suffix,
-					value: rec['dns_name']
+					value: rec['DNS_NAME']
 				}),
 				$('<select/>', {
 					class: 'irrelevant dnsdomain tracked',
@@ -120,15 +120,15 @@ function build_dns_ref_table(cell, dnsrecid, resp)
 					type: 'hidden',
 					class: 'dnsdomainid',
 					// name: 'dnsref_DNS_DOMAIN_ID'+ suffix,
-					value: rec['dns_domain_id'],
+					value: rec['DNS_DOMAIN_ID'],
 					disabled: true,
 				}),
 
 				$("<a>", {
 						class: 'intdns',
-						target: 'dns_record_id'+rec['dns_domain_id'],
-						href: '../dns/?DNS_RECORD_ID='+rec['dns_record_id'],
-					}).append( rec['dns_name']+'.'+rec['soa_name'] ),
+						target: 'DNS_RECORD_ID'+rec['DNS_DOMAIN_ID'],
+						href: '../dns/?DNS_RECORD_ID='+rec['DNS_RECORD_ID'],
+					}).append( rec['DNS_NAME']+'.'+rec['SOA_NAME'] ),
 					$("<a/>", {
 						alt: 'Edit',
 						title: 'Edit',
@@ -250,6 +250,16 @@ function popuplate_dns_domain_dropdown( event ) {
 	// Make sure the dns domains have been populated
 	// This function is already called at the document ready event
 	get_dns_domains();
+	popuplate_dns_domain_dropdown_delayed(event);
+}
+
+function popuplate_dns_domain_dropdown_delayed( event ) {
+	if( !jDnsDomains || !jDnsDomains['domains'] || !jDnsDomains['domains']['options'] ) {
+		setTimeout(function() {
+			popuplate_dns_domain_dropdown_delayed(event);
+		}, 50);
+		return;
+	}
 
 	//console.log( event.currentTarget.options );
 	// Get prepopulated options

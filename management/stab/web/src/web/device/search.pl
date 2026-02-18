@@ -101,7 +101,7 @@ sub find_devices {
 	if ( defined($mac) ) {
 
 		# Convert Arista mac format xxxx.xxxx.xxxx to our internal format if needed
-		if ( $mac =~ /\./ ) {
+		if ( $mac =~ /^[0-9A-Fa-f]{4}\.[0-9A-Fa-f]{4}\.[0-9A-Fa-f]{4}$/ ) {
 			$mac =~ s,\.,,g;
 			$mac =~ s,(..),\1:,g;
 		}

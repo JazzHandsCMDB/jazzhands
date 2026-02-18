@@ -53,7 +53,7 @@ sub do_cert_expiry_toplevel {
 					c.friendly_name as "Friendly Name",
 					c.valid_to as "Valid To",
 					ca.x509_signed_certificate_id
-						AS ca_x509_signed_certificate_id,
+						AS CAID,
 					ca.friendly_name AS "CA"
 			FROM	x509_signed_certificate c
 					JOIN x509_signed_certificate ca ON
@@ -66,11 +66,11 @@ sub do_cert_expiry_toplevel {
 		caption => 'Expiring Certificates',
 		class   => 'reporting',
 		tableid => 'approvalreport',
-		hidden  => ['ca_x509_signed_certificate_id'],
+		hidden  => ['CAID'],
 		urlmap  => {
 			"ID"            => "./?X509_CERT_ID=%{ID}",
 			"Friendly Name" => "./?X509_CERT_ID=%{ID}",
-			"CA" => "./?X509_CERT_ID=%{ca_x509_signed_certificate_id}",
+			"CA" => "./?X509_CERT_ID=%{CAID}",
 		}
 	);
 	print "\n\n", $cgi->end_html, "\n";

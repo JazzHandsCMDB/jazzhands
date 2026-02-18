@@ -73,7 +73,7 @@ sub do_domain_search {
 	# Override the domain id from the record id if the dnssearch parameter is supplied
 	if ($dnssearch) {
 		my $dnsrecord = $stab->get_dns_record_from_id($dnssearch);
-		$dnsdomid  = $dnsrecord->{'dns_domain_id'};
+		$dnsdomid  = $dnsrecord->{'DNS_DOMAIN_ID'};
 		$dnssearch = ';dnssearch=' . $dnssearch;
 	} else {
 		$dnssearch = '';

@@ -82,24 +82,24 @@ sub do_remove_netblock {
 		$stab->error_return( join ";", @errors );
 	}
 
-	#	my $q = qq{
-	#		delete from netblock where netblock_id = :1
-	#	};
-	#	my $sth = $stab->prepare($q) || die "$q" . $dbh->errstr;
-	#
-	#	if ( !( $sth->execute($nblkid) ) ) {
-	#		if ( $sth->err == 2292 ) {
-	#			$stab->error_return(
-	#				qq{
-	#				This netblock has children that must
-	#				be dealt with before it can be removed.
-	#				 Sorry.
-	#			}
-	#			);
-	#		} else {
-	#			$stab->return_db_err($sth);
-	#		}
-	#	}
+	my $q = qq{
+		delete from netblock where netblock_id = ?
+	};
+	my $sth = $stab->prepare($q) || die "$q" . $dbh->errstr;
+
+	if ( !( $sth->execute($nblkid) ) ) {
+		if ( $sth->err == 2292 ) {
+			$stab->error_return(
+				qq{
+				This netblock has children that must
+				be dealt with before it can be removed.
+				 Sorry.
+			}
+			);
+		} else {
+			$stab->return_db_err($sth);
+		}
+	}
 
 	$dbh->commit;
 	$dbh->disconnect;

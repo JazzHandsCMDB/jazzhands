@@ -150,7 +150,7 @@ sub add_default_ns_records($$) {
 			dns_domain_id => $dnsdomid,
 			dns_class     => 'IN',
 			dns_type      => 'NS',
-			dns_value     => $row->{property_value}
+			dns_value     => $row->{'PROPERTY_VALUE'}
 		};
 		$stab->add_dns_record($new);
 		$numchanges++;

@@ -720,8 +720,14 @@ sub get_netblock_from_ip {
 		$args->{ip_address} = $opts->{ip_address};
 	}
 
+    # If $opts->{'is_single_address'} is defined and is 'N', keep that value
+	# If $opts->{'is_single_address'} is defined but not 'N', set it to 'Y'
 	if ( $opts->{'is_single_address'} ) {
-		$args->{'is_single_address'} = 'Y';
+		if ( $opts->{'is_single_address'} ne 'N' ) {
+			$args->{'is_single_address'} = 'Y';
+		} else {
+			$args->{'is_single_address'} = 'N';
+		}
 	}
 
 	if ( $opts->{'netblock_type'} ) {
@@ -1002,8 +1008,8 @@ sub fetch_property {
 		errors => \@errs
 	) || die $self->return_db_err();
 	my $hr = $rows->[0];
-	if ( $hr && defined( $hr->{property_value} ) ) {
-		return $hr->{property_value};
+	if ( $hr && defined( $hr->{'PROPERTY_VALUE'} ) ) {
+		return $hr->{'PROPERTY_VALUE'};
 	}
 	return undef;
 }

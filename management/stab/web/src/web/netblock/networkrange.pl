@@ -275,7 +275,7 @@ sub do_dump_network_ranges {
 							-dnsdomaintype => 'service',
 							-name     => 'NETWORKRANGE_DNS_DOMAIN_' . $nrid,
 							-class    => 'tracked',
-							-original => $hr->{'DNS_DOMAIN_ID'} || '',
+							-original => $hr->{'DNS_DOMAIN_ID'} || '__unknown__',
 						},
 						$hr,
 						'DNS_DOMAIN_ID',

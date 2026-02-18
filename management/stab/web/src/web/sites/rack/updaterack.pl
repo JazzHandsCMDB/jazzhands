@@ -109,15 +109,15 @@ sub update_rack($$) {
 	}
 
 	my $new = {
-		site_code        => $site,
-		room             => $room,
-		sub_room         => $subr,
-		rack_row         => $row,
-		rack_name        => $rackn,
-		description      => $desc,
-		rack_type        => $type,
-		rack_style       => $style,
-		rack_height_in_u => $height,
+		SITE_CODE        => $site,
+		ROOM             => $room,
+		SUB_ROOM         => $subr,
+		RACK_ROW         => $row,
+		RACK_NAME        => $rackn,
+		DESCRIPTION      => $desc,
+		RACK_TYPE        => $type,
+		RACK_STYLE       => $style,
+		RACK_HEIGHT_IN_U => $height,
 	};
 
 	my $diffs = $stab->hash_table_diff( $hr, $new );

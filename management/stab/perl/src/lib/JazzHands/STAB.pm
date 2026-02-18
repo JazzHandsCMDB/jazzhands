@@ -2721,7 +2721,14 @@ sub parse_netblock_search {
 		return $self->error_return("You specified an invalid address");
 	}
 
+	# First try to find a netblock with the exact CIDR, with is_single_address => 'N'
+	my $blk = $self->get_netblock_from_ip( ip_address => $bycidr, is_single_address => 'N' );
+	# If found, return that netblock
+	return $blk if ($blk);
+
+	# If not found, try to find the best parent netblock that contains this CIDR
 	my $parent = $self->guess_parent_netblock_id( $bycidr, undef, 'Y' );
+
 
 	my $sth = $self->prepare(
 		qq{
@@ -2740,7 +2747,7 @@ sub parse_netblock_search {
 
 	$sth->execute($bycidr) || return $self->return_db_err($sth);
 
-	my $blk = $sth->fetchrow_hashref;
+	$blk = $sth->fetchrow_hashref;
 	$sth->finish;
 
 	if ( !$blk ) {
@@ -3237,11 +3244,11 @@ sub process_dns_ref_add($$$$) {
 	my $refdomid = $self->cgi_parse_param( "${p}DNS_DOMAIN_ID${s}", $refid );
 
 	my $new = {
-		dns_name            => $name,
-		dns_domain_id       => $refdomid,
-		dns_type            => $type,
-		dns_value_record_id => $recupdid,
-		should_generate_ptr => 'N',
+		DNS_NAME            => $name,
+		DNS_DOMAIN_ID       => $refdomid,
+		DNS_TYPE            => $type,
+		DNS_VALUE_RECORD_ID => $recupdid,
+		SHOULD_GENERATE_PTR => 'N',
 	};
 
 	$numchanges += $self->process_and_insert_dns_record($new);
@@ -3261,12 +3268,12 @@ sub process_dns_ref_updates($$$$) {
 	my $refdomid = $self->cgi_parse_param( "${p}DNS_DOMAIN_ID${s}", $refid );
 
 	my $new = {
-		dns_record_id       => $refid,
-		dns_name            => $name,
-		dns_type            => $type,
-		dns_domain_id       => $refdomid,
-		dns_value_record_id => $recupdid,
-		should_generate_ptr => 'N',
+		DNS_RECORD_ID       => $refid,
+		DNS_NAME            => $name,
+		DNS_TYPE            => $type,
+		DNS_DOMAIN_ID       => $refdomid,
+		DNS_VALUE_RECORD_ID => $recupdid,
+		SHOULD_GENERATE_PTR => 'N',
 	};
 
 	$numchanges += $self->process_and_update_dns_record($new);

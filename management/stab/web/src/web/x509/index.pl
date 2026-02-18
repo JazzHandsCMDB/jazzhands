@@ -60,8 +60,8 @@ sub show_pending_certs {
 
 	print $stab->build_table_from_query(
 		query => qq{
-			SELECT	x.x509_cert_id,
-					ca.x509_cert_id AS ca_x509_cert_id,
+			SELECT	x.x509_cert_id AS ID,
+					ca.x509_cert_id AS CAID,
 					x.is_active as "Act",
 					x.friendly_name as "Friendly Name",
 					x.is_certificate_authority AS "CA",
@@ -80,10 +80,10 @@ sub show_pending_certs {
 		caption => 'Certificates',
 		class   => 'reporting',
 		tableid => 'approvalreport',
-		hidden  => [ 'x509_cert_id', 'ca_x509_cert_id' ],
+		hidden  => [ 'ID', 'CAID' ],
 		urlmap  => {
-			"Friendly Name" => "?X509_CERT_ID=%{x509_cert_id}",
-			"Sign"          => "?X509_CERT_ID=%{ca_x509_cert_id}",
+			"Friendly Name" => "?X509_CERT_ID=%{ID}",
+			"Sign"          => "?X509_CERT_ID=%{CAID}",
 		}
 	);
 	print "\n\n", $cgi->end_html, "\n";

@@ -27,7 +27,9 @@
 		--edit-button-filter: saturate(1.0) brightness(0.8);
 		--edit-button-filter-hover: saturate(1.0) brightness(1.2);
 
-    --background-color-box: rgba(211,211,211,0.7);
+		--paging-controls-button: 1px solid rgba(0, 0, 0, 0.2);
+
+		--background-color-box: rgba(211,211,211,0.7);
 
 		--background-color-tabgrouptab: rgba(0, 0, 0, 0.03);
 		--background-color-tabcontent: rgba(0, 0, 0, 0.05);
@@ -55,10 +57,10 @@
 		--icon-vendor-filter: brightness(1.0);
 
 		--color-autocomplete-suggestion: #333;
-	--color-autocomplete-suggestion-strong: #0072e5;
-	--background-color-autocomplete-suggestion-selected: rgb(255, 255, 0);
+		--color-autocomplete-suggestion-strong: #0072e5;
+		--background-color-autocomplete-suggestion-selected: rgb(255, 255, 0);
 
-	--color-note-message: green;
+		--color-note-message: green;
   }
 }/* Dark theme styling variables */
 @media (prefers-color-scheme: dark) {
@@ -87,6 +89,8 @@
 
 		--edit-button-filter: saturate(0.5) brightness(4.0);
 		--edit-button-filter-hover: saturate(0.5) brightness(7.0);
+
+		--paging-controls-button: 1px solid rgba(255, 255, 255, 0.3);
 
 		--background-color-box: rgb(68, 68, 68, 0.7);
 
@@ -1678,7 +1682,7 @@ button.paging {
 
 .paging-controls button {
 	padding: 6px 12px;
-	border: 1px solid rgba(0, 0, 0, 0.2);
+	border: var( --paging-controls-button );
 	background: var(--background-color);
 	border-radius: 4px;
 	cursor: pointer;
@@ -1751,4 +1755,8 @@ a.goto-link {
 	input.changed + & {
 		visibility: hidden;
 	}
+}
+
+a.collapseall, a.expandall {
+	cursor: pointer;
 }
