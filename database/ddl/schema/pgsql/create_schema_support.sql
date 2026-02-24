@@ -3322,12 +3322,12 @@ BEGIN
 		WITH x AS (
 		SELECT *
 			FROM (
-		SELECT oid, schema, name,  typ,
+		SELECT x.oid, schema, name,  typ,
 			p->>'privilege_type' as privilege_type,
 			col,
-			r.usename as grantor, e.usename as grantee,
+			r.rolname as grantor, e.rolname as grantee,
 			r.oid as rid,  e.oid as eid,
-			e.useconfig
+			e.rolconfig
 		FROM (
 			SELECT  c.oid, n.nspname as schema,
 			c.relname as name,
