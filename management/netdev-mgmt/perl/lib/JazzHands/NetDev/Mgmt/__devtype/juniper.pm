@@ -7,8 +7,8 @@ use Socket;
 use	XML::DOM;
 use JazzHands::Common::Util qw(_options);
 use JazzHands::Common::Error qw(:all);
-use NetAddr::IP qw(:lower);
-use Net::MAC qw(:lower);
+use NetAddr::IP ;
+use Net::MAC ;
 use JazzHands::NetDev::Mgmt::Common qw(:all);
 
 #
@@ -3677,6 +3677,12 @@ my $iface_map = {
 		media_type => '100GMXPEthernet',
 		slot_prefix => 'et-',
 	},
+	'QSFP-100GBASE-LR4' => {
+		module_type => '100GQSFP28Ethernet',
+		media_type => '100GMXPEthernet',
+		slot_prefix => 'et-',
+	},
+
 };
 
 sub GetChassisInfo {
