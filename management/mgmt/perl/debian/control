@@ -9,7 +9,7 @@ Homepage: http://www.jazzhands.net/
 Package: jazzhands-perl-mgmt
 Section: unknown
 Architecture: all
-Depends: jazzhands-perl-common ( >= 0.96.0) , perl-jazzhands-dbi ( >= 0.96.0) , libnetaddr-ip-perl
+Depends: jazzhands-perl-common ( >= 0.98.2) , perl-jazzhands-dbi ( >= 0.96.0) , libnetaddr-ip-perl
 Description: 
  ORM for perl for JazzHands. (to be deprecated)
 

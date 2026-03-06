@@ -158,7 +158,7 @@ sub GetNetblock {
 		foreach my $key (keys %$row) {
 			$object->{_current}->{$key} = $row->{$key};
 		}
-		$object->{ip_address} = NetAddr::IP->new($row->{ip_address});
+		$object->{ip_address} = NetAddr::IP->new($row->{'IP_ADDRESS'});
 		push @$matches, $object;
 		last if $opt->{single};
 	}
