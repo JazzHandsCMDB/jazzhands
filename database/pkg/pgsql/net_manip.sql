@@ -135,13 +135,14 @@ CREATE OR REPLACE FUNCTION net_manip.inet_is_private_yn
 	)
 RETURNS char AS $$
 BEGIN
-	IF (net_manip.inet_is_private(p_ip_address)) THEN
-		RETURN true;
-	ELSE
-		RETURN false;
-	END IF;
+	RETURN net_manip.inet_is_private(p_ip_address);
 END;
-$$ LANGUAGE plpgsql;
+$$
+IMMUTABLE
+LEAKPROOF
+RETURNS NULL ON NULL INPUT
+PARALLEL SAFE
+LANGUAGE plpgsql;
 
 CREATE OR REPLACE FUNCTION net_manip.inet_is_private
 	(
@@ -149,25 +150,35 @@ CREATE OR REPLACE FUNCTION net_manip.inet_is_private
 	)
 RETURNS boolean AS $$
 BEGIN
-	IF( family(p_ip_address) = 4) THEN
-		IF ('192.168/16' >> p_ip_address) THEN
-			RETURN(true);
-		END IF;
-		IF ('10/8' >> p_ip_address) THEN
-			RETURN(true);
-		END IF;
-		IF ('172.16/12' >> p_ip_address) THEN
-			RETURN(true);
-		END IF;
-	else
-		IF ('FC00::/7' >> p_ip_address) THEN
-			RETURN(true);
-		END IF;
-	END IF;
-
-	RETURN(false);
+	RETURN p_ip_address <<= ANY(ARRAY[
+		-- Private
+		'10/8',
+		'172.16/12',
+		'192.168/16',
+		'fc00::/7',
+		-- Loopbacks
+		'127/8',
+		'::1/128',
+		-- Link-local
+		'169.254/16',
+		'fe80::/10',
+		-- Multicast
+		'224/4',
+		'ff00::/8',
+		-- Special use
+		'0/8',
+		'100.64/10',
+		'198.18/15',
+		'::/128',
+		'2001::/32'
+	]::inet[]);
 END;
-$$ LANGUAGE plpgsql;
+$$
+IMMUTABLE
+LEAKPROOF
+RETURNS NULL ON NULL INPUT
+PARALLEL SAFE
+LANGUAGE plpgsql;
 
 CREATE OR REPLACE function net_manip.inet_inblock
 	(
