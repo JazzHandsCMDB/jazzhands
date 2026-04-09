@@ -84,7 +84,8 @@
 \ir account_collection_manip.sql
 \ir script_hooks.sql
 \ir backend_utils.sql
-\ir rack_utils.sql
+\ir rack_utils/rack_utils.sql
+\ir rack_manip/rack_manip.sql
 \ir layerx_network_manip.sql
 \ir component_connection_utils.sql
 \ir logical_port_manip.sql

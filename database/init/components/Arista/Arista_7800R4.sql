@@ -1,13 +1,13 @@
 --
 -- Copyright (c) 2020 Matthew Ragan
 -- All rights reserved.
--- 
+--
 -- Licensed under the Apache License, Version 2.0 (the "License");
 -- you may not use this file except in compliance with the License.
 -- You may obtain a copy of the License at
--- 
---      http://www.apache.org/licenses/LICENSE-2.0
--- 
+--
+--	  http://www.apache.org/licenses/LICENSE-2.0
+--
 -- Unless required by applicable law or agreed to in writing, software
 -- distributed under the License is distributed on an "AS IS" BASIS,
 -- WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
@@ -45,10 +45,10 @@ BEGIN
 		('Arista 78XXR4 Linecard', 'chassis_slot')
 	EXCEPT
 	SELECT slot_physical_interface_type, slot_function
-	FROM val_slot_physical_interface;	
+	FROM val_slot_physical_interface;
 
 	WITH z AS (
-		INSERT INTO slot_type 
+		INSERT INTO slot_type
 			(slot_type, slot_physical_interface_type, slot_function,
 			 description, remote_slot_permitted)
 		VALUES
@@ -60,7 +60,7 @@ BEGIN
 			slot_type, slot_physical_interface_type, slot_function,
 			 description, remote_slot_permitted
 		FROM slot_type
-		RETURNING slot_type_id 
+		RETURNING slot_type_id
 	) SELECT array_agg(slot_type_id) FROM z INTO stid;
 
 	INSERT INTO slot_type_permitted_component_slot_type (
@@ -72,7 +72,7 @@ BEGIN
 	FROM
 		unnest(stid) AS x(stid)
 	ON CONFLICT DO NOTHING;
-	
+
 	FOREACH d SLICE 1 IN ARRAY ARRAY[
 			['7816LR4', '16'],
 			['7812R4', '12'],
@@ -84,7 +84,7 @@ BEGIN
 		WHERE
 			model = d[1] AND
 			company_id = cid;
-		
+
 		IF NOT FOUND THEN
 			INSERT INTO component_type (
 				description,
@@ -152,10 +152,10 @@ BEGIN
 				x.idx,
 				'FRONT'
 			FROM
-				generate_series(3, 2 + d[2]::integer) x(idx);
+				generate_series(3, 2 + d[2]::integer) x(idx)
 		END IF;
 	END LOOP;
-		
+
 	--
 	-- Supervisor modules
 	--
@@ -163,7 +163,7 @@ BEGIN
 	PERFORM * FROM component_type WHERE
 		model = 'DCS-7800-SUP1S' AND
 		company_id = cid;
-	
+
 	IF NOT FOUND THEN
 		INSERT INTO component_type (
 			description,
@@ -182,7 +182,7 @@ BEGIN
 		  FROM
 		  	slot_type
 		  WHERE
-		    slot_type = 'Arista 78XXR4 Supervisor' AND
+			slot_type = 'Arista 78XXR4 Supervisor' AND
 			slot_function = 'chassis_slot'
 		RETURNING component_type_id INTO ctid;
 
@@ -245,27 +245,40 @@ BEGIN
 
 	FOR card IN SELECT * FROM (VALUES
 		(
-	        '7800R4C-36PE-LC', 'Arista 7800R4C-36PE-LC, 36x800G OSFP linecard',
-        	'[
+			'7800R4C-36PE-LC', 'Arista 7800R4C-36PE-LC, 36x800G OSFP linecard',
+			'[
 				{ "slot_type": "800GOSFPEthernet", "count": 36 }
 			]'::jsonb
-	    )
-    ) AS s(model, description, ports) LOOP
-        RAISE INFO 'Model is %', card.model;
-        BEGIN
-            SELECT * INTO ct FROM component_manip.insert_arista_linecard_type(
-                model := card.model,
-                description := card.description,
+		),
+		(
+			'7800R4-36PE-LC', 'Arista 7800R4-36PE-LC, 36x800G OSFP linecard',
+			'[
+				{ "slot_type": "800GOSFPEthernet", "count": 36 }
+			]'::jsonb
+		),
+		(
+			'7800R4K-36PE-LC', 'Arista 7800R4K-36PE-LC, 36x800G OSFP linecard',
+			'[
+				{ "slot_type": "800GOSFPEthernet", "count": 36 }
+			]'::jsonb
+		)
+	) AS s(model, description, ports) LOOP
+		RAISE INFO 'Model is %', card.model;
+		BEGIN
+			SELECT * INTO ct FROM component_manip.insert_arista_linecard_type(
+				model := card.model,
+				description := card.description,
 				linecard_type := 'Arista 78XXR4 Linecard',
-                ports := card.ports
-            );
-        EXCEPTION
-            WHEN unique_violation THEN
-                RAISE NOTICE 'linecard model % already inserted',
-                    card.model;
-                CONTINUE;
-        END;
-        RAISE INFO '  component_type_id is %', ct.component_type_id;
-    END LOOP;
+				ports := card.ports
+			);
+		EXCEPTION
+			WHEN unique_violation THEN
+				RAISE NOTICE 'linecard model % already inserted',
+					card.model;
+				CONTINUE;
+		END;
+		RAISE INFO '  component_type_id is %', ct.component_type_id;
+	END LOOP;
+
 END;
 $$ LANGUAGE plpgsql;

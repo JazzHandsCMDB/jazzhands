@@ -1,54 +1,52 @@
--- Copyright (c) 2016, Matthew Ragan
+-- Copyright (c) 2026, Matthew Ragan
 -- All rights reserved.
--- 
+--
 -- Licensed under the Apache License, Version 2.0 (the "License");
 -- you may not use this file except in compliance with the License.
 -- You may obtain a copy of the License at
--- 
+--
 --       http://www.apache.org/licenses/LICENSE-2.0
--- 
+--
 -- Unless required by applicable law or agreed to in writing, software
 -- distributed under the License is distributed on an "AS IS" BASIS,
 -- WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 -- See the License for the specific language governing permissions and
 -- limitations under the License.
 
--- Create schema if it does not exist, do nothing otherwise.
-DO $$
-DECLARE
-	_tal INTEGER;
-BEGIN
-	select count(*)
-	from pg_catalog.pg_namespace
-	into _tal
-	where nspname = 'rack_utils';
-	IF _tal = 0 THEN
-		DROP SCHEMA IF EXISTS rack_utils;
-		CREATE SCHEMA rack_utils AUTHORIZATION jazzhands;
-		REVOKE ALL ON SCHEMA rack_utils FROM public;
-		COMMENT ON SCHEMA rack_utils IS 'part of jazzhands';
-
-	END IF;
-END;
-$$;
-
 -------------------------------------------------------------------
--- begin rack_utils.set_rack_location
+-- begin rack_manip.set_rack_location
+--
+-- If insert_rack is true and both site_code and rack_name at a minimum
+-- are passed, the rack will be inserted into the database if it does
+-- not exist
 --
 -- NOTE: even if device_id and component_id are not passed, the
 -- rack_location is created if it does not exist and returned,
 -- so this function may be used for that purpose
 -------------------------------------------------------------------
-CREATE OR REPLACE FUNCTION rack_utils.set_rack_location (
-	rack_id			jazzhands.rack.rack_id%TYPE,
+
+CREATE OR REPLACE FUNCTION rack_manip.set_rack_location (
+	rack_id			jazzhands.rack.rack_id%TYPE DEFAULT NULL,
+	site_code		jazzhands.site.site_code%TYPE DEFAULT NULL,
+	room			jazzhands.rack.room%TYPE DEFAULT NULL,
+	sub_room		jazzhands.rack.sub_room%TYPE DEFAULT NULL,
+	rack_row		jazzhands.rack.rack_row%TYPE DEFAULT NULL,
+	rack_name		jazzhands.rack.rack_name%TYPE DEFAULT NULL,
+	rack_style		jazzhands.rack.rack_style%TYPE DEFAULT 'CABINET',
+	rack_height_in_u	integer DEFAULT 48,
+	display_from_bottom	boolean DEFAULT true,
 	device_id		jazzhands.device.device_id%TYPE DEFAULT NULL,
 	component_id	jazzhands.component.component_id%TYPE DEFAULT NULL,
 	rack_u_offset_of_device_top 
 					jazzhands.rack_location.rack_u_offset_of_device_top%TYPE
 					DEFAULT NULL,
 	rack_side 		jazzhands.rack_location.rack_side%TYPE DEFAULT 'FRONT',
+	insert_rack			boolean DEFAULT false,
 	allow_duplicates	boolean DEFAULT true
 ) RETURNS jazzhands.rack_location.rack_location_id%TYPE AS $$
+
+#variable_conflict use_variable
+
 DECLARE
 	rid		ALIAS FOR	rack_id;
 	devid	ALIAS FOR	device_id;
@@ -60,7 +58,49 @@ DECLARE
 	tally	integer;
 BEGIN
 	IF rack_id IS NULL THEN
-		RAISE 'rack_id must be specified to rack_utils.set_rack_location()';
+		IF site_code IS NULL OR rack_name IS NULL THEN
+			RAISE 'Either rack_id or both site_code and rack_name must be specified to rack_manip.set_rack_location()';
+		END IF;
+		SELECT
+			r.rack_id INTO rid
+		FROM
+			rack r
+		WHERE
+			r.site_code IS NOT DISTINCT FROM site_code AND
+			r.room IS NOT DISTINCT FROM room AND
+			r.sub_room IS NOT DISTINCT FROM sub_room AND
+			r.rack_row IS NOT DISTINCT FROM rack_row AND
+			r.rack_name IS NOT DISTINCT FROM rack_name;
+
+		IF NOT FOUND THEN
+			IF NOT insert_rack THEN
+				RAISE 'Rack not found and insert_rack is false';
+			END IF;
+
+			INSERT INTO rack(
+				site_code,
+				room,
+				sub_room,
+				rack_row,
+				rack_name,
+				rack_style,
+				rack_height_in_u,
+				display_from_bottom
+			) VALUES (
+				site_code,
+				room,
+				sub_room,
+				rack_row,
+				rack_name,
+				rack_style,
+				rack_height_in_u,
+				display_from_bottom
+			)
+			RETURNING * INTO rec;
+			rack_id := rec.rack_id;
+
+			RAISE INFO 'Rack id is %', rack_id;
+		END IF;
 	END IF;
 
 	SELECT
@@ -117,11 +157,6 @@ BEGIN
 END;
 $$ LANGUAGE plpgsql set search_path=jazzhands SECURITY DEFINER;
 -------------------------------------------------------------------
---end rack_utils.set_rack_location
+--end rack_manip.set_rack_location
 -------------------------------------------------------------------
 
-REVOKE ALL ON SCHEMA rack_utils FROM public;
-REVOKE ALL ON ALL FUNCTIONS IN SCHEMA rack_utils FROM public;
-
-GRANT USAGE ON SCHEMA rack_utils TO iud_role;
-GRANT EXECUTE ON ALL FUNCTIONS IN SCHEMA rack_utils TO iud_role;
