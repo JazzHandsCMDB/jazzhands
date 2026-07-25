@@ -99,5 +99,7 @@
 \ir create_v_service_endpoint_service_instance.sql
 \ir create_v_service_endpoint_expanded.sql
 
--- deprecated >= 0.07.
+\ir pgsql/create_v_device_nat_address.sql
+
+-- deprecated >= 0.97.
 \ir create_physicalish_volume_compat.sql

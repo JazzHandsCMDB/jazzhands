@@ -2585,6 +2585,46 @@ INSERT INTO val_service_endpoint_x509_certificate_purpose (
 	('bootstrap')
 ;
 
+INSERT INTO protocol (
+	protocol, protocol_number
+) VALUES (
+	'all', 0
+);
+
+INSERT INTO val_port_range_type (
+	port_range_type, protocol, range_permitted
+) VALUES (
+	'all', 'all', true
+);
+
+INSERT INTO port_range (
+	port_range_name, protocol, port_range_type,
+	port_start, port_end, is_singleton
+) VALUES (
+	'all', 'all', 'all', 0, 65535, false
+);
+
+INSERT INTO val_service_endpoint_provider_type (
+	service_endpoint_provider_type,
+	proxies_connections, translates_addresses
+) VALUES (
+	'direct-nat', false, true
+);
+
+WITH s AS (
+	INSERT INTO service (
+		service_name, service_type, is_active, is_synthesized
+	) VALUES (
+		'nat', 'network', true, false
+	) RETURNING service_id
+)
+INSERT INTO service_version (
+	service_id, service_type, service_version_name,
+	is_enabled, is_deprecated, is_synthesized
+) SELECT
+	service_id, 'network', '1.0', true, false, false
+FROM s;
+
 -------------------------------------------------------------------------
 --
 -- END Services
