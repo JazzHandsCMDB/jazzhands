@@ -326,7 +326,7 @@ BEGIN
 			parent_netblock_id := parent_netblock_id,
 			netmask_bits := netmask_bits,
 			single_address := single_address,
-			allocate_from_bottom := allocate_from_bottom,
+			allocation_method := allocation_method,
 			desired_ip_address := desired_ip_address,
 			max_addresses := 1);
 END;

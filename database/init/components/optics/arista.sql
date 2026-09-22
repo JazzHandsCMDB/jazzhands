@@ -385,5 +385,79 @@ BEGIN
 		WHERE
 			slot_type = 'fiber' and slot_function = 'network';
 	END IF;
+
+
+	SELECT component_type_id INTO ctid
+	FROM
+		component_type
+	WHERE
+		company_id = cid AND
+		model = 'QSFP-100G-C4-AR';
+
+	IF NOT FOUND THEN
+		INSERT INTO component_type (
+			description,
+			slot_type_id,
+			model,
+			company_id,
+			asset_permitted,
+			is_rack_mountable
+		)
+		SELECT
+			'QSFP28 100G CR4',
+			slot_type_id,
+			'QSFP-100G-C4-AR',
+			cid,
+			true,
+			false
+		FROM
+			slot_type
+		WHERE
+			slot_function = 'network' AND
+			slot_type = '100GQSFP28Ethernet'
+		RETURNING component_type_id INTO ctid;
+
+		PERFORM * FROM val_component_function
+		WHERE component_function = 'network_transceiver';
+
+		IF NOT FOUND THEN
+			INSERT INTO val_component_function (
+				component_function,
+				description
+			) VALUES (
+				'network_transceiver',
+				'Network "optic" transceiver'
+			);
+		END IF;
+
+		INSERT INTO component_type_component_function (
+			component_type_id,
+			component_function
+		) VALUES (
+			ctid,
+			'network_transceiver'
+		);
+
+
+		--
+		-- 10/40GE ports
+		--
+		INSERT INTO component_type_slot_template (
+			component_type_id,
+			slot_type_id,
+			slot_name_template,
+			slot_index
+		) SELECT
+			ctid,
+			slot_type_id,
+			1 + x.idx,
+			1 + x.idx
+		FROM
+			slot_type st,
+			generate_series(0,3) x(idx)
+		WHERE
+			slot_type = 'fiber' and slot_function = 'network';
+	END IF;
+
 END;
 $$ LANGUAGE plpgsql;
