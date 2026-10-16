@@ -223,13 +223,6 @@ BEGIN
 
 	short_name := regexp_replace(dns_domain_name, concat('\.', parent_zone), '');
 
-	IF ip_universes IS NULL THEN
-		SELECT array_agg(ip_universe_id)
-		INTO	ip_universes
-		FROM	ip_universe
-		WHERE	ip_universe_name = 'default';
-	END IF;
-
 	IF dns_domain_type IS NULL THEN
 		IF dns_domain_name ~ '^.*\.(in-addr|ip6)\.arpa$' THEN
 			dns_domain_type := 'reverse';
@@ -245,6 +238,17 @@ BEGIN
 	INTO can_haz_generate
 	FROM val_dns_domain_type dt
 	WHERE dt.dns_domain_type = add_dns_domain.dns_domain_type;
+
+	IF ip_universes IS NULL THEN
+		IF can_haz_generate THEN
+			SELECT array_agg(ip_universe_id)
+			INTO	ip_universes
+			FROM	ip_universe
+			WHERE	ip_universe_name = 'default';
+		ELSE
+			ip_universes := ARRAY[]::integer[];
+		END IF;
+	END IF;
 
 	BEGIN
 		INSERT INTO dns_domain (
@@ -337,12 +341,12 @@ BEGIN
 		add_nameservers := true;
 	END IF;
 
-	IF add_nameservers THEN
+	IF ( can_haz_generate AND add_nameservers ) THEN
 		PERFORM dns_manip.add_ns_records(domain_id);
 	END IF;
 
 	-- XXX - need to reconsider how ip universes fit into this.
-	IF parent_id IS NOT NULL THEN
+	IF ( can_haz_generate AND parent_id IS NOT NULL ) THEN
 		INSERT INTO dns_change_record (
 			dns_domain_id
 		) SELECT dns_domain_id
