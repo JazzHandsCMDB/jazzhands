@@ -3133,11 +3133,6 @@ CREATE INDEX xif_acct_pass_enc_key_id ON account_password
 	encryption_key_id ASC
 );
 
-CREATE INDEX idx_account_realm_ar_name ON account_realm
-( 
-	account_realm_name
-);
-
 CREATE INDEX xif1_acct_realm_acct_coll_typ ON account_realm_account_collection_type
 ( 
 	account_collection_type
@@ -6037,6 +6032,9 @@ ALTER TABLE account_password ADD COLUMN data_upd_date TIMESTAMP WITH TIME ZONE;
 
 ALTER TABLE account_realm
 	ADD CONSTRAINT pk_account_realm PRIMARY KEY (account_realm_id);
+
+ALTER TABLE account_realm
+	ADD CONSTRAINT uq_account_realm_ar_name UNIQUE (account_realm_name);
 
 ALTER TABLE account_realm ADD COLUMN data_ins_user varchar(255);
 ALTER TABLE account_realm ADD COLUMN data_ins_date TIMESTAMP WITH TIME ZONE;
