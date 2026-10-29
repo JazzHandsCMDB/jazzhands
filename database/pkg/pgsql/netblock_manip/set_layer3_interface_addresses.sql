@@ -949,12 +949,21 @@ BEGIN
 					protocol != 'unspecified' AND
 					address_errors = 'error'
 				THEN
-					RAISE 'Netblock % (%) is assigned to shared_netblock %, but the shared_netblock_protocol does not match (% vs. %)',
-						nb_rec.netblock_id,
-						nb_rec.ip_address,
-						sn_rec.shared_netblock_id,
-						sn_rec.shared_netblock_protocol,
-						protocol;
+					IF sn_rec.shared_netblock_protocol = 'unspecified' THEN
+						UPDATE
+							shared_netblock sn
+						SET
+							shared_netblock_protocol = protocol
+						WHERE
+							sn.shared_netblock_id = sn_rec.shared_netblock_id;
+					ELSE
+						RAISE 'Netblock % (%) is assigned to shared_netblock %, but the shared_netblock_protocol does not match (% vs. %)',
+							nb_rec.netblock_id,
+							nb_rec.ip_address,
+							sn_rec.shared_netblock_id,
+							sn_rec.shared_netblock_protocol,
+							protocol;
+					END IF;
 				END IF;
 			ELSE
 				INSERT INTO shared_netblock (
