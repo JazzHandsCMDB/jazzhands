@@ -89,6 +89,12 @@ BEGIN
 			chassisdef->>'slots',
 			chassisdef->>'rack_units';
 		
+		PERFORM * FROM component_type ct WHERE
+			model = chassisdef->>'model' AND
+			company_id = cid;
+
+		CONTINUE WHEN FOUND;
+
 		INSERT INTO component_type (
 			description,
 			slot_type_id,
@@ -487,6 +493,12 @@ BEGIN
 			chassisdef->>'slots',
 			chassisdef->>'rack_units';
 		
+		PERFORM * FROM component_type ct WHERE
+			model = chassisdef->>'model' AND
+			company_id = cid;
+
+		CONTINUE WHEN FOUND;
+
 		INSERT INTO component_type (
 			description,
 			slot_type_id,
